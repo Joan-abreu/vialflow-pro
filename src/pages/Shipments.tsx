@@ -143,6 +143,7 @@ const Shipments = () => {
                       <TableHead>FBA ID</TableHead>
                       <TableHead>UPS Tracking</TableHead>
                       <TableHead>Delivery Date</TableHead>
+                      <TableHead>Created</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -168,6 +169,9 @@ const Shipments = () => {
                           {shipment.ups_delivery_date 
                             ? format(new Date(shipment.ups_delivery_date), "PP") 
                             : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(shipment.created_at), "PP")}
                         </TableCell>
                         <TableCell>
                           <Badge variant={getStatusColor(shipment.status)}>

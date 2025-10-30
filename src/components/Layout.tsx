@@ -32,8 +32,8 @@ const Layout = ({ children }: LayoutProps) => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Production", href: "/production", icon: Package },
-    { name: "Inventory", href: "/inventory", icon: Boxes },
     { name: "Shipments", href: "/shipments", icon: Truck },
+    { name: "Inventory", href: "/inventory", icon: Boxes },
   ];
 
   const NavigationLinks = () => (

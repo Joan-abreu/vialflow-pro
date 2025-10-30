@@ -20,7 +20,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Shield, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Shield, Loader2, KeyRound } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 
@@ -36,6 +46,9 @@ const Users = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [selectedUserForReset, setSelectedUserForReset] = useState<UserWithRole | null>(null);
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
 
@@ -133,6 +146,50 @@ const Users = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!selectedUserForReset) return;
+
+    try {
+      setResettingPassword(selectedUserForReset.id);
+      setResetDialogOpen(false);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error("Not authenticated");
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: selectedUserForReset.id,
+            email: selectedUserForReset.email,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reset password');
+      }
+
+      toast.success(`Password reset email sent to ${selectedUserForReset.email}`);
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      toast.error(error.message || "Error resetting password");
+    } finally {
+      setResettingPassword(null);
+      setSelectedUserForReset(null);
+    }
+  };
+
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       admin: "Administrator",
@@ -191,6 +248,7 @@ const Users = () => {
                       <TableHead>Registration Date</TableHead>
                       <TableHead>Current Role</TableHead>
                       <TableHead>Change Role</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -229,6 +287,26 @@ const Users = () => {
                             <Loader2 className="h-4 w-4 animate-spin ml-2 inline" />
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserForReset(user);
+                              setResetDialogOpen(true);
+                            }}
+                            disabled={resettingPassword === user.id}
+                          >
+                            {resettingPassword === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <KeyRound className="h-4 w-4 mr-2" />
+                                Reset Password
+                              </>
+                            )}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -237,6 +315,26 @@ const Users = () => {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset User Password</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to send a password reset email to{" "}
+                <span className="font-semibold">{selectedUserForReset?.email}</span>?
+                <br /><br />
+                The user will receive an email with instructions to reset their password.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetPassword}>
+                Send Reset Email
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

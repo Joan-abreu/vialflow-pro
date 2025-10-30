@@ -72,7 +72,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      toast.error("Usuario no autenticado");
+      toast.error("User not authenticated");
       setLoading(false);
       return;
     }
@@ -108,7 +108,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
 
       if (error) throw error;
 
-      toast.success("Envío creado correctamente. Ahora puedes agregar cajas.");
+      toast.success("Shipment created successfully. You can now add boxes.");
       setFormData({
         shipment_number: "",
         destination: "",
@@ -120,7 +120,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
       setOpen(false);
       onSuccess();
     } catch (error: any) {
-      toast.error("Error al crear el envío: " + error.message);
+      toast.error("Error creating shipment: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -131,42 +131,42 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Nuevo Envío
+          New Shipment
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Crear Nuevo Envío</DialogTitle>
+            <DialogTitle>Create New Shipment</DialogTitle>
             <DialogDescription>
-              Ingresa los detalles del envío. Podrás agregar las cajas después.
+              Enter shipment details. You can add boxes afterwards.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="shipment_number">Número de Envío (opcional)</Label>
+              <Label htmlFor="shipment_number">Shipment Number (optional)</Label>
               <Input
                 id="shipment_number"
                 value={formData.shipment_number}
                 onChange={(e) => setFormData({ ...formData, shipment_number: e.target.value })}
-                placeholder="Se generará automáticamente si se deja vacío"
+                placeholder="Will be auto-generated if left empty"
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="batch_id">Lote *</Label>
+              <Label htmlFor="batch_id">Batch *</Label>
               <Select
                 value={formData.batch_id}
                 onValueChange={(value) => setFormData({ ...formData, batch_id: value })}
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un lote" />
+                  <SelectValue placeholder="Select batch" />
                 </SelectTrigger>
                 <SelectContent>
                   {batches.map((batch) => (
                     <SelectItem key={batch.id} value={batch.id}>
-                      {batch.batch_number} ({batch.quantity} unidades)
+                      {batch.batch_number} ({batch.quantity} units)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -174,23 +174,23 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="destination">Destino *</Label>
+              <Label htmlFor="destination">Destination *</Label>
               <Input
                 id="destination"
                 value={formData.destination}
                 onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                placeholder="ej., Almacén FBA - CA"
+                placeholder="e.g., FBA Warehouse - CA"
                 required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="ups_tracking_number">Número de Rastreo UPS</Label>
+              <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
               <Input
                 id="ups_tracking_number"
                 value={formData.ups_tracking_number}
                 onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
-                placeholder="Ingrese o escanee el código"
+                placeholder="Enter or scan code"
               />
               <BarcodeScanner 
                 onScan={(code) => setFormData({ ...formData, ups_tracking_number: code })}
@@ -203,12 +203,12 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                 id="fba_id"
                 value={formData.fba_id}
                 onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
-                placeholder="ej., FBA15GZKNNJ8"
+                placeholder="e.g., FBA15GZKNNJ8"
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="ups_delivery_date">Fecha de Entrega UPS</Label>
+              <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
               <Input
                 id="ups_delivery_date"
                 type="date"
@@ -219,10 +219,10 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creando..." : "Crear Envío"}
+              {loading ? "Creating..." : "Create Shipment"}
             </Button>
           </DialogFooter>
         </form>

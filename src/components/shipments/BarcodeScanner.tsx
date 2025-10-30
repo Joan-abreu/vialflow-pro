@@ -50,7 +50,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
               },
               (decodedText) => {
                 onScan(decodedText);
-                toast.success("Código escaneado correctamente");
+                toast.success("Code scanned successfully");
                 stopScanning();
               },
               (errorMessage) => {
@@ -59,16 +59,16 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
             );
           } catch (error) {
             console.error("Error initializing scanner:", error);
-            toast.error("Error al iniciar el escáner");
+            toast.error("Error starting scanner");
             setIsScanning(false);
           }
         }, 100);
       } else {
-        toast.error("No se encontró ninguna cámara");
+        toast.error("No camera found");
       }
     } catch (error) {
       console.error("Error getting cameras:", error);
-      toast.error("Error al acceder a la cámara");
+      toast.error("Error accessing camera");
     }
   };
 
@@ -85,7 +85,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
 
   const switchCamera = async () => {
     if (availableCameras.length <= 1) {
-      toast.error("No hay otras cámaras disponibles");
+      toast.error("No other cameras available");
       return;
     }
 
@@ -107,7 +107,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
           className="w-full"
         >
           <Camera className="mr-2 h-4 w-4" />
-          Escanear Código de Barras
+          Scan Barcode
         </Button>
       ) : (
         <div className="space-y-2">
@@ -122,7 +122,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
                 className="flex-1"
               >
                 <SwitchCamera className="mr-2 h-4 w-4" />
-                Cambiar Cámara
+                Switch Camera
               </Button>
             )}
             <Button
@@ -133,7 +133,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
               className="flex-1"
             >
               <X className="mr-2 h-4 w-4" />
-              Detener
+              Stop
             </Button>
           </div>
         </div>

@@ -73,7 +73,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
   const handleAddBox = async () => {
     if (!newBox.box_number) {
-      toast.error("El número de caja es requerido");
+      toast.error("Box number is required");
       return;
     }
 
@@ -92,7 +92,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
       if (error) throw error;
 
-      toast.success("Caja agregada correctamente");
+      toast.success("Box added successfully");
       setNewBox({
         box_number: "",
         packs_per_box: "",
@@ -105,14 +105,14 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
     } catch (error: any) {
-      toast.error(error.message || "Error al agregar la caja");
+      toast.error(error.message || "Error adding box");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteBox = async (boxId: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta caja?")) return;
+    if (!confirm("Are you sure you want to delete this box?")) return;
 
     try {
       const { error } = await supabase
@@ -122,11 +122,11 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
       if (error) throw error;
 
-      toast.success("Caja eliminada correctamente");
+      toast.success("Box deleted successfully");
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
     } catch (error: any) {
-      toast.error("Error al eliminar la caja");
+      toast.error("Error deleting box");
     }
   };
 
@@ -135,31 +135,31 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Package className="mr-2 h-4 w-4" />
-          Ver Cajas
+          View Boxes
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Cajas del Envío {shipmentNumber}</DialogTitle>
+          <DialogTitle>Boxes for Shipment {shipmentNumber}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Lista de cajas existentes */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Cajas Existentes</h3>
+            <h3 className="text-lg font-semibold mb-4">Existing Boxes</h3>
             {boxes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay cajas agregadas aún.</p>
+              <p className="text-sm text-muted-foreground">No boxes added yet.</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Caja #</TableHead>
-                      <TableHead>Paquetes</TableHead>
-                      <TableHead>Botellas</TableHead>
-                      <TableHead>Peso (lb)</TableHead>
-                      <TableHead>Dimensiones (in)</TableHead>
-                      <TableHead>Acciones</TableHead>
+                      <TableHead>Box #</TableHead>
+                      <TableHead>Packs</TableHead>
+                      <TableHead>Bottles</TableHead>
+                      <TableHead>Weight (lb)</TableHead>
+                      <TableHead>Dimensions (in)</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -193,10 +193,10 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
           {/* Formulario para agregar nueva caja */}
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold mb-4">Agregar Nueva Caja</h3>
+            <h3 className="text-lg font-semibold mb-4">Add New Box</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="box_number">Número de Caja *</Label>
+                <Label htmlFor="box_number">Box Number *</Label>
                 <Input
                   id="box_number"
                   type="number"
@@ -206,7 +206,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="packs_per_box">Paquetes</Label>
+                <Label htmlFor="packs_per_box">Packs</Label>
                 <Input
                   id="packs_per_box"
                   type="number"
@@ -216,7 +216,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bottles_per_box">Botellas</Label>
+                <Label htmlFor="bottles_per_box">Bottles</Label>
                 <Input
                   id="bottles_per_box"
                   type="number"
@@ -226,7 +226,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="weight_lb">Peso (lb)</Label>
+                <Label htmlFor="weight_lb">Weight (lb)</Label>
                 <Input
                   id="weight_lb"
                   type="number"
@@ -237,7 +237,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dimension_length_in">Largo (in)</Label>
+                <Label htmlFor="dimension_length_in">Length (in)</Label>
                 <Input
                   id="dimension_length_in"
                   type="number"
@@ -248,7 +248,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dimension_width_in">Ancho (in)</Label>
+                <Label htmlFor="dimension_width_in">Width (in)</Label>
                 <Input
                   id="dimension_width_in"
                   type="number"
@@ -259,7 +259,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dimension_height_in">Alto (in)</Label>
+                <Label htmlFor="dimension_height_in">Height (in)</Label>
                 <Input
                   id="dimension_height_in"
                   type="number"
@@ -272,7 +272,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
               <div className="flex items-end">
                 <Button onClick={handleAddBox} disabled={loading} className="w-full">
                   <Plus className="mr-2 h-4 w-4" />
-                  Agregar
+                  Add Box
                 </Button>
               </div>
             </div>

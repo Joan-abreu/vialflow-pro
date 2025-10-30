@@ -115,15 +115,15 @@ const Shipments = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Número de Envío</TableHead>
+                      <TableHead>Shipment Number</TableHead>
                       <TableHead>Batch</TableHead>
-                      <TableHead>Destino</TableHead>
-                      <TableHead>Total Cajas</TableHead>
+                      <TableHead>Destination</TableHead>
+                      <TableHead>Total Boxes</TableHead>
                       <TableHead>FBA ID</TableHead>
                       <TableHead>UPS Tracking</TableHead>
-                      <TableHead>Fecha Entrega</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
+                      <TableHead>Delivery Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -137,7 +137,7 @@ const Shipments = () => {
                         </TableCell>
                         <TableCell>{shipment.destination || "-"}</TableCell>
                         <TableCell>
-                          {shipment.shipment_boxes?.length || 0} cajas
+                          {shipment.shipment_boxes?.length || 0} boxes
                         </TableCell>
                         <TableCell>{shipment.fba_id || "-"}</TableCell>
                         <TableCell className="font-mono text-sm">

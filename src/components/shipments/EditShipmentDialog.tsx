@@ -81,11 +81,11 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
 
       if (error) throw error;
 
-      toast.success("Envío actualizado correctamente");
+      toast.success("Shipment updated successfully");
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
       setOpen(false);
     } catch (error: any) {
-      toast.error("Error al actualizar el envío");
+      toast.error("Error updating shipment");
       console.error("Error:", error);
     } finally {
       setLoading(false);
@@ -101,12 +101,12 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Envío</DialogTitle>
+          <DialogTitle>Edit Shipment</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="shipment_number">Número de Envío *</Label>
+              <Label htmlFor="shipment_number">Shipment Number *</Label>
               <Input
                 id="shipment_number"
                 value={formData.shipment_number}
@@ -116,21 +116,21 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Estado *</Label>
+              <Label htmlFor="status">Status *</Label>
               <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="preparing">Preparando</SelectItem>
-                  <SelectItem value="shipped">Enviado</SelectItem>
-                  <SelectItem value="delivered">Entregado</SelectItem>
+                  <SelectItem value="preparing">Preparing</SelectItem>
+                  <SelectItem value="shipped">Shipped</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="destination">Destino</Label>
+              <Label htmlFor="destination">Destination</Label>
               <Input
                 id="destination"
                 value={formData.destination}
@@ -139,7 +139,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ups_delivery_date">Fecha de Entrega UPS</Label>
+              <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
               <Input
                 id="ups_delivery_date"
                 type="date"
@@ -149,7 +149,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ups_tracking_number">Número de Rastreo UPS</Label>
+              <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
               <Input
                 id="ups_tracking_number"
                 value={formData.ups_tracking_number}
@@ -168,7 +168,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
           </div>
 
           <div className="text-sm text-muted-foreground mb-4">
-            <p>Para gestionar las cajas de este envío, usa el botón "Ver Cajas".</p>
+            <p>To manage boxes for this shipment, use the "View Boxes" button.</p>
           </div>
 
           <div className="flex justify-end gap-2">
@@ -178,10 +178,10 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
               onClick={() => setOpen(false)}
               disabled={loading}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar Cambios"}
+              {loading ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>

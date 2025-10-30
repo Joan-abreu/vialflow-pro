@@ -13,12 +13,14 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
+import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 
 interface ProductionBatch {
   id: string;
   batch_number: string;
   quantity: number;
   status: string;
+  sale_type: string;
   created_at: string;
   vial_types: {
     name: string;
@@ -70,7 +72,10 @@ const Production = () => {
               Manage production batches and workflows
             </p>
           </div>
-          <AddBatchDialog onSuccess={fetchBatches} />
+          <div className="flex gap-2">
+            <ManageVialTypesDialog />
+            <AddBatchDialog onSuccess={fetchBatches} />
+          </div>
         </div>
 
         <Card>
@@ -91,6 +96,7 @@ const Production = () => {
                     <TableHead>Batch Number</TableHead>
                     <TableHead>Vial Type</TableHead>
                     <TableHead>Quantity</TableHead>
+                    <TableHead>Sale Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
@@ -103,6 +109,7 @@ const Production = () => {
                         {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
                       </TableCell>
                       <TableCell>{batch.quantity}</TableCell>
+                      <TableCell className="capitalize">{batch.sale_type}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusColor(batch.status)} className="capitalize">
                           {batch.status.replace("_", " ")}

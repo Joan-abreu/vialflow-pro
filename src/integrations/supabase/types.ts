@@ -44,6 +44,7 @@ export type Database = {
           current_step_id: string | null
           id: string
           quantity: number
+          sale_type: string
           started_at: string | null
           status: string
           updated_at: string
@@ -57,6 +58,7 @@ export type Database = {
           current_step_id?: string | null
           id?: string
           quantity: number
+          sale_type?: string
           started_at?: string | null
           status?: string
           updated_at?: string
@@ -70,6 +72,7 @@ export type Database = {
           current_step_id?: string | null
           id?: string
           quantity?: number
+          sale_type?: string
           started_at?: string | null
           status?: string
           updated_at?: string

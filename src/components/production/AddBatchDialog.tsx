@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
@@ -40,6 +41,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     batch_number: "",
     vial_type_id: "",
     quantity: "",
+    sale_type: "individual",
   });
 
   useEffect(() => {
@@ -96,6 +98,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       batch_number: formData.batch_number.trim(),
       vial_type_id: formData.vial_type_id,
       quantity: parseInt(formData.quantity),
+      sale_type: formData.sale_type,
       created_by: user.id,
       status: "pending",
     });
@@ -111,6 +114,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         batch_number: "",
         vial_type_id: "",
         quantity: "",
+        sale_type: "individual",
       });
       onSuccess();
     }
@@ -171,6 +175,26 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                 required
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Sale Type *</Label>
+              <RadioGroup
+                value={formData.sale_type}
+                onValueChange={(value) => setFormData({ ...formData, sale_type: value })}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="font-normal cursor-pointer">
+                    Individual
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="pack" id="pack" />
+                  <Label htmlFor="pack" className="font-normal cursor-pointer">
+                    Pack
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
           </div>
           <DialogFooter>

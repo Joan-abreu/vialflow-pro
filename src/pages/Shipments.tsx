@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -46,6 +47,7 @@ interface Shipment {
 const Shipments = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchShipments = async () => {
     setLoading(true);
@@ -89,6 +91,18 @@ const Shipments = () => {
     }
   };
 
+  const filteredShipments = shipments.filter((shipment) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      shipment.shipment_number.toLowerCase().includes(query) ||
+      shipment.production_batches?.batch_number.toLowerCase().includes(query) ||
+      shipment.destination?.toLowerCase().includes(query) ||
+      shipment.fba_id?.toLowerCase().includes(query) ||
+      shipment.ups_tracking_number?.toLowerCase().includes(query) ||
+      shipment.status.toLowerCase().includes(query)
+    );
+  });
+
   const handleDeleteShipment = async (shipmentId: string, shipmentNumber: string) => {
     if (!confirm(`Are you sure you want to delete shipment ${shipmentNumber}? This will also delete all boxes associated with it.`)) {
       return;
@@ -125,11 +139,21 @@ const Shipments = () => {
 
         <Card>
           <CardContent className="pt-6">
+            <div className="mb-4">
+              <Input
+                placeholder="Search by shipment number, batch, destination, FBA ID, tracking, or status..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-lg"
+              />
+            </div>
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : shipments.length === 0 ? (
+            ) : filteredShipments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No shipments yet. Click "New Shipment" to create your first box.
+                {shipments.length === 0
+                  ? "No shipments yet. Click 'New Shipment' to create your first box."
+                  : "No shipments found matching your search."}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -149,7 +173,7 @@ const Shipments = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {shipments.map((shipment) => (
+                    {filteredShipments.map((shipment) => (
                       <TableRow key={shipment.id}>
                         <TableCell className="font-medium">
                           {shipment.shipment_number}

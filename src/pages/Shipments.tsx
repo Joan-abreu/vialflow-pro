@@ -11,6 +11,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
@@ -104,10 +115,6 @@ const Shipments = () => {
   });
 
   const handleDeleteShipment = async (shipmentId: string, shipmentNumber: string) => {
-    if (!confirm(`Are you sure you want to delete shipment ${shipmentNumber}? This will also delete all boxes associated with it.`)) {
-      return;
-    }
-
     try {
       const { error } = await supabase
         .from("shipments")
@@ -209,13 +216,31 @@ const Shipments = () => {
                               shipmentNumber={shipment.shipment_number}
                             />
                             <EditShipmentDialog shipment={shipment} />
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete shipment "{shipment.shipment_number}"? 
+                                    This will also delete all boxes associated with it. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

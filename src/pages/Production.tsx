@@ -12,13 +12,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
-import { Package } from "lucide-react";
+import { Package, Trash2 } from "lucide-react";
 
 interface ProductionBatch {
   id: string;
@@ -69,6 +81,23 @@ const Production = () => {
         return "destructive";
       default:
         return "outline";
+    }
+  };
+
+  const handleDeleteBatch = async (batchId: string, batchNumber: string) => {
+    try {
+      const { error } = await supabase
+        .from("production_batches")
+        .delete()
+        .eq("id", batchId);
+
+      if (error) throw error;
+
+      toast.success(`Batch ${batchNumber} deleted successfully`);
+      fetchBatches();
+    } catch (error: any) {
+      toast.error("Error deleting batch");
+      console.error("Error:", error);
     }
   };
 
@@ -181,6 +210,31 @@ const Production = () => {
                                 }
                               />
                             )}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete batch "{batch.batch_number}"? 
+                                    This will also delete all related shipments and boxes. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteBatch(batch.id, batch.batch_number)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

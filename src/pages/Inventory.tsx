@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2, GripVertical } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
@@ -45,6 +45,7 @@ interface RawMaterial {
 const Inventory = () => {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -68,23 +69,30 @@ const Inventory = () => {
     return material.current_stock < material.min_stock_level;
   };
 
-  const moveItem = async (index: number, direction: "up" | "down") => {
-    if (
-      (direction === "up" && index === 0) ||
-      (direction === "down" && index === materials.length - 1)
-    ) {
-      return;
-    }
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
 
-    const newIndex = direction === "up" ? index - 1 : index + 1;
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === index) return;
+
     const newMaterials = [...materials];
-    const [movedItem] = newMaterials.splice(index, 1);
-    newMaterials.splice(newIndex, 0, movedItem);
-
+    const draggedItem = newMaterials[draggedIndex];
+    
+    newMaterials.splice(draggedIndex, 1);
+    newMaterials.splice(index, 0, draggedItem);
+    
     setMaterials(newMaterials);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIndex === null) return;
 
     try {
-      const updates = newMaterials.map((material, idx) =>
+      const updates = materials.map((material, idx) =>
         supabase
           .from("raw_materials")
           .update({ order_index: idx })
@@ -97,6 +105,8 @@ const Inventory = () => {
       toast.error("Error updating order");
       fetchMaterials();
     }
+    
+    setDraggedIndex(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -145,7 +155,7 @@ const Inventory = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">Order</TableHead>
+                    <TableHead className="w-12"></TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Current Stock</TableHead>
@@ -157,28 +167,16 @@ const Inventory = () => {
                 </TableHeader>
                 <TableBody>
                   {materials.map((material, index) => (
-                    <TableRow key={material.id}>
+                    <TableRow 
+                      key={material.id}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className="cursor-move"
+                    >
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => moveItem(index, "up")}
-                            disabled={index === 0}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => moveItem(index, "down")}
-                            disabled={index === materials.length - 1}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronDown className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
                       </TableCell>
                       <TableCell className="font-medium">{material.name}</TableCell>
                       <TableCell className="capitalize">{material.category}</TableCell>

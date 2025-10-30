@@ -42,7 +42,7 @@ const Users = () => {
   useEffect(() => {
     if (!roleLoading && !isAdmin) {
       navigate("/");
-      toast.error("No tienes permisos para acceder a esta página");
+      toast.error("You don't have permission to access this page");
     }
   }, [isAdmin, roleLoading, navigate]);
 
@@ -75,7 +75,7 @@ const Users = () => {
       
       if (authError) {
         console.error("Error fetching auth users:", authError);
-        toast.error("Error al cargar usuarios");
+        toast.error("Error loading users");
         return;
       }
 
@@ -97,7 +97,7 @@ const Users = () => {
       setUsers(usersWithRoles);
     } catch (error: any) {
       console.error("Error fetching users:", error);
-      toast.error("Error al cargar usuarios");
+      toast.error("Error loading users");
     } finally {
       setLoading(false);
     }
@@ -122,11 +122,11 @@ const Users = () => {
 
       if (error) throw error;
 
-      toast.success("Rol actualizado exitosamente");
+      toast.success("Role updated successfully");
       fetchUsers();
     } catch (error: any) {
       console.error("Error updating role:", error);
-      toast.error("Error al actualizar rol");
+      toast.error("Error updating role");
     } finally {
       setUpdatingUser(null);
     }
@@ -149,10 +149,10 @@ const Users = () => {
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
-      admin: "Administrador",
-      manager: "Gerente",
-      staff: "Personal",
-      pending: "Pendiente",
+      admin: "Administrator",
+      manager: "Manager",
+      staff: "Staff",
+      pending: "Pending",
     };
     return labels[role] || role;
   };
@@ -169,22 +169,22 @@ const Users = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Shield className="h-8 w-8 text-primary" />
-              Gestión de Usuarios
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Administra los roles y permisos de los usuarios del sistema
-            </p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Shield className="h-8 w-8 text-primary" />
+            User Management
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Manage user roles and access permissions
+          </p>
+        </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Usuarios del Sistema</CardTitle>
+            <CardTitle>System Users</CardTitle>
             <CardDescription>
-              Asigna roles a los usuarios para controlar sus permisos de acceso
+              Assign roles to users to control their access permissions
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -194,7 +194,7 @@ const Users = () => {
               </div>
             ) : users.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                No hay usuarios registrados
+                No users registered
               </p>
             ) : (
               <div className="rounded-md border">
@@ -202,9 +202,9 @@ const Users = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email</TableHead>
-                      <TableHead>Fecha de Registro</TableHead>
-                      <TableHead>Rol Actual</TableHead>
-                      <TableHead>Cambiar Rol</TableHead>
+                      <TableHead>Registration Date</TableHead>
+                      <TableHead>Current Role</TableHead>
+                      <TableHead>Change Role</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -212,7 +212,7 @@ const Users = () => {
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.email}</TableCell>
                         <TableCell>
-                          {new Date(user.created_at).toLocaleDateString("es-ES", {
+                          {new Date(user.created_at).toLocaleDateString("en-US", {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
@@ -233,10 +233,10 @@ const Users = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="admin">Administrador</SelectItem>
-                              <SelectItem value="manager">Gerente</SelectItem>
-                              <SelectItem value="staff">Personal</SelectItem>
-                              <SelectItem value="pending">Pendiente</SelectItem>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              <SelectItem value="staff">Staff</SelectItem>
+                              <SelectItem value="pending">Pending</SelectItem>
                             </SelectContent>
                           </Select>
                           {updatingUser === user.id && (

@@ -21,17 +21,17 @@ const AccessDenied = () => {
           <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
-          <CardTitle className="text-2xl">Acceso Pendiente</CardTitle>
+          <CardTitle className="text-2xl">Access Pending</CardTitle>
           <CardDescription className="text-base mt-2">
-            Tu cuenta está pendiente de aprobación
+            Your account is pending approval
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           <p className="text-muted-foreground">
-            Tu cuenta ha sido creada exitosamente, pero necesitas que un administrador te otorgue permisos antes de poder acceder al sistema.
+            Your account has been created successfully, but you need an administrator to grant you permissions before you can access the system.
           </p>
           <p className="text-sm text-muted-foreground font-medium">
-            Por favor, contacta al administrador del sistema para solicitar acceso.
+            Please contact the system administrator to request access.
           </p>
           <div className="pt-4">
             <Button 
@@ -39,7 +39,7 @@ const AccessDenied = () => {
               variant="outline"
               className="w-full"
             >
-              Cerrar Sesión
+              Sign Out
             </Button>
           </div>
         </CardContent>

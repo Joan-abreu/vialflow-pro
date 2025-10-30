@@ -112,8 +112,15 @@ const Production = () => {
                   </TableHeader>
                 <TableBody>
                   {batches.map((batch) => {
-                    const shipped = batch.shipped_units || 0;
-                    const progress = batch.quantity > 0 ? (shipped / batch.quantity) * 100 : 0;
+                    const shippedUnits = batch.shipped_units || 0;
+                    // For pack sale type, convert bottles to packs for display
+                    const shipped = batch.sale_type === "pack" && batch.pack_quantity 
+                      ? shippedUnits / batch.pack_quantity 
+                      : shippedUnits;
+                    const total = batch.sale_type === "pack" && batch.pack_quantity
+                      ? batch.quantity / batch.pack_quantity
+                      : batch.quantity;
+                    const progress = total > 0 ? (shipped / total) * 100 : 0;
                     
                     return (
                       <TableRow key={batch.id}>
@@ -121,11 +128,19 @@ const Production = () => {
                         <TableCell>
                           {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
                         </TableCell>
-                        <TableCell>{batch.quantity}</TableCell>
+                        <TableCell>
+                          {batch.sale_type === "pack" && batch.pack_quantity
+                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} packs`
+                            : batch.quantity
+                          }
+                        </TableCell>
                         <TableCell>
                           <div className="space-y-1 min-w-[120px]">
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">{shipped} / {batch.quantity}</span>
+                              <span className="text-muted-foreground">
+                                {shipped.toFixed(0)} / {total.toFixed(0)}
+                                {batch.sale_type === "pack" ? " packs" : ""}
+                              </span>
                               <span className="text-muted-foreground">{progress.toFixed(0)}%</span>
                             </div>
                             <Progress value={progress} className="h-2" />
@@ -146,7 +161,7 @@ const Production = () => {
                         </TableCell>
                         <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
                         <TableCell>
-                          {shipped < batch.quantity && (
+                          {shipped < total && (
                             <CreateShipmentDialog
                               batch={batch}
                               onSuccess={fetchBatches}

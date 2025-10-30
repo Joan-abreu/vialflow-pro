@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -14,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
+import CreateShipmentDialog from "@/components/production/CreateShipmentDialog";
 
 interface ProductionBatch {
   id: string;
@@ -23,6 +25,7 @@ interface ProductionBatch {
   sale_type: string;
   pack_quantity: number | null;
   created_at: string;
+  shipped_quantity?: number;
   vial_types: {
     name: string;
     size_ml: number;
@@ -35,13 +38,32 @@ const Production = () => {
 
   const fetchBatches = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Fetch batches with vial types
+    const { data: batchData, error } = await supabase
       .from("production_batches")
       .select("*, vial_types(name, size_ml)")
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setBatches(data as any);
+    if (!error && batchData) {
+      // Fetch shipped quantities for each batch
+      const { data: shipmentItems } = await supabase
+        .from("shipment_items")
+        .select("batch_id, quantity");
+
+      // Calculate shipped quantities
+      const shippedByBatch = shipmentItems?.reduce((acc, item) => {
+        acc[item.batch_id] = (acc[item.batch_id] || 0) + item.quantity;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Add shipped quantity to each batch
+      const batchesWithShipped = batchData.map(batch => ({
+        ...batch,
+        shipped_quantity: shippedByBatch[batch.id] || 0,
+      }));
+
+      setBatches(batchesWithShipped as any);
     }
     setLoading(false);
   };
@@ -97,35 +119,59 @@ const Production = () => {
                     <TableHead>Batch Number</TableHead>
                     <TableHead>Vial Type</TableHead>
                     <TableHead>Quantity</TableHead>
+                    <TableHead>Progress</TableHead>
                     <TableHead>Sale Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {batches.map((batch) => (
-                    <TableRow key={batch.id}>
-                      <TableCell className="font-medium">{batch.batch_number}</TableCell>
-                      <TableCell>
-                        {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
-                      </TableCell>
-                      <TableCell>{batch.quantity}</TableCell>
-                      <TableCell className="capitalize">
-                        {batch.sale_type}
-                        {batch.sale_type === "pack" && batch.pack_quantity && (
-                          <span className="text-muted-foreground text-sm ml-1">
-                            ({batch.pack_quantity} units)
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(batch.status)} className="capitalize">
-                          {batch.status.replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
-                    </TableRow>
-                  ))}
+                  {batches.map((batch) => {
+                    const shipped = batch.shipped_quantity || 0;
+                    const progress = (shipped / batch.quantity) * 100;
+                    
+                    return (
+                      <TableRow key={batch.id}>
+                        <TableCell className="font-medium">{batch.batch_number}</TableCell>
+                        <TableCell>
+                          {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
+                        </TableCell>
+                        <TableCell>{batch.quantity}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1 min-w-[120px]">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">{shipped} / {batch.quantity}</span>
+                              <span className="text-muted-foreground">{progress.toFixed(0)}%</span>
+                            </div>
+                            <Progress value={progress} className="h-2" />
+                          </div>
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {batch.sale_type}
+                          {batch.sale_type === "pack" && batch.pack_quantity && (
+                            <span className="text-muted-foreground text-sm ml-1">
+                              ({batch.pack_quantity} units)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(batch.status)} className="capitalize">
+                            {batch.status.replace("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
+                        <TableCell>
+                          {shipped < batch.quantity && (
+                            <CreateShipmentDialog
+                              batch={batch}
+                              onSuccess={fetchBatches}
+                            />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

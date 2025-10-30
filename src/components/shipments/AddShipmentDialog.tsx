@@ -362,7 +362,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
             </DialogHeader>
             <div className="grid gap-6 py-4">
               {boxesData.map((box, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-4">
+                <div key={index} className={`border rounded-lg p-4 space-y-4 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-background'}`}>
                   <h3 className="font-semibold text-lg">Box #{index + 1}</h3>
                   
                   <div className="grid grid-cols-2 gap-4">

@@ -46,6 +46,7 @@ export type Database = {
           pack_quantity: number | null
           quantity: number
           sale_type: string
+          shipped_units: number | null
           started_at: string | null
           status: string
           updated_at: string
@@ -61,6 +62,7 @@ export type Database = {
           pack_quantity?: number | null
           quantity: number
           sale_type?: string
+          shipped_units?: number | null
           started_at?: string | null
           status?: string
           updated_at?: string
@@ -76,6 +78,7 @@ export type Database = {
           pack_quantity?: number | null
           quantity?: number
           sale_type?: string
+          shipped_units?: number | null
           started_at?: string | null
           status?: string
           updated_at?: string

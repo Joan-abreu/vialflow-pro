@@ -25,7 +25,7 @@ interface ProductionBatch {
   sale_type: string;
   pack_quantity: number | null;
   created_at: string;
-  shipped_quantity?: number;
+  shipped_units: number;
   vial_types: {
     name: string;
     size_ml: number;
@@ -39,31 +39,14 @@ const Production = () => {
   const fetchBatches = async () => {
     setLoading(true);
     
-    // Fetch batches with vial types
+    // Fetch batches with vial types and shipped_units
     const { data: batchData, error } = await supabase
       .from("production_batches")
       .select("*, vial_types(name, size_ml)")
       .order("created_at", { ascending: false });
 
     if (!error && batchData) {
-      // Fetch shipped quantities for each batch
-      const { data: shipmentItems } = await supabase
-        .from("shipment_items")
-        .select("batch_id, quantity");
-
-      // Calculate shipped quantities
-      const shippedByBatch = shipmentItems?.reduce((acc, item) => {
-        acc[item.batch_id] = (acc[item.batch_id] || 0) + item.quantity;
-        return acc;
-      }, {} as Record<string, number>) || {};
-
-      // Add shipped quantity to each batch
-      const batchesWithShipped = batchData.map(batch => ({
-        ...batch,
-        shipped_quantity: shippedByBatch[batch.id] || 0,
-      }));
-
-      setBatches(batchesWithShipped as any);
+      setBatches(batchData as any);
     }
     setLoading(false);
   };
@@ -129,8 +112,8 @@ const Production = () => {
                   </TableHeader>
                 <TableBody>
                   {batches.map((batch) => {
-                    const shipped = batch.shipped_quantity || 0;
-                    const progress = (shipped / batch.quantity) * 100;
+                    const shipped = batch.shipped_units || 0;
+                    const progress = batch.quantity > 0 ? (shipped / batch.quantity) * 100 : 0;
                     
                     return (
                       <TableRow key={batch.id}>

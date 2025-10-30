@@ -30,6 +30,8 @@ interface Batch {
   id: string;
   batch_number: string;
   quantity: number;
+  sale_type: string;
+  pack_quantity: number;
 }
 
 interface BoxMaterial {
@@ -48,6 +50,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   const [step, setStep] = useState<"initial" | "boxes">("initial");
   const [numBoxes, setNumBoxes] = useState("");
   const [selectedBoxType, setSelectedBoxType] = useState("");
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [formData, setFormData] = useState({
     fba_id: "",
     destination: "",
@@ -74,7 +77,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   const fetchBatches = async () => {
     const { data, error } = await supabase
       .from("production_batches")
-      .select("id, batch_number, quantity")
+      .select("id, batch_number, quantity, sale_type, pack_quantity")
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -135,6 +138,21 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   const updateBox = (index: number, field: string, value: string) => {
     const newBoxes = [...boxesData];
     newBoxes[index] = { ...newBoxes[index], [field]: value };
+    
+    // Auto-calculate bottles_per_box when packs_per_box changes
+    if (field === "packs_per_box" && selectedBatch) {
+      const packsPerBox = parseInt(value) || 0;
+      let bottlesPerBox = 0;
+      
+      if (selectedBatch.sale_type === "pack") {
+        bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
+      } else {
+        bottlesPerBox = packsPerBox;
+      }
+      
+      newBoxes[index].bottles_per_box = bottlesPerBox.toString();
+    }
+    
     setBoxesData(newBoxes);
   };
 
@@ -228,7 +246,11 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                 <Label htmlFor="batch_id">Batch *</Label>
                 <Select
                   value={formData.batch_id}
-                  onValueChange={(value) => setFormData({ ...formData, batch_id: value })}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, batch_id: value });
+                    const batch = batches.find(b => b.id === value);
+                    setSelectedBatch(batch || null);
+                  }}
                   required
                 >
                   <SelectTrigger>
@@ -237,7 +259,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                   <SelectContent>
                     {batches.map((batch) => (
                       <SelectItem key={batch.id} value={batch.id}>
-                        {batch.batch_number} ({batch.quantity} units)
+                        {batch.batch_number} ({batch.quantity} units - {batch.sale_type === 'pack' ? `${batch.pack_quantity} per pack` : 'individual'})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -356,14 +378,13 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor={`bottles_${index}`}>Bottles per Box</Label>
+                      <Label htmlFor={`bottles_${index}`}>Bottles per Box (calculated)</Label>
                       <Input
                         id={`bottles_${index}`}
                         type="number"
                         value={box.bottles_per_box}
-                        onChange={(e) => updateBox(index, "bottles_per_box", e.target.value)}
-                        placeholder="300"
-                        min="0"
+                        disabled
+                        className="bg-muted"
                       />
                     </div>
                   </div>

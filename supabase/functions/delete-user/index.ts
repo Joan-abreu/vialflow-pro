@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
     
     if (userError || !user) {
+      console.error('Error getting user:', userError)
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -46,51 +47,53 @@ Deno.serve(async (req) => {
       .single()
 
     if (roleError || userRole?.role !== 'admin') {
+      console.error('User is not admin:', roleError)
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get all users using admin API
-    const { data: authUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    // Get the target user ID from the request
+    const { userId } = await req.json()
 
-    if (listError) {
-      throw listError
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'User ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Get profiles and roles for all users
-    const { data: profiles } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id, full_name')
+    // Prevent admin from deleting themselves
+    if (userId === user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Cannot delete your own account' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-    const { data: roles } = await supabaseAdmin
-      .from('user_roles')
-      .select('id, user_id, role')
+    console.log(`Admin ${user.email} deleting user ${userId}`)
 
-      // Combine the data
-      const usersWithRoles = authUsers.users.map(authUser => {
-        const profile = profiles?.find(p => p.user_id === authUser.id)
-        const userRole = roles?.find(r => r.user_id === authUser.id)
-        const authUserData = authUser as any; // Cast to access banned_until
-        
-        return {
-          id: authUser.id,
-          email: authUser.email || 'No email',
-          created_at: authUser.created_at,
-          full_name: profile?.full_name,
-          role: userRole?.role || 'pending',
-          role_id: userRole?.id || '',
-          banned_until: authUserData.banned_until || null,
-        }
-      })
+    // Delete user - this will cascade delete profiles and user_roles due to FK constraints
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+    if (error) {
+      console.error('Error deleting user:', error)
+      throw error
+    }
+
+    console.log('User deleted successfully:', userId)
 
     return new Response(
-      JSON.stringify({ users: usersWithRoles }),
+      JSON.stringify({ 
+        success: true,
+        message: 'User deleted successfully'
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error('Error in delete-user function:', errorMessage)
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

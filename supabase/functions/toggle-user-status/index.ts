@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
     
     if (userError || !user) {
+      console.error('Error getting user:', userError)
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -46,51 +47,57 @@ Deno.serve(async (req) => {
       .single()
 
     if (roleError || userRole?.role !== 'admin') {
+      console.error('User is not admin:', roleError)
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get all users using admin API
-    const { data: authUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    // Get the target user ID and action from the request
+    const { userId, disabled } = await req.json()
 
-    if (listError) {
-      throw listError
+    if (!userId || typeof disabled !== 'boolean') {
+      return new Response(
+        JSON.stringify({ error: 'User ID and disabled status are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Get profiles and roles for all users
-    const { data: profiles } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id, full_name')
+    // Prevent admin from disabling themselves
+    if (userId === user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Cannot disable your own account' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-    const { data: roles } = await supabaseAdmin
-      .from('user_roles')
-      .select('id, user_id, role')
+    console.log(`Admin ${user.email} ${disabled ? 'disabling' : 'enabling'} user ${userId}`)
 
-      // Combine the data
-      const usersWithRoles = authUsers.users.map(authUser => {
-        const profile = profiles?.find(p => p.user_id === authUser.id)
-        const userRole = roles?.find(r => r.user_id === authUser.id)
-        const authUserData = authUser as any; // Cast to access banned_until
-        
-        return {
-          id: authUser.id,
-          email: authUser.email || 'No email',
-          created_at: authUser.created_at,
-          full_name: profile?.full_name,
-          role: userRole?.role || 'pending',
-          role_id: userRole?.id || '',
-          banned_until: authUserData.banned_until || null,
-        }
-      })
+    // Update user status
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { ban_duration: disabled ? '876000h' : 'none' } // 876000h = 100 years (effectively permanent)
+    )
+
+    if (error) {
+      console.error('Error updating user status:', error)
+      throw error
+    }
+
+    console.log('User status updated successfully:', userId)
 
     return new Response(
-      JSON.stringify({ users: usersWithRoles }),
+      JSON.stringify({ 
+        success: true,
+        message: `User ${disabled ? 'disabled' : 'enabled'} successfully`,
+        disabled: disabled
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error('Error in toggle-user-status function:', errorMessage)
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

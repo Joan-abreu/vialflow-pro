@@ -43,6 +43,27 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
   });
 
   useEffect(() => {
+    const generateBatchNumber = async () => {
+      // Get today's date in YYYYMMDD format
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+      
+      // Get the count of batches created today
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+      
+      const { count } = await supabase
+        .from("production_batches")
+        .select("*", { count: 'exact', head: true })
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay);
+      
+      const nextNumber = (count || 0) + 1;
+      const batchNumber = `BATCH-${dateStr}-${String(nextNumber).padStart(3, '0')}`;
+      
+      setFormData(prev => ({ ...prev, batch_number: batchNumber }));
+    };
+
     const fetchVialTypes = async () => {
       const { data } = await supabase
         .from("vial_types")
@@ -53,7 +74,10 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       if (data) setVialTypes(data);
     };
     
-    if (open) fetchVialTypes();
+    if (open) {
+      fetchVialTypes();
+      generateBatchNumber();
+    }
   }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,14 +134,12 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="batch_number">Batch Number *</Label>
+              <Label htmlFor="batch_number">Batch Number (Auto-generated)</Label>
               <Input
                 id="batch_number"
                 value={formData.batch_number}
-                onChange={(e) => setFormData({ ...formData, batch_number: e.target.value })}
-                placeholder="e.g., BATCH-001"
-                required
-                maxLength={50}
+                disabled
+                className="bg-muted"
               />
             </div>
             <div className="grid gap-2">

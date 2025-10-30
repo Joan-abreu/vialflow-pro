@@ -29,32 +29,42 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
         const selectedCamera = devices[0].id;
         setCameraId(selectedCamera);
         
-        const scanner = new Html5Qrcode("barcode-reader");
-        scannerRef.current = scanner;
-
-        await scanner.start(
-          selectedCamera,
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 150 },
-          },
-          (decodedText) => {
-            onScan(decodedText);
-            toast.success("Código escaneado correctamente");
-            stopScanning();
-          },
-          (errorMessage) => {
-            // Silent error - scanning in progress
-          }
-        );
-        
+        // Primero mostrar el contenedor
         setIsScanning(true);
+        
+        // Esperar a que el elemento esté en el DOM
+        setTimeout(async () => {
+          try {
+            const scanner = new Html5Qrcode("barcode-reader");
+            scannerRef.current = scanner;
+
+            await scanner.start(
+              selectedCamera,
+              {
+                fps: 10,
+                qrbox: { width: 250, height: 150 },
+              },
+              (decodedText) => {
+                onScan(decodedText);
+                toast.success("Código escaneado correctamente");
+                stopScanning();
+              },
+              (errorMessage) => {
+                // Silent error - scanning in progress
+              }
+            );
+          } catch (error) {
+            console.error("Error initializing scanner:", error);
+            toast.error("Error al iniciar el escáner");
+            setIsScanning(false);
+          }
+        }, 100);
       } else {
         toast.error("No se encontró ninguna cámara");
       }
     } catch (error) {
-      console.error("Error starting scanner:", error);
-      toast.error("Error al iniciar el escáner");
+      console.error("Error getting cameras:", error);
+      toast.error("Error al acceder a la cámara");
     }
   };
 

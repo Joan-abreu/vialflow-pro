@@ -21,6 +21,7 @@ interface ProductionBatch {
   quantity: number;
   status: string;
   sale_type: string;
+  pack_quantity: number | null;
   created_at: string;
   vial_types: {
     name: string;
@@ -109,7 +110,14 @@ const Production = () => {
                         {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
                       </TableCell>
                       <TableCell>{batch.quantity}</TableCell>
-                      <TableCell className="capitalize">{batch.sale_type}</TableCell>
+                      <TableCell className="capitalize">
+                        {batch.sale_type}
+                        {batch.sale_type === "pack" && batch.pack_quantity && (
+                          <span className="text-muted-foreground text-sm ml-1">
+                            ({batch.pack_quantity} units)
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={getStatusColor(batch.status)} className="capitalize">
                           {batch.status.replace("_", " ")}

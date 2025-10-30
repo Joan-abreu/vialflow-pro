@@ -42,6 +42,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     vial_type_id: "",
     quantity: "",
     sale_type: "individual",
+    pack_quantity: "2",
   });
 
   useEffect(() => {
@@ -99,6 +100,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       vial_type_id: formData.vial_type_id,
       quantity: parseInt(formData.quantity),
       sale_type: formData.sale_type,
+      pack_quantity: formData.sale_type === "pack" ? parseInt(formData.pack_quantity) : null,
       created_by: user.id,
       status: "pending",
     });
@@ -115,6 +117,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         vial_type_id: "",
         quantity: "",
         sale_type: "individual",
+        pack_quantity: "2",
       });
       onSuccess();
     }
@@ -196,6 +199,19 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 </div>
               </RadioGroup>
             </div>
+            {formData.sale_type === "pack" && (
+              <div className="grid gap-2">
+                <Label htmlFor="pack_quantity">Units per Pack *</Label>
+                <Input
+                  id="pack_quantity"
+                  type="number"
+                  min="1"
+                  value={formData.pack_quantity}
+                  onChange={(e) => setFormData({ ...formData, pack_quantity: e.target.value })}
+                  required
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

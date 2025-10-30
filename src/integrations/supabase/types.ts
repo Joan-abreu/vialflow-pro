@@ -43,6 +43,7 @@ export type Database = {
           created_by: string
           current_step_id: string | null
           id: string
+          pack_quantity: number | null
           quantity: number
           sale_type: string
           started_at: string | null
@@ -57,6 +58,7 @@ export type Database = {
           created_by: string
           current_step_id?: string | null
           id?: string
+          pack_quantity?: number | null
           quantity: number
           sale_type?: string
           started_at?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           created_by?: string
           current_step_id?: string | null
           id?: string
+          pack_quantity?: number | null
           quantity?: number
           sale_type?: string
           started_at?: string | null

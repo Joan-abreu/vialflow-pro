@@ -49,7 +49,9 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
   const [formData, setFormData] = useState({
     vial_type_id: batch.vial_type_id,
-    quantity: batch.quantity.toString(),
+    quantity: batch.sale_type === "pack" && batch.pack_quantity 
+      ? (batch.quantity / batch.pack_quantity).toString() 
+      : batch.quantity.toString(),
     status: batch.status,
     sale_type: batch.sale_type,
     pack_quantity: batch.pack_quantity?.toString() || "2",
@@ -77,10 +79,10 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     e.preventDefault();
     setLoading(true);
 
-    const quantity = parseInt(formData.quantity);
+    const inputQuantity = parseInt(formData.quantity);
     const pack_quantity = formData.sale_type === "pack" ? parseInt(formData.pack_quantity) : null;
 
-    if (isNaN(quantity) || quantity <= 0) {
+    if (isNaN(inputQuantity) || inputQuantity <= 0) {
       toast({
         title: "Error",
         description: "Please enter a valid quantity",
@@ -100,11 +102,16 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       return;
     }
 
+    // If sale type is pack, convert packs to bottles
+    const totalBottles = formData.sale_type === "pack" && pack_quantity 
+      ? inputQuantity * pack_quantity 
+      : inputQuantity;
+
     const { error } = await supabase
       .from("production_batches")
       .update({
         vial_type_id: formData.vial_type_id,
-        quantity,
+        quantity: totalBottles,
         status: formData.status,
         sale_type: formData.sale_type,
         pack_quantity,
@@ -201,7 +208,9 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
             )}
 
             <div className="grid gap-2">
-              <Label htmlFor="quantity">Total Quantity (bottles)</Label>
+              <Label htmlFor="quantity">
+                Total Quantity {formData.sale_type === "pack" ? "(packs)" : "(bottles)"}
+              </Label>
               <Input
                 id="quantity"
                 type="number"

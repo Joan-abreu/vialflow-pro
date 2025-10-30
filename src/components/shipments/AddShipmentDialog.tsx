@@ -367,7 +367,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor={`packs_${index}`}>Packs per Box</Label>
+                      <Label htmlFor={`packs_${index}`}>Packs per Box *</Label>
                       <Input
                         id={`packs_${index}`}
                         type="number"
@@ -375,6 +375,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                         onChange={(e) => updateBox(index, "packs_per_box", e.target.value)}
                         placeholder="Enter packs quantity"
                         min="0"
+                        required
                       />
                     </div>
                     <div className="grid gap-2">
@@ -390,7 +391,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor={`weight_${index}`}>Weight (lb)</Label>
+                    <Label htmlFor={`weight_${index}`}>Weight (lb) *</Label>
                     <Input
                       id={`weight_${index}`}
                       type="number"
@@ -399,6 +400,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                       onChange={(e) => updateBox(index, "weight_lb", e.target.value)}
                       placeholder="Enter weight in pounds"
                       min="0"
+                      required
                     />
                   </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
-import { Camera, X } from "lucide-react";
+import { Camera, X, SwitchCamera } from "lucide-react";
 import { toast } from "sonner";
 
 interface BarcodeScannerProps {
@@ -12,6 +12,8 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [cameraId, setCameraId] = useState<string>("");
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -21,13 +23,15 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
     };
   }, []);
 
-  const startScanning = async () => {
+  const startScanning = async (cameraIndex: number = 0) => {
     try {
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length > 0) {
-        const selectedCamera = devices[0].id;
+        setAvailableCameras(devices);
+        const selectedCamera = devices[cameraIndex].id;
         setCameraId(selectedCamera);
+        setCurrentCameraIndex(cameraIndex);
         
         // Primero mostrar el contenedor
         setIsScanning(true);
@@ -79,6 +83,19 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
     }
   };
 
+  const switchCamera = async () => {
+    if (availableCameras.length <= 1) {
+      toast.error("No hay otras cámaras disponibles");
+      return;
+    }
+
+    const nextIndex = (currentCameraIndex + 1) % availableCameras.length;
+    await stopScanning();
+    setTimeout(() => {
+      startScanning(nextIndex);
+    }, 100);
+  };
+
   return (
     <div className="space-y-2">
       {!isScanning ? (
@@ -86,7 +103,7 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
           type="button"
           variant="outline"
           size="sm"
-          onClick={startScanning}
+          onClick={() => startScanning()}
           className="w-full"
         >
           <Camera className="mr-2 h-4 w-4" />
@@ -95,16 +112,30 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
       ) : (
         <div className="space-y-2">
           <div id="barcode-reader" className="w-full rounded-lg overflow-hidden border"></div>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={stopScanning}
-            className="w-full"
-          >
-            <X className="mr-2 h-4 w-4" />
-            Detener Escáner
-          </Button>
+          <div className="flex gap-2">
+            {availableCameras.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={switchCamera}
+                className="flex-1"
+              >
+                <SwitchCamera className="mr-2 h-4 w-4" />
+                Cambiar Cámara
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={stopScanning}
+              className="flex-1"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Detener
+            </Button>
+          </div>
         </div>
       )}
     </div>

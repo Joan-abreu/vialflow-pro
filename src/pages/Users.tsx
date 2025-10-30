@@ -56,45 +56,31 @@ const Users = () => {
     try {
       setLoading(true);
 
-      // Get all users from auth.users via profiles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, full_name");
-
-      if (profilesError) throw profilesError;
-
-      // Get user roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("id, user_id, role");
-
-      if (rolesError) throw rolesError;
-
-      // We need to get emails from auth metadata
-      const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
+      // Call edge function to get users
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (authError) {
-        console.error("Error fetching auth users:", authError);
-        toast.error("Error loading users");
+      if (!session) {
+        toast.error("Not authenticated");
         return;
       }
 
-      // Combine data
-      const usersWithRoles = authUsers?.map(user => {
-        const profile = profilesData?.find(p => p.user_id === user.id);
-        const userRole = rolesData?.find(r => r.user_id === user.id);
-        
-        return {
-          id: user.id,
-          email: user.email || "No email",
-          created_at: user.created_at,
-          full_name: profile?.full_name,
-          role: userRole?.role || "pending",
-          role_id: userRole?.id || "",
-        };
-      }) || [];
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-users`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      setUsers(usersWithRoles);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch users');
+      }
+
+      const { users: usersData } = await response.json();
+      setUsers(usersData);
     } catch (error: any) {
       console.error("Error fetching users:", error);
       toast.error("Error loading users");

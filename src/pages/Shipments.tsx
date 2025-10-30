@@ -21,6 +21,19 @@ interface Shipment {
   destination: string;
   status: string;
   created_at: string;
+  batch_id: string | null;
+  box_number: number | null;
+  packs_per_box: number | null;
+  bottles_per_box: number | null;
+  packing_date: string | null;
+  ups_delivery_date: string | null;
+  weight_lb: number | null;
+  dimension_length_in: number | null;
+  dimension_width_in: number | null;
+  dimension_height_in: number | null;
+  production_batches?: {
+    batch_number: string;
+  };
 }
 
 const Shipments = () => {
@@ -31,7 +44,12 @@ const Shipments = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("shipments")
-      .select("*")
+      .select(`
+        *,
+        production_batches:batch_id (
+          batch_number
+        )
+      `)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -72,42 +90,58 @@ const Shipments = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Active Shipments</CardTitle>
+            <CardTitle>Shipment Boxes</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : shipments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No shipments yet. Click "New Shipment" to create your first one.
+                No shipments yet. Click "New Shipment" to create your first box.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Shipment Number</TableHead>
-                    <TableHead>FBA ID</TableHead>
-                    <TableHead>Destination</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {shipments.map((shipment) => (
-                    <TableRow key={shipment.id}>
-                      <TableCell className="font-medium">{shipment.shipment_number}</TableCell>
-                      <TableCell>{shipment.fba_id || "-"}</TableCell>
-                      <TableCell>{shipment.destination}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(shipment.status)} className="capitalize">
-                          {shipment.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{format(new Date(shipment.created_at), "PP")}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Batch ID</TableHead>
+                      <TableHead>Box #</TableHead>
+                      <TableHead>Packs per Box</TableHead>
+                      <TableHead>Bottles per Box</TableHead>
+                      <TableHead>Packing Date</TableHead>
+                      <TableHead>UPS Delivery Date</TableHead>
+                      <TableHead>FBA Shipment ID</TableHead>
+                      <TableHead>Weight (lb)</TableHead>
+                      <TableHead>Dimensions (in)</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {shipments.map((shipment) => (
+                      <TableRow key={shipment.id}>
+                        <TableCell className="font-medium">
+                          {shipment.production_batches?.batch_number || "-"}
+                        </TableCell>
+                        <TableCell>{shipment.box_number || "-"}</TableCell>
+                        <TableCell>{shipment.packs_per_box || "-"}</TableCell>
+                        <TableCell>{shipment.bottles_per_box || "-"}</TableCell>
+                        <TableCell>
+                          {shipment.packing_date ? format(new Date(shipment.packing_date), "PP") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {shipment.ups_delivery_date ? format(new Date(shipment.ups_delivery_date), "PP") : "-"}
+                        </TableCell>
+                        <TableCell>{shipment.fba_id || "-"}</TableCell>
+                        <TableCell>{shipment.weight_lb || "-"}</TableCell>
+                        <TableCell>
+                          {shipment.dimension_length_in && shipment.dimension_width_in && shipment.dimension_height_in
+                            ? `${shipment.dimension_length_in} × ${shipment.dimension_width_in} × ${shipment.dimension_height_in}`
+                            : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

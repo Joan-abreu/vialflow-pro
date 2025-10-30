@@ -235,42 +235,80 @@ export type Database = {
       }
       shipments: {
         Row: {
+          batch_id: string | null
+          bottles_per_box: number | null
+          box_number: number | null
           created_at: string
           created_by: string
           delivered_at: string | null
           destination: string | null
+          dimension_height_in: number | null
+          dimension_length_in: number | null
+          dimension_width_in: number | null
           fba_id: string | null
           id: string
+          packing_date: string | null
+          packs_per_box: number | null
           shipment_number: string
           shipped_at: string | null
           status: string
           updated_at: string
+          ups_delivery_date: string | null
+          weight_lb: number | null
         }
         Insert: {
+          batch_id?: string | null
+          bottles_per_box?: number | null
+          box_number?: number | null
           created_at?: string
           created_by: string
           delivered_at?: string | null
           destination?: string | null
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
           fba_id?: string | null
           id?: string
+          packing_date?: string | null
+          packs_per_box?: number | null
           shipment_number: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
+          ups_delivery_date?: string | null
+          weight_lb?: number | null
         }
         Update: {
+          batch_id?: string | null
+          bottles_per_box?: number | null
+          box_number?: number | null
           created_at?: string
           created_by?: string
           delivered_at?: string | null
           destination?: string | null
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
           fba_id?: string | null
           id?: string
+          packing_date?: string | null
+          packs_per_box?: number | null
           shipment_number?: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
+          ups_delivery_date?: string | null
+          weight_lb?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       units_of_measurement: {
         Row: {

@@ -373,7 +373,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                         type="number"
                         value={box.packs_per_box}
                         onChange={(e) => updateBox(index, "packs_per_box", e.target.value)}
-                        placeholder="150"
+                        placeholder="Enter packs quantity"
                         min="0"
                       />
                     </div>
@@ -397,7 +397,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                       step="0.01"
                       value={box.weight_lb}
                       onChange={(e) => updateBox(index, "weight_lb", e.target.value)}
-                      placeholder="25.5"
+                      placeholder="Enter weight in pounds"
                       min="0"
                     />
                   </div>
@@ -411,7 +411,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                         step="0.1"
                         value={box.dimension_length_in}
                         onChange={(e) => updateBox(index, "dimension_length_in", e.target.value)}
-                        placeholder="20"
+                        placeholder="Length"
                         min="0"
                       />
                     </div>
@@ -423,7 +423,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                         step="0.1"
                         value={box.dimension_width_in}
                         onChange={(e) => updateBox(index, "dimension_width_in", e.target.value)}
-                        placeholder="16"
+                        placeholder="Width"
                         min="0"
                       />
                     </div>
@@ -435,7 +435,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                         step="0.1"
                         value={box.dimension_height_in}
                         onChange={(e) => updateBox(index, "dimension_height_in", e.target.value)}
-                        placeholder="12"
+                        placeholder="Height"
                         min="0"
                       />
                     </div>

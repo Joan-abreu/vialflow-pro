@@ -161,6 +161,45 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_items: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: string
+          quantity: number
+          shipment_id: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: string
+          quantity: number
+          shipment_id: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          shipment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_items_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipments: {
         Row: {
           created_at: string
@@ -197,6 +236,33 @@ export type Database = {
           shipped_at?: string | null
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      units_of_measurement: {
+        Row: {
+          abbreviation: string
+          active: boolean
+          category: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          abbreviation: string
+          active?: boolean
+          category: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          abbreviation?: string
+          active?: boolean
+          category?: string
+          created_at?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }

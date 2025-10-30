@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
+import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 
 interface RawMaterial {
   id: string;
@@ -59,7 +60,10 @@ const Inventory = () => {
               Track raw materials and stock levels
             </p>
           </div>
-          <AddMaterialDialog onSuccess={fetchMaterials} />
+          <div className="flex gap-2">
+            <AddUnitDialog onSuccess={fetchMaterials} />
+            <AddMaterialDialog onSuccess={fetchMaterials} />
+          </div>
         </div>
 
         <Card>

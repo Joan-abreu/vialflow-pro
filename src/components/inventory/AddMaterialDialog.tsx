@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
 
@@ -26,9 +26,16 @@ interface AddMaterialDialogProps {
   onSuccess: () => void;
 }
 
+interface Unit {
+  id: string;
+  name: string;
+  abbreviation: string;
+}
+
 const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -37,6 +44,20 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
     min_stock_level: "",
     cost_per_unit: "",
   });
+
+  useEffect(() => {
+    const fetchUnits = async () => {
+      const { data } = await supabase
+        .from("units_of_measurement")
+        .select("*")
+        .eq("active", true)
+        .order("name");
+      
+      if (data) setUnits(data);
+    };
+    
+    if (open) fetchUnits();
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,11 +148,11 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                   <SelectValue placeholder="Select unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pieces">Pieces</SelectItem>
-                  <SelectItem value="boxes">Boxes</SelectItem>
-                  <SelectItem value="rolls">Rolls</SelectItem>
-                  <SelectItem value="liters">Liters</SelectItem>
-                  <SelectItem value="kg">Kilograms</SelectItem>
+                  {units.map((unit) => (
+                    <SelectItem key={unit.id} value={unit.abbreviation}>
+                      {unit.name} ({unit.abbreviation})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

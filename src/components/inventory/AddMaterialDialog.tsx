@@ -49,6 +49,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
     current_stock: "",
     min_stock_level: "",
     cost_per_unit: "",
+    qty_per_box: "",
   });
 
   useEffect(() => {
@@ -84,6 +85,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
       current_stock: parseFloat(formData.current_stock) || 0,
       min_stock_level: parseFloat(formData.min_stock_level) || 0,
       cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+      qty_per_box: formData.qty_per_box && formData.unit.toLowerCase().includes('box') ? parseInt(formData.qty_per_box) : null,
     });
 
     setLoading(false);
@@ -100,6 +102,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
         current_stock: "",
         min_stock_level: "",
         cost_per_unit: "",
+        qty_per_box: "",
       });
       onSuccess();
     }
@@ -155,7 +158,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
               <Label htmlFor="unit">Unit of Measurement *</Label>
               <Select
                 value={formData.unit}
-                onValueChange={(value) => setFormData({ ...formData, unit: value })}
+                onValueChange={(value) => setFormData({ ...formData, unit: value, qty_per_box: "" })}
                 required
               >
                 <SelectTrigger id="unit">
@@ -170,6 +173,20 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                 </SelectContent>
               </Select>
             </div>
+            {formData.unit.toLowerCase().includes('box') && (
+              <div className="grid gap-2">
+                <Label htmlFor="qty_per_box">Quantity per Box *</Label>
+                <Input
+                  id="qty_per_box"
+                  type="number"
+                  min="1"
+                  value={formData.qty_per_box}
+                  onChange={(e) => setFormData({ ...formData, qty_per_box: e.target.value })}
+                  required
+                  placeholder="Enter units per box"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="current_stock">Current Stock</Label>

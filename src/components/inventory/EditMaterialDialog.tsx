@@ -56,6 +56,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
     current_stock: material.current_stock,
     min_stock_level: material.min_stock_level,
     cost_per_unit: material.cost_per_unit || 0,
+    qty_per_box: (material as any).qty_per_box || 0,
   });
 
   useEffect(() => {
@@ -94,6 +95,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
         current_stock: formData.current_stock,
         min_stock_level: formData.min_stock_level,
         cost_per_unit: formData.cost_per_unit,
+        qty_per_box: formData.unit.toLowerCase().includes('box') ? formData.qty_per_box : null,
       })
       .eq("id", material.id);
 
@@ -151,7 +153,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
             <Label htmlFor="unit">Unit</Label>
             <Select
               value={formData.unit}
-              onValueChange={(value) => setFormData({ ...formData, unit: value })}
+              onValueChange={(value) => setFormData({ ...formData, unit: value, qty_per_box: 0 })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -165,6 +167,21 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
               </SelectContent>
             </Select>
           </div>
+          {formData.unit.toLowerCase().includes('box') && (
+            <div>
+              <Label htmlFor="qty_per_box">Quantity per Box</Label>
+              <Input
+                id="qty_per_box"
+                type="number"
+                min="1"
+                value={formData.qty_per_box}
+                onChange={(e) =>
+                  setFormData({ ...formData, qty_per_box: parseInt(e.target.value) })
+                }
+                required
+              />
+            </div>
+          )}
           <div>
             <Label htmlFor="current_stock">Current Stock</Label>
             <Input

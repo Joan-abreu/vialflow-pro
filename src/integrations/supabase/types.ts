@@ -156,6 +156,7 @@ export type Database = {
           min_stock_level: number
           name: string
           order_index: number | null
+          qty_per_box: number | null
           unit: string
           updated_at: string
         }
@@ -168,6 +169,7 @@ export type Database = {
           min_stock_level?: number
           name: string
           order_index?: number | null
+          qty_per_box?: number | null
           unit: string
           updated_at?: string
         }
@@ -180,6 +182,7 @@ export type Database = {
           min_stock_level?: number
           name?: string
           order_index?: number | null
+          qty_per_box?: number | null
           unit?: string
           updated_at?: string
         }

@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 import CreateShipmentDialog from "@/components/production/CreateShipmentDialog";
+import EditBatchDialog from "@/components/production/EditBatchDialog";
 
 interface ProductionBatch {
   id: string;
@@ -26,6 +27,7 @@ interface ProductionBatch {
   pack_quantity: number | null;
   created_at: string;
   shipped_units: number;
+  vial_type_id: string;
   vial_types: {
     name: string;
     size_ml: number;
@@ -161,12 +163,18 @@ const Production = () => {
                         </TableCell>
                         <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
                         <TableCell>
-                          {shipped < total && (
-                            <CreateShipmentDialog
+                          <div className="flex gap-1">
+                            <EditBatchDialog
                               batch={batch}
                               onSuccess={fetchBatches}
                             />
-                          )}
+                            {shipped < total && (
+                              <CreateShipmentDialog
+                                batch={batch}
+                                onSuccess={fetchBatches}
+                              />
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

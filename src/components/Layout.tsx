@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import {
   Truck, 
   LogOut,
   Menu,
-  Shield 
+  Shield,
+  User
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +25,31 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const { isAdmin } = useUserRole();
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        setUserEmail(user.email || "");
+        
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (profile?.full_name) {
+          setUserName(profile.full_name);
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -88,18 +113,33 @@ const Layout = ({ children }: LayoutProps) => {
               <nav className="flex-1 space-y-1 px-3 py-4">
                 <NavigationLinks />
               </nav>
-              <div className="border-t p-3">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    handleSignOut();
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  <LogOut className="mr-3 h-5 w-5" />
-                  Sign Out
-                </Button>
+              <div className="border-t">
+                {userName && (
+                  <div className="px-3 py-3 border-b">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{userName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="p-3">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      handleSignOut();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <LogOut className="mr-3 h-5 w-5" />
+                    Sign Out
+                  </Button>
+                </div>
               </div>
             </div>
           </SheetContent>
@@ -117,15 +157,30 @@ const Layout = ({ children }: LayoutProps) => {
             <nav className="flex-1 space-y-1 px-3 py-4">
               <NavigationLinks />
             </nav>
-            <div className="border-t p-3">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={handleSignOut}
-              >
-                <LogOut className="mr-3 h-5 w-5" />
-                Sign Out
-              </Button>
+            <div className="border-t">
+              {userName && (
+                <div className="px-3 py-3 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{userName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="p-3">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="mr-3 h-5 w-5" />
+                  Sign Out
+                </Button>
+              </div>
             </div>
           </div>
         </aside>

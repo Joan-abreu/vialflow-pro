@@ -161,14 +161,14 @@ const Inventory = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Inventory</h1>
+            <p className="text-sm text-muted-foreground sm:text-base">
               Track raw materials and stock levels
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ManageCategoriesDialog onSuccess={fetchMaterials} />
             <AddUnitDialog onSuccess={fetchMaterials} />
             <AddMaterialDialog onSuccess={fetchMaterials} />
@@ -197,37 +197,38 @@ const Inventory = () => {
                   : "No materials found matching your search."}
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort("name")}
-                        className="h-auto p-0 font-medium hover:bg-transparent"
-                      >
-                        Name
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort("category")}
-                        className="h-auto p-0 font-medium hover:bg-transparent"
-                      >
-                        Category
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>Current Stock</TableHead>
-                    <TableHead>Min Level</TableHead>
-                    <TableHead>Cost/Unit</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-24">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort("name")}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Name
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort("category")}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Category
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>Current Stock</TableHead>
+                      <TableHead>Min Level</TableHead>
+                      <TableHead>Cost/Unit</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {filteredMaterials.map((material, index) => (
                     <TableRow 
@@ -296,7 +297,8 @@ const Inventory = () => {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

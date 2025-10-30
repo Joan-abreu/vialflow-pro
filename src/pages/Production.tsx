@@ -88,14 +88,14 @@ const Production = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Production</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Production</h1>
+            <p className="text-sm text-muted-foreground sm:text-base">
               Manage production batches and workflows
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ManageVialTypesDialog />
             <AddBatchDialog onSuccess={fetchBatches} />
           </div>
@@ -113,19 +113,20 @@ const Production = () => {
                 No batches yet. Click "New Batch" to create your first one.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Batch Number</TableHead>
-                    <TableHead>Vial Type</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Sale Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Batch Number</TableHead>
+                      <TableHead>Vial Type</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Sale Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {batches.map((batch) => {
                     const shipped = batch.shipped_quantity || 0;
@@ -173,7 +174,8 @@ const Production = () => {
                     );
                   })}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

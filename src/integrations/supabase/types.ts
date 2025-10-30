@@ -14,7 +14,219 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      production_batches: {
+        Row: {
+          batch_number: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          current_step_id: string | null
+          id: string
+          quantity: number
+          started_at: string | null
+          status: string
+          updated_at: string
+          vial_type_id: string
+        }
+        Insert: {
+          batch_number: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          current_step_id?: string | null
+          id?: string
+          quantity: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          vial_type_id: string
+        }
+        Update: {
+          batch_number?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          current_step_id?: string | null
+          id?: string
+          quantity?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          vial_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
+            referencedRelation: "production_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batches_vial_type_id_fkey"
+            columns: ["vial_type_id"]
+            isOneToOne: false
+            referencedRelation: "vial_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_steps: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          order_index: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          order_index: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          order_index?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      raw_materials: {
+        Row: {
+          category: string
+          cost_per_unit: number | null
+          created_at: string
+          current_stock: number
+          id: string
+          min_stock_level: number
+          name: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          cost_per_unit?: number | null
+          created_at?: string
+          current_stock?: number
+          id?: string
+          min_stock_level?: number
+          name: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost_per_unit?: number | null
+          created_at?: string
+          current_stock?: number
+          id?: string
+          min_stock_level?: number
+          name?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shipments: {
+        Row: {
+          created_at: string
+          created_by: string
+          delivered_at: string | null
+          destination: string | null
+          fba_id: string | null
+          id: string
+          shipment_number: string
+          shipped_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          delivered_at?: string | null
+          destination?: string | null
+          fba_id?: string | null
+          id?: string
+          shipment_number: string
+          shipped_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          delivered_at?: string | null
+          destination?: string | null
+          fba_id?: string | null
+          id?: string
+          shipment_number?: string
+          shipped_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vial_types: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          size_ml: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          size_ml: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          size_ml?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

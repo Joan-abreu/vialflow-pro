@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
+import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 
 interface Shipment {
   id: string;
@@ -32,6 +33,8 @@ interface Shipment {
   dimension_length_in: number | null;
   dimension_width_in: number | null;
   dimension_height_in: number | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
   production_batches?: {
     batch_number: string;
   };
@@ -115,6 +118,7 @@ const Shipments = () => {
                       <TableHead>FBA Shipment ID</TableHead>
                       <TableHead>Weight (lb)</TableHead>
                       <TableHead>Dimensions (in)</TableHead>
+                      <TableHead>Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -139,6 +143,9 @@ const Shipments = () => {
                           {shipment.dimension_length_in && shipment.dimension_width_in && shipment.dimension_height_in
                             ? `${shipment.dimension_length_in} × ${shipment.dimension_width_in} × ${shipment.dimension_height_in}`
                             : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <EditShipmentDialog shipment={shipment} />
                         </TableCell>
                       </TableRow>
                     ))}

@@ -40,6 +40,8 @@ interface ProductionBatch {
   sale_type: string;
   pack_quantity: number | null;
   created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
   shipped_units: number;
   vial_type_id: string;
   vial_types: {
@@ -139,6 +141,8 @@ const Production = () => {
                       <TableHead>Progress</TableHead>
                       <TableHead>Sale Type</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Completed</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -191,6 +195,24 @@ const Production = () => {
                           <Badge variant={getStatusColor(batch.status)} className="capitalize">
                             {batch.status.replace("_", " ")}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {batch.started_at ? (
+                            <span className="text-sm">
+                              {format(new Date(batch.started_at), "PP p")}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {batch.completed_at ? (
+                            <span className="text-sm">
+                              {format(new Date(batch.completed_at), "PP p")}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
                         <TableCell>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,27 +12,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, GripVertical } from "lucide-react";
+import { AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
 interface RawMaterial {
@@ -45,71 +29,10 @@ interface RawMaterial {
   order_index: number;
 }
 
-interface SortableRowProps {
-  material: RawMaterial;
-  isLowStock: boolean;
-}
-
-const SortableRow = ({ material, isLowStock }: SortableRowProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: material.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <TableRow ref={setNodeRef} style={style}>
-      <TableCell className="w-10">
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </TableCell>
-      <TableCell className="font-medium">{material.name}</TableCell>
-      <TableCell className="capitalize">{material.category}</TableCell>
-      <TableCell>
-        {material.current_stock} {material.unit}
-      </TableCell>
-      <TableCell>
-        {material.min_stock_level} {material.unit}
-      </TableCell>
-      <TableCell>
-        {material.cost_per_unit
-          ? `$${material.cost_per_unit.toFixed(2)}`
-          : "-"}
-      </TableCell>
-      <TableCell>
-        {isLowStock ? (
-          <Badge variant="destructive" className="gap-1">
-            <AlertTriangle className="h-3 w-3" />
-            Low Stock
-          </Badge>
-        ) : (
-          <Badge variant="secondary">OK</Badge>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-};
 
 const Inventory = () => {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -133,33 +56,34 @@ const Inventory = () => {
     return material.current_stock < material.min_stock_level;
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) {
+  const moveItem = async (index: number, direction: "up" | "down") => {
+    if (
+      (direction === "up" && index === 0) ||
+      (direction === "down" && index === materials.length - 1)
+    ) {
       return;
     }
 
-    const oldIndex = materials.findIndex((m) => m.id === active.id);
-    const newIndex = materials.findIndex((m) => m.id === over.id);
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    const newMaterials = [...materials];
+    const [movedItem] = newMaterials.splice(index, 1);
+    newMaterials.splice(newIndex, 0, movedItem);
 
-    const newMaterials = arrayMove(materials, oldIndex, newIndex);
     setMaterials(newMaterials);
 
-    // Update order_index in database
     try {
-      const updates = newMaterials.map((material, index) =>
+      const updates = newMaterials.map((material, idx) =>
         supabase
           .from("raw_materials")
-          .update({ order_index: index })
+          .update({ order_index: idx })
           .eq("id", material.id)
       );
 
       await Promise.all(updates);
-      toast.success("Order updated successfully");
+      toast.success("Order updated");
     } catch (error) {
       toast.error("Error updating order");
-      fetchMaterials(); // Revert on error
+      fetchMaterials();
     }
   };
 
@@ -192,39 +116,70 @@ const Inventory = () => {
                 No materials yet. Click "Add Material" to create your first one.
               </p>
             ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10"></TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Current Stock</TableHead>
-                      <TableHead>Min Level</TableHead>
-                      <TableHead>Cost/Unit</TableHead>
-                      <TableHead>Status</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">Order</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead>Min Level</TableHead>
+                    <TableHead>Cost/Unit</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {materials.map((material, index) => (
+                    <TableRow key={material.id}>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveItem(index, "up")}
+                            disabled={index === 0}
+                            className="h-7 w-7 p-0"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveItem(index, "down")}
+                            disabled={index === materials.length - 1}
+                            className="h-7 w-7 p-0"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{material.name}</TableCell>
+                      <TableCell className="capitalize">{material.category}</TableCell>
+                      <TableCell>
+                        {material.current_stock} {material.unit}
+                      </TableCell>
+                      <TableCell>
+                        {material.min_stock_level} {material.unit}
+                      </TableCell>
+                      <TableCell>
+                        {material.cost_per_unit
+                          ? `$${material.cost_per_unit.toFixed(2)}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {isLowStock(material) ? (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Low Stock
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">OK</Badge>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <SortableContext
-                      items={materials.map((m) => m.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {materials.map((material) => (
-                        <SortableRow
-                          key={material.id}
-                          material={material}
-                          isLowStock={isLowStock(material)}
-                        />
-                      ))}
-                    </SortableContext>
-                  </TableBody>
-                </Table>
-              </DndContext>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>

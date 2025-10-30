@@ -12,10 +12,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
+import EditMaterialDialog from "@/components/inventory/EditMaterialDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface RawMaterial {
@@ -87,6 +99,20 @@ const Inventory = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase
+      .from("raw_materials")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Error deleting material");
+    } else {
+      toast.success("Material deleted");
+      fetchMaterials();
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -126,6 +152,7 @@ const Inventory = () => {
                     <TableHead>Min Level</TableHead>
                     <TableHead>Cost/Unit</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -175,6 +202,35 @@ const Inventory = () => {
                         ) : (
                           <Badge variant="secondary">OK</Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <EditMaterialDialog
+                            material={material}
+                            onSuccess={fetchMaterials}
+                          />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Material</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{material.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(material.id)}>
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

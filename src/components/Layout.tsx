@@ -9,10 +9,12 @@ import {
   Boxes, 
   Truck, 
   LogOut,
-  Menu 
+  Menu,
+  Shield 
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,6 +24,7 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAdmin } = useUserRole();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -29,12 +32,20 @@ const Layout = ({ children }: LayoutProps) => {
     navigate("/auth");
   };
 
-  const navigation = [
+  const baseNavigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Production", href: "/production", icon: Package },
     { name: "Shipments", href: "/shipments", icon: Truck },
     { name: "Inventory", href: "/inventory", icon: Boxes },
   ];
+
+  const adminNavigation = [
+    { name: "Users", href: "/users", icon: Shield },
+  ];
+
+  const navigation = isAdmin 
+    ? [...baseNavigation, ...adminNavigation]
+    : baseNavigation;
 
   const NavigationLinks = () => (
     <>

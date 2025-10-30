@@ -10,6 +10,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Package, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +48,9 @@ interface ShipmentBoxesDialogProps {
 export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxesDialogProps) => {
   const [open, setOpen] = useState(false);
   const [boxes, setBoxes] = useState<ShipmentBox[]>([]);
+  const [boxMaterials, setBoxMaterials] = useState<Array<{ id: string; name: string; dimension_length_in: number | null; dimension_width_in: number | null; dimension_height_in: number | null }>>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedBoxType, setSelectedBoxType] = useState("");
   const [newBox, setNewBox] = useState({
     box_number: "",
     packs_per_box: "",
@@ -65,9 +74,23 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     }
   };
 
+  const fetchBoxMaterials = async () => {
+    const { data, error } = await supabase
+      .from("raw_materials")
+      .select("id, name, dimension_length_in, dimension_width_in, dimension_height_in")
+      .eq("category", "packaging")
+      .not("dimension_length_in", "is", null)
+      .order("name");
+
+    if (!error && data) {
+      setBoxMaterials(data);
+    }
+  };
+
   useEffect(() => {
     if (open) {
       fetchBoxes();
+      fetchBoxMaterials();
     }
   }, [open, shipmentId]);
 
@@ -195,6 +218,36 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold mb-4">Add New Box</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="box_type">Box Type (optional)</Label>
+                <Select
+                  value={selectedBoxType}
+                  onValueChange={(value) => {
+                    setSelectedBoxType(value);
+                    const selectedBox = boxMaterials.find(b => b.id === value);
+                    if (selectedBox) {
+                      setNewBox({
+                        ...newBox,
+                        dimension_length_in: selectedBox.dimension_length_in?.toString() || "",
+                        dimension_width_in: selectedBox.dimension_width_in?.toString() || "",
+                        dimension_height_in: selectedBox.dimension_height_in?.toString() || "",
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select box type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boxMaterials.map((box) => (
+                      <SelectItem key={box.id} value={box.id}>
+                        {box.name} ({box.dimension_length_in}" x {box.dimension_width_in}" x {box.dimension_height_in}")
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="box_number">Box Number *</Label>
                 <Input

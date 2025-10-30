@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Trash2, GripVertical } from "lucide-react";
+import { AlertTriangle, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
@@ -48,6 +48,8 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<"name" | "category" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -71,14 +73,36 @@ const Inventory = () => {
     return material.current_stock < material.min_stock_level;
   };
 
-  const filteredMaterials = materials.filter((material) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      material.name.toLowerCase().includes(query) ||
-      material.category.toLowerCase().includes(query) ||
-      material.unit.toLowerCase().includes(query)
-    );
-  });
+  const handleSort = (field: "name" | "category") => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const filteredMaterials = materials
+    .filter((material) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        material.name.toLowerCase().includes(query) ||
+        material.category.toLowerCase().includes(query) ||
+        material.unit.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      
+      const aValue = a[sortField].toLowerCase();
+      const bValue = b[sortField].toLowerCase();
+      
+      if (sortDirection === "asc") {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -177,8 +201,26 @@ const Inventory = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleSort("name")}
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                      >
+                        Name
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleSort("category")}
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                      >
+                        Category
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
                     <TableHead>Current Stock</TableHead>
                     <TableHead>Min Level</TableHead>
                     <TableHead>Cost/Unit</TableHead>

@@ -15,6 +15,9 @@ import { format } from "date-fns";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Shipment {
   id: string;
@@ -86,6 +89,27 @@ const Shipments = () => {
     }
   };
 
+  const handleDeleteShipment = async (shipmentId: string, shipmentNumber: string) => {
+    if (!confirm(`Are you sure you want to delete shipment ${shipmentNumber}? This will also delete all boxes associated with it.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("shipments")
+        .delete()
+        .eq("id", shipmentId);
+
+      if (error) throw error;
+
+      toast.success("Shipment deleted successfully");
+      fetchShipments();
+    } catch (error: any) {
+      toast.error("Error deleting shipment");
+      console.error("Error:", error);
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -100,10 +124,7 @@ const Shipments = () => {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Shipment Boxes</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : shipments.length === 0 ? (
@@ -160,6 +181,13 @@ const Shipments = () => {
                               shipmentNumber={shipment.shipment_number}
                             />
                             <EditShipmentDialog shipment={shipment} />
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

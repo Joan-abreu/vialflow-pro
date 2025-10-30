@@ -57,6 +57,9 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
     min_stock_level: material.min_stock_level,
     cost_per_unit: material.cost_per_unit || 0,
     qty_per_box: (material as any).qty_per_box || 0,
+    dimension_length_in: (material as any).dimension_length_in || 0,
+    dimension_width_in: (material as any).dimension_width_in || 0,
+    dimension_height_in: (material as any).dimension_height_in || 0,
   });
 
   useEffect(() => {
@@ -96,6 +99,9 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
         min_stock_level: formData.min_stock_level,
         cost_per_unit: formData.cost_per_unit,
         qty_per_box: formData.unit.toLowerCase().includes('box') ? formData.qty_per_box : null,
+        dimension_length_in: formData.category === 'packaging' && formData.dimension_length_in ? formData.dimension_length_in : null,
+        dimension_width_in: formData.category === 'packaging' && formData.dimension_width_in ? formData.dimension_width_in : null,
+        dimension_height_in: formData.category === 'packaging' && formData.dimension_height_in ? formData.dimension_height_in : null,
       })
       .eq("id", material.id);
 
@@ -181,6 +187,57 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
                 required
               />
             </div>
+          )}
+          {formData.category === 'packaging' && (
+            <>
+              <div>
+                <Label>Box Dimensions (inches)</Label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label htmlFor="dimension_length_in">Length</Label>
+                  <Input
+                    id="dimension_length_in"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={formData.dimension_length_in}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dimension_length_in: parseFloat(e.target.value) })
+                    }
+                    placeholder="20"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dimension_width_in">Width</Label>
+                  <Input
+                    id="dimension_width_in"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={formData.dimension_width_in}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dimension_width_in: parseFloat(e.target.value) })
+                    }
+                    placeholder="16"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dimension_height_in">Height</Label>
+                  <Input
+                    id="dimension_height_in"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={formData.dimension_height_in}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dimension_height_in: parseFloat(e.target.value) })
+                    }
+                    placeholder="12"
+                  />
+                </div>
+              </div>
+            </>
           )}
           <div>
             <Label htmlFor="current_stock">Current Stock</Label>

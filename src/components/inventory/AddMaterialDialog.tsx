@@ -50,6 +50,9 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
     min_stock_level: "",
     cost_per_unit: "",
     qty_per_box: "",
+    dimension_length_in: "",
+    dimension_width_in: "",
+    dimension_height_in: "",
   });
 
   useEffect(() => {
@@ -86,6 +89,9 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
       min_stock_level: parseFloat(formData.min_stock_level) || 0,
       cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
       qty_per_box: formData.qty_per_box && formData.unit.toLowerCase().includes('box') ? parseInt(formData.qty_per_box) : null,
+      dimension_length_in: formData.category === 'packaging' && formData.dimension_length_in ? parseFloat(formData.dimension_length_in) : null,
+      dimension_width_in: formData.category === 'packaging' && formData.dimension_width_in ? parseFloat(formData.dimension_width_in) : null,
+      dimension_height_in: formData.category === 'packaging' && formData.dimension_height_in ? parseFloat(formData.dimension_height_in) : null,
     });
 
     setLoading(false);
@@ -103,6 +109,9 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
         min_stock_level: "",
         cost_per_unit: "",
         qty_per_box: "",
+        dimension_length_in: "",
+        dimension_width_in: "",
+        dimension_height_in: "",
       });
       onSuccess();
     }
@@ -186,6 +195,51 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                   placeholder="Enter units per box"
                 />
               </div>
+            )}
+            {formData.category === 'packaging' && (
+              <>
+                <div className="grid gap-2">
+                  <Label>Box Dimensions (inches)</Label>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="dimension_length_in">Length</Label>
+                    <Input
+                      id="dimension_length_in"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.dimension_length_in}
+                      onChange={(e) => setFormData({ ...formData, dimension_length_in: e.target.value })}
+                      placeholder="20"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dimension_width_in">Width</Label>
+                    <Input
+                      id="dimension_width_in"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.dimension_width_in}
+                      onChange={(e) => setFormData({ ...formData, dimension_width_in: e.target.value })}
+                      placeholder="16"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dimension_height_in">Height</Label>
+                    <Input
+                      id="dimension_height_in"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.dimension_height_in}
+                      onChange={(e) => setFormData({ ...formData, dimension_height_in: e.target.value })}
+                      placeholder="12"
+                    />
+                  </div>
+                </div>
+              </>
             )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">

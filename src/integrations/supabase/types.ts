@@ -158,6 +158,9 @@ export type Database = {
           cost_per_unit: number | null
           created_at: string
           current_stock: number
+          dimension_height_in: number | null
+          dimension_length_in: number | null
+          dimension_width_in: number | null
           id: string
           min_stock_level: number
           name: string
@@ -171,6 +174,9 @@ export type Database = {
           cost_per_unit?: number | null
           created_at?: string
           current_stock?: number
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
           id?: string
           min_stock_level?: number
           name: string
@@ -184,6 +190,9 @@ export type Database = {
           cost_per_unit?: number | null
           created_at?: string
           current_stock?: number
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
           id?: string
           min_stock_level?: number
           name?: string

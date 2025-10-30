@@ -32,12 +32,22 @@ interface Batch {
   quantity: number;
 }
 
+interface BoxMaterial {
+  id: string;
+  name: string;
+  dimension_length_in: number | null;
+  dimension_width_in: number | null;
+  dimension_height_in: number | null;
+}
+
 const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [boxes, setBoxes] = useState<BoxMaterial[]>([]);
   const [step, setStep] = useState<"initial" | "boxes">("initial");
   const [numBoxes, setNumBoxes] = useState("");
+  const [selectedBoxType, setSelectedBoxType] = useState("");
   const [formData, setFormData] = useState({
     fba_id: "",
     destination: "",
@@ -45,7 +55,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     packing_date: "",
     ups_delivery_date: "",
   });
-  const [boxes, setBoxes] = useState<Array<{
+  const [boxesData, setBoxesData] = useState<Array<{
     packs_per_box: string;
     bottles_per_box: string;
     weight_lb: string;
@@ -57,6 +67,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   useEffect(() => {
     if (open) {
       fetchBatches();
+      fetchBoxes();
     }
   }, [open]);
 
@@ -68,6 +79,19 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
 
     if (!error && data) {
       setBatches(data);
+    }
+  };
+
+  const fetchBoxes = async () => {
+    const { data, error } = await supabase
+      .from("raw_materials")
+      .select("id, name, dimension_length_in, dimension_width_in, dimension_height_in")
+      .eq("category", "packaging")
+      .not("dimension_length_in", "is", null)
+      .order("name");
+
+    if (!error && data) {
+      setBoxes(data);
     }
   };
 
@@ -84,13 +108,23 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
 
     const count = parseInt(numBoxes);
     if (count > 0 && count <= 20) {
-      setBoxes(Array(count).fill(null).map(() => ({
-        packs_per_box: "",
-        bottles_per_box: "",
-        weight_lb: "",
+      // Get selected box dimensions
+      const selectedBox = boxes.find(b => b.id === selectedBoxType);
+      const defaultDimensions = selectedBox ? {
+        dimension_length_in: selectedBox.dimension_length_in?.toString() || "",
+        dimension_width_in: selectedBox.dimension_width_in?.toString() || "",
+        dimension_height_in: selectedBox.dimension_height_in?.toString() || "",
+      } : {
         dimension_length_in: "",
         dimension_width_in: "",
         dimension_height_in: "",
+      };
+
+      setBoxesData(Array(count).fill(null).map(() => ({
+        packs_per_box: "",
+        bottles_per_box: "",
+        weight_lb: "",
+        ...defaultDimensions,
       })));
       setStep("boxes");
     } else {
@@ -99,9 +133,9 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   };
 
   const updateBox = (index: number, field: string, value: string) => {
-    const newBoxes = [...boxes];
+    const newBoxes = [...boxesData];
     newBoxes[index] = { ...newBoxes[index], [field]: value };
-    setBoxes(newBoxes);
+    setBoxesData(newBoxes);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +164,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     const shipmentNumber = `SHIP-${dateStr}-${String(shipmentCount + 1).padStart(3, '0')}`;
 
     // Create all boxes as separate shipment records
-    const shipments = boxes.map((box, index) => ({
+    const shipments = boxesData.map((box, index) => ({
       shipment_number: shipmentNumber,
       fba_id: formData.fba_id.trim() || null,
       destination: formData.destination.trim(),
@@ -155,10 +189,11 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     if (error) {
       toast.error("Error creating shipments: " + error.message);
     } else {
-      toast.success(`Shipment ${shipmentNumber} with ${boxes.length} boxes created successfully`);
+      toast.success(`Shipment ${shipmentNumber} with ${boxesData.length} boxes created successfully`);
       setOpen(false);
       setStep("initial");
       setNumBoxes("");
+      setSelectedBoxType("");
       setFormData({
         fba_id: "",
         destination: "",
@@ -166,7 +201,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
         packing_date: "",
         ups_delivery_date: "",
       });
-      setBoxes([]);
+      setBoxesData([]);
       onSuccess();
     }
   };
@@ -254,6 +289,25 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
               </div>
 
               <div className="grid gap-2">
+                <Label htmlFor="box_type">Box Type (optional)</Label>
+                <Select
+                  value={selectedBoxType}
+                  onValueChange={(value) => setSelectedBoxType(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select box type for default dimensions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boxes.map((box) => (
+                      <SelectItem key={box.id} value={box.id}>
+                        {box.name} ({box.dimension_length_in}" x {box.dimension_width_in}" x {box.dimension_height_in}")
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
                 <Label htmlFor="num_boxes">Number of Boxes *</Label>
                 <Input
                   id="num_boxes"
@@ -281,11 +335,11 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
             <DialogHeader>
               <DialogTitle>Box Details</DialogTitle>
               <DialogDescription>
-                Enter details for each of the {boxes.length} boxes
+                Enter details for each of the {boxesData.length} boxes
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
-              {boxes.map((box, index) => (
+              {boxesData.map((box, index) => (
                 <div key={index} className="border rounded-lg p-4 space-y-4">
                   <h3 className="font-semibold text-lg">Box #{index + 1}</h3>
                   
@@ -374,7 +428,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create {boxes.length} Boxes
+                Create {boxesData.length} Boxes
               </Button>
             </DialogFooter>
           </form>

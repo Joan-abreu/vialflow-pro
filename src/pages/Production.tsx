@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -15,8 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
-import CreateShipmentDialog from "@/components/production/CreateShipmentDialog";
+import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
+import { Package } from "lucide-react";
 
 interface ProductionBatch {
   id: string;
@@ -169,9 +171,14 @@ const Production = () => {
                               onSuccess={fetchBatches}
                             />
                             {shipped < total && (
-                              <CreateShipmentDialog
-                                batch={batch}
+                              <AddShipmentDialog
+                                initialBatchId={batch.id}
                                 onSuccess={fetchBatches}
+                                trigger={
+                                  <Button variant="ghost" size="icon">
+                                    <Package className="h-4 w-4" />
+                                  </Button>
+                                }
                               />
                             )}
                           </div>

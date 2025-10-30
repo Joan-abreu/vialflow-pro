@@ -25,6 +25,8 @@ import BarcodeScanner from "./BarcodeScanner";
 
 interface AddShipmentDialogProps {
   onSuccess: () => void;
+  initialBatchId?: string;
+  trigger?: React.ReactNode;
 }
 
 interface Batch {
@@ -43,7 +45,7 @@ interface BoxMaterial {
   dimension_height_in: number | null;
 }
 
-const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
+const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -73,8 +75,28 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     if (open) {
       fetchBatches();
       fetchBoxes();
+      
+      // Set initial batch if provided
+      if (initialBatchId && formData.batch_id === "") {
+        setFormData(prev => ({ ...prev, batch_id: initialBatchId }));
+        const batch = batches.find(b => b.id === initialBatchId);
+        if (batch) {
+          setSelectedBatch(batch);
+        }
+      }
     }
-  }, [open]);
+  }, [open, initialBatchId]);
+  
+  useEffect(() => {
+    // Update selected batch when batches are loaded and initialBatchId is set
+    if (initialBatchId && batches.length > 0 && !selectedBatch) {
+      const batch = batches.find(b => b.id === initialBatchId);
+      if (batch) {
+        setSelectedBatch(batch);
+        setFormData(prev => ({ ...prev, batch_id: initialBatchId }));
+      }
+    }
+  }, [batches, initialBatchId, selectedBatch]);
 
   const fetchBatches = async () => {
     const { data, error } = await supabase
@@ -275,10 +297,12 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Shipment
-        </Button>
+        {trigger || (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            New Shipment
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         {step === "initial" ? (

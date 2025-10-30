@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      material_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       production_batches: {
         Row: {
           batch_number: string
@@ -134,6 +155,7 @@ export type Database = {
           id: string
           min_stock_level: number
           name: string
+          order_index: number | null
           unit: string
           updated_at: string
         }
@@ -145,6 +167,7 @@ export type Database = {
           id?: string
           min_stock_level?: number
           name: string
+          order_index?: number | null
           unit: string
           updated_at?: string
         }
@@ -156,6 +179,7 @@ export type Database = {
           id?: string
           min_stock_level?: number
           name?: string
+          order_index?: number | null
           unit?: string
           updated_at?: string
         }

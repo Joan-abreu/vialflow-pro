@@ -32,10 +32,16 @@ interface Unit {
   abbreviation: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -46,17 +52,25 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
   });
 
   useEffect(() => {
-    const fetchUnits = async () => {
-      const { data } = await supabase
-        .from("units_of_measurement")
-        .select("*")
-        .eq("active", true)
-        .order("name");
+    const fetchData = async () => {
+      const [unitsResponse, categoriesResponse] = await Promise.all([
+        supabase
+          .from("units_of_measurement")
+          .select("*")
+          .eq("active", true)
+          .order("name"),
+        supabase
+          .from("material_categories")
+          .select("*")
+          .eq("active", true)
+          .order("name")
+      ]);
       
-      if (data) setUnits(data);
+      if (unitsResponse.data) setUnits(unitsResponse.data);
+      if (categoriesResponse.data) setCategories(categoriesResponse.data);
     };
     
-    if (open) fetchUnits();
+    if (open) fetchData();
   }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,11 +143,11 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vials">Vials</SelectItem>
-                  <SelectItem value="seals">Seals</SelectItem>
-                  <SelectItem value="labels">Labels</SelectItem>
-                  <SelectItem value="packaging">Packaging</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      <span className="capitalize">{category.name}</span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -39,7 +39,6 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   const [step, setStep] = useState<"initial" | "boxes">("initial");
   const [numBoxes, setNumBoxes] = useState("");
   const [formData, setFormData] = useState({
-    shipment_number: "",
     fba_id: "",
     destination: "",
     batch_id: "",
@@ -73,6 +72,16 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
   };
 
   const handleContinue = () => {
+    if (!formData.batch_id) {
+      toast.error("Please select a batch");
+      return;
+    }
+    
+    if (!formData.destination.trim()) {
+      toast.error("Please enter a destination");
+      return;
+    }
+
     const count = parseInt(numBoxes);
     if (count > 0 && count <= 20) {
       setBoxes(Array(count).fill(null).map(() => ({
@@ -107,12 +116,25 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
       return;
     }
 
+    // Generate shipment number
+    const date = new Date();
+    const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
+    
+    // Get count of today's shipments to generate unique number
+    const { data: todayShipments } = await supabase
+      .from("shipments")
+      .select("shipment_number")
+      .like("shipment_number", `SHIP-${dateStr}-%`);
+    
+    const shipmentCount = todayShipments?.length || 0;
+    const shipmentNumber = `SHIP-${dateStr}-${String(shipmentCount + 1).padStart(3, '0')}`;
+
     // Create all boxes as separate shipment records
     const shipments = boxes.map((box, index) => ({
-      shipment_number: formData.shipment_number.trim(),
+      shipment_number: shipmentNumber,
       fba_id: formData.fba_id.trim() || null,
       destination: formData.destination.trim(),
-      batch_id: formData.batch_id || null,
+      batch_id: formData.batch_id,
       box_number: index + 1,
       packs_per_box: box.packs_per_box ? parseInt(box.packs_per_box) : null,
       bottles_per_box: box.bottles_per_box ? parseInt(box.bottles_per_box) : null,
@@ -133,12 +155,11 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     if (error) {
       toast.error("Error creating shipments: " + error.message);
     } else {
-      toast.success(`${boxes.length} shipment boxes created successfully`);
+      toast.success(`Shipment ${shipmentNumber} with ${boxes.length} boxes created successfully`);
       setOpen(false);
       setStep("initial");
       setNumBoxes("");
       setFormData({
-        shipment_number: "",
         fba_id: "",
         destination: "",
         batch_id: "",
@@ -169,25 +190,14 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="shipment_number">Shipment Number *</Label>
-                <Input
-                  id="shipment_number"
-                  value={formData.shipment_number}
-                  onChange={(e) => setFormData({ ...formData, shipment_number: e.target.value })}
-                  placeholder="e.g., SHIP-001"
-                  required
-                  maxLength={50}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="batch_id">Batch</Label>
+                <Label htmlFor="batch_id">Batch *</Label>
                 <Select
                   value={formData.batch_id}
                   onValueChange={(value) => setFormData({ ...formData, batch_id: value })}
+                  required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select batch (optional)" />
+                    <SelectValue placeholder="Select batch" />
                   </SelectTrigger>
                   <SelectContent>
                     {batches.map((batch) => (
@@ -269,7 +279,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
         ) : (
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>Box Details for {formData.shipment_number}</DialogTitle>
+              <DialogTitle>Box Details</DialogTitle>
               <DialogDescription>
                 Enter details for each of the {boxes.length} boxes
               </DialogDescription>

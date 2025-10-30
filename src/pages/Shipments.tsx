@@ -27,6 +27,7 @@ interface Shipment {
   bottles_per_box: number | null;
   packing_date: string | null;
   ups_delivery_date: string | null;
+  ups_tracking_number: string | null;
   weight_lb: number | null;
   dimension_length_in: number | null;
   dimension_width_in: number | null;
@@ -110,6 +111,7 @@ const Shipments = () => {
                       <TableHead>Bottles per Box</TableHead>
                       <TableHead>Packing Date</TableHead>
                       <TableHead>UPS Delivery Date</TableHead>
+                      <TableHead>UPS Tracking</TableHead>
                       <TableHead>FBA Shipment ID</TableHead>
                       <TableHead>Weight (lb)</TableHead>
                       <TableHead>Dimensions (in)</TableHead>
@@ -130,6 +132,7 @@ const Shipments = () => {
                         <TableCell>
                           {shipment.ups_delivery_date ? format(new Date(shipment.ups_delivery_date), "PP") : "-"}
                         </TableCell>
+                        <TableCell className="font-mono text-sm">{shipment.ups_tracking_number || "-"}</TableCell>
                         <TableCell>{shipment.fba_id || "-"}</TableCell>
                         <TableCell>{shipment.weight_lb || "-"}</TableCell>
                         <TableCell>

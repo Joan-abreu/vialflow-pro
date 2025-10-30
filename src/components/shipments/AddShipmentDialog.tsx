@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
+import BarcodeScanner from "./BarcodeScanner";
 
 interface AddShipmentDialogProps {
   onSuccess: () => void;
@@ -57,6 +58,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
     batch_id: "",
     packing_date: "",
     ups_delivery_date: "",
+    ups_tracking_number: "",
   });
   const [boxesData, setBoxesData] = useState<Array<{
     packs_per_box: string;
@@ -192,6 +194,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
       bottles_per_box: box.bottles_per_box ? parseInt(box.bottles_per_box) : null,
       packing_date: formData.packing_date || null,
       ups_delivery_date: formData.ups_delivery_date || null,
+      ups_tracking_number: formData.ups_tracking_number.trim() || null,
       weight_lb: box.weight_lb ? parseFloat(box.weight_lb) : null,
       dimension_length_in: box.dimension_length_in ? parseFloat(box.dimension_length_in) : null,
       dimension_width_in: box.dimension_width_in ? parseFloat(box.dimension_width_in) : null,
@@ -218,6 +221,7 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
         batch_id: "",
         packing_date: "",
         ups_delivery_date: "",
+        ups_tracking_number: "",
       });
       setBoxesData([]);
       onSuccess();
@@ -285,6 +289,20 @@ const AddShipmentDialog = ({ onSuccess }: AddShipmentDialogProps) => {
                     onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="ups_tracking_number">Código de Rastreo UPS</Label>
+                <Input
+                  id="ups_tracking_number"
+                  value={formData.ups_tracking_number}
+                  onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
+                  placeholder="Ingrese o escanee el código"
+                  maxLength={100}
+                />
+                <BarcodeScanner 
+                  onScan={(code) => setFormData({ ...formData, ups_tracking_number: code })}
+                />
               </div>
 
               <div className="grid gap-2">

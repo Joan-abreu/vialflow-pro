@@ -263,6 +263,7 @@ export type Database = {
           status: string
           updated_at: string
           ups_delivery_date: string | null
+          ups_tracking_number: string | null
           weight_lb: number | null
         }
         Insert: {
@@ -285,6 +286,7 @@ export type Database = {
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
+          ups_tracking_number?: string | null
           weight_lb?: number | null
         }
         Update: {
@@ -307,6 +309,7 @@ export type Database = {
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
+          ups_tracking_number?: string | null
           weight_lb?: number | null
         }
         Relationships: [

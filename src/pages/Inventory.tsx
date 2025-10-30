@@ -3,6 +3,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -46,6 +47,7 @@ const Inventory = () => {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -68,6 +70,15 @@ const Inventory = () => {
   const isLowStock = (material: RawMaterial) => {
     return material.current_stock < material.min_stock_level;
   };
+
+  const filteredMaterials = materials.filter((material) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      material.name.toLowerCase().includes(query) ||
+      material.category.toLowerCase().includes(query) ||
+      material.unit.toLowerCase().includes(query)
+    );
+  });
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -145,11 +156,21 @@ const Inventory = () => {
             <CardTitle>Raw Materials</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mb-4">
+              <Input
+                placeholder="Search by name, category, or unit..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : materials.length === 0 ? (
+            ) : filteredMaterials.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No materials yet. Click "Add Material" to create your first one.
+                {materials.length === 0
+                  ? "No materials yet. Click 'Add Material' to create your first one."
+                  : "No materials found matching your search."}
               </p>
             ) : (
               <Table>
@@ -166,7 +187,7 @@ const Inventory = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {materials.map((material, index) => (
+                  {filteredMaterials.map((material, index) => (
                     <TableRow 
                       key={material.id}
                       draggable

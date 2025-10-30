@@ -27,15 +27,7 @@ interface Shipment {
   destination: string | null;
   status: string;
   batch_id: string | null;
-  box_number: number | null;
-  packs_per_box: number | null;
-  bottles_per_box: number | null;
-  packing_date: string | null;
   ups_delivery_date: string | null;
-  weight_lb: number | null;
-  dimension_length_in: number | null;
-  dimension_width_in: number | null;
-  dimension_height_in: number | null;
   ups_tracking_number: string | null;
   fba_id: string | null;
   shipped_at: string | null;
@@ -55,15 +47,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
     shipment_number: shipment.shipment_number,
     destination: shipment.destination || "",
     status: shipment.status,
-    box_number: shipment.box_number?.toString() || "",
-    packs_per_box: shipment.packs_per_box?.toString() || "",
-    bottles_per_box: shipment.bottles_per_box?.toString() || "",
-    packing_date: shipment.packing_date ? new Date(shipment.packing_date).toISOString().split('T')[0] : "",
     ups_delivery_date: shipment.ups_delivery_date ? new Date(shipment.ups_delivery_date).toISOString().split('T')[0] : "",
-    weight_lb: shipment.weight_lb?.toString() || "",
-    dimension_length_in: shipment.dimension_length_in?.toString() || "",
-    dimension_width_in: shipment.dimension_width_in?.toString() || "",
-    dimension_height_in: shipment.dimension_height_in?.toString() || "",
     ups_tracking_number: shipment.ups_tracking_number || "",
     fba_id: shipment.fba_id || "",
   });
@@ -77,15 +61,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
         shipment_number: formData.shipment_number,
         destination: formData.destination || null,
         status: formData.status,
-        box_number: formData.box_number ? parseInt(formData.box_number) : null,
-        packs_per_box: formData.packs_per_box ? parseInt(formData.packs_per_box) : null,
-        bottles_per_box: formData.bottles_per_box ? parseInt(formData.bottles_per_box) : null,
-        packing_date: formData.packing_date || null,
         ups_delivery_date: formData.ups_delivery_date || null,
-        weight_lb: formData.weight_lb ? parseFloat(formData.weight_lb) : null,
-        dimension_length_in: formData.dimension_length_in ? parseFloat(formData.dimension_length_in) : null,
-        dimension_width_in: formData.dimension_width_in ? parseFloat(formData.dimension_width_in) : null,
-        dimension_height_in: formData.dimension_height_in ? parseFloat(formData.dimension_height_in) : null,
         ups_tracking_number: formData.ups_tracking_number || null,
         fba_id: formData.fba_id || null,
       };
@@ -163,96 +139,12 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="box_number">Número de Caja</Label>
-              <Input
-                id="box_number"
-                type="number"
-                value={formData.box_number}
-                onChange={(e) => setFormData({ ...formData, box_number: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="packs_per_box">Paquetes por Caja</Label>
-              <Input
-                id="packs_per_box"
-                type="number"
-                value={formData.packs_per_box}
-                onChange={(e) => setFormData({ ...formData, packs_per_box: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bottles_per_box">Botellas por Caja</Label>
-              <Input
-                id="bottles_per_box"
-                type="number"
-                value={formData.bottles_per_box}
-                onChange={(e) => setFormData({ ...formData, bottles_per_box: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="weight_lb">Peso (lb)</Label>
-              <Input
-                id="weight_lb"
-                type="number"
-                step="0.01"
-                value={formData.weight_lb}
-                onChange={(e) => setFormData({ ...formData, weight_lb: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="packing_date">Fecha de Empaque</Label>
-              <Input
-                id="packing_date"
-                type="date"
-                value={formData.packing_date}
-                onChange={(e) => setFormData({ ...formData, packing_date: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="ups_delivery_date">Fecha de Entrega UPS</Label>
               <Input
                 id="ups_delivery_date"
                 type="date"
                 value={formData.ups_delivery_date}
                 onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dimension_length_in">Largo (in)</Label>
-              <Input
-                id="dimension_length_in"
-                type="number"
-                step="0.01"
-                value={formData.dimension_length_in}
-                onChange={(e) => setFormData({ ...formData, dimension_length_in: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dimension_width_in">Ancho (in)</Label>
-              <Input
-                id="dimension_width_in"
-                type="number"
-                step="0.01"
-                value={formData.dimension_width_in}
-                onChange={(e) => setFormData({ ...formData, dimension_width_in: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dimension_height_in">Alto (in)</Label>
-              <Input
-                id="dimension_height_in"
-                type="number"
-                step="0.01"
-                value={formData.dimension_height_in}
-                onChange={(e) => setFormData({ ...formData, dimension_height_in: e.target.value })}
               />
             </div>
 
@@ -273,6 +165,10 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
                 onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
               />
             </div>
+          </div>
+
+          <div className="text-sm text-muted-foreground mb-4">
+            <p>Para gestionar las cajas de este envío, usa el botón "Ver Cajas".</p>
           </div>
 
           <div className="flex justify-end gap-2">

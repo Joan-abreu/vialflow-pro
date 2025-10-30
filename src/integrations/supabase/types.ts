@@ -203,6 +203,56 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_boxes: {
+        Row: {
+          bottles_per_box: number | null
+          box_number: number
+          created_at: string
+          dimension_height_in: number | null
+          dimension_length_in: number | null
+          dimension_width_in: number | null
+          id: string
+          packs_per_box: number | null
+          shipment_id: string
+          updated_at: string
+          weight_lb: number | null
+        }
+        Insert: {
+          bottles_per_box?: number | null
+          box_number: number
+          created_at?: string
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
+          id?: string
+          packs_per_box?: number | null
+          shipment_id: string
+          updated_at?: string
+          weight_lb?: number | null
+        }
+        Update: {
+          bottles_per_box?: number | null
+          box_number?: number
+          created_at?: string
+          dimension_height_in?: number | null
+          dimension_length_in?: number | null
+          dimension_width_in?: number | null
+          id?: string
+          packs_per_box?: number | null
+          shipment_id?: string
+          updated_at?: string
+          weight_lb?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_boxes_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipment_items: {
         Row: {
           batch_id: string
@@ -245,72 +295,48 @@ export type Database = {
       shipments: {
         Row: {
           batch_id: string | null
-          bottles_per_box: number | null
-          box_number: number | null
           created_at: string
           created_by: string
           delivered_at: string | null
           destination: string | null
-          dimension_height_in: number | null
-          dimension_length_in: number | null
-          dimension_width_in: number | null
           fba_id: string | null
           id: string
-          packing_date: string | null
-          packs_per_box: number | null
           shipment_number: string
           shipped_at: string | null
           status: string
           updated_at: string
           ups_delivery_date: string | null
           ups_tracking_number: string | null
-          weight_lb: number | null
         }
         Insert: {
           batch_id?: string | null
-          bottles_per_box?: number | null
-          box_number?: number | null
           created_at?: string
           created_by: string
           delivered_at?: string | null
           destination?: string | null
-          dimension_height_in?: number | null
-          dimension_length_in?: number | null
-          dimension_width_in?: number | null
           fba_id?: string | null
           id?: string
-          packing_date?: string | null
-          packs_per_box?: number | null
           shipment_number: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
           ups_tracking_number?: string | null
-          weight_lb?: number | null
         }
         Update: {
           batch_id?: string | null
-          bottles_per_box?: number | null
-          box_number?: number | null
           created_at?: string
           created_by?: string
           delivered_at?: string | null
           destination?: string | null
-          dimension_height_in?: number | null
-          dimension_length_in?: number | null
-          dimension_width_in?: number | null
           fba_id?: string | null
           id?: string
-          packing_date?: string | null
-          packs_per_box?: number | null
           shipment_number?: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
           ups_tracking_number?: string | null
-          weight_lb?: number | null
         }
         Relationships: [
           {

@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
+import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 
 interface Shipment {
   id: string;
@@ -23,21 +24,20 @@ interface Shipment {
   status: string;
   created_at: string;
   batch_id: string | null;
-  box_number: number | null;
-  packs_per_box: number | null;
-  bottles_per_box: number | null;
-  packing_date: string | null;
   ups_delivery_date: string | null;
   ups_tracking_number: string | null;
-  weight_lb: number | null;
-  dimension_length_in: number | null;
-  dimension_width_in: number | null;
-  dimension_height_in: number | null;
   shipped_at: string | null;
   delivered_at: string | null;
   production_batches?: {
     batch_number: string;
   };
+  shipment_boxes?: Array<{
+    id: string;
+    box_number: number;
+    packs_per_box: number | null;
+    bottles_per_box: number | null;
+    weight_lb: number | null;
+  }>;
 }
 
 const Shipments = () => {
@@ -52,6 +52,13 @@ const Shipments = () => {
         *,
         production_batches:batch_id (
           batch_number
+        ),
+        shipment_boxes (
+          id,
+          box_number,
+          packs_per_box,
+          bottles_per_box,
+          weight_lb
         )
       `)
       .order("created_at", { ascending: false });
@@ -108,16 +115,14 @@ const Shipments = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Batch ID</TableHead>
-                      <TableHead>Box #</TableHead>
-                      <TableHead>Packs per Box</TableHead>
-                      <TableHead>Bottles per Box</TableHead>
-                      <TableHead>Packing Date</TableHead>
-                      <TableHead>UPS Delivery Date</TableHead>
+                      <TableHead>Número de Envío</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Destino</TableHead>
+                      <TableHead>Total Cajas</TableHead>
+                      <TableHead>FBA ID</TableHead>
                       <TableHead>UPS Tracking</TableHead>
-                      <TableHead>FBA Shipment ID</TableHead>
-                      <TableHead>Weight (lb)</TableHead>
-                      <TableHead>Dimensions (in)</TableHead>
+                      <TableHead>Fecha Entrega</TableHead>
+                      <TableHead>Estado</TableHead>
                       <TableHead>Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -125,27 +130,37 @@ const Shipments = () => {
                     {shipments.map((shipment) => (
                       <TableRow key={shipment.id}>
                         <TableCell className="font-medium">
+                          {shipment.shipment_number}
+                        </TableCell>
+                        <TableCell>
                           {shipment.production_batches?.batch_number || "-"}
                         </TableCell>
-                        <TableCell>{shipment.box_number || "-"}</TableCell>
-                        <TableCell>{shipment.packs_per_box || "-"}</TableCell>
-                        <TableCell>{shipment.bottles_per_box || "-"}</TableCell>
+                        <TableCell>{shipment.destination || "-"}</TableCell>
                         <TableCell>
-                          {shipment.packing_date ? format(new Date(shipment.packing_date), "PP") : "-"}
+                          {shipment.shipment_boxes?.length || 0} cajas
                         </TableCell>
-                        <TableCell>
-                          {shipment.ups_delivery_date ? format(new Date(shipment.ups_delivery_date), "PP") : "-"}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{shipment.ups_tracking_number || "-"}</TableCell>
                         <TableCell>{shipment.fba_id || "-"}</TableCell>
-                        <TableCell>{shipment.weight_lb || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {shipment.ups_tracking_number || "-"}
+                        </TableCell>
                         <TableCell>
-                          {shipment.dimension_length_in && shipment.dimension_width_in && shipment.dimension_height_in
-                            ? `${shipment.dimension_length_in} × ${shipment.dimension_width_in} × ${shipment.dimension_height_in}`
+                          {shipment.ups_delivery_date 
+                            ? format(new Date(shipment.ups_delivery_date), "PP") 
                             : "-"}
                         </TableCell>
                         <TableCell>
-                          <EditShipmentDialog shipment={shipment} />
+                          <Badge variant={getStatusColor(shipment.status)}>
+                            {shipment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <ShipmentBoxesDialog 
+                              shipmentId={shipment.id}
+                              shipmentNumber={shipment.shipment_number}
+                            />
+                            <EditShipmentDialog shipment={shipment} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

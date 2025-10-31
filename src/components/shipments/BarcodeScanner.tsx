@@ -45,11 +45,22 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
             await scanner.start(
               selectedCamera,
               {
-                fps: 30,
-                qrbox: { width: 300, height: 150 },
-                aspectRatio: 2.0,
+                fps: 10,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                  // Make the qrbox 90% of the width and 50% of height for linear barcodes
+                  let minEdgePercentage = 0.9;
+                  let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                  let qrboxWidth = Math.floor(viewfinderWidth * 0.9);
+                  let qrboxHeight = Math.floor(viewfinderHeight * 0.4);
+                  return {
+                    width: qrboxWidth,
+                    height: qrboxHeight
+                  };
+                },
+                aspectRatio: 1.777778, // 16:9
               },
               (decodedText) => {
+                console.log("Barcode detected:", decodedText);
                 onScan(decodedText);
                 toast.success("Code scanned successfully");
                 stopScanning();

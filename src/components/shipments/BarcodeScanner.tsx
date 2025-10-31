@@ -45,8 +45,9 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
             await scanner.start(
               selectedCamera,
               {
-                fps: 10,
-                qrbox: { width: 250, height: 150 },
+                fps: 30,
+                qrbox: { width: 300, height: 150 },
+                aspectRatio: 2.0,
               },
               (decodedText) => {
                 onScan(decodedText);

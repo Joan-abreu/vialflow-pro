@@ -56,11 +56,9 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [createdShipmentId, setCreatedShipmentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    fba_id: "",
     destination: "",
     batch_id: "",
     ups_delivery_date: "",
-    ups_tracking_number: "",
   });
   const [boxesData, setBoxesData] = useState<Array<{
     packs_per_box: string;
@@ -166,8 +164,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         shipment_number: shipmentNumber,
         destination: formData.destination || null,
         batch_id: formData.batch_id || null,
-        ups_tracking_number: formData.ups_tracking_number || null,
-        fba_id: formData.fba_id || null,
         ups_delivery_date: formData.ups_delivery_date || null,
         created_by: user.id,
         status: "preparing",
@@ -263,11 +259,9 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       setSelectedBoxType("");
       setCreatedShipmentId(null);
       setFormData({
-        fba_id: "",
         destination: "",
         batch_id: "",
         ups_delivery_date: "",
-        ups_tracking_number: "",
       });
       setBoxesData([]);
       onSuccess();
@@ -285,11 +279,9 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     setSelectedBoxType("");
     setCreatedShipmentId(null);
     setFormData({
-      fba_id: "",
       destination: "",
       batch_id: "",
       ups_delivery_date: "",
-      ups_tracking_number: "",
     });
     setBoxesData([]);
   };
@@ -352,39 +344,13 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
-                  <Input
-                    id="ups_delivery_date"
-                    type="date"
-                    value={formData.ups_delivery_date}
-                    onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="fba_id">FBA Shipment ID</Label>
-                  <Input
-                    id="fba_id"
-                    value={formData.fba_id}
-                    onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
-                    placeholder="e.g., FBA15GZKNNJ8"
-                    maxLength={100}
-                  />
-                </div>
-              </div>
-
               <div className="grid gap-2">
-                <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
+                <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
                 <Input
-                  id="ups_tracking_number"
-                  value={formData.ups_tracking_number}
-                  onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
-                  placeholder="Enter or scan code"
-                  maxLength={100}
-                />
-                <BarcodeScanner 
-                  onScan={(code) => setFormData({ ...formData, ups_tracking_number: code })}
+                  id="ups_delivery_date"
+                  type="date"
+                  value={formData.ups_delivery_date}
+                  onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
                 />
               </div>
 

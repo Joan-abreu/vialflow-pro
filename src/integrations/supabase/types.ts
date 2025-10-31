@@ -211,10 +211,12 @@ export type Database = {
           dimension_height_in: number | null
           dimension_length_in: number | null
           dimension_width_in: number | null
+          fba_id: string | null
           id: string
           packs_per_box: number | null
           shipment_id: string
           updated_at: string
+          ups_tracking_number: string | null
           weight_lb: number | null
         }
         Insert: {
@@ -224,10 +226,12 @@ export type Database = {
           dimension_height_in?: number | null
           dimension_length_in?: number | null
           dimension_width_in?: number | null
+          fba_id?: string | null
           id?: string
           packs_per_box?: number | null
           shipment_id: string
           updated_at?: string
+          ups_tracking_number?: string | null
           weight_lb?: number | null
         }
         Update: {
@@ -237,10 +241,12 @@ export type Database = {
           dimension_height_in?: number | null
           dimension_length_in?: number | null
           dimension_width_in?: number | null
+          fba_id?: string | null
           id?: string
           packs_per_box?: number | null
           shipment_id?: string
           updated_at?: string
+          ups_tracking_number?: string | null
           weight_lb?: number | null
         }
         Relationships: [
@@ -299,14 +305,12 @@ export type Database = {
           created_by: string
           delivered_at: string | null
           destination: string | null
-          fba_id: string | null
           id: string
           shipment_number: string
           shipped_at: string | null
           status: string
           updated_at: string
           ups_delivery_date: string | null
-          ups_tracking_number: string | null
         }
         Insert: {
           batch_id?: string | null
@@ -314,14 +318,12 @@ export type Database = {
           created_by: string
           delivered_at?: string | null
           destination?: string | null
-          fba_id?: string | null
           id?: string
           shipment_number: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
-          ups_tracking_number?: string | null
         }
         Update: {
           batch_id?: string | null
@@ -329,14 +331,12 @@ export type Database = {
           created_by?: string
           delivered_at?: string | null
           destination?: string | null
-          fba_id?: string | null
           id?: string
           shipment_number?: string
           shipped_at?: string | null
           status?: string
           updated_at?: string
           ups_delivery_date?: string | null
-          ups_tracking_number?: string | null
         }
         Relationships: [
           {

@@ -30,8 +30,6 @@ interface Shipment {
   status: string;
   batch_id: string | null;
   ups_delivery_date: string | null;
-  ups_tracking_number: string | null;
-  fba_id: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
 }
@@ -50,8 +48,6 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
     destination: shipment.destination || "",
     status: shipment.status,
     ups_delivery_date: shipment.ups_delivery_date ? new Date(shipment.ups_delivery_date).toISOString().split('T')[0] : "",
-    ups_tracking_number: shipment.ups_tracking_number || "",
-    fba_id: shipment.fba_id || "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,8 +60,6 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
         destination: formData.destination || null,
         status: formData.status,
         ups_delivery_date: formData.ups_delivery_date || null,
-        ups_tracking_number: formData.ups_tracking_number || null,
-        fba_id: formData.fba_id || null,
       };
 
       // Update status timestamps
@@ -141,7 +135,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
                 <Input
                   id="ups_delivery_date"
@@ -150,34 +144,10 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
                   onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
-                <Input
-                  id="ups_tracking_number"
-                  value={formData.ups_tracking_number}
-                  onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
-                />
-                <BarcodeScanner 
-                  onScan={(result) => setFormData({ ...formData, ups_tracking_number: result })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fba_id">FBA ID</Label>
-                <Input
-                  id="fba_id"
-                  value={formData.fba_id}
-                  onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
-                />
-                <BarcodeScanner 
-                  onScan={(result) => setFormData({ ...formData, fba_id: result })}
-                />
-              </div>
             </div>
 
             <div className="text-sm text-muted-foreground mb-4">
-              <p>To manage boxes for this shipment, use the "View Boxes" button.</p>
+              <p><strong>Note:</strong> UPS Tracking Number and FBA ID are now managed per box. Use the "View Boxes" button to add/edit these details for each individual box.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-end gap-2">

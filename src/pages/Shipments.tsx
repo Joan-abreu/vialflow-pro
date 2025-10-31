@@ -34,13 +34,11 @@ import { toast } from "sonner";
 interface Shipment {
   id: string;
   shipment_number: string;
-  fba_id: string | null;
   destination: string;
   status: string;
   created_at: string;
   batch_id: string | null;
   ups_delivery_date: string | null;
-  ups_tracking_number: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
   production_batches?: {
@@ -52,6 +50,8 @@ interface Shipment {
     packs_per_box: number | null;
     bottles_per_box: number | null;
     weight_lb: number | null;
+    ups_tracking_number: string | null;
+    fba_id: string | null;
   }>;
 }
 
@@ -74,7 +74,9 @@ const Shipments = () => {
           box_number,
           packs_per_box,
           bottles_per_box,
-          weight_lb
+          weight_lb,
+          ups_tracking_number,
+          fba_id
         )
       `)
       .order("created_at", { ascending: false });
@@ -104,13 +106,17 @@ const Shipments = () => {
 
   const filteredShipments = shipments.filter((shipment) => {
     const query = searchQuery.toLowerCase();
+    // Search in shipment level fields and also in box-level tracking/fba
+    const hasBoxMatch = shipment.shipment_boxes?.some(box => 
+      box.ups_tracking_number?.toLowerCase().includes(query) ||
+      box.fba_id?.toLowerCase().includes(query)
+    );
     return (
       shipment.shipment_number.toLowerCase().includes(query) ||
       shipment.production_batches?.batch_number.toLowerCase().includes(query) ||
       shipment.destination?.toLowerCase().includes(query) ||
-      shipment.fba_id?.toLowerCase().includes(query) ||
-      shipment.ups_tracking_number?.toLowerCase().includes(query) ||
-      shipment.status.toLowerCase().includes(query)
+      shipment.status.toLowerCase().includes(query) ||
+      hasBoxMatch
     );
   });
 
@@ -148,7 +154,7 @@ const Shipments = () => {
           <CardContent className="pt-6">
             <div className="mb-4">
               <Input
-                placeholder="Search by shipment number, batch, destination, FBA ID, tracking, or status..."
+                placeholder="Search by shipment number, batch, destination, status, or box tracking/FBA..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="max-w-lg"
@@ -171,8 +177,6 @@ const Shipments = () => {
                       <TableHead>Batch</TableHead>
                       <TableHead>Destination</TableHead>
                       <TableHead>Total Boxes</TableHead>
-                      <TableHead>FBA ID</TableHead>
-                      <TableHead>UPS Tracking</TableHead>
                       <TableHead>Delivery Date</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Status</TableHead>

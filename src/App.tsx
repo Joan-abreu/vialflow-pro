@@ -12,6 +12,7 @@ import Production from "./pages/Production";
 import Inventory from "./pages/Inventory";
 import Shipments from "./pages/Shipments";
 import Users from "./pages/Users";
+import BillOfMaterials from "./pages/BillOfMaterials";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
 import { useUserRole } from "./hooks/useUserRole";
@@ -78,6 +79,7 @@ const App = () => {
                 <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
                 <Route path="/shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+                <Route path="/bom/:batchId" element={<BillOfMaterials />} />
               </>
             ) : (
               <Route path="*" element={<Auth />} />

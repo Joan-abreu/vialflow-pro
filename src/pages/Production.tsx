@@ -28,9 +28,10 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
+import ManageVialMaterialsDialog from "@/components/production/ManageVialMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
-import { Package, Trash2 } from "lucide-react";
+import { Package, Trash2, FileText } from "lucide-react";
 
 interface ProductionBatch {
   id: string;
@@ -115,6 +116,7 @@ const Production = () => {
           </div>
           <div className="flex flex-wrap gap-2">
             <ManageVialTypesDialog />
+            <ManageVialMaterialsDialog />
             <AddBatchDialog onSuccess={fetchBatches} />
           </div>
         </div>
@@ -232,6 +234,14 @@ const Production = () => {
                                 }
                               />
                             )}
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => window.open(`/bom/${batch.id}`, '_blank')}
+                              title="Generate Bill of Materials"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="icon">

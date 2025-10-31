@@ -402,6 +402,51 @@ export type Database = {
         }
         Relationships: []
       }
+      vial_type_materials: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          quantity_per_unit: number
+          raw_material_id: string
+          updated_at: string
+          vial_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          quantity_per_unit?: number
+          raw_material_id: string
+          updated_at?: string
+          vial_type_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          quantity_per_unit?: number
+          raw_material_id?: string
+          updated_at?: string
+          vial_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vial_type_materials_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vial_type_materials_vial_type_id_fkey"
+            columns: ["vial_type_id"]
+            isOneToOne: false
+            referencedRelation: "vial_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vial_types: {
         Row: {
           active: boolean

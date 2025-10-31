@@ -18,8 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
+import BarcodeScanner from "./BarcodeScanner";
 
 interface Shipment {
   id: string;
@@ -99,92 +101,101 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>Edit Shipment</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="shipment_number">Shipment Number *</Label>
-              <Input
-                id="shipment_number"
-                value={formData.shipment_number}
-                onChange={(e) => setFormData({ ...formData, shipment_number: e.target.value })}
-                required
-              />
+        <ScrollArea className="max-h-[calc(90vh-8rem)]">
+          <form onSubmit={handleSubmit} className="space-y-4 px-6 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="shipment_number">Shipment Number *</Label>
+                <Input
+                  id="shipment_number"
+                  value={formData.shipment_number}
+                  onChange={(e) => setFormData({ ...formData, shipment_number: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status *</Label>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="preparing">Preparing</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="destination">Destination</Label>
+                <Input
+                  id="destination"
+                  value={formData.destination}
+                  onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
+                <Input
+                  id="ups_delivery_date"
+                  type="date"
+                  value={formData.ups_delivery_date}
+                  onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
+                <Input
+                  id="ups_tracking_number"
+                  value={formData.ups_tracking_number}
+                  onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
+                />
+                <BarcodeScanner 
+                  onScan={(result) => setFormData({ ...formData, ups_tracking_number: result })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fba_id">FBA ID</Label>
+                <Input
+                  id="fba_id"
+                  value={formData.fba_id}
+                  onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
+                />
+                <BarcodeScanner 
+                  onScan={(result) => setFormData({ ...formData, fba_id: result })}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="preparing">Preparing</SelectItem>
-                  <SelectItem value="shipped">Shipped</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="text-sm text-muted-foreground mb-4">
+              <p>To manage boxes for this shipment, use the "View Boxes" button.</p>
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="destination">Destination</Label>
-              <Input
-                id="destination"
-                value={formData.destination}
-                onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-              />
+            <div className="flex flex-col sm:flex-row justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={loading}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+                {loading ? "Saving..." : "Save Changes"}
+              </Button>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
-              <Input
-                id="ups_delivery_date"
-                type="date"
-                value={formData.ups_delivery_date}
-                onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ups_tracking_number">UPS Tracking Number</Label>
-              <Input
-                id="ups_tracking_number"
-                value={formData.ups_tracking_number}
-                onChange={(e) => setFormData({ ...formData, ups_tracking_number: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fba_id">FBA ID</Label>
-              <Input
-                id="fba_id"
-                value={formData.fba_id}
-                onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="text-sm text-muted-foreground mb-4">
-            <p>To manage boxes for this shipment, use the "View Boxes" button.</p>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </form>
+          </form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

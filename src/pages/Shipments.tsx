@@ -28,7 +28,7 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, Package, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface Shipment {
@@ -194,7 +194,23 @@ const Shipments = () => {
                         </TableCell>
                         <TableCell>{shipment.fba_id || "-"}</TableCell>
                         <TableCell className="font-mono text-sm">
-                          {shipment.ups_tracking_number || "-"}
+                          {shipment.ups_tracking_number ? (
+                            <div className="flex items-center gap-2">
+                              <span>{shipment.ups_tracking_number}</span>
+                              <a
+                                href={`https://www.ups.com/track?tracknum=${shipment.ups_tracking_number}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
+                                title="Track on UPS"
+                              >
+                                <Package className="h-4 w-4" />
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
                         <TableCell>
                           {shipment.ups_delivery_date 

@@ -49,6 +49,7 @@ interface ShipmentBox {
   dimension_length_in: number | null;
   dimension_width_in: number | null;
   dimension_height_in: number | null;
+  destination: string | null;
 }
 
 interface ShipmentBoxesDialogProps {
@@ -70,6 +71,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     dimension_length_in: "",
     dimension_width_in: "",
     dimension_height_in: "",
+    destination: "",
   });
   const queryClient = useQueryClient();
 
@@ -122,6 +124,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
         dimension_length_in: newBox.dimension_length_in ? parseFloat(newBox.dimension_length_in) : null,
         dimension_width_in: newBox.dimension_width_in ? parseFloat(newBox.dimension_width_in) : null,
         dimension_height_in: newBox.dimension_height_in ? parseFloat(newBox.dimension_height_in) : null,
+        destination: newBox.destination || null,
       });
 
       if (error) throw error;
@@ -135,6 +138,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
         dimension_length_in: "",
         dimension_width_in: "",
         dimension_height_in: "",
+        destination: "",
       });
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
@@ -187,6 +191,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                   <TableHeader>
                     <TableRow>
                       <TableHead>Box #</TableHead>
+                      <TableHead>Destination</TableHead>
                       <TableHead>Packs</TableHead>
                       <TableHead>Bottles</TableHead>
                       <TableHead>Weight (lb)</TableHead>
@@ -198,6 +203,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                     {boxes.map((box) => (
                       <TableRow key={box.id}>
                         <TableCell className="font-medium">{box.box_number}</TableCell>
+                        <TableCell>{box.destination || "-"}</TableCell>
                         <TableCell>{box.packs_per_box || "-"}</TableCell>
                         <TableCell>{box.bottles_per_box || "-"}</TableCell>
                         <TableCell>{box.weight_lb || "-"}</TableCell>
@@ -285,6 +291,16 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                   type="number"
                   value={newBox.box_number}
                   onChange={(e) => setNewBox({ ...newBox, box_number: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="destination">Destination *</Label>
+                <Input
+                  id="destination"
+                  value={newBox.destination}
+                  onChange={(e) => setNewBox({ ...newBox, destination: e.target.value })}
+                  placeholder="e.g., IN, FL, CA"
                 />
               </div>
 

@@ -208,6 +208,7 @@ export type Database = {
           bottles_per_box: number | null
           box_number: number
           created_at: string
+          destination: string | null
           dimension_height_in: number | null
           dimension_length_in: number | null
           dimension_width_in: number | null
@@ -223,6 +224,7 @@ export type Database = {
           bottles_per_box?: number | null
           box_number: number
           created_at?: string
+          destination?: string | null
           dimension_height_in?: number | null
           dimension_length_in?: number | null
           dimension_width_in?: number | null
@@ -238,6 +240,7 @@ export type Database = {
           bottles_per_box?: number | null
           box_number?: number
           created_at?: string
+          destination?: string | null
           dimension_height_in?: number | null
           dimension_length_in?: number | null
           dimension_width_in?: number | null
@@ -304,7 +307,6 @@ export type Database = {
           created_at: string
           created_by: string
           delivered_at: string | null
-          destination: string | null
           id: string
           shipment_number: string
           shipped_at: string | null
@@ -317,7 +319,6 @@ export type Database = {
           created_at?: string
           created_by: string
           delivered_at?: string | null
-          destination?: string | null
           id?: string
           shipment_number: string
           shipped_at?: string | null
@@ -330,7 +331,6 @@ export type Database = {
           created_at?: string
           created_by?: string
           delivered_at?: string | null
-          destination?: string | null
           id?: string
           shipment_number?: string
           shipped_at?: string | null

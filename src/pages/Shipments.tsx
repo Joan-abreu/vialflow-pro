@@ -34,7 +34,6 @@ import { toast } from "sonner";
 interface Shipment {
   id: string;
   shipment_number: string;
-  destination: string;
   status: string;
   created_at: string;
   batch_id: string | null;
@@ -52,6 +51,7 @@ interface Shipment {
     weight_lb: number | null;
     ups_tracking_number: string | null;
     fba_id: string | null;
+    destination: string | null;
   }>;
 }
 
@@ -76,7 +76,8 @@ const Shipments = () => {
           bottles_per_box,
           weight_lb,
           ups_tracking_number,
-          fba_id
+          fba_id,
+          destination
         )
       `)
       .order("created_at", { ascending: false });
@@ -106,15 +107,15 @@ const Shipments = () => {
 
   const filteredShipments = shipments.filter((shipment) => {
     const query = searchQuery.toLowerCase();
-    // Search in shipment level fields and also in box-level tracking/fba
+    // Search in shipment level fields and also in box-level tracking/fba/destination
     const hasBoxMatch = shipment.shipment_boxes?.some(box => 
       box.ups_tracking_number?.toLowerCase().includes(query) ||
-      box.fba_id?.toLowerCase().includes(query)
+      box.fba_id?.toLowerCase().includes(query) ||
+      box.destination?.toLowerCase().includes(query)
     );
     return (
       shipment.shipment_number.toLowerCase().includes(query) ||
       shipment.production_batches?.batch_number.toLowerCase().includes(query) ||
-      shipment.destination?.toLowerCase().includes(query) ||
       shipment.status.toLowerCase().includes(query) ||
       hasBoxMatch
     );
@@ -154,7 +155,7 @@ const Shipments = () => {
           <CardContent className="pt-6">
             <div className="mb-4">
               <Input
-                placeholder="Search by shipment number, batch, destination, status, or box tracking/FBA..."
+                placeholder="Search by shipment number, batch, status, or box details..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="max-w-lg"
@@ -175,7 +176,7 @@ const Shipments = () => {
                     <TableRow>
                       <TableHead>Shipment Number</TableHead>
                       <TableHead>Batch</TableHead>
-                      <TableHead>Destination</TableHead>
+                      <TableHead>Destinations</TableHead>
                       <TableHead>Total Boxes</TableHead>
                       <TableHead>Delivery Date</TableHead>
                       <TableHead>Created</TableHead>
@@ -184,87 +185,78 @@ const Shipments = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredShipments.map((shipment) => (
-                      <TableRow key={shipment.id}>
-                        <TableCell className="font-medium">
-                          {shipment.shipment_number}
-                        </TableCell>
-                        <TableCell>
-                          {shipment.production_batches?.batch_number || "-"}
-                        </TableCell>
-                        <TableCell>{shipment.destination || "-"}</TableCell>
-                        <TableCell>
-                          {shipment.shipment_boxes?.length || 0} boxes
-                        </TableCell>
-                        <TableCell>{shipment.fba_id || "-"}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {shipment.ups_tracking_number ? (
-                            <div className="flex items-center gap-2">
-                              <span>{shipment.ups_tracking_number}</span>
-                              <a
-                                href={`https://www.ups.com/track?tracknum=${shipment.ups_tracking_number}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-primary hover:text-primary/80 transition-colors"
-                                title="Track on UPS"
-                              >
-                                <Package className="h-4 w-4" />
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
+                    {filteredShipments.map((shipment) => {
+                      // Get unique destinations from boxes
+                      const destinations = [...new Set(
+                        shipment.shipment_boxes
+                          ?.map(box => box.destination)
+                          .filter(Boolean)
+                      )];
+                      
+                      return (
+                        <TableRow key={shipment.id}>
+                          <TableCell className="font-medium">
+                            {shipment.shipment_number}
+                          </TableCell>
+                          <TableCell>
+                            {shipment.production_batches?.batch_number || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {destinations.length > 0 ? destinations.join(", ") : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {shipment.shipment_boxes?.length || 0} boxes
+                          </TableCell>
+                          <TableCell>
+                            {shipment.ups_delivery_date 
+                              ? format(new Date(shipment.ups_delivery_date), "PP") 
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {format(new Date(shipment.created_at), "PP")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusColor(shipment.status)}>
+                              {shipment.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <ShipmentBoxesDialog 
+                                shipmentId={shipment.id}
+                                shipmentNumber={shipment.shipment_number}
+                              />
+                              <EditShipmentDialog shipment={shipment} />
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete shipment "{shipment.shipment_number}"? 
+                                      This will also delete all boxes associated with it. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {shipment.ups_delivery_date 
-                            ? format(new Date(shipment.ups_delivery_date), "PP") 
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(shipment.created_at), "PP")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusColor(shipment.status)}>
-                            {shipment.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <ShipmentBoxesDialog 
-                              shipmentId={shipment.id}
-                              shipmentNumber={shipment.shipment_number}
-                            />
-                            <EditShipmentDialog shipment={shipment} />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete shipment "{shipment.shipment_number}"? 
-                                    This will also delete all boxes associated with it. This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

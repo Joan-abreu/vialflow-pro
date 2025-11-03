@@ -31,8 +31,6 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     quantity: "",
-    fba_id: "",
-    destination: "Amazon FBA",
   });
 
   const remainingQuantity = batch.quantity - (batch.shipped_quantity || 0);
@@ -72,8 +70,7 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
       .from("shipments")
       .insert({
         shipment_number,
-        fba_id: formData.fba_id,
-        destination: formData.destination,
+        batch_id: batch.id,
         created_by: user.id,
         status: "preparing",
       })
@@ -136,8 +133,6 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
     setOpen(false);
     setFormData({
       quantity: "",
-      fba_id: "",
-      destination: "Amazon FBA",
     });
     onSuccess();
   };
@@ -174,23 +169,8 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
                 Max: {remainingQuantity} kits
               </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fba_id">FBA Shipment ID *</Label>
-              <Input
-                id="fba_id"
-                placeholder="e.g., FBA15XXXXXX"
-                value={formData.fba_id}
-                onChange={(e) => setFormData({ ...formData, fba_id: e.target.value })}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="destination">Destination</Label>
-              <Input
-                id="destination"
-                value={formData.destination}
-                onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-              />
+            <div className="text-sm text-muted-foreground border-t pt-4">
+              <p><strong>Note:</strong> After creating the shipment, you can add boxes with their specific destinations, FBA IDs, and tracking numbers from the Shipments page.</p>
             </div>
           </div>
           <DialogFooter>

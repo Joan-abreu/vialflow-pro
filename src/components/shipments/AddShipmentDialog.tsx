@@ -56,7 +56,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [createdShipmentId, setCreatedShipmentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    destination: "",
     batch_id: "",
     ups_delivery_date: "",
   });
@@ -67,6 +66,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     dimension_length_in: string;
     dimension_width_in: string;
     dimension_height_in: string;
+    destination: string;
   }>>([]);
 
   useEffect(() => {
@@ -125,11 +125,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       toast.error("Please select a batch");
       return;
     }
-    
-    if (!formData.destination.trim()) {
-      toast.error("Please enter a destination");
-      return;
-    }
 
     const count = parseInt(numBoxes);
     if (!count || count <= 0 || count > 20) {
@@ -162,7 +157,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
 
       const insertData: any = {
         shipment_number: shipmentNumber,
-        destination: formData.destination || null,
         batch_id: formData.batch_id || null,
         ups_delivery_date: formData.ups_delivery_date || null,
         created_by: user.id,
@@ -195,6 +189,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         packs_per_box: "",
         bottles_per_box: "",
         weight_lb: "",
+        destination: "",
         ...defaultDimensions,
       })));
       
@@ -246,6 +241,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         dimension_length_in: box.dimension_length_in ? parseFloat(box.dimension_length_in) : null,
         dimension_width_in: box.dimension_width_in ? parseFloat(box.dimension_width_in) : null,
         dimension_height_in: box.dimension_height_in ? parseFloat(box.dimension_height_in) : null,
+        destination: box.destination || null,
       }));
 
       const { error } = await supabase.from("shipment_boxes").insert(boxesInsertData);
@@ -259,7 +255,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       setSelectedBoxType("");
       setCreatedShipmentId(null);
       setFormData({
-        destination: "",
         batch_id: "",
         ups_delivery_date: "",
       });
@@ -279,7 +274,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     setSelectedBoxType("");
     setCreatedShipmentId(null);
     setFormData({
-      destination: "",
       batch_id: "",
       ups_delivery_date: "",
     });
@@ -330,18 +324,6 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="destination">Destination *</Label>
-                <Input
-                  id="destination"
-                  value={formData.destination}
-                  onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                  placeholder="e.g., FBA Warehouse - CA"
-                  required
-                  maxLength={200}
-                />
               </div>
 
               <div className="grid gap-2">
@@ -432,6 +414,17 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                         className="bg-muted"
                       />
                     </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor={`destination_${index}`}>Destination *</Label>
+                    <Input
+                      id={`destination_${index}`}
+                      value={box.destination}
+                      onChange={(e) => updateBox(index, "destination", e.target.value)}
+                      placeholder="e.g., IN, FL, CA"
+                      required
+                    />
                   </div>
 
                   <div className="grid gap-2">

@@ -26,7 +26,6 @@ import BarcodeScanner from "./BarcodeScanner";
 interface Shipment {
   id: string;
   shipment_number: string;
-  destination: string | null;
   status: string;
   batch_id: string | null;
   ups_delivery_date: string | null;
@@ -45,7 +44,6 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
 
   const [formData, setFormData] = useState({
     shipment_number: shipment.shipment_number,
-    destination: shipment.destination || "",
     status: shipment.status,
     ups_delivery_date: shipment.ups_delivery_date ? new Date(shipment.ups_delivery_date).toISOString().split('T')[0] : "",
   });
@@ -56,8 +54,6 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
 
     try {
       const updateData: any = {
-        shipment_number: formData.shipment_number,
-        destination: formData.destination || null,
         status: formData.status,
         ups_delivery_date: formData.ups_delivery_date || null,
       };
@@ -103,12 +99,12 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
           <form onSubmit={handleSubmit} className="space-y-4 px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="shipment_number">Shipment Number *</Label>
+                <Label htmlFor="shipment_number">Shipment Number</Label>
                 <Input
                   id="shipment_number"
                   value={formData.shipment_number}
-                  onChange={(e) => setFormData({ ...formData, shipment_number: e.target.value })}
-                  required
+                  disabled
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
 
@@ -127,15 +123,6 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="destination">Destination</Label>
-                <Input
-                  id="destination"
-                  value={formData.destination}
-                  onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
                 <Input
                   id="ups_delivery_date"
@@ -147,7 +134,7 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
             </div>
 
             <div className="text-sm text-muted-foreground mb-4">
-              <p><strong>Note:</strong> UPS Tracking Number and FBA ID are now managed per box. Use the "View Boxes" button to add/edit these details for each individual box.</p>
+              <p><strong>Note:</strong> Destinations, UPS Tracking Numbers, and FBA IDs are now managed per box. Use the "View Boxes" button to add/edit these details for each individual box.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-end gap-2">

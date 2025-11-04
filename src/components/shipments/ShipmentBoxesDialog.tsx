@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import BarcodeScanner from "./BarcodeScanner";
 
 interface ShipmentBox {
   id: string;
@@ -50,6 +51,8 @@ interface ShipmentBox {
   dimension_width_in: number | null;
   dimension_height_in: number | null;
   destination: string | null;
+  ups_tracking_number: string | null;
+  fba_id: string | null;
 }
 
 interface ShipmentBoxesDialogProps {
@@ -72,8 +75,16 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     dimension_width_in: "",
     dimension_height_in: "",
     destination: "",
+    ups_tracking_number: "",
+    fba_id: "",
   });
   const queryClient = useQueryClient();
+
+  const parseShippingLabel = (scannedText: string) => {
+    console.log("Scanned text:", scannedText);
+    
+    // Extract UPS tracking number (1Z format or direct barcode)
+    const upsMatch = scannedText.match(/1Z[A-Z0-9]{16
 
   const fetchBoxes = async () => {
     const { data, error } = await supabase

@@ -165,9 +165,12 @@ export type Database = {
           min_stock_level: number
           name: string
           order_index: number | null
+          purchase_unit_id: string | null
           qty_per_box: number | null
+          qty_per_container: number | null
           unit: string
           updated_at: string
+          usage_unit_id: string | null
         }
         Insert: {
           category: string
@@ -181,9 +184,12 @@ export type Database = {
           min_stock_level?: number
           name: string
           order_index?: number | null
+          purchase_unit_id?: string | null
           qty_per_box?: number | null
+          qty_per_container?: number | null
           unit: string
           updated_at?: string
+          usage_unit_id?: string | null
         }
         Update: {
           category?: string
@@ -197,11 +203,29 @@ export type Database = {
           min_stock_level?: number
           name?: string
           order_index?: number | null
+          purchase_unit_id?: string | null
           qty_per_box?: number | null
+          qty_per_container?: number | null
           unit?: string
           updated_at?: string
+          usage_unit_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "raw_materials_purchase_unit_id_fkey"
+            columns: ["purchase_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measurement"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "raw_materials_usage_unit_id_fkey"
+            columns: ["usage_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measurement"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shipment_boxes: {
         Row: {
@@ -352,28 +376,45 @@ export type Database = {
         Row: {
           abbreviation: string
           active: boolean
+          base_unit_id: string | null
           category: string
+          conversion_to_base: number | null
           created_at: string
           id: string
+          is_base_unit: boolean | null
           name: string
         }
         Insert: {
           abbreviation: string
           active?: boolean
+          base_unit_id?: string | null
           category: string
+          conversion_to_base?: number | null
           created_at?: string
           id?: string
+          is_base_unit?: boolean | null
           name: string
         }
         Update: {
           abbreviation?: string
           active?: boolean
+          base_unit_id?: string | null
           category?: string
+          conversion_to_base?: number | null
           created_at?: string
           id?: string
+          is_base_unit?: boolean | null
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "units_of_measurement_base_unit_id_fkey"
+            columns: ["base_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measurement"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -479,6 +520,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      convert_units: {
+        Args: { amount: number; from_unit_id: string; to_unit_id: string }
+        Returns: number
+      }
+      get_material_stock_in_usage_units: {
+        Args: { material_id: string }
+        Returns: number
+      }
       has_active_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {

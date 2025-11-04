@@ -83,8 +83,38 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
   const parseShippingLabel = (scannedText: string) => {
     console.log("Scanned text:", scannedText);
     
-    // Extract UPS tracking number (1Z format or direct barcode)
-    const upsMatch = scannedText.match(/1Z[A-Z0-9]{16
+    // Extract UPS tracking number (1Z format)
+    const upsMatch = scannedText.match(/1Z[A-Z0-9]{16}/);
+    
+    // Extract FBA Shipment ID
+    const fbaMatch = scannedText.match(/FBA[A-Z0-9]{10,}/i);
+    
+    // Extract state code from address (2-letter state abbreviations)
+    const stateMatch = scannedText.match(/\b([A-Z]{2})\s+\d{5}/);
+    
+    const updates: Partial<typeof newBox> = {};
+    
+    if (upsMatch) {
+      updates.ups_tracking_number = upsMatch[0];
+      toast.success("UPS tracking number detected");
+    }
+    
+    if (fbaMatch) {
+      updates.fba_id = fbaMatch[0];
+      toast.success("FBA ID detected");
+    }
+    
+    if (stateMatch) {
+      updates.destination = stateMatch[1];
+      toast.success("Destination detected");
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      setNewBox(prev => ({ ...prev, ...updates }));
+    } else {
+      toast.error("No shipping label data found");
+    }
+  };
 
   const fetchBoxes = async () => {
     const { data, error } = await supabase
@@ -136,6 +166,8 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
         dimension_width_in: newBox.dimension_width_in ? parseFloat(newBox.dimension_width_in) : null,
         dimension_height_in: newBox.dimension_height_in ? parseFloat(newBox.dimension_height_in) : null,
         destination: newBox.destination || null,
+        ups_tracking_number: newBox.ups_tracking_number || null,
+        fba_id: newBox.fba_id || null,
       });
 
       if (error) throw error;
@@ -150,6 +182,8 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
         dimension_width_in: "",
         dimension_height_in: "",
         destination: "",
+        ups_tracking_number: "",
+        fba_id: "",
       });
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
@@ -203,6 +237,8 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                     <TableRow>
                       <TableHead>Box #</TableHead>
                       <TableHead>Destination</TableHead>
+                      <TableHead>UPS Tracking</TableHead>
+                      <TableHead>FBA ID</TableHead>
                       <TableHead>Packs</TableHead>
                       <TableHead>Bottles</TableHead>
                       <TableHead>Weight (lb)</TableHead>
@@ -215,6 +251,8 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                       <TableRow key={box.id}>
                         <TableCell className="font-medium">{box.box_number}</TableCell>
                         <TableCell>{box.destination || "-"}</TableCell>
+                        <TableCell className="text-xs">{box.ups_tracking_number || "-"}</TableCell>
+                        <TableCell className="text-xs">{box.fba_id || "-"}</TableCell>
                         <TableCell>{box.packs_per_box || "-"}</TableCell>
                         <TableCell>{box.bottles_per_box || "-"}</TableCell>
                         <TableCell>{box.weight_lb || "-"}</TableCell>
@@ -264,6 +302,13 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
           {/* Formulario para agregar nueva caja */}
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold mb-4">Add New Box</h3>
+            
+            {/* Barcode Scanner */}
+            <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+              <h4 className="text-sm font-medium mb-3">Scan Shipping Label</h4>
+              <BarcodeScanner onScan={parseShippingLabel} />
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="box_type">Box Type (optional)</Label>
@@ -312,6 +357,26 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                   value={newBox.destination}
                   onChange={(e) => setNewBox({ ...newBox, destination: e.target.value })}
                   placeholder="e.g., IN, FL, CA"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ups_tracking_number">UPS Tracking</Label>
+                <Input
+                  id="ups_tracking_number"
+                  value={newBox.ups_tracking_number}
+                  onChange={(e) => setNewBox({ ...newBox, ups_tracking_number: e.target.value })}
+                  placeholder="1Z..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fba_id">FBA ID</Label>
+                <Input
+                  id="fba_id"
+                  value={newBox.fba_id}
+                  onChange={(e) => setNewBox({ ...newBox, fba_id: e.target.value })}
+                  placeholder="FBA..."
                 />
               </div>
 

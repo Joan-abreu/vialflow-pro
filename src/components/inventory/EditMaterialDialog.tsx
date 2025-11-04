@@ -26,6 +26,9 @@ interface EditMaterialDialogProps {
     name: string;
     category: string;
     unit: string;
+    purchase_unit_id?: string | null;
+    usage_unit_id?: string | null;
+    qty_per_container?: number | null;
     current_stock: number;
     min_stock_level: number;
     cost_per_unit: number | null;
@@ -53,6 +56,9 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
     name: material.name,
     category: material.category,
     unit: material.unit,
+    purchase_unit_id: material.purchase_unit_id || "",
+    usage_unit_id: material.usage_unit_id || "",
+    qty_per_container: material.qty_per_container || 0,
     current_stock: material.current_stock,
     min_stock_level: material.min_stock_level,
     cost_per_unit: material.cost_per_unit || 0,
@@ -95,6 +101,9 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
         name: formData.name,
         category: formData.category,
         unit: formData.unit,
+        purchase_unit_id: formData.purchase_unit_id || null,
+        usage_unit_id: formData.usage_unit_id || null,
+        qty_per_container: formData.qty_per_container || null,
         current_stock: formData.current_stock,
         min_stock_level: formData.min_stock_level,
         cost_per_unit: formData.cost_per_unit,
@@ -172,6 +181,58 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="purchase_unit">Purchase Unit</Label>
+              <Select
+                value={formData.purchase_unit_id}
+                onValueChange={(value) => setFormData({ ...formData, purchase_unit_id: value })}
+              >
+                <SelectTrigger id="purchase_unit">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((unit) => (
+                    <SelectItem key={unit.id} value={unit.id}>
+                      {unit.name} ({unit.abbreviation})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="usage_unit">Usage Unit</Label>
+              <Select
+                value={formData.usage_unit_id}
+                onValueChange={(value) => setFormData({ ...formData, usage_unit_id: value })}
+              >
+                <SelectTrigger id="usage_unit">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((unit) => (
+                    <SelectItem key={unit.id} value={unit.id}>
+                      {unit.name} ({unit.abbreviation})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="qty_per_container">Quantity per Container</Label>
+            <Input
+              id="qty_per_container"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.qty_per_container}
+              onChange={(e) =>
+                setFormData({ ...formData, qty_per_container: parseFloat(e.target.value) })
+              }
+              placeholder="E.g., 12 bottles per case"
+            />
           </div>
           {formData.unit.toLowerCase().includes('box') && (
             <div>

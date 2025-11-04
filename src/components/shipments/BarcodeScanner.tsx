@@ -56,17 +56,6 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
                   };
                 },
                 aspectRatio: 1.777778, // 16:9
-                formatsToSupport: [
-                  0,  // QR_CODE
-                  8,  // CODE_128 (common in shipping labels)
-                  7,  // CODE_39
-                  13, // CODE_93
-                  5,  // UPC_A
-                  6,  // UPC_E
-                  2,  // EAN_13
-                  3,  // EAN_8
-                  11, // ITF (Interleaved 2 of 5)
-                ],
               },
               (decodedText) => {
                 console.log("Barcode detected:", decodedText);

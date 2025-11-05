@@ -21,7 +21,11 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface AddBatchDialogProps {
   onSuccess: () => void;
@@ -43,6 +47,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     quantity: "",
     sale_type: "single",
     units_per_pack: "2",
+    started_at: new Date(),
   });
 
   useEffect(() => {
@@ -131,6 +136,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       pack_quantity: unitsPerPack,
       created_by: user.id,
       status: "pending",
+      started_at: formData.started_at.toISOString(),
     });
 
     setLoading(false);
@@ -146,6 +152,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         quantity: "",
         sale_type: "single",
         units_per_pack: "2",
+        started_at: new Date(),
       });
       onSuccess();
     }
@@ -195,6 +202,31 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Production Start Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !formData.started_at && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.started_at}
+                    onSelect={(date) => setFormData({ ...formData, started_at: date || new Date() })}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="grid gap-2">
               <Label>Sale Type *</Label>

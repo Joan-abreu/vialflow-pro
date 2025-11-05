@@ -20,7 +20,11 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil } from "lucide-react";
+import { Pencil, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface VialType {
   id: string;
@@ -37,6 +41,7 @@ interface EditBatchDialogProps {
     sale_type: string;
     pack_quantity: number | null;
     vial_type_id: string;
+    started_at: string | null;
   };
   onSuccess: () => void;
 }
@@ -55,6 +60,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     status: batch.status,
     sale_type: batch.sale_type,
     pack_quantity: batch.pack_quantity?.toString() || "2",
+    started_at: batch.started_at ? new Date(batch.started_at) : new Date(),
   });
 
   useEffect(() => {
@@ -115,6 +121,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
         status: formData.status,
         sale_type: formData.sale_type,
         pack_quantity,
+        started_at: formData.started_at.toISOString(),
       })
       .eq("id", batch.id);
 
@@ -189,6 +196,32 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                   <SelectItem value="pack">Pack</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Production Start Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !formData.started_at && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.started_at}
+                    onSelect={(date) => setFormData({ ...formData, started_at: date || new Date() })}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {formData.sale_type === "pack" && (

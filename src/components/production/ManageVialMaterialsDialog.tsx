@@ -241,7 +241,7 @@ export default function ManageVialMaterialsDialog() {
                   <Label>Qty per Unit</Label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.000001"
                     min="0"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
@@ -282,7 +282,9 @@ export default function ManageVialMaterialsDialog() {
                         <TableCell>{vm.raw_materials.name}</TableCell>
                         <TableCell>{vm.raw_materials.unit}</TableCell>
                         <TableCell className="text-right">
-                          {vm.quantity_per_unit.toFixed(2)}
+                          {vm.quantity_per_unit < 0.01 
+                            ? vm.quantity_per_unit.toFixed(6).replace(/\.?0+$/, '')
+                            : vm.quantity_per_unit.toFixed(2)}
                         </TableCell>
                         <TableCell>
                           <Button

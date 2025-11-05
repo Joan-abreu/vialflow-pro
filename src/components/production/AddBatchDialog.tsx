@@ -41,8 +41,8 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     batch_number: "",
     vial_type_id: "",
     quantity: "",
-    sale_type: "individual",
-    pack_quantity: "2",
+    sale_type: "single",
+    units_per_pack: "2",
   });
 
   useEffect(() => {
@@ -95,32 +95,40 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       return;
     }
 
-    const inputQuantity = parseInt(formData.quantity);
-    const pack_quantity = formData.sale_type === "pack" ? parseInt(formData.pack_quantity) : null;
+    // For single: quantity is always 1, for pack: use the entered quantity
+    const unitsPerPack = formData.sale_type === "pack" ? parseInt(formData.units_per_pack) : 1;
+    const numberOfPacks = formData.sale_type === "pack" ? parseInt(formData.quantity) : parseInt(formData.quantity);
 
-    if (isNaN(inputQuantity) || inputQuantity <= 0) {
-      toast.error("Please enter a valid quantity");
-      setLoading(false);
-      return;
+    if (formData.sale_type === "pack") {
+      if (isNaN(numberOfPacks) || numberOfPacks <= 0) {
+        toast.error("Please enter a valid number of packs");
+        setLoading(false);
+        return;
+      }
+      if (isNaN(unitsPerPack) || unitsPerPack <= 0) {
+        toast.error("Please enter a valid units per pack");
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (isNaN(numberOfPacks) || numberOfPacks <= 0) {
+        toast.error("Please enter a valid quantity");
+        setLoading(false);
+        return;
+      }
     }
 
-    if (formData.sale_type === "pack" && (!pack_quantity || pack_quantity <= 0)) {
-      toast.error("Please enter a valid pack quantity");
-      setLoading(false);
-      return;
-    }
-
-    // If sale type is pack, convert packs to bottles
-    const totalBottles = formData.sale_type === "pack" && pack_quantity 
-      ? inputQuantity * pack_quantity 
-      : inputQuantity;
+    // Calculate total bottles
+    const totalBottles = formData.sale_type === "pack" 
+      ? numberOfPacks * unitsPerPack 
+      : numberOfPacks;
 
     const { error } = await supabase.from("production_batches").insert({
       batch_number: formData.batch_number.trim(),
       vial_type_id: formData.vial_type_id,
       quantity: totalBottles,
       sale_type: formData.sale_type,
-      pack_quantity: pack_quantity,
+      pack_quantity: unitsPerPack,
       created_by: user.id,
       status: "pending",
     });
@@ -136,8 +144,8 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         batch_number: "",
         vial_type_id: "",
         quantity: "",
-        sale_type: "individual",
-        pack_quantity: "2",
+        sale_type: "single",
+        units_per_pack: "2",
       });
       onSuccess();
     }
@@ -189,28 +197,15 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="quantity">
-                Quantity {formData.sale_type === "pack" ? "(packs)" : "(bottles)"} *
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
               <Label>Sale Type *</Label>
               <RadioGroup
                 value={formData.sale_type}
                 onValueChange={(value) => setFormData({ ...formData, sale_type: value })}
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="individual" id="individual" />
-                  <Label htmlFor="individual" className="font-normal cursor-pointer">
-                    Individual
+                  <RadioGroupItem value="single" id="single" />
+                  <Label htmlFor="single" className="font-normal cursor-pointer">
+                    Single
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -222,14 +217,40 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
               </RadioGroup>
             </div>
             {formData.sale_type === "pack" && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="quantity">Number of Packs *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="units_per_pack">Units per Pack *</Label>
+                  <Input
+                    id="units_per_pack"
+                    type="number"
+                    min="1"
+                    value={formData.units_per_pack}
+                    onChange={(e) => setFormData({ ...formData, units_per_pack: e.target.value })}
+                    required
+                  />
+                </div>
+              </>
+            )}
+            {formData.sale_type === "single" && (
               <div className="grid gap-2">
-                <Label htmlFor="pack_quantity">Units per Pack *</Label>
+                <Label htmlFor="quantity">Quantity (bottles) *</Label>
                 <Input
-                  id="pack_quantity"
+                  id="quantity"
                   type="number"
                   min="1"
-                  value={formData.pack_quantity}
-                  onChange={(e) => setFormData({ ...formData, pack_quantity: e.target.value })}
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                   required
                 />
               </div>

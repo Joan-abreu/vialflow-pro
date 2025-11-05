@@ -108,9 +108,9 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
         min_stock_level: formData.min_stock_level,
         cost_per_unit: formData.cost_per_unit,
         qty_per_box: formData.unit.toLowerCase().includes('box') ? formData.qty_per_box : null,
-        dimension_length_in: formData.category === 'packaging' && formData.dimension_length_in ? formData.dimension_length_in : null,
-        dimension_width_in: formData.category === 'packaging' && formData.dimension_width_in ? formData.dimension_width_in : null,
-        dimension_height_in: formData.category === 'packaging' && formData.dimension_height_in ? formData.dimension_height_in : null,
+        dimension_length_in: formData.unit.toLowerCase().includes('box') && formData.dimension_length_in ? formData.dimension_length_in : null,
+        dimension_width_in: formData.unit.toLowerCase().includes('box') && formData.dimension_width_in ? formData.dimension_width_in : null,
+        dimension_height_in: formData.unit.toLowerCase().includes('box') && formData.dimension_height_in ? formData.dimension_height_in : null,
       })
       .eq("id", material.id);
 
@@ -249,7 +249,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
               />
             </div>
           )}
-          {formData.category === 'packaging' && (
+          {formData.unit.toLowerCase().includes('box') && (
             <>
               <div>
                 <Label>Box Dimensions (inches)</Label>

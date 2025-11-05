@@ -95,9 +95,9 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
       min_stock_level: parseFloat(formData.min_stock_level) || 0,
       cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
       qty_per_box: formData.qty_per_box && formData.unit.toLowerCase().includes('box') ? parseInt(formData.qty_per_box) : null,
-      dimension_length_in: formData.category === 'packaging' && formData.dimension_length_in ? parseFloat(formData.dimension_length_in) : null,
-      dimension_width_in: formData.category === 'packaging' && formData.dimension_width_in ? parseFloat(formData.dimension_width_in) : null,
-      dimension_height_in: formData.category === 'packaging' && formData.dimension_height_in ? parseFloat(formData.dimension_height_in) : null,
+      dimension_length_in: formData.unit.toLowerCase().includes('box') && formData.dimension_length_in ? parseFloat(formData.dimension_length_in) : null,
+      dimension_width_in: formData.unit.toLowerCase().includes('box') && formData.dimension_width_in ? parseFloat(formData.dimension_width_in) : null,
+      dimension_height_in: formData.unit.toLowerCase().includes('box') && formData.dimension_height_in ? parseFloat(formData.dimension_height_in) : null,
     });
 
     setLoading(false);
@@ -255,7 +255,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                 />
               </div>
             )}
-            {formData.category === 'packaging' && (
+            {formData.unit.toLowerCase().includes('box') && (
               <>
                 <div className="grid gap-2">
                   <Label>Box Dimensions (inches)</Label>

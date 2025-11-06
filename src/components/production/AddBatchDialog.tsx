@@ -159,6 +159,13 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
 
     for (const vm of vialMaterials || []) {
       const material = vm.raw_materials as any;
+      
+      // Skip if material doesn't exist
+      if (!material) {
+        console.warn(`Material not found for vial type material ${vm.raw_material_id}`);
+        continue;
+      }
+      
       let neededQuantity = 0;
 
       // Calculate based on application type (skip per_box as those are used in shipments)

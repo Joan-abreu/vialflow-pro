@@ -207,6 +207,13 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
       for (const vm of perBoxMaterials || []) {
         const material = vm.raw_materials as any;
+        
+        // Skip if material doesn't exist
+        if (!material) {
+          console.warn(`Material not found for vial type material ${vm.raw_material_id}`);
+          continue;
+        }
+        
         const neededQuantity = vm.quantity_per_unit; // 1 box = quantity_per_unit of material
 
         // Get current stock in usage units

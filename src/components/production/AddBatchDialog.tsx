@@ -100,7 +100,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       return;
     }
 
-    // For single: quantity is always 1, for pack: use the entered quantity
+    // Validate and calculate materials needed
     const unitsPerPack = formData.sale_type === "pack" ? parseInt(formData.units_per_pack) : 1;
     const numberOfPacks = formData.sale_type === "pack" ? parseInt(formData.quantity) : parseInt(formData.quantity);
 
@@ -128,6 +128,86 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       ? numberOfPacks * unitsPerPack 
       : numberOfPacks;
 
+    // Fetch vial type materials
+    const { data: vialMaterials, error: materialsError } = await supabase
+      .from("vial_type_materials")
+      .select(`
+        raw_material_id,
+        quantity_per_unit,
+        application_type,
+        raw_materials (
+          id,
+          name,
+          current_stock,
+          unit,
+          purchase_unit_id,
+          usage_unit_id,
+          qty_per_container
+        )
+      `)
+      .eq("vial_type_id", formData.vial_type_id);
+
+    if (materialsError) {
+      toast.error("Error fetching materials: " + materialsError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Check stock and calculate needed quantities
+    const insufficientMaterials: string[] = [];
+    const materialUpdates: Array<{ id: string; newStock: number }> = [];
+
+    for (const vm of vialMaterials || []) {
+      const material = vm.raw_materials as any;
+      let neededQuantity = 0;
+
+      // Calculate based on application type (skip per_box as those are used in shipments)
+      if (vm.application_type === 'per_unit') {
+        neededQuantity = totalBottles * vm.quantity_per_unit;
+      } else if (vm.application_type === 'per_pack') {
+        neededQuantity = numberOfPacks * vm.quantity_per_unit;
+      }
+
+      if (neededQuantity > 0) {
+        // Get current stock in usage units
+        const { data: stockData, error: stockError } = await supabase
+          .rpc('get_material_stock_in_usage_units', { material_id: material.id });
+
+        if (stockError) {
+          toast.error(`Error checking stock for ${material.name}`);
+          setLoading(false);
+          return;
+        }
+
+        const availableStock = stockData || 0;
+
+        if (availableStock < neededQuantity) {
+          insufficientMaterials.push(
+            `${material.name}: need ${neededQuantity.toFixed(2)} ${material.unit}, available ${availableStock.toFixed(2)}`
+          );
+        } else {
+          // Calculate new stock in purchase units
+          const conversionFactor = material.qty_per_container || 1;
+          const stockInPurchaseUnits = material.current_stock;
+          const neededInPurchaseUnits = neededQuantity / conversionFactor;
+          
+          materialUpdates.push({
+            id: material.id,
+            newStock: stockInPurchaseUnits - neededInPurchaseUnits
+          });
+        }
+      }
+    }
+
+    if (insufficientMaterials.length > 0) {
+      toast.error("Insufficient materials:\n" + insufficientMaterials.join("\n"), {
+        duration: 8000,
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Create the batch
     const { error } = await supabase.from("production_batches").insert({
       batch_number: formData.batch_number.trim(),
       vial_type_id: formData.vial_type_id,
@@ -144,7 +224,19 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     if (error) {
       toast.error("Error creating batch: " + error.message);
     } else {
-      toast.success("Production batch created successfully");
+      // Update material stocks
+      for (const update of materialUpdates) {
+        const { error: updateError } = await supabase
+          .from("raw_materials")
+          .update({ current_stock: update.newStock })
+          .eq("id", update.id);
+
+        if (updateError) {
+          console.error("Error updating material stock:", updateError);
+        }
+      }
+
+      toast.success("Production batch created and materials deducted from inventory");
       setOpen(false);
       setFormData({
         batch_number: "",

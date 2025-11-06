@@ -156,6 +156,93 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
     setLoading(true);
     try {
+      // Get shipment details to find batch
+      const { data: shipment, error: shipmentError } = await supabase
+        .from("shipments")
+        .select("batch_id")
+        .eq("id", shipmentId)
+        .single();
+
+      if (shipmentError) throw shipmentError;
+
+      if (!shipment?.batch_id) {
+        toast.error("Shipment has no associated batch");
+        setLoading(false);
+        return;
+      }
+
+      // Get batch details to find vial type
+      const { data: batch, error: batchError } = await supabase
+        .from("production_batches")
+        .select("vial_type_id")
+        .eq("id", shipment.batch_id)
+        .single();
+
+      if (batchError) throw batchError;
+
+      // Get per_box materials for this vial type
+      const { data: perBoxMaterials, error: materialsError } = await supabase
+        .from("vial_type_materials")
+        .select(`
+          raw_material_id,
+          quantity_per_unit,
+          raw_materials (
+            id,
+            name,
+            current_stock,
+            unit,
+            purchase_unit_id,
+            usage_unit_id,
+            qty_per_container
+          )
+        `)
+        .eq("vial_type_id", batch.vial_type_id)
+        .eq("application_type", "per_box");
+
+      if (materialsError) throw materialsError;
+
+      // Check stock for per_box materials
+      const insufficientMaterials: string[] = [];
+      const materialUpdates: Array<{ id: string; newStock: number }> = [];
+
+      for (const vm of perBoxMaterials || []) {
+        const material = vm.raw_materials as any;
+        const neededQuantity = vm.quantity_per_unit; // 1 box = quantity_per_unit of material
+
+        // Get current stock in usage units
+        const { data: stockData, error: stockError } = await supabase
+          .rpc('get_material_stock_in_usage_units', { material_id: material.id });
+
+        if (stockError) throw stockError;
+
+        const availableStock = stockData || 0;
+
+        if (availableStock < neededQuantity) {
+          insufficientMaterials.push(
+            `${material.name}: need ${neededQuantity.toFixed(2)} ${material.unit}, available ${availableStock.toFixed(2)}`
+          );
+        } else {
+          // Calculate new stock in purchase units
+          const conversionFactor = material.qty_per_container || 1;
+          const stockInPurchaseUnits = material.current_stock;
+          const neededInPurchaseUnits = neededQuantity / conversionFactor;
+          
+          materialUpdates.push({
+            id: material.id,
+            newStock: stockInPurchaseUnits - neededInPurchaseUnits
+          });
+        }
+      }
+
+      if (insufficientMaterials.length > 0) {
+        toast.error("Insufficient materials for box:\n" + insufficientMaterials.join("\n"), {
+          duration: 8000,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Insert the box
       const { error } = await supabase.from("shipment_boxes").insert({
         shipment_id: shipmentId,
         box_number: parseInt(newBox.box_number),
@@ -172,7 +259,19 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
 
       if (error) throw error;
 
-      toast.success("Box added successfully");
+      // Update material stocks
+      for (const update of materialUpdates) {
+        const { error: updateError } = await supabase
+          .from("raw_materials")
+          .update({ current_stock: update.newStock })
+          .eq("id", update.id);
+
+        if (updateError) {
+          console.error("Error updating material stock:", updateError);
+        }
+      }
+
+      toast.success("Box added and per-box materials deducted from inventory");
       setNewBox({
         box_number: "",
         packs_per_box: "",

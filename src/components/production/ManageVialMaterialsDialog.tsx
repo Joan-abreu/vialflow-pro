@@ -46,7 +46,7 @@ interface VialMaterial {
   vial_type_id: string;
   raw_material_id: string;
   quantity_per_unit: number;
-  application_type: 'per_unit' | 'per_pack';
+  application_type: 'per_unit' | 'per_pack' | 'per_box';
   raw_materials: {
     name: string;
     unit: string;
@@ -64,7 +64,7 @@ export default function ManageVialMaterialsDialog() {
   // New material form
   const [selectedMaterial, setSelectedMaterial] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
-  const [applicationType, setApplicationType] = useState<'per_unit' | 'per_pack'>('per_unit');
+  const [applicationType, setApplicationType] = useState<'per_unit' | 'per_pack' | 'per_box'>('per_unit');
 
   useEffect(() => {
     if (open) {
@@ -256,13 +256,14 @@ export default function ManageVialMaterialsDialog() {
               </div>
               <div className="space-y-2">
                 <Label>Application Type</Label>
-                <Select value={applicationType} onValueChange={(value: 'per_unit' | 'per_pack') => setApplicationType(value)}>
+                <Select value={applicationType} onValueChange={(value: 'per_unit' | 'per_pack' | 'per_box') => setApplicationType(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="per_unit">Per Unit (cada producto individual)</SelectItem>
                     <SelectItem value="per_pack">Per Pack (uno por cada paquete)</SelectItem>
+                    <SelectItem value="per_box">Per Box (uno por cada caja de envío)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -305,7 +306,8 @@ export default function ManageVialMaterialsDialog() {
                             : vm.quantity_per_unit.toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          {vm.application_type === 'per_unit' ? 'Per Unit' : 'Per Pack'}
+                          {vm.application_type === 'per_unit' ? 'Per Unit' : 
+                           vm.application_type === 'per_pack' ? 'Per Pack' : 'Per Box'}
                         </TableCell>
                         <TableCell>
                           <Button

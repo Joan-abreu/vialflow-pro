@@ -46,6 +46,7 @@ interface VialMaterial {
   vial_type_id: string;
   raw_material_id: string;
   quantity_per_unit: number;
+  application_type: 'per_unit' | 'per_pack';
   raw_materials: {
     name: string;
     unit: string;
@@ -63,6 +64,7 @@ export default function ManageVialMaterialsDialog() {
   // New material form
   const [selectedMaterial, setSelectedMaterial] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
+  const [applicationType, setApplicationType] = useState<'per_unit' | 'per_pack'>('per_unit');
 
   useEffect(() => {
     if (open) {
@@ -118,6 +120,7 @@ export default function ManageVialMaterialsDialog() {
         vial_type_id,
         raw_material_id,
         quantity_per_unit,
+        application_type,
         raw_materials (
           name,
           unit
@@ -131,7 +134,7 @@ export default function ManageVialMaterialsDialog() {
       return;
     }
 
-    setVialMaterials(data || []);
+    setVialMaterials((data || []) as VialMaterial[]);
     setLoading(false);
   };
 
@@ -147,6 +150,7 @@ export default function ManageVialMaterialsDialog() {
         vial_type_id: selectedVialType,
         raw_material_id: selectedMaterial,
         quantity_per_unit: parseFloat(quantity),
+        application_type: applicationType,
       });
 
     if (error) {
@@ -161,6 +165,7 @@ export default function ManageVialMaterialsDialog() {
     toast.success("Material added successfully");
     setSelectedMaterial("");
     setQuantity("1");
+    setApplicationType('per_unit');
     fetchVialMaterials();
   };
 
@@ -249,6 +254,18 @@ export default function ManageVialMaterialsDialog() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Application Type</Label>
+                <Select value={applicationType} onValueChange={(value: 'per_unit' | 'per_pack') => setApplicationType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per_unit">Per Unit (cada producto individual)</SelectItem>
+                    <SelectItem value="per_pack">Per Pack (uno por cada paquete)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button onClick={handleAddMaterial} className="w-full">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Material
@@ -273,6 +290,7 @@ export default function ManageVialMaterialsDialog() {
                       <TableHead>Material</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead className="text-right">Qty per Unit</TableHead>
+                      <TableHead>Application</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -285,6 +303,9 @@ export default function ManageVialMaterialsDialog() {
                           {vm.quantity_per_unit < 0.01 
                             ? vm.quantity_per_unit.toFixed(6).replace(/\.?0+$/, '')
                             : vm.quantity_per_unit.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          {vm.application_type === 'per_unit' ? 'Per Unit' : 'Per Pack'}
                         </TableCell>
                         <TableCell>
                           <Button

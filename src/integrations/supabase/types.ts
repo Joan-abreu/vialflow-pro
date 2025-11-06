@@ -445,6 +445,7 @@ export type Database = {
       }
       vial_type_materials: {
         Row: {
+          application_type: string
           created_at: string
           id: string
           notes: string | null
@@ -454,6 +455,7 @@ export type Database = {
           vial_type_id: string
         }
         Insert: {
+          application_type?: string
           created_at?: string
           id?: string
           notes?: string | null
@@ -463,6 +465,7 @@ export type Database = {
           vial_type_id: string
         }
         Update: {
+          application_type?: string
           created_at?: string
           id?: string
           notes?: string | null

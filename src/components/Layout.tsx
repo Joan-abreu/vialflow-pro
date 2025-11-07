@@ -16,6 +16,18 @@ import {
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 interface LayoutProps {
   children: ReactNode;
@@ -95,6 +107,77 @@ const Layout = ({ children }: LayoutProps) => {
     </>
   );
 
+  const DesktopSidebar = () => {
+    const { open } = useSidebar();
+    
+    return (
+      <Sidebar collapsible="icon" className="border-r">
+        <SidebarContent>
+          <div className="flex h-16 items-center border-b px-6">
+            <h1 className={`text-xl font-bold text-primary transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`}>
+              {open ? 'VialFlow Pro' : ''}
+            </h1>
+          </div>
+          
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-1 px-3 py-4">
+                {navigation.map((item) => {
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          to={item.href}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          }`}
+                        >
+                          <item.icon className="h-5 w-5 flex-shrink-0" />
+                          <span className={open ? '' : 'sr-only'}>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <div className="mt-auto border-t">
+            {userName && (
+              <div className="px-3 py-3 border-b">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  {open && (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{userName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="p-3">
+              <Button
+                variant="ghost"
+                className={`w-full ${open ? 'justify-start' : 'justify-center px-2'}`}
+                onClick={handleSignOut}
+              >
+                <LogOut className={`h-5 w-5 ${open ? 'mr-3' : ''}`} />
+                {open && 'Sign Out'}
+              </Button>
+            </div>
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile header */}
@@ -147,51 +230,26 @@ const Layout = ({ children }: LayoutProps) => {
         <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
       </header>
 
-      <div className="flex h-screen overflow-hidden">
-        {/* Desktop Sidebar */}
-        <aside className="hidden w-64 border-r bg-card md:block">
-          <div className="flex h-full flex-col">
-            <div className="flex h-16 items-center border-b px-6">
-              <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
-            </div>
-            <nav className="flex-1 space-y-1 px-3 py-4">
-              <NavigationLinks />
-            </nav>
-            <div className="border-t">
-              {userName && (
-                <div className="px-3 py-3 border-b">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{userName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="p-3">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={handleSignOut}
-                >
-                  <LogOut className="mr-3 h-5 w-5" />
-                  Sign Out
-                </Button>
-              </div>
-            </div>
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full">
+          {/* Desktop collapsible sidebar */}
+          <div className="hidden md:flex md:flex-col">
+            <DesktopSidebar />
           </div>
-        </aside>
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-4 md:p-6">
-            {children}
+          {/* Main content with header */}
+          <div className="flex-1 flex flex-col">
+            <header className="hidden md:flex h-12 items-center border-b bg-card px-2 sticky top-0 z-50">
+              <SidebarTrigger />
+            </header>
+            <main className="flex-1 overflow-y-auto">
+              <div className="container mx-auto p-4 md:p-6">
+                {children}
+              </div>
+            </main>
           </div>
-        </main>
-      </div>
+        </div>
+      </SidebarProvider>
     </div>
   );
 };

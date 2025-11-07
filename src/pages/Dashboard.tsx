@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Boxes, Truck, AlertTriangle } from "lucide-react";
 import Layout from "@/components/Layout";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow } from "date-fns";
+
+interface Activity {
+  id: string;
+  type: "batch" | "shipment" | "inventory";
+  description: string;
+  timestamp: string;
+  status?: string;
+}
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -10,6 +20,7 @@ const Dashboard = () => {
     lowStockItems: 0,
     activeShipments: 0,
   });
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -38,7 +49,57 @@ const Dashboard = () => {
       });
     };
 
+    const fetchActivities = async () => {
+      const recentActivities: Activity[] = [];
+
+      // Fetch recent batches
+      const { data: batchData } = await supabase
+        .from("production_batches")
+        .select("id, batch_number, status, created_at, vial_types(name)")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (batchData) {
+        batchData.forEach((batch: any) => {
+          recentActivities.push({
+            id: batch.id,
+            type: "batch",
+            description: `Batch ${batch.batch_number} created - ${batch.vial_types?.name || 'Unknown Type'}`,
+            timestamp: batch.created_at,
+            status: batch.status,
+          });
+        });
+      }
+
+      // Fetch recent shipments
+      const { data: shipmentData } = await supabase
+        .from("shipments")
+        .select("id, shipment_number, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (shipmentData) {
+        shipmentData.forEach((shipment) => {
+          recentActivities.push({
+            id: shipment.id,
+            type: "shipment",
+            description: `Shipment ${shipment.shipment_number} created`,
+            timestamp: shipment.created_at,
+            status: shipment.status,
+          });
+        });
+      }
+
+      // Sort all activities by timestamp and take the most recent 10
+      recentActivities.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      setActivities(recentActivities.slice(0, 10));
+    };
+
     fetchStats();
+    fetchActivities();
   }, []);
 
   const cards = [
@@ -93,9 +154,58 @@ const Dashboard = () => {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              No recent activity to display
-            </p>
+            {activities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No recent activity to display
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {activities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1">
+                        {activity.type === "batch" && (
+                          <Package className="h-4 w-4 text-primary" />
+                        )}
+                        {activity.type === "shipment" && (
+                          <Truck className="h-4 w-4 text-secondary" />
+                        )}
+                        {activity.type === "inventory" && (
+                          <Boxes className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {activity.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.timestamp), {
+                            addSuffix: true,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    {activity.status && (
+                      <Badge
+                        variant={
+                          activity.status === "completed" || activity.status === "delivered"
+                            ? "default"
+                            : activity.status === "in_progress" || activity.status === "shipped"
+                            ? "secondary"
+                            : "outline"
+                        }
+                        className="ml-2 flex-shrink-0"
+                      >
+                        {activity.status.replace("_", " ")}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

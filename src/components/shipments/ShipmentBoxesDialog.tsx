@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import BarcodeScanner from "./BarcodeScanner";
+import { LabelImageScanner } from "./LabelImageScanner";
 
 interface ShipmentBox {
   id: string;
@@ -114,6 +115,43 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     } else {
       toast.error("No shipping label data found");
     }
+  };
+
+  const handleLabelDataExtracted = (extractedData: any) => {
+    const updates: Partial<typeof newBox> = {};
+    
+    if (extractedData.box_number) {
+      updates.box_number = extractedData.box_number.toString();
+    }
+    if (extractedData.destination) {
+      updates.destination = extractedData.destination;
+    }
+    if (extractedData.ups_tracking_number) {
+      updates.ups_tracking_number = extractedData.ups_tracking_number;
+    }
+    if (extractedData.fba_id) {
+      updates.fba_id = extractedData.fba_id;
+    }
+    if (extractedData.weight_lb) {
+      updates.weight_lb = extractedData.weight_lb.toString();
+    }
+    if (extractedData.dimension_length_in) {
+      updates.dimension_length_in = extractedData.dimension_length_in.toString();
+    }
+    if (extractedData.dimension_width_in) {
+      updates.dimension_width_in = extractedData.dimension_width_in.toString();
+    }
+    if (extractedData.dimension_height_in) {
+      updates.dimension_height_in = extractedData.dimension_height_in.toString();
+    }
+    if (extractedData.packs_per_box) {
+      updates.packs_per_box = extractedData.packs_per_box.toString();
+    }
+    if (extractedData.bottles_per_box) {
+      updates.bottles_per_box = extractedData.bottles_per_box.toString();
+    }
+
+    setNewBox(prev => ({ ...prev, ...updates }));
   };
 
   const fetchBoxes = async () => {
@@ -409,9 +447,15 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold mb-4">Add New Box</h3>
             
+            {/* Label Image Scanner */}
+            <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+              <h4 className="text-sm font-medium mb-3">Escanear Etiqueta de Envío</h4>
+              <LabelImageScanner onDataExtracted={handleLabelDataExtracted} />
+            </div>
+
             {/* Barcode Scanner */}
             <div className="mb-6 p-4 border rounded-lg bg-muted/50">
-              <h4 className="text-sm font-medium mb-3">Scan Shipping Label</h4>
+              <h4 className="text-sm font-medium mb-3">O Escanear Código de Barras</h4>
               <BarcodeScanner onScan={parseShippingLabel} />
             </div>
             

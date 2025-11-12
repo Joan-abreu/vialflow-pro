@@ -183,6 +183,20 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     if (open) {
       fetchBoxes();
       fetchBoxMaterials();
+      // Reset form when dialog opens
+      setNewBox({
+        box_number: "",
+        packs_per_box: "",
+        bottles_per_box: "",
+        weight_lb: "",
+        dimension_length_in: "",
+        dimension_width_in: "",
+        dimension_height_in: "",
+        destination: "",
+        ups_tracking_number: "",
+        fba_id: "",
+      });
+      setSelectedBoxType("");
     }
   }, [open, shipmentId]);
 
@@ -449,15 +463,17 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
             
             {/* Label Image Scanner */}
             <div className="mb-6 p-4 border rounded-lg bg-muted/50">
-              <h4 className="text-sm font-medium mb-3">Escanear Etiqueta de Envío</h4>
+              <h4 className="text-sm font-medium mb-3">Scan Shipping Label</h4>
               <LabelImageScanner onDataExtracted={handleLabelDataExtracted} />
             </div>
 
-            {/* Barcode Scanner */}
-            <div className="mb-6 p-4 border rounded-lg bg-muted/50">
-              <h4 className="text-sm font-medium mb-3">O Escanear Código de Barras</h4>
-              <BarcodeScanner onScan={parseShippingLabel} />
-            </div>
+            {/* Barcode Scanner - Hidden but kept in code for future use */}
+            {false && (
+              <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+                <h4 className="text-sm font-medium mb-3">Or Scan Barcode</h4>
+                <BarcodeScanner onScan={parseShippingLabel} />
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">

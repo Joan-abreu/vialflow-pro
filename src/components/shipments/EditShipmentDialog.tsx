@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -35,9 +35,10 @@ interface Shipment {
 
 interface EditShipmentDialogProps {
   shipment: Shipment;
+  onSuccess?: () => void;
 }
 
-export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
+export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();
@@ -47,6 +48,24 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
     status: shipment.status,
     ups_delivery_date: shipment.ups_delivery_date ? new Date(shipment.ups_delivery_date).toISOString().split('T')[0] : "",
   });
+
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        shipment_number: shipment.shipment_number,
+        status: shipment.status,
+        ups_delivery_date: shipment.ups_delivery_date
+          ? new Date(shipment.ups_delivery_date).toISOString().split("T")[0]
+          : "",
+      });
+    } else {
+      setFormData({
+        shipment_number: "",
+        status: "",
+        ups_delivery_date: "",
+      });
+    }
+  }, [open, shipment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +94,8 @@ export const EditShipmentDialog = ({ shipment }: EditShipmentDialogProps) => {
 
       toast.success("Shipment updated successfully");
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      onSuccess?.();
+      
       setOpen(false);
     } catch (error: any) {
       toast.error("Error updating shipment");

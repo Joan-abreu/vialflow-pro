@@ -216,7 +216,7 @@ const Shipments = () => {
                             {format(new Date(shipment.created_at), "PP")}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getStatusColor(shipment.status)}>
+                            <Badge variant={getStatusColor(shipment.status)} className="capitalize">
                               {shipment.status}
                             </Badge>
                           </TableCell>
@@ -226,7 +226,7 @@ const Shipments = () => {
                                 shipmentId={shipment.id}
                                 shipmentNumber={shipment.shipment_number}
                               />
-                              <EditShipmentDialog shipment={shipment} />
+                              <EditShipmentDialog shipment={shipment} onSuccess={fetchShipments} />
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="sm">

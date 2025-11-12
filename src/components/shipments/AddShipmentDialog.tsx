@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
 import BarcodeScanner from "./BarcodeScanner";
+import { LabelImageScanner } from "./LabelImageScanner";
 
 interface AddShipmentDialogProps {
   onSuccess: () => void;
@@ -67,6 +68,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     dimension_width_in: string;
     dimension_height_in: string;
     destination: string;
+    ups_tracking_number: string;
+    fba_id: string;
   }>>([]);
 
   useEffect(() => {
@@ -190,6 +193,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         bottles_per_box: "",
         weight_lb: "",
         destination: "",
+        ups_tracking_number: "",
+        fba_id: "",
         ...defaultDimensions,
       })));
       
@@ -199,6 +204,54 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLabelDataExtracted = (index: number, extractedData: any) => {
+    const newBoxes = [...boxesData];
+    
+    if (extractedData.destination) {
+      newBoxes[index].destination = extractedData.destination;
+    }
+    if (extractedData.ups_tracking_number) {
+      newBoxes[index].ups_tracking_number = extractedData.ups_tracking_number;
+    }
+    if (extractedData.fba_id) {
+      newBoxes[index].fba_id = extractedData.fba_id;
+    }
+    if (extractedData.weight_lb) {
+      newBoxes[index].weight_lb = extractedData.weight_lb.toString();
+    }
+    if (extractedData.dimension_length_in) {
+      newBoxes[index].dimension_length_in = extractedData.dimension_length_in.toString();
+    }
+    if (extractedData.dimension_width_in) {
+      newBoxes[index].dimension_width_in = extractedData.dimension_width_in.toString();
+    }
+    if (extractedData.dimension_height_in) {
+      newBoxes[index].dimension_height_in = extractedData.dimension_height_in.toString();
+    }
+    if (extractedData.packs_per_box) {
+      newBoxes[index].packs_per_box = extractedData.packs_per_box.toString();
+      
+      // Auto-calculate bottles when packs are extracted
+      if (selectedBatch) {
+        const packsPerBox = parseInt(extractedData.packs_per_box.toString()) || 0;
+        let bottlesPerBox = 0;
+        
+        if (selectedBatch.sale_type === "pack") {
+          bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
+        } else {
+          bottlesPerBox = packsPerBox;
+        }
+        
+        newBoxes[index].bottles_per_box = bottlesPerBox.toString();
+      }
+    }
+    if (extractedData.bottles_per_box) {
+      newBoxes[index].bottles_per_box = extractedData.bottles_per_box.toString();
+    }
+
+    setBoxesData(newBoxes);
   };
 
   const updateBox = (index: number, field: string, value: string) => {
@@ -242,6 +295,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         dimension_width_in: box.dimension_width_in ? parseFloat(box.dimension_width_in) : null,
         dimension_height_in: box.dimension_height_in ? parseFloat(box.dimension_height_in) : null,
         destination: box.destination || null,
+        ups_tracking_number: box.ups_tracking_number || null,
+        fba_id: box.fba_id || null,
       }));
 
       const { error } = await supabase.from("shipment_boxes").insert(boxesInsertData);
@@ -391,6 +446,12 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                 <div key={index} className={`border rounded-lg p-4 space-y-4 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-background'}`}>
                   <h3 className="font-semibold text-lg">Box #{index + 1}</h3>
                   
+                  {/* Label Scanner */}
+                  <div className="mb-4 p-4 border rounded-lg bg-primary/5">
+                    <h4 className="text-sm font-medium mb-3">Scan Shipping Label</h4>
+                    <LabelImageScanner onDataExtracted={(data) => handleLabelDataExtracted(index, data)} />
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor={`packs_${index}`}>Packs per Box *</Label>
@@ -466,7 +527,27 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                         min="0"
                       />
                     </div>
-                    <div className="grid gap-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor={`ups_tracking_${index}`}>UPS Tracking Number</Label>
+                    <Input
+                      id={`ups_tracking_${index}`}
+                      value={box.ups_tracking_number}
+                      onChange={(e) => updateBox(index, "ups_tracking_number", e.target.value)}
+                      placeholder="1Z..."
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor={`fba_id_${index}`}>FBA ID</Label>
+                    <Input
+                      id={`fba_id_${index}`}
+                      value={box.fba_id}
+                      onChange={(e) => updateBox(index, "fba_id", e.target.value)}
+                      placeholder="FBA..."
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
                       <Label htmlFor={`height_${index}`}>Height (in)</Label>
                       <Input
                         id={`height_${index}`}

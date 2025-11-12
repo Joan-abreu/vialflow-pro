@@ -10,17 +10,20 @@ interface LabelImageScannerProps {
 
 export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) => {
   const [loading, setLoading] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const processImage = async (file: File) => {
     setLoading(true);
+    setProcessingMessage("Processing image...");
     try {
       // Convert image to base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Image = reader.result as string;
         
+        setProcessingMessage("Analyzing shipping label with AI...");
         console.log("Sending image to AI for analysis...");
         
         // Call edge function to extract data
@@ -32,8 +35,9 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
 
         if (data?.data) {
           console.log("Data extracted from label:", data.data);
+          setProcessingMessage("Data extracted successfully!");
           onDataExtracted(data.data);
-          toast.success("Datos extraídos de la etiqueta exitosamente");
+          toast.success("Data extracted from label successfully");
         } else {
           throw new Error("No data extracted from image");
         }
@@ -46,9 +50,13 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
       reader.readAsDataURL(file);
     } catch (error: any) {
       console.error('Error processing image:', error);
-      toast.error(error.message || "Error al procesar la imagen");
+      toast.error(error.message || "Error processing image");
+      setProcessingMessage("");
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setLoading(false);
+        setProcessingMessage("");
+      }, 1000);
     }
   };
 
@@ -56,7 +64,7 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        toast.error("Por favor selecciona una imagen");
+        toast.error("Please select an image");
         return;
       }
       processImage(file);
@@ -78,7 +86,7 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
           ) : (
             <Camera className="mr-2 h-4 w-4" />
           )}
-          Tomar Foto
+          Take Photo
         </Button>
         
         <Button
@@ -93,9 +101,16 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
           ) : (
             <Upload className="mr-2 h-4 w-4" />
           )}
-          Cargar Imagen
+          Upload Image
         </Button>
       </div>
+
+      {loading && processingMessage && (
+        <div className="flex items-center justify-center gap-2 p-3 bg-primary/10 rounded-lg animate-pulse">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="text-sm font-medium text-primary">{processingMessage}</span>
+        </div>
+      )}
 
       <input
         ref={cameraInputRef}
@@ -115,7 +130,7 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
       />
       
       <p className="text-xs text-muted-foreground text-center">
-        Escanea o carga una foto de la etiqueta de envío para auto-completar los datos
+        Scan or upload a photo of the shipping label to auto-fill the data
       </p>
     </div>
   );

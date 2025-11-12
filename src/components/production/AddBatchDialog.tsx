@@ -45,7 +45,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     batch_number: "",
     vial_type_id: "",
     quantity: "",
-    sale_type: "single",
+    sale_type: "individual",
     units_per_pack: "2",
     started_at: new Date(),
   });
@@ -249,7 +249,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         batch_number: "",
         vial_type_id: "",
         quantity: "",
-        sale_type: "single",
+        sale_type: "individual",
         units_per_pack: "2",
         started_at: new Date(),
       });
@@ -334,9 +334,9 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 onValueChange={(value) => setFormData({ ...formData, sale_type: value })}
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="single" id="single" />
-                  <Label htmlFor="single" className="font-normal cursor-pointer">
-                    Single
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="font-normal cursor-pointer">
+                    Individual
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -373,7 +373,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 </div>
               </>
             )}
-            {formData.sale_type === "single" && (
+            {formData.sale_type === "individual" && (
               <div className="grid gap-2">
                 <Label htmlFor="quantity">Quantity (bottles) *</Label>
                 <Input

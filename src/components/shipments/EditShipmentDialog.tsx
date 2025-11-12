@@ -29,7 +29,6 @@ interface Shipment {
   status: string;
   batch_id: string | null;
   ups_delivery_date: string | null;
-  shipped_at: string | null;
   delivered_at: string | null;
 }
 
@@ -67,43 +66,56 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
     }
   }, [open, shipment]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const updateData: any = {
-        status: formData.status,
-        ups_delivery_date: formData.ups_delivery_date || null,
-      };
-
-      // Update status timestamps
-      if (formData.status === "shipped" && !shipment.shipped_at) {
-        updateData.shipped_at = new Date().toISOString();
-      }
-      if (formData.status === "delivered" && !shipment.delivered_at) {
-        updateData.delivered_at = new Date().toISOString();
-      }
-
-      const { error } = await supabase
-        .from("shipments")
-        .update(updateData)
-        .eq("id", shipment.id);
-
-      if (error) throw error;
-
-      toast.success("Shipment updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["shipments"] });
-      onSuccess?.();
-      
-      setOpen(false);
-    } catch (error: any) {
-      toast.error("Error updating shipment");
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!formData.ups_delivery_date) {
+      setFormData((prev) => ({ ...prev, status: "preparing" }));
+    } else {
+      setFormData((prev) => ({ ...prev, status: "delivered" }));
     }
+  }, [formData.ups_delivery_date]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    let newStatus = formData.status;
+
+    if (!formData.ups_delivery_date) {
+      newStatus = "preparing";
+    } else if (formData.ups_delivery_date && formData.status === "preparing") {
+      newStatus = "delivered";
+    }
+
+    const updateData: any = {
+      status: newStatus,
+      ups_delivery_date: formData.ups_delivery_date || null,
+    };
+
+    // Update status timestamps
+    if (newStatus === "delivered" && !shipment.delivered_at) {
+      updateData.delivered_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from("shipments")
+      .update(updateData)
+      .eq("id", shipment.id);
+
+    if (error) throw error;
+
+    toast.success("Shipment updated successfully");
+    queryClient.invalidateQueries({ queryKey: ["shipments"] });
+    onSuccess?.();
+    setOpen(false);
+  } catch (error: any) {
+    toast.error("Error updating shipment");
+    console.error("Error:", error);
+  } finally {
+    setLoading(false);
+  }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -137,7 +149,6 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="preparing">Preparing</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
                     <SelectItem value="delivered">Delivered</SelectItem>
                   </SelectContent>
                 </Select>

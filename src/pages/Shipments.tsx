@@ -209,11 +209,11 @@ const Shipments = () => {
                           </TableCell>
                           <TableCell>
                             {shipment.ups_delivery_date 
-                              ? format(new Date(shipment.ups_delivery_date), "PP") 
+                              ? shipment.ups_delivery_date.split("T")[0]
                               : "-"}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(shipment.created_at), "PP")}
+                            {shipment.created_at.split("T")[0]}
                           </TableCell>
                           <TableCell>
                             <Badge variant={getStatusColor(shipment.status)} className="capitalize">

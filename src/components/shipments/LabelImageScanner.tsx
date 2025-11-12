@@ -21,42 +21,48 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
       // Convert image to base64
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64Image = reader.result as string;
-        
-        setProcessingMessage("Analyzing shipping label with AI...");
-        console.log("Sending image to AI for analysis...");
-        
-        // Call edge function to extract data
-        const { data, error } = await supabase.functions.invoke('extract-label-data', {
-          body: { imageBase64: base64Image }
-        });
+        try {
+          const base64Image = reader.result as string;
+          
+          setProcessingMessage("Analyzing shipping label with AI...");
+          console.log("Sending image to AI for analysis...");
+          
+          // Call edge function to extract data
+          const { data, error } = await supabase.functions.invoke('extract-label-data', {
+            body: { imageBase64: base64Image }
+          });
 
-        if (error) throw error;
+          if (error) throw error;
 
-        if (data?.data) {
-          console.log("Data extracted from label:", data.data);
-          setProcessingMessage("Data extracted successfully!");
-          onDataExtracted(data.data);
-          toast.success("Data extracted from label successfully");
-        } else {
-          throw new Error("No data extracted from image");
+          if (data?.data) {
+            console.log("Data extracted from label:", data.data);
+            setProcessingMessage("Loading extracted data...");
+            onDataExtracted(data.data);
+            toast.success("Data extracted from label successfully");
+          } else {
+            throw new Error("No data extracted from image");
+          }
+        } catch (error: any) {
+          console.error('Error processing image:', error);
+          toast.error(error.message || "Error processing image");
+        } finally {
+          setLoading(false);
+          setProcessingMessage("");
         }
       };
       
       reader.onerror = () => {
-        throw new Error("Error reading image file");
+        setLoading(false);
+        setProcessingMessage("");
+        toast.error("Error reading image file");
       };
       
       reader.readAsDataURL(file);
     } catch (error: any) {
       console.error('Error processing image:', error);
       toast.error(error.message || "Error processing image");
+      setLoading(false);
       setProcessingMessage("");
-    } finally {
-      setTimeout(() => {
-        setLoading(false);
-        setProcessingMessage("");
-      }, 1000);
     }
   };
 

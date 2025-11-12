@@ -222,7 +222,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       sale_type: formData.sale_type,
       pack_quantity: unitsPerPack,
       created_by: user.id,
-      status: "pending",
+      status: formData.started_at ? "in_progress" : "pending",
       started_at: formData.started_at.toISOString(),
     });
 
@@ -303,7 +303,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Production Start Date *</Label>
+              <Label>Production Start Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button

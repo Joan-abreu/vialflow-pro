@@ -60,7 +60,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     status: batch.status,
     sale_type: batch.sale_type,
     pack_quantity: batch.pack_quantity?.toString() || "2",
-    started_at: batch.started_at ? new Date(batch.started_at) : new Date(),
+    started_at: batch.started_at ? new Date(batch.started_at) : null as Date | null,
   });
 
   useEffect(() => {
@@ -118,10 +118,10 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       .update({
         vial_type_id: formData.vial_type_id,
         quantity: totalBottles,
-        status: formData.status,
+        status: formData.started_at ? "in_progress" : "pending",
         sale_type: formData.sale_type,
         pack_quantity,
-        started_at: formData.started_at.toISOString(),
+        started_at: formData.started_at ? formData.started_at.toISOString() : null,
       })
       .eq("id", batch.id);
 
@@ -200,28 +200,39 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
             <div className="grid gap-2">
               <Label>Production Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "flex-1 justify-start text-left font-normal",
+                        !formData.started_at && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={formData.started_at || undefined}
+                      onSelect={(date) => setFormData({ ...formData, started_at: date || null })}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                {formData.started_at && (
                   <Button
+                    type="button"
                     variant="outline"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !formData.started_at && "text-muted-foreground"
-                    )}
+                    onClick={() => setFormData({ ...formData, started_at: null })}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                    Clear
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.started_at}
-                    onSelect={(date) => setFormData({ ...formData, started_at: date || new Date() })}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+                )}
+              </div>
             </div>
 
             {formData.sale_type === "pack" && (

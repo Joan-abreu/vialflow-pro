@@ -304,28 +304,40 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
             </div>
             <div className="grid gap-2">
               <Label>Production Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className={cn(
+                        "flex-1 justify-start text-left font-normal",
+                        !formData.started_at && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={formData.started_at || undefined}
+                      onSelect={(date) => setFormData({ ...formData, started_at: date || null })}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                {formData.started_at && (
                   <Button
+                    type="button"
                     variant="outline"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !formData.started_at && "text-muted-foreground"
-                    )}
+                    onClick={() => setFormData({ ...formData, started_at: null })}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
+                    Clear
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.started_at || undefined}
-                    onSelect={(date) => setFormData({ ...formData, started_at: date || null })}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+                )}
+              </div>
             </div>
             <div className="grid gap-2">
               <Label>Sale Type *</Label>

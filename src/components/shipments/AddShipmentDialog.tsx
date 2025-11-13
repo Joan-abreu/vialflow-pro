@@ -230,25 +230,18 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     if (extractedData.dimension_height_in) {
       newBoxes[index].dimension_height_in = extractedData.dimension_height_in.toString();
     }
-    if (extractedData.packs_per_box) {
-      newBoxes[index].packs_per_box = extractedData.packs_per_box.toString();
-      
-      // Auto-calculate bottles when packs are extracted
-      if (selectedBatch) {
-        const packsPerBox = parseInt(extractedData.packs_per_box.toString()) || 0;
-        let bottlesPerBox = 0;
-        
-        if (selectedBatch.sale_type === "pack") {
-          bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
-        } else {
-          bottlesPerBox = packsPerBox;
-        }
-        
-        newBoxes[index].bottles_per_box = bottlesPerBox.toString();
+    
+    // Handle quantity based on batch sale_type
+    if (extractedData.qty && selectedBatch) {
+      const qty = parseInt(extractedData.qty);
+      if (selectedBatch.sale_type === "pack") {
+        // For pack batches: qty goes to packs_per_box, calculate bottles_per_box
+        newBoxes[index].packs_per_box = qty.toString();
+        newBoxes[index].bottles_per_box = (qty * (selectedBatch.pack_quantity || 1)).toString();
+      } else {
+        // For individual batches: qty goes to bottles_per_box
+        newBoxes[index].bottles_per_box = qty.toString();
       }
-    }
-    if (extractedData.bottles_per_box) {
-      newBoxes[index].bottles_per_box = extractedData.bottles_per_box.toString();
     }
 
     setBoxesData(newBoxes);
@@ -258,17 +251,10 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     const newBoxes = [...boxesData];
     newBoxes[index] = { ...newBoxes[index], [field]: value };
     
-    // Auto-calculate bottles_per_box when packs_per_box changes
-    if (field === "packs_per_box" && selectedBatch) {
+    // Auto-calculate bottles_per_box only when packs_per_box changes in pack-type batches
+    if (field === "packs_per_box" && selectedBatch?.sale_type === "pack") {
       const packsPerBox = parseInt(value) || 0;
-      let bottlesPerBox = 0;
-      
-      if (selectedBatch.sale_type === "pack") {
-        bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
-      } else {
-        bottlesPerBox = packsPerBox;
-      }
-      
+      const bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
       newBoxes[index].bottles_per_box = bottlesPerBox.toString();
     }
     
@@ -453,22 +439,38 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
+                    {selectedBatch?.sale_type === "pack" && (
+                      <div className="grid gap-2">
+                        <Label htmlFor={`packs_${index}`}>Packs per Box *</Label>
+                        <Input
+                          id={`packs_${index}`}
+                          type="number"
+                          value={box.packs_per_box}
+                          onChange={(e) => updateBox(index, "packs_per_box", e.target.value)}
+                          placeholder="Enter packs quantity"
+                          min="0"
+                          required
+                        />
+                      </div>
+                    )}
+                    {selectedBatch?.sale_type === "individual" && (
+                      <div className="grid gap-2">
+                        <Label htmlFor={`bottles_${index}`}>Bottles per Box *</Label>
+                        <Input
+                          id={`bottles_${index}`}
+                          type="number"
+                          value={box.bottles_per_box}
+                          onChange={(e) => updateBox(index, "bottles_per_box", e.target.value)}
+                          placeholder="Enter bottles quantity"
+                          min="0"
+                          required
+                        />
+                      </div>
+                    )}
                     <div className="grid gap-2">
-                      <Label htmlFor={`packs_${index}`}>Packs per Box *</Label>
+                      <Label htmlFor={`bottles_calc_${index}`}>Bottles per Box (calculated)</Label>
                       <Input
-                        id={`packs_${index}`}
-                        type="number"
-                        value={box.packs_per_box}
-                        onChange={(e) => updateBox(index, "packs_per_box", e.target.value)}
-                        placeholder="Enter packs quantity"
-                        min="0"
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`bottles_${index}`}>Bottles per Box (calculated)</Label>
-                      <Input
-                        id={`bottles_${index}`}
+                        id={`bottles_calc_${index}`}
                         type="number"
                         value={box.bottles_per_box}
                         disabled

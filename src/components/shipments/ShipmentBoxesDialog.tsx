@@ -67,6 +67,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
   const [boxMaterials, setBoxMaterials] = useState<Array<{ id: string; name: string; dimension_length_in: number | null; dimension_width_in: number | null; dimension_height_in: number | null }>>([]);
   const [loading, setLoading] = useState(false);
   const [selectedBoxType, setSelectedBoxType] = useState("");
+  const [batchInfo, setBatchInfo] = useState<{ sale_type: string; pack_quantity: number } | null>(null);
   const [newBox, setNewBox] = useState({
     box_number: "",
     packs_per_box: "",
@@ -144,11 +145,18 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     if (extractedData.dimension_height_in) {
       updates.dimension_height_in = extractedData.dimension_height_in.toString();
     }
-    if (extractedData.packs_per_box) {
-      updates.packs_per_box = extractedData.packs_per_box.toString();
-    }
-    if (extractedData.bottles_per_box) {
-      updates.bottles_per_box = extractedData.bottles_per_box.toString();
+    
+    // Handle quantity based on batch sale_type
+    if (extractedData.qty && batchInfo) {
+      const qty = parseInt(extractedData.qty);
+      if (batchInfo.sale_type === "pack") {
+        // For pack batches: qty goes to packs_per_box, calculate bottles_per_box
+        updates.packs_per_box = qty.toString();
+        updates.bottles_per_box = (qty * batchInfo.pack_quantity).toString();
+      } else {
+        // For individual batches: qty goes to bottles_per_box
+        updates.bottles_per_box = qty.toString();
+      }
     }
 
     setNewBox(prev => ({ ...prev, ...updates }));
@@ -179,10 +187,31 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
     }
   };
 
+  const fetchBatchInfo = async () => {
+    const { data: shipment } = await supabase
+      .from("shipments")
+      .select("batch_id")
+      .eq("id", shipmentId)
+      .single();
+
+    if (shipment?.batch_id) {
+      const { data: batch } = await supabase
+        .from("production_batches")
+        .select("sale_type, pack_quantity")
+        .eq("id", shipment.batch_id)
+        .single();
+
+      if (batch) {
+        setBatchInfo(batch);
+      }
+    }
+  };
+
   useEffect(() => {
     if (open) {
       fetchBoxes();
       fetchBoxMaterials();
+      fetchBatchInfo();
       // Reset form when dialog opens
       setNewBox({
         box_number: "",
@@ -546,23 +575,42 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="packs_per_box">Packs</Label>
-                <Input
-                  id="packs_per_box"
-                  type="number"
-                  value={newBox.packs_per_box}
-                  onChange={(e) => setNewBox({ ...newBox, packs_per_box: e.target.value })}
-                />
-              </div>
+              {batchInfo?.sale_type === "pack" && (
+                <div className="space-y-2">
+                  <Label htmlFor="packs_per_box">Packs per Box</Label>
+                  <Input
+                    id="packs_per_box"
+                    type="number"
+                    value={newBox.packs_per_box}
+                    onChange={(e) => {
+                      const packs = e.target.value;
+                      const bottles = packs && batchInfo ? (parseInt(packs) * batchInfo.pack_quantity).toString() : "";
+                      setNewBox({ ...newBox, packs_per_box: packs, bottles_per_box: bottles });
+                    }}
+                  />
+                </div>
+              )}
+
+              {batchInfo?.sale_type === "individual" && (
+                <div className="space-y-2">
+                  <Label htmlFor="bottles_per_box">Bottles per Box</Label>
+                  <Input
+                    id="bottles_per_box"
+                    type="number"
+                    value={newBox.bottles_per_box}
+                    onChange={(e) => setNewBox({ ...newBox, bottles_per_box: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="bottles_per_box">Bottles</Label>
+                <Label htmlFor="bottles_per_box_calc">Bottles per Box (calculated)</Label>
                 <Input
-                  id="bottles_per_box"
+                  id="bottles_per_box_calc"
                   type="number"
                   value={newBox.bottles_per_box}
-                  onChange={(e) => setNewBox({ ...newBox, bottles_per_box: e.target.value })}
+                  disabled
+                  className="bg-muted"
                 />
               </div>
 

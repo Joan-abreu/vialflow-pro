@@ -420,6 +420,7 @@ const Users = () => {
                               size="sm"
                               onClick={() => handleToggleUserStatus(user)}
                               disabled={togglingStatus === user.id}
+                              title="Active/Disable"
                             >
                               {togglingStatus === user.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -433,6 +434,7 @@ const Users = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              title="Delete"
                               onClick={() => {
                                 setSelectedUserForDelete(user);
                                 setDeleteDialogOpen(true);
@@ -442,7 +444,7 @@ const Users = () => {
                               {deletingUser === user.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               )}
                             </Button>
                           </div>

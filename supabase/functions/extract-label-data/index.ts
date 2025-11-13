@@ -46,8 +46,7 @@ serve(async (req) => {
   "dimension_length_in": number or null,
   "dimension_width_in": number or null,
   "dimension_height_in": number or null,
-  "packs_per_box": number or null,
-  "bottles_per_box": number or null
+  "qty": number or null
 }
 
 Look for:
@@ -57,7 +56,7 @@ Look for:
 - Weight in pounds (LBS, lb)
 - Dimensions in inches (L x W x H)
 - Destination state code in shipping address
-- Package/pack quantities if visible`
+- Quantity of items in the box (QTY, Quantity, Units, etc.)`
           },
           {
             role: 'user',

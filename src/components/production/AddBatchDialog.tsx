@@ -47,7 +47,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     quantity: "",
     sale_type: "individual",
     units_per_pack: "2",
-    started_at: new Date(),
+    started_at: null as Date | null,
   });
 
   useEffect(() => {
@@ -223,7 +223,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       pack_quantity: unitsPerPack,
       created_by: user.id,
       status: formData.started_at ? "in_progress" : "pending",
-      started_at: formData.started_at.toISOString(),
+      started_at: formData.started_at ? formData.started_at.toISOString() : null,
     });
 
     setLoading(false);
@@ -251,7 +251,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         quantity: "",
         sale_type: "individual",
         units_per_pack: "2",
-        started_at: new Date(),
+        started_at: null,
       });
       onSuccess();
     }
@@ -320,8 +320,8 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={formData.started_at}
-                    onSelect={(date) => setFormData({ ...formData, started_at: date || new Date() })}
+                    selected={formData.started_at || undefined}
+                    onSelect={(date) => setFormData({ ...formData, started_at: date || null })}
                     initialFocus
                   />
                 </PopoverContent>

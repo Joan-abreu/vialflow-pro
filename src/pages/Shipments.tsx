@@ -229,7 +229,7 @@ const Shipments = () => {
                               <EditShipmentDialog shipment={shipment} onSuccess={fetchShipments} />
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm">
+                                  <Button variant="ghost" size="sm" title="Delete">
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                   </Button>
                                 </AlertDialogTrigger>

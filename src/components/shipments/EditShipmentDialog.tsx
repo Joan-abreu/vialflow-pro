@@ -120,7 +120,7 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" title="Edit">
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>

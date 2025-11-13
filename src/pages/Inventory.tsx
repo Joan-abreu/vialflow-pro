@@ -273,8 +273,8 @@ const Inventory = () => {
                           />
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <Trash2 className="h-4 w-4" />
+                              <Button variant="ghost" size="sm" title="Delete">
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -286,7 +286,8 @@ const Inventory = () => {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(material.id)}>
+                                <AlertDialogAction onClick={() => handleDelete(material.id)} 
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                   Delete
                                 </AlertDialogAction>
                               </AlertDialogFooter>

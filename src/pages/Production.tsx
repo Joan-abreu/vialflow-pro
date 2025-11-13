@@ -228,7 +228,7 @@ const Production = () => {
                                 initialBatchId={batch.id}
                                 onSuccess={fetchBatches}
                                 trigger={
-                                  <Button variant="ghost" size="icon">
+                                  <Button variant="ghost" size="icon" title="New Shipment">
                                     <Package className="h-4 w-4" />
                                   </Button>
                                 }
@@ -244,7 +244,7 @@ const Production = () => {
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" title="Delete">
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </AlertDialogTrigger>

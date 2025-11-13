@@ -197,7 +197,7 @@ const Dashboard = () => {
                             ? "secondary"
                             : "outline"
                         }
-                        className="ml-2 flex-shrink-0"
+                        className="ml-2 flex-shrink-0 capitalize"
                       >
                         {activity.status.replace("_", " ")}
                       </Badge>

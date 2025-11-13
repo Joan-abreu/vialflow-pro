@@ -397,9 +397,9 @@ const Users = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1">
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => {
                                 setSelectedUserForReset(user);
@@ -416,7 +416,7 @@ const Users = () => {
                             </Button>
                             
                             <Button
-                              variant={user.banned_until ? "default" : "outline"}
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleToggleUserStatus(user)}
                               disabled={togglingStatus === user.id}
@@ -431,7 +431,7 @@ const Users = () => {
                             </Button>
 
                             <Button
-                              variant="destructive"
+                              variant="ghost"
                               size="sm"
                               onClick={() => {
                                 setSelectedUserForDelete(user);

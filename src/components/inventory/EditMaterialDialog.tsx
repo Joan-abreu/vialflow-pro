@@ -158,7 +158,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
               <SelectContent>
                 {categories.map((cat) => (
                   <SelectItem key={cat.id} value={cat.name}>
-                    {cat.name}
+                    <span className="capitalize">{cat.name}</span>
                   </SelectItem>
                 ))}
               </SelectContent>

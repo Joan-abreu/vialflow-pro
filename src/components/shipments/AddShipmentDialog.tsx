@@ -480,33 +480,12 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                       />
                     </div>
                   </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor={`destination_${index}`}>Destination *</Label>
-                    <Input
-                      id={`destination_${index}`}
-                      value={box.destination}
-                      onChange={(e) => updateBox(index, "destination", e.target.value)}
-                      placeholder="e.g., IN, FL, CA"
-                      required
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor={`weight_${index}`}>Weight (lb) *</Label>
-                    <Input
-                      id={`weight_${index}`}
-                      type="number"
-                      step="0.01"
-                      value={box.weight_lb}
-                      onChange={(e) => updateBox(index, "weight_lb", e.target.value)}
-                      placeholder="Enter weight in pounds"
-                      min="0"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor={`length_${index}`}>Length (in)</Label>
                       <Input
@@ -531,27 +510,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                         min="0"
                       />
                     </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor={`ups_tracking_${index}`}>UPS Tracking Number</Label>
-                    <Input
-                      id={`ups_tracking_${index}`}
-                      value={box.ups_tracking_number}
-                      onChange={(e) => updateBox(index, "ups_tracking_number", e.target.value)}
-                      placeholder="1Z..."
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor={`fba_id_${index}`}>FBA ID</Label>
-                    <Input
-                      id={`fba_id_${index}`}
-                      value={box.fba_id}
-                      onChange={(e) => updateBox(index, "fba_id", e.target.value)}
-                      placeholder="FBA..."
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
+                    <div className="grid gap-2">
                       <Label htmlFor={`height_${index}`}>Height (in)</Label>
                       <Input
                         id={`height_${index}`}
@@ -561,6 +520,49 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                         onChange={(e) => updateBox(index, "dimension_height_in", e.target.value)}
                         placeholder="Height"
                         min="0"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`weight_${index}`}>Weight (lb) *</Label>
+                      <Input
+                        id={`weight_${index}`}
+                        type="number"
+                        step="0.01"
+                        value={box.weight_lb}
+                        onChange={(e) => updateBox(index, "weight_lb", e.target.value)}
+                        placeholder="Weight"
+                        min="0"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor={`ups_tracking_${index}`}>UPS Tracking Number</Label>
+                      <Input
+                        id={`ups_tracking_${index}`}
+                        value={box.ups_tracking_number}
+                        onChange={(e) => updateBox(index, "ups_tracking_number", e.target.value)}
+                        placeholder="1Z..."
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`fba_id_${index}`}>FBA ID</Label>
+                      <Input
+                        id={`fba_id_${index}`}
+                        value={box.fba_id}
+                        onChange={(e) => updateBox(index, "fba_id", e.target.value)}
+                        placeholder="FBA..."
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`destination_${index}`}>Destination *</Label>
+                      <Input
+                        id={`destination_${index}`}
+                        value={box.destination}
+                        onChange={(e) => updateBox(index, "destination", e.target.value)}
+                        placeholder="e.g., IN, FL, CA"
+                        required
                       />
                     </div>
                   </div>

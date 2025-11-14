@@ -100,6 +100,12 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       return;
     }
 
+    if (!formData.vial_type_id) {
+      toast.error("Please select a vial type");
+      setLoading(false);
+      return;
+    }
+
     // Validate and calculate materials needed
     const unitsPerPack = formData.sale_type === "pack" ? parseInt(formData.units_per_pack) : 1;
     const numberOfPacks = formData.sale_type === "pack" ? parseInt(formData.quantity) : parseInt(formData.quantity);
@@ -288,7 +294,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
               <Select
                 value={formData.vial_type_id}
                 onValueChange={(value) => setFormData({ ...formData, vial_type_id: value })}
-                required
               >
                 <SelectTrigger id="vial_type">
                   <SelectValue placeholder="Select vial type" />

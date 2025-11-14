@@ -57,7 +57,8 @@ Look for:
 - Dimensions in inches (L x H x W)
 - Destination state code in shipping address
 - Quantity of items in the box (QTY, Quantity, Units, etc.),
-            IMPORTANT:
+
+IMPORTANT:
 When dimensions appear in formats like "27x17x15", "27 x 17 x 15", "LxWxH", or any similar variant,
 ALWAYS interpret and return them using this strict positional rule:
 

@@ -43,7 +43,7 @@ serve(async (req) => {
   "ups_tracking_number": "1Z..." or null,
   "fba_id": "FBA..." or null,
   "weight_lb": number or null,
-  "dimension_length_in": number or null,
+  "dimension_length_in1": number or null,
   "dimension_width_in": number or null,
   "dimension_height_in": number or null,
   "qty": number or null

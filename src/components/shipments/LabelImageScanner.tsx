@@ -35,6 +35,14 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
           if (error) throw error;
 
           if (data?.data) {
+            if (data.data.ups_tracking_number) {
+              data.data.ups_tracking_number = data.data.ups_tracking_number.replace(/\s+/g, '');
+            }
+            if (data.data.dimension_height_in && data.data.dimension_width_in) {
+              const height = parseFloat(data.data.dimension_height_in);
+              data.data.dimension_height_in = data.data.dimension_width_in;
+              data.data.dimension_width_in = height;
+            }
             console.log("Data extracted from label:", data.data);
             setProcessingMessage("Loading extracted data...");
             onDataExtracted(data.data);

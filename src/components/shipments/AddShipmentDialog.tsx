@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
 import BarcodeScanner from "./BarcodeScanner";
 import { LabelImageScanner } from "./LabelImageScanner";
+import { updateBatchStatus } from "@/services/batches";
 
 interface AddShipmentDialogProps {
   onSuccess: () => void;
@@ -199,6 +200,9 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         fba_id: "",
         ...defaultDimensions,
       })));
+
+      // Update batch
+      await updateBatchStatus(formData.batch_id);
       
       setStep("boxes");
     } catch (error: any) {

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PackageOpen } from "lucide-react";
+import { updateBatchStatus } from "@/services/batches";
 
 interface CreateShipmentDialogProps {
   batch: {
@@ -107,22 +108,7 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
     }
 
     // Update batch status
-    const newShippedQuantity = (batch.shipped_quantity || 0) + quantity;
-    let newStatus = "in_progress";
-    if (newShippedQuantity >= batch.quantity) {
-      newStatus = "completed";
-    } else if (newShippedQuantity > 0) {
-      newStatus = "in_progress";
-    }
-
-    await supabase
-      .from("production_batches")
-      .update({
-        status: newStatus,
-        started_at: batch.shipped_quantity === 0 ? new Date().toISOString() : undefined,
-        completed_at: newStatus === "completed" ? new Date().toISOString() : null,
-      })
-      .eq("id", batch.id);
+    await updateBatchStatus(batch.id);
 
     toast({
       title: "Success",

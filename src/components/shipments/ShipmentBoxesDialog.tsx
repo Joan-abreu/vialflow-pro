@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import BarcodeScanner from "./BarcodeScanner";
 import { LabelImageScanner } from "./LabelImageScanner";
+import { updateBatchStatus } from "@/services/batches";
 
 interface ShipmentBox {
   id: string;
@@ -385,12 +386,49 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
 
   const handleDeleteBox = async (boxId: string) => {
     try {
+      const { data: boxInfo, error: boxInfoError } = await supabase
+        .from("shipment_boxes")
+        .select("shipment_id, shipments(batch_id)")
+        .eq("id", boxId)
+        .single();
+
+      if (boxInfoError) throw boxInfoError;
+
+      const shipmentId = boxInfo.shipment_id;
+      const batchId = boxInfo.shipments?.batch_id;
+
+      if (!batchId || !shipmentId) throw new Error("Missing batch or shipment");
+
       const { error } = await supabase
         .from("shipment_boxes")
         .delete()
         .eq("id", boxId);
 
       if (error) throw error;
+
+      const { data: remainingBoxes, error: remainingError } = await supabase
+        .from("shipment_boxes")
+        .select("id")
+        .eq("shipment_id", shipmentId);
+
+      if (remainingError) throw remainingError;
+
+      const boxCount = remainingBoxes.length;
+
+      if (boxCount === 0) {
+        await supabase
+          .from("shipments")
+          .update({
+            status: "preparing",
+            ups_delivery_date: null,
+            shipped_at: null,
+            delivered_at: null
+          })
+          .eq("id", shipmentId);
+      }
+
+      //Update batch
+      await updateBatchStatus(batchId);
 
       toast.success("Box deleted successfully");
       fetchBoxes();

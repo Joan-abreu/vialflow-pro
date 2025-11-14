@@ -30,6 +30,7 @@ import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog"
 import { Button } from "@/components/ui/button";
 import { Trash2, Package, ExternalLink, Truck } from "lucide-react";
 import { toast } from "sonner";
+import { updateBatchStatus } from "@/services/batches";
 
 interface Shipment {
   id: string;
@@ -127,12 +128,26 @@ const Shipments = () => {
 
   const handleDeleteShipment = async (shipmentId: string, shipmentNumber: string) => {
     try {
-      const { error } = await supabase
+      const { data: shipmentData, error: fetchError } = await supabase
+        .from("shipments")
+        .select("id, batch_id")
+        .eq("id", shipmentId)
+        .single();
+
+      if (fetchError || !shipmentData) throw fetchError || new Error("Shipment not found");
+
+      const batchId = shipmentData.batch_id;
+
+      const { error: deleteError } = await supabase
         .from("shipments")
         .delete()
         .eq("id", shipmentId);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      if (batchId) {
+        await updateBatchStatus(batchId);
+      }
 
       toast.success("Shipment deleted successfully");
       fetchShipments();

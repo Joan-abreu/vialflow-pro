@@ -677,7 +677,12 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
               </div>
 
               <div className="flex items-end">
-                <Button onClick={handleAddBox} disabled={loading} className="w-full">
+                <Button 
+                  onClick={handleAddBox} 
+                  disabled={loading} 
+                  className="w-full"
+                  type="button"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Box
                 </Button>

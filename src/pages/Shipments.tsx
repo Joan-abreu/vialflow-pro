@@ -42,6 +42,8 @@ interface Shipment {
   delivered_at: string | null;
   production_batches?: {
     batch_number: string;
+    sale_type: string;
+    pack_quantity: number | null;
   };
   shipment_boxes?: Array<{
     id: string;
@@ -62,12 +64,14 @@ const Shipments = () => {
 
   const fetchShipments = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+  const { data, error } = await supabase
       .from("shipments")
       .select(`
         *,
         production_batches:batch_id (
-          batch_number
+          batch_number,
+          sale_type,
+          pack_quantity
         ),
         shipment_boxes (
           id,
@@ -176,6 +180,7 @@ const Shipments = () => {
                     <TableRow>
                       <TableHead>Shipment Number</TableHead>
                       <TableHead>Batch</TableHead>
+                      <TableHead>Qty</TableHead>
                       <TableHead>Destinations</TableHead>
                       <TableHead>Total Boxes</TableHead>
                       <TableHead>Delivery Date</TableHead>
@@ -193,6 +198,17 @@ const Shipments = () => {
                           .filter(Boolean)
                       )];
                       
+                      // Calculate total quantity based on sale type
+                      const totalPacks = shipment.shipment_boxes?.reduce((sum, box) => 
+                        sum + (box.packs_per_box || 0), 0) || 0;
+                      const totalBottles = shipment.shipment_boxes?.reduce((sum, box) => 
+                        sum + (box.bottles_per_box || 0), 0) || 0;
+                      
+                      const saleType = shipment.production_batches?.sale_type || "individual";
+                      const qtyDisplay = saleType === "pack" 
+                        ? `${totalPacks} Packs`
+                        : `${totalBottles} Bottles`;
+                      
                       return (
                         <TableRow key={shipment.id}>
                           <TableCell className="font-medium">
@@ -200,6 +216,9 @@ const Shipments = () => {
                           </TableCell>
                           <TableCell>
                             {shipment.production_batches?.batch_number || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {qtyDisplay}
                           </TableCell>
                           <TableCell>
                             {destinations.length > 0 ? destinations.join(", ") : "-"}

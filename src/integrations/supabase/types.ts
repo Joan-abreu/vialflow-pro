@@ -51,6 +51,8 @@ export type Database = {
           status: string
           updated_at: string
           vial_type_id: string
+          waste_notes: string | null
+          waste_quantity: number | null
         }
         Insert: {
           batch_number: string
@@ -67,6 +69,8 @@ export type Database = {
           status?: string
           updated_at?: string
           vial_type_id: string
+          waste_notes?: string | null
+          waste_quantity?: number | null
         }
         Update: {
           batch_number?: string
@@ -83,6 +87,8 @@ export type Database = {
           status?: string
           updated_at?: string
           vial_type_id?: string
+          waste_notes?: string | null
+          waste_quantity?: number | null
         }
         Relationships: [
           {

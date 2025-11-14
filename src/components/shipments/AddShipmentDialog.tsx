@@ -36,6 +36,7 @@ interface Batch {
   quantity: number;
   sale_type: string;
   pack_quantity: number;
+  status: string;
 }
 
 interface BoxMaterial {
@@ -102,7 +103,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
   const fetchBatches = async () => {
     const { data, error } = await supabase
       .from("production_batches")
-      .select("id, batch_number, quantity, sale_type, pack_quantity")
+      .select("id, batch_number, quantity, sale_type, pack_quantity, status")
+      .neq("status", "completed")
       .order("created_at", { ascending: false });
 
     if (!error && data) {

@@ -61,6 +61,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     sale_type: batch.sale_type,
     pack_quantity: batch.pack_quantity?.toString() || "2",
     started_at: batch.started_at ? new Date(batch.started_at) : null as Date | null,
+    waste_quantity: "0",
+    waste_notes: "",
   });
 
   useEffect(() => {
@@ -113,6 +115,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       ? inputQuantity * pack_quantity 
       : inputQuantity;
 
+    const waste_quantity = parseInt(formData.waste_quantity) || 0;
+
     const { error } = await supabase
       .from("production_batches")
       .update({
@@ -122,6 +126,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
         sale_type: formData.sale_type,
         pack_quantity,
         started_at: formData.started_at ? formData.started_at.toISOString() : null,
+        waste_quantity,
+        waste_notes: formData.waste_notes || null,
       })
       .eq("id", batch.id);
 
@@ -285,6 +291,38 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="waste_quantity">Waste Quantity</Label>
+              <Input
+                id="waste_quantity"
+                type="number"
+                min="0"
+                value={formData.waste_quantity}
+                onChange={(e) =>
+                  setFormData({ ...formData, waste_quantity: e.target.value })
+                }
+                placeholder="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Number of units lost during production (broken vials, bottles, caps, labels, etc.)
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="waste_notes">Waste Notes</Label>
+              <Input
+                id="waste_notes"
+                value={formData.waste_notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, waste_notes: e.target.value })
+                }
+                placeholder="e.g., 5 vials broken, 3 labels damaged"
+              />
+              <p className="text-xs text-muted-foreground">
+                Describe what materials were wasted
+              </p>
             </div>
           </div>
           <DialogFooter>

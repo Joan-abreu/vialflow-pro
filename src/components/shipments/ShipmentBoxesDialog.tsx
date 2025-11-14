@@ -59,9 +59,10 @@ interface ShipmentBox {
 interface ShipmentBoxesDialogProps {
   shipmentId: string;
   shipmentNumber: string;
+  onSuccess?: () => void;
 }
 
-export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxesDialogProps) => {
+export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: ShipmentBoxesDialogProps) => {
   const [open, setOpen] = useState(false);
   const [boxes, setBoxes] = useState<ShipmentBox[]>([]);
   const [boxMaterials, setBoxMaterials] = useState<Array<{ id: string; name: string; dimension_length_in: number | null; dimension_width_in: number | null; dimension_height_in: number | null }>>([]);
@@ -374,6 +375,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
       });
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      onSuccess?.();
     } catch (error: any) {
       toast.error(error.message || "Error adding box");
     } finally {
@@ -393,6 +395,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
       toast.success("Box deleted successfully");
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      onSuccess?.();
     } catch (error: any) {
       toast.error("Error deleting box");
     }

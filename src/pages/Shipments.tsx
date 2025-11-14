@@ -272,6 +272,7 @@ const Shipments = () => {
                               <ShipmentBoxesDialog 
                                 shipmentId={shipment.id}
                                 shipmentNumber={shipment.shipment_number}
+                                onSuccess={fetchShipments}
                               />
                               <EditShipmentDialog shipment={shipment} onSuccess={fetchShipments} />
                               <AlertDialog>

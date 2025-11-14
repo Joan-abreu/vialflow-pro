@@ -51,7 +51,7 @@ serve(async (req) => {
 
 Look for:
 - Box numbers (BOX, Box #, etc.)
-- UPS tracking (1Z format)
+- UPS tracking (1Z format) Without any space between characters
 - FBA shipment IDs (FBA prefix)
 - Weight in pounds (LBS, lb)
 - Dimensions in inches (L x W x H or any variation)

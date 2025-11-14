@@ -2,40 +2,40 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { imageBase64 } = await req.json();
-    
+
     if (!imageBase64) {
       throw new Error("No image provided");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     console.log("Analyzing shipping label with AI...");
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: "google/gemini-2.5-flash",
         messages: [
           {
-            role: 'system',
+            role: "system",
             content: `You are an expert at extracting shipping label information. Analyze the shipping label image and extract all available data. Return ONLY a valid JSON object with these fields (use null for missing data):
 {
   "box_number": number or null,
@@ -54,25 +54,54 @@ Look for:
 - UPS tracking (1Z format)
 - FBA shipment IDs (FBA prefix)
 - Weight in pounds (LBS, lb)
-- Dimensions in inches (L x W x H)
-- Destination state code in shipping address
-- Quantity of items in the box (QTY, Quantity, Units, etc.)`
+- Dimensions in inches (L x W x H or any variation)
+- Destination state code in address
+- Quantity of items in the box (QTY, Units, Quantity, etc.)
+
+IMPORTANT DIMENSION RULE (STRICT — CANNOT BE OVERRIDDEN):
+
+When dimensions appear in formats like:
+"27x17x15", "27 x 17 x 15", "27X17X15", "27-17-15", "27/17/15",
+"27 * 17 * 15", or any similar variant,
+
+YOU MUST ALWAYS map them using ONLY the POSITION of the numbers:
+
+1st number → dimension_length_in  
+2nd number → dimension_height_in  
+3rd number → dimension_width_in  
+
+Example:
+"27x17x15" MUST be interpreted as:
+{
+  "dimension_length_in": 27,
+  "dimension_height_in": 17,
+  "dimension_width_in": 15
+}
+
+ABSOLUTE RULE:
+Even if the label shows letters like "LxWxH", "WxHxL", "HxWxL", or ANY other ordering,
+YOU MUST IGNORE THEM COMPLETELY.
+
+DO NOT reorder values based on L/W/H notation.
+POSITION ALWAYS WINS.
+
+If multiple dimension sets appear, pick the most prominent or clear one.`,
           },
           {
-            role: 'user',
+            role: "user",
             content: [
               {
-                type: 'text',
-                text: 'Extract all shipping information from this label image.'
+                type: "text",
+                text: "Extract all shipping information from this label image.",
               },
               {
-                type: 'image_url',
+                type: "image_url",
                 image_url: {
-                  url: imageBase64
-                }
-              }
-            ]
-          }
+                  url: imageBase64,
+                },
+              },
+            ],
+          },
         ],
       }),
     });
@@ -81,14 +110,17 @@ Look for:
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
           status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }),
+          {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
@@ -97,7 +129,7 @@ Look for:
 
     const data = await response.json();
     const extractedText = data.choices[0].message.content;
-    
+
     console.log("AI response:", extractedText);
 
     // Parse the JSON response
@@ -118,14 +150,14 @@ Look for:
     console.log("Extracted data:", extractedData);
 
     return new Response(JSON.stringify({ data: extractedData }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error('Error in extract-label-data:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error("Error in extract-label-data:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

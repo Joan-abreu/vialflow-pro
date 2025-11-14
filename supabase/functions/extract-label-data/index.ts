@@ -54,25 +54,38 @@ Look for:
 - UPS tracking (1Z format)
 - FBA shipment IDs (FBA prefix)
 - Weight in pounds (LBS, lb)
-- Dimensions in inches (L x H x W)
-- Destination state code in shipping address
-- Quantity of items in the box (QTY, Quantity, Units, etc.),
+- Dimensions in inches (L x W x H or any variation)
+- Destination state code in address
+- Quantity of items in the box (QTY, Units, Quantity, etc.)
 
-IMPORTANT:
-When dimensions appear in formats like "27x17x15", "27 x 17 x 15", "LxWxH", or any similar variant,
-ALWAYS interpret and return them using this strict positional rule:
+IMPORTANT DIMENSION RULE (STRICT — CANNOT BE OVERRIDDEN):
+
+When dimensions appear in formats like:
+"27x17x15", "27 x 17 x 15", "27X17X15", "27-17-15", "27/17/15",
+"27 * 17 * 15", or any similar variant,
+
+YOU MUST ALWAYS map them using ONLY the POSITION of the numbers:
 
 1st number → dimension_length_in  
 2nd number → dimension_height_in  
 3rd number → dimension_width_in  
 
-Example: "27x17x15" MUST be interpreted as:
-length = 27
-height = 17
-width = 15
+Example:
+"27x17x15" MUST be interpreted as:
+{
+  "dimension_length_in": 27,
+  "dimension_height_in": 17,
+  "dimension_width_in": 15
+}
 
-Ignore any alternative ordering (like LxWxH labels). The POSITION in the sequence is what determines the field.
-`,
+ABSOLUTE RULE:
+Even if the label shows letters like "LxWxH", "WxHxL", "HxWxL", or ANY other ordering,
+YOU MUST IGNORE THEM COMPLETELY.
+
+DO NOT reorder values based on L/W/H notation.
+POSITION ALWAYS WINS.
+
+If multiple dimension sets appear, pick the most prominent or clear one.`,
           },
           {
             role: "user",

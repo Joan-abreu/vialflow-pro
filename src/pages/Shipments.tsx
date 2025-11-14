@@ -28,7 +28,7 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 import { Button } from "@/components/ui/button";
-import { Trash2, Package, ExternalLink } from "lucide-react";
+import { Trash2, Package, ExternalLink, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 interface Shipment {
@@ -182,6 +182,7 @@ const Shipments = () => {
                       <TableHead>Batch</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>Destinations</TableHead>
+                      <TableHead>UPS Tracking</TableHead>
                       <TableHead>Total Boxes</TableHead>
                       <TableHead>Delivery Date</TableHead>
                       <TableHead>Created</TableHead>
@@ -195,6 +196,13 @@ const Shipments = () => {
                       const destinations = [...new Set(
                         shipment.shipment_boxes
                           ?.map(box => box.destination)
+                          .filter(Boolean)
+                      )];
+                      
+                      // Get unique tracking numbers from boxes
+                      const trackingNumbers = [...new Set(
+                        shipment.shipment_boxes
+                          ?.map(box => box.ups_tracking_number)
                           .filter(Boolean)
                       )];
                       
@@ -222,6 +230,26 @@ const Shipments = () => {
                           </TableCell>
                           <TableCell>
                             {destinations.length > 0 ? destinations.join(", ") : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {trackingNumbers.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                {trackingNumbers.map((trackingNum) => (
+                                  <div key={trackingNum} className="flex items-center gap-2 text-xs">
+                                    <span>{trackingNum}</span>
+                                    <a
+                                      href={`https://www.ups.com/track?tracknum=${trackingNum}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:text-primary/80"
+                                      title="Track package on UPS"
+                                    >
+                                      <Truck className="h-3 w-3" />
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : "-"}
                           </TableCell>
                           <TableCell>
                             {shipment.shipment_boxes?.length || 0} boxes

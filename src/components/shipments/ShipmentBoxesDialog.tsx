@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Package, Trash2, Plus } from "lucide-react";
+import { Package, Trash2, Plus, Truck } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -438,7 +438,22 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber }: ShipmentBoxe
                       <TableRow key={box.id}>
                         <TableCell className="font-medium">{box.box_number}</TableCell>
                         <TableCell>{box.destination || "-"}</TableCell>
-                        <TableCell className="text-xs">{box.ups_tracking_number || "-"}</TableCell>
+                        <TableCell className="text-xs">
+                          {box.ups_tracking_number ? (
+                            <div className="flex items-center gap-2">
+                              <span>{box.ups_tracking_number}</span>
+                              <a
+                                href={`https://www.ups.com/track?tracknum=${box.ups_tracking_number}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80"
+                                title="Track package on UPS"
+                              >
+                                <Truck className="h-4 w-4" />
+                              </a>
+                            </div>
+                          ) : "-"}
+                        </TableCell>
                         <TableCell className="text-xs">{box.fba_id || "-"}</TableCell>
                         <TableCell>{box.packs_per_box || "-"}</TableCell>
                         <TableCell>{box.bottles_per_box || "-"}</TableCell>

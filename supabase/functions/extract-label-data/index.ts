@@ -56,7 +56,22 @@ Look for:
 - Weight in pounds (LBS, lb)
 - Dimensions in inches (L x H x W)
 - Destination state code in shipping address
-- Quantity of items in the box (QTY, Quantity, Units, etc.)`,
+- Quantity of items in the box (QTY, Quantity, Units, etc.),
+            IMPORTANT:
+When dimensions appear in formats like "27x17x15", "27 x 17 x 15", "LxWxH", or any similar variant,
+ALWAYS interpret and return them using this strict positional rule:
+
+1st number → dimension_length_in  
+2nd number → dimension_height_in  
+3rd number → dimension_width_in  
+
+Example: "27x17x15" MUST be interpreted as:
+length = 27
+height = 17
+width = 15
+
+Ignore any alternative ordering (like LxWxH labels). The POSITION in the sequence is what determines the field.
+`,
           },
           {
             role: "user",

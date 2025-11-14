@@ -233,18 +233,18 @@ const Shipments = () => {
                           </TableCell>
                           <TableCell>
                             {trackingNumbers.length > 0 ? (
-                              <div className="flex flex-col gap-1">
-                                {trackingNumbers.map((trackingNum) => (
-                                  <div key={trackingNum} className="flex items-center gap-2 text-xs">
-                                    <span>{trackingNum}</span>
+                              <div className="flex flex-col gap-1.5">
+                                {trackingNumbers.map((trackingNum, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 text-xs">
+                                    <span className="font-mono">{trackingNum}</span>
                                     <a
                                       href={`https://www.ups.com/track?tracknum=${trackingNum}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-primary hover:text-primary/80"
+                                      className="text-primary hover:text-primary/80 shrink-0"
                                       title="Track package on UPS"
                                     >
-                                      <Truck className="h-3 w-3" />
+                                      <Truck className="h-3.5 w-3.5" />
                                     </a>
                                   </div>
                                 ))}

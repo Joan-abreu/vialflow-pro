@@ -35,6 +35,45 @@ export type Database = {
         }
         Relationships: []
       }
+      product_materials: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          product_id: string
+          quantity_per_unit: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          product_id: string
+          quantity_per_unit: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          product_id?: string
+          quantity_per_unit?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_materials_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_batches: {
         Row: {
           batch_number: string
@@ -44,6 +83,7 @@ export type Database = {
           current_step_id: string | null
           id: string
           pack_quantity: number | null
+          product_id: string | null
           quantity: number
           sale_type: string
           shipped_units: number | null
@@ -63,6 +103,7 @@ export type Database = {
           current_step_id?: string | null
           id?: string
           pack_quantity?: number | null
+          product_id?: string | null
           quantity: number
           sale_type?: string
           shipped_units?: number | null
@@ -82,6 +123,7 @@ export type Database = {
           current_step_id?: string | null
           id?: string
           pack_quantity?: number | null
+          product_id?: string | null
           quantity?: number
           sale_type?: string
           shipped_units?: number | null
@@ -99,6 +141,13 @@ export type Database = {
             columns: ["current_step_id"]
             isOneToOne: false
             referencedRelation: "production_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -134,6 +183,33 @@ export type Database = {
           id?: string
           name?: string
           order_index?: number
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }

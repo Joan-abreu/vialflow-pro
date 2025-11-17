@@ -37,6 +37,11 @@ interface VialType {
   size_ml: number;
 }
 
+interface Product {
+  id: string;
+  name: string;
+}
+
 const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);

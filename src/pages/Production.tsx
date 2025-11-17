@@ -171,6 +171,9 @@ const Production = () => {
                       <TableRow key={batch.id}>
                         <TableCell className="font-medium">{batch.batch_number}</TableCell>
                         <TableCell>
+                          {batch.products?.name || "-"}
+                        </TableCell>
+                        <TableCell>
                           {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
                         </TableCell>
                         <TableCell>

@@ -44,6 +44,7 @@ interface ProductionBatch {
   started_at: string | null;
   completed_at: string | null;
   shipped_units: number;
+  units_in_progress: number;
   vial_type_id: string;
   vial_types: {
     name: string;
@@ -151,15 +152,20 @@ const Production = () => {
                   </TableHeader>
                 <TableBody>
                   {batches.map((batch) => {
+                    const unitsInProgress = batch.units_in_progress || 0;
                     const shippedUnits = batch.shipped_units || 0;
+                    
                     // For pack sale type, convert bottles to packs for display
+                    const inProgress = batch.sale_type === "pack" && batch.pack_quantity 
+                      ? unitsInProgress / batch.pack_quantity 
+                      : unitsInProgress;
                     const shipped = batch.sale_type === "pack" && batch.pack_quantity 
                       ? shippedUnits / batch.pack_quantity 
                       : shippedUnits;
                     const total = batch.sale_type === "pack" && batch.pack_quantity
                       ? batch.quantity / batch.pack_quantity
                       : batch.quantity;
-                    const progress = total > 0 ? (shipped / total) * 100 : 0;
+                    const progress = total > 0 ? (inProgress / total) * 100 : 0;
                     
                     return (
                       <TableRow key={batch.id}>
@@ -177,7 +183,7 @@ const Production = () => {
                           <div className="space-y-1 min-w-[120px]">
                             <div className="flex justify-between text-sm">
                               <span className="text-muted-foreground">
-                                {shipped.toFixed(0)} / {total.toFixed(0)}
+                                {inProgress.toFixed(0)} / {total.toFixed(0)}
                                 {batch.sale_type === "pack" ? " packs" : ""}
                               </span>
                               <span className="text-muted-foreground">{progress.toFixed(0)}%</span>

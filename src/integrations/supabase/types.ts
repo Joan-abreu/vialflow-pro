@@ -49,6 +49,7 @@ export type Database = {
           shipped_units: number | null
           started_at: string | null
           status: string
+          units_in_progress: number | null
           updated_at: string
           vial_type_id: string
           waste_notes: string | null
@@ -67,6 +68,7 @@ export type Database = {
           shipped_units?: number | null
           started_at?: string | null
           status?: string
+          units_in_progress?: number | null
           updated_at?: string
           vial_type_id: string
           waste_notes?: string | null
@@ -85,6 +87,7 @@ export type Database = {
           shipped_units?: number | null
           started_at?: string | null
           status?: string
+          units_in_progress?: number | null
           updated_at?: string
           vial_type_id?: string
           waste_notes?: string | null

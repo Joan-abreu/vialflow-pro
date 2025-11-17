@@ -9,8 +9,8 @@ export const updateBatchStatus = async (batchId: string) => {
 
     // 1️⃣ Obtener el batch
     const { data: batchData, error: batchError } = await supabase
-      .from<Tables<"production_batches">>("production_batches")
-      .select("id, status, started_at")
+      .from("production_batches")
+      .select("id, status, started_at, sale_type")
       .eq("id", batchId)
       .single();
 
@@ -19,7 +19,7 @@ export const updateBatchStatus = async (batchId: string) => {
 
     // 2️⃣ Obtener los shipments del batch
     const { data: shipments, error: shipmentsError } = await supabase
-      .from<Tables<"shipments">>("shipments")
+      .from("shipments")
       .select("id, status, created_at")
       .eq("batch_id", batchId);
 
@@ -30,24 +30,45 @@ export const updateBatchStatus = async (batchId: string) => {
       ?.filter((s) => s.status === "pending")
       ?.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
 
-    // 4️⃣ Obtener las cajas
+    // 4️⃣ Obtener las cajas de todos los shipments
     const shipmentIds = shipments?.map((s) => s.id) || [];
     const { data: boxes, error: boxesError } = await supabase
-      .from<Tables<"shipment_boxes">>("shipment_boxes")
-      .select("packs_per_box, bottles_per_box")
+      .from("shipment_boxes")
+      .select("packs_per_box, bottles_per_box, shipment_id")
       .in("shipment_id", shipmentIds);
 
     if (boxesError) throw boxesError;
 
-    // 5️⃣ Calcular shipped_units (suponiendo que tienes saleType en contexto)
-    const shippedUnits =
-      boxes?.reduce((sum, box) => {
-        if (saleType === "pack") return sum + (box.packs_per_box || 0);
-        return sum + (box.bottles_per_box || 0);
-      }, 0) || 0;
+    // 5️⃣ Calcular units_in_progress (preparing + pending)
+    const inProgressShipmentIds = shipments
+      ?.filter((s) => s.status === "preparing" || s.status === "pending")
+      ?.map((s) => s.id) || [];
+    
+    const inProgressBoxes = boxes?.filter((box) => 
+      inProgressShipmentIds.includes(box.shipment_id)
+    ) || [];
 
-    // 6️⃣ Determinar estado del batch
-    let newStatus: Tables<"production_batches">["status"] = "pending";
+    const unitsInProgress = inProgressBoxes.reduce((sum, box) => {
+      if (batch.sale_type === "pack") return sum + (box.packs_per_box || 0);
+      return sum + (box.bottles_per_box || 0);
+    }, 0);
+
+    // 6️⃣ Calcular shipped_units (shipped + delivered)
+    const shippedShipmentIds = shipments
+      ?.filter((s) => s.status === "shipped" || s.status === "delivered")
+      ?.map((s) => s.id) || [];
+    
+    const shippedBoxes = boxes?.filter((box) => 
+      shippedShipmentIds.includes(box.shipment_id)
+    ) || [];
+
+    const shippedUnits = shippedBoxes.reduce((sum, box) => {
+      if (batch.sale_type === "pack") return sum + (box.packs_per_box || 0);
+      return sum + (box.bottles_per_box || 0);
+    }, 0);
+
+    // 7️⃣ Determinar estado del batch
+    let newStatus = "pending";
 
     // Si NO hay shipments → el batch está vacío, sigue pending
     if (!shipments || shipments.length === 0) {
@@ -59,14 +80,16 @@ export const updateBatchStatus = async (batchId: string) => {
         newStatus = "completed";
     }
 
-    // Si ALGUNO está pending → in_progress
+    // Si ALGUNO está pending o preparing → in_progress
     else if (shipments.some((s) => s.status === "pending" || s.status === "preparing")) {
         newStatus = "in_progress";
     }
-    // 7️⃣ Construir objeto de update
+    
+    // 8️⃣ Construir objeto de update
     const updateData: any = {
       status: newStatus,
       shipped_units: shippedUnits,
+      units_in_progress: unitsInProgress,
     };
 
     // Si no tiene started_at y hay un shipment pending → marcar started_at
@@ -78,7 +101,7 @@ export const updateBatchStatus = async (batchId: string) => {
     updateData.completed_at =
       newStatus === "completed" ? new Date().toISOString() : null;
 
-    // 8️⃣ Actualizar batch
+    // 9️⃣ Actualizar batch
     const { error: updateError } = await supabase
       .from("production_batches")
       .update(updateData)

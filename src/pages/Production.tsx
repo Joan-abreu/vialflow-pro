@@ -28,9 +28,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
-import ManageVialMaterialsDialog from "@/components/production/ManageVialMaterialsDialog";
 import { ManageProductsDialog } from "@/components/production/ManageProductsDialog";
-import { ManageProductMaterialsDialog } from "@/components/production/ManageProductMaterialsDialog";
+import { ManageProductionMaterialsDialog } from "@/components/production/ManageProductionMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
 import { Package, Trash2, FileText } from "lucide-react";
@@ -123,9 +122,8 @@ const Production = () => {
           </div>
           <div className="flex flex-wrap gap-2">
             <ManageProductsDialog />
-            <ManageProductMaterialsDialog />
             <ManageVialTypesDialog />
-            <ManageVialMaterialsDialog />
+            <ManageProductionMaterialsDialog />
             <AddBatchDialog onSuccess={fetchBatches} />
           </div>
         </div>

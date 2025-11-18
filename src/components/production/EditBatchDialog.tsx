@@ -32,6 +32,11 @@ interface VialType {
   size_ml: number;
 }
 
+interface Product {
+  id: string;
+  name: string;
+}
+
 interface EditBatchDialogProps {
   batch: {
     id: string;
@@ -40,6 +45,7 @@ interface EditBatchDialogProps {
     status: string;
     sale_type: string;
     pack_quantity: number | null;
+    product_id: string;
     vial_type_id: string;
     started_at: string | null;
   };
@@ -49,10 +55,12 @@ interface EditBatchDialogProps {
 const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   const [vialTypes, setVialTypes] = useState<VialType[]>([]);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
+    product_id: batch.product_id,
     vial_type_id: batch.vial_type_id,
     quantity: batch.sale_type === "pack" && batch.pack_quantity 
       ? (batch.quantity / batch.pack_quantity).toString() 
@@ -67,9 +75,21 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
   useEffect(() => {
     if (open) {
+      fetchProducts();
       fetchVialTypes();
     }
   }, [open]);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("is_active", true);
+
+    if (!error && data) {
+      setProducts(data);
+    }
+  };
 
   const fetchVialTypes = async () => {
     const { data, error } = await supabase
@@ -110,16 +130,51 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       return;
     }
 
-    // If sale type is pack, convert packs to bottles
+    // Convert to bottles if pack sale type
     const totalBottles = formData.sale_type === "pack" && pack_quantity 
       ? inputQuantity * pack_quantity 
       : inputQuantity;
 
     const waste_quantity = parseInt(formData.waste_quantity) || 0;
 
+    const { data: shipments, error: shipmentsError } = await supabase
+      .from("shipments")
+      .select("id")
+      .eq("batch_id", batch.id);
+
+    if (shipmentsError) {
+      toast({
+        title: "Error",
+        description: "Failed to validate shipments",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    const hasShipments = shipments && shipments.length > 0;
+
+    if (hasShipments) {
+      if (
+        formData.product_id !== batch.product_id ||
+        formData.vial_type_id !== batch.vial_type_id ||
+        formData.sale_type !== batch.sale_type
+      ) {
+        toast({
+          title: "Error",
+          description:
+            "This batch has shipments and you cannot modify product, vial type, or sale type.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from("production_batches")
       .update({
+        product_id: formData.product_id,
         vial_type_id: formData.vial_type_id,
         quantity: totalBottles,
         status: formData.started_at ? "in_progress" : "pending",
@@ -164,8 +219,29 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="product">Product</Label>
+              <Select
+                value={formData.product_id}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, product_id: value })
+                }
+              >
+                <SelectTrigger id="product">
+                  <SelectValue placeholder="Select product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="vial_type">Vial Type</Label>
               <Select
                 value={formData.vial_type_id}
@@ -186,7 +262,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </Select>
             </div>
 
-            <div className="grid gap-2">
+            <div className="space-y-2">
               <Label htmlFor="sale_type">Sale Type</Label>
               <Select
                 value={formData.sale_type}
@@ -204,7 +280,28 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </Select>
             </div>
 
-            <div className="grid gap-2">
+             <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
+            <div className="space-y-2">
               <Label>Production Start Date</Label>
               <div className="flex gap-2">
                 <Popover>
@@ -240,9 +337,10 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                 )}
               </div>
             </div>
-
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-8">
             {formData.sale_type === "pack" && (
-              <div className="grid gap-2">
+              <div className="space-y-2">
                 <Label htmlFor="pack_quantity">Units per Pack</Label>
                 <Input
                   id="pack_quantity"
@@ -257,7 +355,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </div>
             )}
 
-            <div className="grid gap-2">
+            <div className="space-y-2">
               <Label htmlFor="quantity">
                 Total Quantity {formData.sale_type === "pack" ? "(packs)" : "(bottles)"}
               </Label>
@@ -273,27 +371,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, status: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
+            <div className="space-y-2">
               <Label htmlFor="waste_quantity">Waste Quantity</Label>
               <Input
                 id="waste_quantity"

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,12 +7,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Settings, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface VialType {
   id: string;
@@ -23,15 +36,17 @@ interface VialType {
   active: boolean;
 }
 
-const ManageVialTypesDialog = () => {
+export default function ManageVialTypesDialog() {
   const [open, setOpen] = useState(false);
   const [vialTypes, setVialTypes] = useState<VialType[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<VialType | null>(null);
+
   const [formData, setFormData] = useState({
     name: "",
     size_ml: "",
     description: "",
+    active: true,
   });
 
   useEffect(() => {
@@ -39,139 +54,178 @@ const ManageVialTypesDialog = () => {
   }, [open]);
 
   const fetchVialTypes = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("vial_types")
       .select("*")
       .order("size_ml");
-    
-    if (data) setVialTypes(data);
+
+    if (error) {
+      toast.error("Failed to load vial types");
+      return;
+    }
+
+    setVialTypes(data || []);
+  };
+
+  const resetForm = () => {
+    setEditing(null);
+    setFormData({
+      name: "",
+      size_ml: "",
+      description: "",
+      active: true,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    if (editingId) {
-      const { error } = await supabase
-        .from("vial_types")
-        .update({
-          name: formData.name.trim(),
-          size_ml: parseInt(formData.size_ml),
-          description: formData.description.trim() || null,
-        })
-        .eq("id", editingId);
+    try {
+      if (editing) {
+        const { error } = await supabase
+          .from("vial_types")
+          .update({
+            name: formData.name.trim(),
+            size_ml: parseInt(formData.size_ml),
+            description: formData.description.trim() || null,
+            active: formData.active,
+          })
+          .eq("id", editing.id);
 
-      if (error) {
-        toast.error("Error updating vial type: " + error.message);
-      } else {
-        toast.success("Vial type updated successfully");
-        resetForm();
-        fetchVialTypes();
-      }
-    } else {
-      const { error } = await supabase.from("vial_types").insert({
-        name: formData.name.trim(),
-        size_ml: parseInt(formData.size_ml),
-        description: formData.description.trim() || null,
-      });
+        if (error) throw error;
 
-      if (error) {
-        toast.error("Error creating vial type: " + error.message);
+        toast.success("Vial updated");
       } else {
-        toast.success("Vial type created successfully");
-        resetForm();
-        fetchVialTypes();
+        const { error } = await supabase
+          .from("vial_types")
+          .insert({
+            name: formData.name.trim(),
+            size_ml: parseInt(formData.size_ml),
+            description: formData.description.trim() || null,
+            active: formData.active,
+          });
+
+        if (error) throw error;
+
+        toast.success("Vial added");
       }
+
+      resetForm();
+      fetchVialTypes();
+    } catch (err) {
+      toast.error("Error saving vial type");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const handleEdit = (vialType: VialType) => {
-    setEditingId(vialType.id);
+  const handleEdit = (vial: VialType) => {
+    setEditing(vial);
     setFormData({
-      name: vialType.name,
-      size_ml: vialType.size_ml.toString(),
-      description: vialType.description || "",
+      name: vial.name,
+      size_ml: vial.size_ml.toString(),
+      description: vial.description || "",
+      active: vial.active,
     });
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this vial type?")) return;
+    const { data: batches, error: batchError } = await supabase
+      .from("production_batches")
+      .select("id")
+      .eq("vial_type_id", id);
+
+    if (batchError) {
+      toast.error("Error checking batches");
+      return;
+    }
+
+    if (batches && batches.length > 0) {
+      toast.error(
+        `Cannot delete this vial type. It is used in ${batches.length} production batch(es).`
+      );
+      return;
+    }
 
     const { error } = await supabase
       .from("vial_types")
-      .update({ active: false })
+      .delete()
       .eq("id", id);
 
     if (error) {
-      toast.error("Error deleting vial type: " + error.message);
+      toast.error("Error deleting vial type");
     } else {
-      toast.success("Vial type deleted successfully");
+      toast.success("Vial type deleted");
       fetchVialTypes();
     }
-  };
-
-  const resetForm = () => {
-    setFormData({ name: "", size_ml: "", description: "" });
-    setEditingId(null);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Settings className="mr-2 h-4 w-4" />
-          Manage Vial Types
+        <Button variant="outline">
+          <Plus className="mr-2 h-4 w-4" />
+          Manage Vials
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Manage Vial Types</DialogTitle>
           <DialogDescription>
-            Add, edit, or remove vial types for production batches
+            Add, edit, or delete vial types
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 border-b pb-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g., Standard Vial"
-              required
-            />
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 border-b pb-8">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label>Name *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <Label>Size (ml) *</Label>
+              <Input
+                type="number"
+                value={formData.size_ml}
+                onChange={(e) => setFormData({ ...formData, size_ml: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+            <Label>Active</Label>
+            <div className="flex items-center gap-2 pt-2">
+              <Switch
+                checked={formData.active}
+                onCheckedChange={(v) => setFormData({ ...formData, active: v })}
+              />
+              <span>{formData.active ? "Active" : "Inactive"}</span>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="size_ml">Size (ml) *</Label>
-            <Input
-              id="size_ml"
-              type="number"
-              min="1"
-              value={formData.size_ml}
-              onChange={(e) => setFormData({ ...formData, size_ml: e.target.value })}
-              placeholder="e.g., 10"
-              required
-            />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="description">Description</Label>
+
+          <div>
+            <Label>Description</Label>
             <Textarea
-              id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Optional description"
-              rows={2}
             />
           </div>
+
           <div className="flex gap-2">
             <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingId ? "Update" : <><Plus className="mr-2 h-4 w-4" />Add</>}
+              {loading ? "Saving..." : editing ? "Update Vial" : "Add Vial"}
             </Button>
-            {editingId && (
+
+            {editing && (
               <Button type="button" variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
@@ -179,52 +233,81 @@ const ManageVialTypesDialog = () => {
           </div>
         </form>
 
-        <div className="space-y-2">
-          <h4 className="font-medium text-sm">Existing Vial Types</h4>
-          {vialTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No vial types yet</p>
-          ) : (
-            <div className="space-y-2">
-              {vialTypes.map((vialType) => (
-                <div
-                  key={vialType.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{vialType.name} ({vialType.size_ml}ml)</p>
-                    {vialType.description && (
-                      <p className="text-sm text-muted-foreground">{vialType.description}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Status: {vialType.active ? "Active" : "Inactive"}
-                    </p>
-                  </div>
-                  {vialType.active && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(vialType)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(vialType.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Table of existing vial types */}
+        <h4 className="font-medium text-lg mt-4">Existing Vial Types</h4>
+
+        <div className="border rounded-lg mt-2">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Size (ml)</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {vialTypes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No vial types found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                vialTypes.map((vial) => (
+                  <TableRow key={vial.id}>
+                    <TableCell>{vial.name}</TableCell>
+                    <TableCell>{vial.size_ml} ml</TableCell>
+                    <TableCell>{vial.description || "-"}</TableCell>
+                    <TableCell>
+                      <span className={vial.active ? "text-green-600" : "text-gray-400"}>
+                        {vial.active ? "Active" : "Inactive"}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(vial)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Vial Type</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{vial.name}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => handleDelete(vial.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </DialogContent>
     </Dialog>
   );
-};
-
-export default ManageVialTypesDialog;
+}

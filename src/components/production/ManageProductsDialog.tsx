@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,6 +94,21 @@ export function ManageProductsDialog() {
 
   const handleDelete = async (id: string) => {
     try {
+
+      const { data: batches, error: batchesError } = await supabase
+        .from("production_batches")
+        .select("id")
+        .eq("product_id", id);
+
+      if (batchesError) throw batchesError;
+
+      if (batches && batches.length > 0) {
+        toast.error(
+          `This product cannot be deleted because it is used in ${batches.length} production batch(es).`
+        );
+        return;
+      }
+
       const { error } = await supabase
         .from("products")
         .delete()
@@ -124,10 +139,13 @@ export function ManageProductsDialog() {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Manage Products</DialogTitle>
+          <DialogDescription>
+            Add, edit, or remove Products
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 border-b pb-8">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
@@ -176,12 +194,14 @@ export function ManageProductsDialog() {
               )}
             </div>
           </form>
-
+          <div className="space-y-2">
+          <h4 className="font-medium text-lg">Existing Products</h4>
+          </div>
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Product Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -216,7 +236,7 @@ export function ManageProductsDialog() {
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm">
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -228,7 +248,9 @@ export function ManageProductsDialog() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(product.id)}>
+                                <AlertDialogAction onClick={() => handleDelete(product.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
                                   Delete
                                 </AlertDialogAction>
                               </AlertDialogFooter>

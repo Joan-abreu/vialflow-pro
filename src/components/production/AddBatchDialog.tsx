@@ -46,8 +46,10 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [vialTypes, setVialTypes] = useState<VialType[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [formData, setFormData] = useState({
     batch_number: "",
+    product_id: "",
     vial_type_id: "",
     quantity: "",
     sale_type: "individual",
@@ -77,6 +79,15 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       setFormData(prev => ({ ...prev, batch_number: batchNumber }));
     };
 
+    const fetchProducts = async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+      
+      if (data) setProducts(data);
+    };
+
     const fetchVialTypes = async () => {
       const { data } = await supabase
         .from("vial_types")
@@ -88,6 +99,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     };
     
     if (open) {
+      fetchProducts();
       fetchVialTypes();
       generateBatchNumber();
     }
@@ -101,6 +113,12 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     
     if (!user) {
       toast.error("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.product_id) {
+      toast.error("Please select a product");
       setLoading(false);
       return;
     }
@@ -258,6 +276,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       setOpen(false);
       setFormData({
         batch_number: "",
+        product_id: "",
         vial_type_id: "",
         quantity: "",
         sale_type: "individual",
@@ -293,6 +312,24 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                 disabled
                 className="bg-muted"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="product">Product *</Label>
+              <Select
+                value={formData.product_id}
+                onValueChange={(value) => setFormData({ ...formData, product_id: value })}
+              >
+                <SelectTrigger id="product">
+                  <SelectValue placeholder="Select product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="vial_type">Vial Type *</Label>

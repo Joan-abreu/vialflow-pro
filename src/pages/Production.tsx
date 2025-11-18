@@ -145,6 +145,7 @@ const Production = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Batch Number</TableHead>
+                      <TableHead>Product</TableHead>
                       <TableHead>Vial Type</TableHead>
                       <TableHead>Quantity</TableHead>
                       <TableHead>Progress</TableHead>

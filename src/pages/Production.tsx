@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 import ManageVialMaterialsDialog from "@/components/production/ManageVialMaterialsDialog";
+import { ManageProductsDialog } from "@/components/production/ManageProductsDialog";
+import { ManageProductMaterialsDialog } from "@/components/production/ManageProductMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
 import { Package, Trash2, FileText } from "lucide-react";
@@ -46,10 +48,14 @@ interface ProductionBatch {
   shipped_units: number;
   units_in_progress: number;
   vial_type_id: string;
+  product_id: string | null;
   vial_types: {
     name: string;
     size_ml: number;
   };
+  products?: {
+    name: string;
+  } | null;
 }
 
 const Production = () => {
@@ -59,10 +65,10 @@ const Production = () => {
   const fetchBatches = async () => {
     setLoading(true);
     
-    // Fetch batches with vial types and shipped_units
+    // Fetch batches with vial types, products and shipped_units
     const { data: batchData, error } = await supabase
       .from("production_batches")
-      .select("*, vial_types(name, size_ml)")
+      .select("*, vial_types(name, size_ml), products(name)")
       .order("created_at", { ascending: false });
 
     if (!error && batchData) {
@@ -116,6 +122,8 @@ const Production = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <ManageProductsDialog />
+            <ManageProductMaterialsDialog />
             <ManageVialTypesDialog />
             <ManageVialMaterialsDialog />
             <AddBatchDialog onSuccess={fetchBatches} />

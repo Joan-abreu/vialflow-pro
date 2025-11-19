@@ -338,7 +338,7 @@ export function ManageProductionMaterialsDialog() {
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="sm">
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
@@ -350,7 +350,8 @@ export function ManageProductionMaterialsDialog() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteConfiguration(config.id)}>
+                                  <AlertDialogAction onClick={() => handleDeleteConfiguration(config.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                     Remove
                                   </AlertDialogAction>
                                 </AlertDialogFooter>

@@ -124,7 +124,7 @@ export function ManageProductionMaterialsDialog() {
 
   const fetchConfigurations = async () => {
     const { data, error } = await supabase
-      .from("production_configurations")
+      .from("production_configurations" as any)
       .select("*, raw_materials(name, unit)")
       .eq("product_id", selectedProductId)
       .eq("vial_type_id", selectedVialTypeId);
@@ -135,7 +135,7 @@ export function ManageProductionMaterialsDialog() {
       return;
     }
 
-    setConfigurations(data || []);
+    setConfigurations(data as any || []);
   };
 
   const handleAddConfiguration = async () => {
@@ -147,7 +147,7 @@ export function ManageProductionMaterialsDialog() {
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("production_configurations")
+        .from("production_configurations" as any)
         .insert([{
           product_id: selectedProductId,
           vial_type_id: selectedVialTypeId,
@@ -173,7 +173,7 @@ export function ManageProductionMaterialsDialog() {
   const handleDeleteConfiguration = async (id: string) => {
     try {
       const { error } = await supabase
-        .from("production_configurations")
+        .from("production_configurations" as any)
         .delete()
         .eq("id", id);
 

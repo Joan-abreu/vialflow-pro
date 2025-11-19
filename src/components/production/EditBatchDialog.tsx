@@ -108,12 +108,23 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     setLoading(true);
 
     const inputQuantity = parseInt(formData.quantity);
+    const inputProduct = parseInt(formData.product_id);
     const pack_quantity = formData.sale_type === "pack" ? parseInt(formData.pack_quantity) : null;
 
     if (isNaN(inputQuantity) || inputQuantity <= 0) {
       toast({
         title: "Error",
         description: "Please enter a valid quantity",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (isNaN(inputProduct)) {
+      toast({
+        title: "Error",
+        description: "Please select a product",
         variant: "destructive",
       });
       setLoading(false);

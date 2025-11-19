@@ -198,6 +198,7 @@ const Shipments = () => {
                       <TableHead>Qty</TableHead>
                       <TableHead>Destinations</TableHead>
                       <TableHead>UPS Tracking</TableHead>
+                      <TableHead>FBA ID</TableHead>
                       <TableHead>Total Boxes</TableHead>
                       <TableHead>Delivery Date</TableHead>
                       <TableHead>Created</TableHead>
@@ -218,6 +219,12 @@ const Shipments = () => {
                       const trackingNumbers = [...new Set(
                         shipment.shipment_boxes
                           ?.map(box => box.ups_tracking_number)
+                          .filter(Boolean)
+                      )];
+
+                      const fbaNumbers = [...new Set(
+                        shipment.shipment_boxes
+                          ?.map(box => box.fba_id)
                           .filter(Boolean)
                       )];
                       
@@ -261,6 +268,17 @@ const Shipments = () => {
                                     >
                                       <Truck className="h-3.5 w-3.5" />
                                     </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {fbaNumbers.length > 0 ? (
+                              <div className="flex flex-col gap-1.5">
+                                {fbaNumbers.map((fbaNumber, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 text-xs">
+                                    <span className="font-mono">{fbaNumber}</span>
                                   </div>
                                 ))}
                               </div>

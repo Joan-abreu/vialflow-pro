@@ -349,6 +349,8 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
 
       if (error) throw error;
 
+      updateBatchStatus(shipment.batch_id);
+
       // Update material stocks
       for (const update of materialUpdates) {
         const { error: updateError } = await supabase

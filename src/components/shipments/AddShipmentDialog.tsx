@@ -276,6 +276,30 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
         throw new Error("Shipment ID not found");
       }
 
+      const { data: batchData, error: batchError } = await supabase
+        .from("production_batches")
+        .select("sale_type, quantity")
+        .eq("id", formData.batch_id)
+        .single();
+
+      if (batchError) throw batchError;
+      if (!batchData) throw new Error("Batch not found");
+
+      const { sale_type, quantity } = batchData;
+
+      const totalUnitsInBoxes = boxesData.reduce((sum, box) => {
+        if (sale_type === "pack") {
+          return sum + (box.packs_per_box ? parseInt(box.packs_per_box) : 0);
+        }
+        return sum + (box.bottles_per_box ? parseInt(box.bottles_per_box) : 0);
+      }, 0);
+
+      if (totalUnitsInBoxes > quantity) {
+        throw new Error(
+          `The total units in boxes (${totalUnitsInBoxes}) cannot exceed the batch quantity (${quantity}).`
+        );
+      }
+
       // Create all boxes
       const boxesInsertData = boxesData.map((box, index) => ({
         shipment_id: createdShipmentId,
@@ -294,6 +318,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       const { error } = await supabase.from("shipment_boxes").insert(boxesInsertData);
 
       if (error) throw error;
+
+      updateBatchStatus(formData.batch_id);
 
       toast.success(`Shipment created successfully with ${boxesData.length} boxes`);
       setOpen(false);
@@ -374,7 +400,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
+                <Label htmlFor="ups_delivery_date">UPS Delivery Date (optional)</Label>
                 <Input
                   id="ups_delivery_date"
                   type="date"

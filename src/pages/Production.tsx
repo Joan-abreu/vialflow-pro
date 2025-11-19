@@ -95,6 +95,21 @@ const Production = () => {
 
   const handleDeleteBatch = async (batchId: string, batchNumber: string) => {
     try {
+      const { data: shipments, error: shipmentsError } = await supabase
+        .from("shipments")
+        .select("id")
+        .eq("batch_id", batchId);
+
+      if (shipmentsError) throw shipmentsError;
+
+      if (shipments && shipments.length > 0) {
+        toast.error(
+          `Batch ${batchNumber} cannot be deleted because it has ${shipments.length} shipment(s). 
+          Delete the shipment(s) first.`
+        );
+        return;
+      }
+
       const { error } = await supabase
         .from("production_batches")
         .delete()

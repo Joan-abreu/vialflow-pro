@@ -247,6 +247,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     const { error } = await supabase.from("production_batches").insert({
       batch_number: formData.batch_number.trim(),
       vial_type_id: formData.vial_type_id,
+      product_id: formData.product_id,
       quantity: totalBottles,
       sale_type: formData.sale_type,
       pack_quantity: unitsPerPack,

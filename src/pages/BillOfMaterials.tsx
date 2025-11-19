@@ -17,7 +17,13 @@ interface MaterialItem {
 
 interface BatchData {
   batch_number: string;
+  products: {
+    name: string;
+  } | null;
+  sale_type: string;
   quantity: number;
+  started_at: string;
+  pack_quantity: number | null;
   created_at: string;
   vial_type_name: string;
   vial_type_size: number;
@@ -40,7 +46,11 @@ export default function BillOfMaterials() {
           .from("production_batches")
           .select(`
             batch_number,
+            products (name),
+            sale_type,
+            pack_quantity,
             quantity,
+            started_at,
             created_at,
             vial_types (
               name,
@@ -54,7 +64,11 @@ export default function BillOfMaterials() {
 
         setBatch({
           batch_number: batchData.batch_number,
+          products: batchData.products,
+          sale_type: batchData.sale_type,
           quantity: batchData.quantity,
+          pack_quantity: batchData.pack_quantity,
+          started_at: batchData.started_at,
           created_at: batchData.created_at,
           vial_type_name: batchData.vial_types.name,
           vial_type_size: batchData.vial_types.size_ml,
@@ -162,14 +176,18 @@ export default function BillOfMaterials() {
         </div>
 
         {/* Batch Information */}
-        <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded">
+        <div className="grid grid-cols-3 gap-4 mb-8 bg-gray-50 p-6 rounded">
           <div>
             <p className="text-sm text-gray-600">Batch Number</p>
             <p className="text-lg font-semibold">{batch.batch_number}</p>
           </div>
           <div>
+            <p className="text-sm text-gray-600">Product</p>
+            <p className="text-lg font-semibold">{batch.products?.name || "-"}</p>
+          </div>
+          <div>
             <p className="text-sm text-gray-600">Date</p>
-            <p className="text-lg font-semibold">{format(new Date(batch.created_at), "PPP")}</p>
+            <p className="text-lg font-semibold">{format(new Date(batch.started_at), "PPP")}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Vial Type</p>
@@ -178,6 +196,13 @@ export default function BillOfMaterials() {
           <div>
             <p className="text-sm text-gray-600">Production Quantity</p>
             <p className="text-lg font-semibold">{batch.quantity.toLocaleString()} units</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Sales Type</p>
+            <p className="text-lg font-semibold">{batch.sale_type === "pack" && batch.pack_quantity
+                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} packs`
+                            : batch.quantity
+                          }</p>
           </div>
         </div>
 

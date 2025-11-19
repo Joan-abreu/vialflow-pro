@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import BarcodeScanner from "./BarcodeScanner";
+import { updateBatchStatus } from "@/services/batches";
 
 interface Shipment {
   id: string;
@@ -103,6 +104,8 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
       .eq("id", shipment.id);
 
     if (error) throw error;
+
+    updateBatchStatus(shipment.batch_id);
 
     toast.success("Shipment updated successfully");
     queryClient.invalidateQueries({ queryKey: ["shipments"] });

@@ -40,12 +40,12 @@ export const updateBatchStatus = async (batchId: string) => {
     if (boxesError) throw boxesError;
 
     // 5️⃣ Calcular units_in_progress (preparing + pending)
-    const inProgressShipmentIds = shipments
-      ?.filter((s) => s.status === "preparing" || s.status === "pending")
-      ?.map((s) => s.id) || [];
+    // const inProgressShipmentIds = shipments
+    //   ?.filter((s) => s.status === "preparing" || s.status === "pending")
+    //   ?.map((s) => s.id) || [];
     
     const inProgressBoxes = boxes?.filter((box) => 
-      inProgressShipmentIds.includes(box.shipment_id)
+      shipmentIds.includes(box.shipment_id)
     ) || [];
 
     const unitsInProgress = inProgressBoxes.reduce((sum, box) => {

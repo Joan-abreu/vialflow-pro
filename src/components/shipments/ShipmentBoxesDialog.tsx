@@ -284,6 +284,43 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
 
       if (materialsError) throw materialsError;
 
+      const { data: batchQuantityInfo, error: quantityError } = await supabase
+        .from("production_batches")
+        .select("quantity, sale_type, pack_quantity")
+        .eq("id", shipment.batch_id)
+        .single();
+
+      if (quantityError) throw quantityError;
+
+      const batchQuantity = batchQuantityInfo.quantity;
+      const saleType = batchQuantityInfo.sale_type;
+      const packQty = batchQuantityInfo.pack_quantity;
+
+      const currentUnits = boxes.reduce((sum, box) => {
+        if (saleType === "pack") {
+          return sum + (box.packs_per_box || 0);
+        } else {
+          return sum + (box.bottles_per_box || 0);
+        }
+      }, 0);
+
+      const newUnits =
+        saleType === "pack"
+          ? parseInt(newBox.packs_per_box || "0")
+          : parseInt(newBox.bottles_per_box || "0");
+
+      const totalUnits = saleType === "pack"
+        ? currentUnits + newUnits
+        : currentUnits + newUnits;
+
+      if (totalUnits > batchQuantity) {
+        toast.error(
+          `The total units (${totalUnits}) exceed the batch quantity (${batchQuantity}).`
+        );
+        setLoading(false);
+        return;
+      }
+
       // Check stock for per_box materials
       const insufficientMaterials: string[] = [];
       const materialUpdates: Array<{ id: string; newStock: number }> = [];

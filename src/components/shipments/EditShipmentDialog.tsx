@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -19,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Pencil } from "lucide-react";
+import { ArrowRight, Truck } from "lucide-react";
 import { toast } from "sonner";
 import BarcodeScanner from "./BarcodeScanner";
 import { updateBatchStatus } from "@/services/batches";
@@ -123,13 +124,20 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" title="Edit">
-          <Pencil className="h-4 w-4" />
+        <Button variant="ghost" size="sm" title={shipment.ups_delivery_date ? "Edit Delivery Info" : "Mark as Delivered"}>
+          <Truck
+            className={`h-4 w-4 ${
+              shipment.ups_delivery_date ? "text-green-600" : "text-blue-500"
+            }`}
+          />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>Edit Shipment</DialogTitle>
+          <DialogTitle>Edit Delivery Info</DialogTitle>
+          <DialogDescription>
+            Edit shipment delivery information.
+          </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[calc(90vh-8rem)]">
           <form onSubmit={handleSubmit} className="space-y-4 px-6 pb-6">
@@ -143,33 +151,20 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
                   className="bg-muted cursor-not-allowed"
                 />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="status">Status *</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="preparing">Preparing</SelectItem>
-                    <SelectItem value="delivered">Delivered</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="ups_delivery_date">UPS Delivery Date</Label>
                 <Input
                   id="ups_delivery_date"
                   type="date"
                   value={formData.ups_delivery_date}
-                  onChange={(e) => setFormData({ ...formData, ups_delivery_date: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      ups_delivery_date: e.target.value,
+                    })
+                  }
                 />
               </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-4">
-              <p><strong>Note:</strong> Destinations, UPS Tracking Numbers, and FBA IDs are now managed per box. Use the "View Boxes" button to add/edit these details for each individual box.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-end gap-2">
@@ -182,7 +177,11 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full sm:w-auto"
+              >
                 {loading ? "Saving..." : "Save Changes"}
               </Button>
             </div>

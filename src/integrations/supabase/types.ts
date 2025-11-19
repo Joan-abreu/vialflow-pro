@@ -159,6 +159,64 @@ export type Database = {
           },
         ]
       }
+      production_configurations: {
+        Row: {
+          application_type: string
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+          quantity_per_unit: number
+          raw_material_id: string
+          updated_at: string
+          vial_type_id: string
+        }
+        Insert: {
+          application_type?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity_per_unit?: number
+          raw_material_id: string
+          updated_at?: string
+          vial_type_id: string
+        }
+        Update: {
+          application_type?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity_per_unit?: number
+          raw_material_id?: string
+          updated_at?: string
+          vial_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_configurations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_configurations_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_configurations_vial_type_id_fkey"
+            columns: ["vial_type_id"]
+            isOneToOne: false
+            referencedRelation: "vial_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_steps: {
         Row: {
           active: boolean

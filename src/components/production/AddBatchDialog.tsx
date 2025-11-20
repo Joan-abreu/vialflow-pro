@@ -261,26 +261,27 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
 
     if (error) {
       toast.error("Error creating batch: " + error.message);
-    } else {
-      // Update material stocks using inventory service
-      try {
-        for (const update of materialUpdates) {
-          // Calculate quantity to deduct (difference from current stock)
-          const { data: currentMaterial } = await supabase
-            .from("raw_materials")
-            .select("current_stock")
-            .eq("id", update.id)
-            .single();
+    } 
+    else {
+      // // Update material stocks using inventory service
+      // try {
+      //   for (const update of materialUpdates) {
+      //     // Calculate quantity to deduct (difference from current stock)
+      //     const { data: currentMaterial } = await supabase
+      //       .from("raw_materials")
+      //       .select("current_stock")
+      //       .eq("id", update.id)
+      //       .single();
           
-          if (currentMaterial) {
-            const quantityToDeduct = currentMaterial.current_stock - update.newStock;
-            await updateMaterialStock(update.id, quantityToDeduct, "deduct");
-          }
-        }
-        toast.success("Production batch created and materials deducted from inventory");
-      } catch (inventoryError: any) {
-        toast.error("Batch created but error updating inventory: " + inventoryError.message);
-      }
+      //     if (currentMaterial) {
+      //       const quantityToDeduct = currentMaterial.current_stock - update.newStock;
+      //       await updateMaterialStock(update.id, quantityToDeduct, "deduct");
+      //     }
+      //   }
+      toast.success("Production batch created successfully");
+      // } catch (inventoryError: any) {
+      //   toast.error("Batch created but error updating inventory: " + inventoryError.message);
+      // }
       setOpen(false);
       setFormData({
         batch_number: "",

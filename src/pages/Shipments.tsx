@@ -28,9 +28,11 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 import { Button } from "@/components/ui/button";
-import { Trash2, Package, ExternalLink, Truck } from "lucide-react";
+import { Trash2, Package, ExternalLink, Truck, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { updateBatchStatus } from "@/services/batches";
+import CopyCell from "@/components/CopyCell";
+
 
 interface Shipment {
   id: string;
@@ -246,6 +248,7 @@ const Shipments = () => {
                           </TableCell>
                           <TableCell>
                             {shipment.production_batches?.batch_number || "-"}
+                            <CopyCell value={shipment.production_batches?.batch_number} size={14} />
                           </TableCell>
                           <TableCell>
                             {qtyDisplay}
@@ -279,6 +282,7 @@ const Shipments = () => {
                                 {fbaNumbers.map((fbaNumber, idx) => (
                                   <div key={idx} className="flex items-center gap-2 text-xs">
                                     <span className="font-mono">{fbaNumber}</span>
+                                    <CopyCell value={fbaNumber} size={10} />
                                   </div>
                                 ))}
                               </div>

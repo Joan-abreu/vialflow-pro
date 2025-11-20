@@ -170,17 +170,17 @@ export default function ManageVialTypesDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Vial Types</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Manage Vial Types</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Add, edit, or delete vial types
           </DialogDescription>
         </DialogHeader>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 border-b pb-8">
-          <div className="grid grid-cols-3 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 border-b pb-6 sm:pb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <Label>Name *</Label>
               <Input
@@ -220,13 +220,13 @@ export default function ManageVialTypesDialog() {
             />
           </div>
 
-          <div className="flex gap-2">
-            <Button type="submit" disabled={loading}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
               {loading ? "Saving..." : editing ? "Update Vial" : "Add Vial"}
             </Button>
 
             {editing && (
-              <Button type="button" variant="outline" onClick={resetForm}>
+              <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
                 Cancel
               </Button>
             )}
@@ -236,15 +236,15 @@ export default function ManageVialTypesDialog() {
         {/* Table of existing vial types */}
         <h4 className="font-medium text-lg mt-4">Existing Vial Types</h4>
 
-        <div className="border rounded-lg mt-2">
+        <div className="border rounded-lg mt-2 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Size (ml)</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-xs sm:text-sm">Name</TableHead>
+                <TableHead className="text-xs sm:text-sm">Size (ml)</TableHead>
+                <TableHead className="hidden md:table-cell text-xs sm:text-sm">Description</TableHead>
+                <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
               </TableRow>
             </TableHeader>
 

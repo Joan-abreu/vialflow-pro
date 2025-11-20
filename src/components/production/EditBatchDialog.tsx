@@ -222,15 +222,15 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Batch</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Edit Batch</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Update batch details for {batch.batch_number}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="product">Product</Label>
               <Select
@@ -311,7 +311,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4 mb-4">
             <div className="space-y-2">
               <Label>Production Start Date</Label>
               <div className="flex gap-2">
@@ -349,7 +349,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-8">
             {formData.sale_type === "pack" && (
               <div className="space-y-2">
                 <Label htmlFor="pack_quantity">Units per Pack</Label>
@@ -414,15 +414,16 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>

@@ -154,29 +154,29 @@ export default function BillOfMaterials() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-background p-4 sm:p-8 print:p-8">
       {/* Action buttons - hidden when printing */}
-      <div className="flex justify-between mb-6 print:hidden">
-        <Button variant="outline" onClick={handleBack}>
+      <div className="flex flex-col sm:flex-row justify-between mb-4 sm:mb-6 gap-2 print:hidden">
+        <Button variant="outline" onClick={handleBack} className="w-full sm:w-auto">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button onClick={handlePrint}>
+        <Button onClick={handlePrint} className="w-full sm:w-auto">
           <Printer className="w-4 h-4 mr-2" />
           Print
         </Button>
       </div>
 
       {/* BoM Report */}
-      <div className="max-w-4xl mx-auto bg-white text-black p-12 shadow-lg">
+      <div className="max-w-4xl mx-auto bg-white text-black p-4 sm:p-12 shadow-lg print:shadow-none">
         {/* Header */}
-        <div className="text-center mb-8 border-b-2 border-gray-800 pb-4">
-          <h1 className="text-3xl font-bold mb-2">BILL OF MATERIALS</h1>
-          <p className="text-sm text-gray-600">VialFlow Pro Manufacturing</p>
+        <div className="text-center mb-6 sm:mb-8 border-b-2 border-gray-800 pb-4">
+          <h1 className="text-xl sm:text-3xl font-bold mb-2">BILL OF MATERIALS</h1>
+          <p className="text-xs sm:text-sm text-gray-600">VialFlow Pro Manufacturing</p>
         </div>
 
         {/* Batch Information */}
-        <div className="grid grid-cols-3 gap-4 mb-8 bg-gray-50 p-6 rounded">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8 bg-gray-50 p-4 sm:p-6 rounded">
           <div>
             <p className="text-sm text-gray-600">Batch Number</p>
             <p className="text-lg font-semibold">{batch.batch_number}</p>
@@ -207,17 +207,17 @@ export default function BillOfMaterials() {
         </div>
 
         {/* Materials Table */}
-        <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4">Required Materials</h2>
+        <div className="mb-6 sm:mb-8 overflow-x-auto">
+          <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Required Materials</h2>
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-800 text-white">
-                <th className="border border-gray-300 p-3 text-left">Material</th>
-                <th className="border border-gray-300 p-3 text-right">Qty per Unit</th>
-                <th className="border border-gray-300 p-3 text-center">Unit</th>
-                <th className="border border-gray-300 p-3 text-right">Total Qty</th>
-                <th className="border border-gray-300 p-3 text-right">Unit Cost</th>
-                <th className="border border-gray-300 p-3 text-right">Total Cost</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-left text-xs sm:text-sm">Material</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Qty/Unit</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-center text-xs sm:text-sm">Unit</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Total Qty</th>
+                <th className="hidden sm:table-cell border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Unit Cost</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Total</th>
               </tr>
             </thead>
             <tbody>

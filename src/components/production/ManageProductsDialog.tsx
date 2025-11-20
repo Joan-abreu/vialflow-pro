@@ -136,17 +136,17 @@ export function ManageProductsDialog() {
           Manage Products
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Products</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Manage Products</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Add, edit, or remove Products
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-4 border-b pb-8">
-            <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4 sm:space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 border-b pb-6 sm:pb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
                 <Input
@@ -183,12 +183,12 @@ export function ManageProductsDialog() {
               />
             </div>
 
-            <div className="flex gap-2">
-              <Button type="submit" disabled={loading}>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
                 {loading ? "Saving..." : editingProduct ? "Update Product" : "Add Product"}
               </Button>
               {editingProduct && (
-                <Button type="button" variant="outline" onClick={cancelEdit}>
+                <Button type="button" variant="outline" onClick={cancelEdit} className="w-full sm:w-auto">
                   Cancel
                 </Button>
               )}
@@ -197,14 +197,14 @@ export function ManageProductsDialog() {
           <div className="space-y-2">
           <h4 className="font-medium text-lg">Existing Products</h4>
           </div>
-          <div className="border rounded-lg">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-xs sm:text-sm">Product Name</TableHead>
+                  <TableHead className="hidden md:table-cell text-xs sm:text-sm">Description</TableHead>
+                  <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                  <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -217,15 +217,15 @@ export function ManageProductsDialog() {
                 ) : (
                   products.map((product) => (
                     <TableRow key={product.id}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>{product.description || "-"}</TableCell>
+                      <TableCell className="font-medium text-xs sm:text-sm">{product.name}</TableCell>
+                      <TableCell className="hidden md:table-cell text-xs sm:text-sm">{product.description || "-"}</TableCell>
                       <TableCell>
-                        <span className={product.is_active ? "text-green-600" : "text-gray-400"}>
+                        <span className={product.is_active ? "text-green-600 text-xs sm:text-sm" : "text-gray-400 text-xs sm:text-sm"}>
                           {product.is_active ? "Active" : "Inactive"}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1 sm:gap-2">
                           <Button
                             variant="ghost"
                             size="sm"

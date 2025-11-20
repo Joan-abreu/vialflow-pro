@@ -69,11 +69,11 @@ const AddUnitDialog = ({ onSuccess }: AddUnitDialogProps) => {
           Manage Units
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add Unit of Measurement</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Add Unit of Measurement</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Create a custom unit for inventory management
             </DialogDescription>
           </DialogHeader>
@@ -119,11 +119,11 @@ const AddUnitDialog = ({ onSuccess }: AddUnitDialogProps) => {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add Unit
             </Button>

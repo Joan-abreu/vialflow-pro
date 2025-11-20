@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { updateMaterialStock } from "@/services/inventory";
 
 interface AddBatchDialogProps {
   onSuccess: () => void;
@@ -261,19 +262,25 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     if (error) {
       toast.error("Error creating batch: " + error.message);
     } else {
-      // Update material stocks
-      for (const update of materialUpdates) {
-        const { error: updateError } = await supabase
-          .from("raw_materials")
-          .update({ current_stock: update.newStock })
-          .eq("id", update.id);
-
-        if (updateError) {
-          console.error("Error updating material stock:", updateError);
+      // Update material stocks using inventory service
+      try {
+        for (const update of materialUpdates) {
+          // Calculate quantity to deduct (difference from current stock)
+          const { data: currentMaterial } = await supabase
+            .from("raw_materials")
+            .select("current_stock")
+            .eq("id", update.id)
+            .single();
+          
+          if (currentMaterial) {
+            const quantityToDeduct = currentMaterial.current_stock - update.newStock;
+            await updateMaterialStock(update.id, quantityToDeduct, "deduct");
+          }
         }
+        toast.success("Production batch created and materials deducted from inventory");
+      } catch (inventoryError: any) {
+        toast.error("Batch created but error updating inventory: " + inventoryError.message);
       }
-
-      toast.success("Production batch created and materials deducted from inventory");
       setOpen(false);
       setFormData({
         batch_number: "",

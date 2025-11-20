@@ -75,17 +75,17 @@ export default function BillOfMaterials() {
         });
 
         // Fetch vial type ID
-        const { data: vialTypeData } = await supabase
+        const { data: batchConfigData } = await supabase
           .from("production_batches")
-          .select("vial_type_id")
+          .select("vial_type_id, product_id")
           .eq("id", batchId)
           .single();
 
-        if (!vialTypeData) return;
+        if (!batchConfigData) return;
 
         // Fetch materials for this vial type
         const { data: materialsData, error: materialsError } = await supabase
-          .from("vial_type_materials")
+          .from("production_configurations")
           .select(`
             id,
             quantity_per_unit,
@@ -96,7 +96,8 @@ export default function BillOfMaterials() {
               cost_per_unit
             )
           `)
-          .eq("vial_type_id", vialTypeData.vial_type_id);
+          .eq("vial_type_id", batchConfigData.vial_type_id)
+          .eq("product_id", batchConfigData.product_id);
 
         if (materialsError) throw materialsError;
 
@@ -186,8 +187,8 @@ export default function BillOfMaterials() {
             <p className="text-lg font-semibold">{batch.products?.name || "-"}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Date</p>
-            <p className="text-lg font-semibold">{format(new Date(batch.started_at), "PPP")}</p>
+            <p className="text-sm text-gray-600">Date Created</p>
+            <p className="text-lg font-semibold">{format(new Date(batch.created_at), "PPP")}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Vial Type</p>
@@ -195,13 +196,16 @@ export default function BillOfMaterials() {
           </div>
           <div>
             <p className="text-sm text-gray-600">Production Quantity</p>
-            <p className="text-lg font-semibold">{batch.quantity.toLocaleString()} units</p>
+            <p className="text-lg font-semibold">{batch.sale_type === "pack" && batch.pack_quantity
+                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} Packs (${batch.quantity.toLocaleString()} units)`
+                            : `${batch.quantity.toLocaleString()} units`
+                          }</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Sales Type</p>
             <p className="text-lg font-semibold">{batch.sale_type === "pack" && batch.pack_quantity
-                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} packs`
-                            : batch.quantity
+                            ? "Pack Sales"
+                            : "Individual Sales"
                           }</p>
           </div>
         </div>

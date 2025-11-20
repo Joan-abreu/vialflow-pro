@@ -192,9 +192,9 @@ const Dashboard = () => {
                       <Badge
                         variant={
                           activity.status === "completed" || activity.status === "delivered"
-                            ? "default"
-                            : activity.status === "in_progress" || activity.status === "shipped"
                             ? "secondary"
+                            : activity.status === "in_progress" || activity.status === "shipped"
+                            ? "default"
                             : "outline"
                         }
                         className="ml-2 flex-shrink-0 capitalize"

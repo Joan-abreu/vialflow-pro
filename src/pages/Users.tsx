@@ -353,9 +353,9 @@ const Users = () => {
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.email}</TableCell>
-                        <TableCell>
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium text-xs sm:text-sm">{user.email}</TableCell>
+                    <TableCell className="text-xs sm:text-sm">
                           {user.banned_until ? (
                             <Badge variant="destructive">Disabled</Badge>
                           ) : (

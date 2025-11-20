@@ -131,11 +131,11 @@ const CreateShipmentDialog = ({ batch, onSuccess }: CreateShipmentDialogProps) =
           Ship
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create Shipment</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Create Shipment</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Batch {batch.batch_number} - {remainingQuantity} kits remaining
             </DialogDescription>
           </DialogHeader>

@@ -107,17 +107,17 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
           Manage Categories
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Material Categories</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Manage Material Categories</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Add, remove, or toggle categories for your materials
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleAddCategory} className="flex gap-2">
-          <div className="flex-1 grid gap-2">
-            <Label htmlFor="category-name">New Category</Label>
+        <form onSubmit={handleAddCategory} className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1 grid gap-1.5 sm:gap-2">
+            <Label htmlFor="category-name" className="text-xs sm:text-sm">New Category</Label>
             <Input
               id="category-name"
               value={newCategory}
@@ -141,22 +141,22 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
         </form>
 
         <div className="mt-4">
-          <Label>Existing Categories</Label>
+          <Label className="text-xs sm:text-sm">Existing Categories</Label>
           <div className="mt-2 space-y-2 max-h-[300px] overflow-y-auto">
             {categories.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground py-4 text-center">
                 No categories yet
               </p>
             ) : (
               categories.map((category) => (
                 <div
                   key={category.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3 border rounded-lg gap-2"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="capitalize font-medium">{category.name}</span>
+                    <span className="capitalize font-medium text-xs sm:text-sm">{category.name}</span>
                     {!category.active && (
-                      <Badge variant="secondary">Disabled</Badge>
+                      <Badge variant="secondary" className="text-[10px] sm:text-xs">Disabled</Badge>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -164,6 +164,7 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleToggleActive(category.id, category.active)}
+                      className="flex-1 sm:flex-none text-xs"
                     >
                       {category.active ? "Disable" : "Enable"}
                     </Button>
@@ -172,11 +173,12 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
                       size="sm"
                       onClick={() => handleDeleteCategory(category.id)}
                       disabled={deleting === category.id}
+                      className="flex-1 sm:flex-none"
                     >
                       {deleting === category.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-4 w-4" />
                       )}
                     </Button>
                   </div>

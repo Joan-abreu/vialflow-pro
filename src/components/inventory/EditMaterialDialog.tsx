@@ -132,11 +132,11 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Material</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Edit Material</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <div>
             <Label htmlFor="name">Name</Label>
             <Input
@@ -182,7 +182,7 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <Label htmlFor="purchase_unit">Purchase Unit</Label>
               <Select

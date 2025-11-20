@@ -106,7 +106,7 @@ export const EditShipmentDialog = ({ shipment, onSuccess }: EditShipmentDialogPr
 
     if (error) throw error;
 
-    updateBatchStatus(shipment.batch_id);
+    await updateBatchStatus(shipment.batch_id);
 
     toast.success("Shipment updated successfully");
     queryClient.invalidateQueries({ queryKey: ["shipments"] });

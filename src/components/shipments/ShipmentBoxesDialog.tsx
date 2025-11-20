@@ -387,7 +387,7 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
 
       if (error) throw error;
 
-      updateBatchStatus(shipment.batch_id);
+      await updateBatchStatus(shipment.batch_id);
 
       // Update material stocks using inventory service
       try {

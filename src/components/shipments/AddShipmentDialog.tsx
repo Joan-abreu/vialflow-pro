@@ -319,7 +319,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
 
       if (error) throw error;
 
-      updateBatchStatus(formData.batch_id);
+      await updateBatchStatus(formData.batch_id);
 
       toast.success(`Shipment created successfully with ${boxesData.length} boxes`);
       setOpen(false);

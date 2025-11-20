@@ -42,6 +42,7 @@ import {
 import BarcodeScanner from "./BarcodeScanner";
 import { LabelImageScanner } from "./LabelImageScanner";
 import { updateBatchStatus } from "@/services/batches";
+import { updateMaterialStock } from "@/services/inventory";
 
 interface ShipmentBox {
   id: string;
@@ -388,19 +389,24 @@ export const ShipmentBoxesDialog = ({ shipmentId, shipmentNumber, onSuccess }: S
 
       updateBatchStatus(shipment.batch_id);
 
-      // Update material stocks
-      for (const update of materialUpdates) {
-        const { error: updateError } = await supabase
-          .from("raw_materials")
-          .update({ current_stock: update.newStock })
-          .eq("id", update.id);
-
-        if (updateError) {
-          console.error("Error updating material stock:", updateError);
+      // Update material stocks using inventory service
+      try {
+        for (const update of materialUpdates) {
+          const { data: currentMaterial } = await supabase
+            .from("raw_materials")
+            .select("current_stock")
+            .eq("id", update.id)
+            .single();
+          
+          if (currentMaterial) {
+            const quantityToDeduct = currentMaterial.current_stock - update.newStock;
+            await updateMaterialStock(update.id, quantityToDeduct, "deduct");
+          }
         }
+        toast.success("Box added and per-box materials deducted from inventory");
+      } catch (inventoryError: any) {
+        toast.error("Box added but error updating inventory: " + inventoryError.message);
       }
-
-      toast.success("Box added and per-box materials deducted from inventory");
       setNewBox({
         box_number: "",
         packs_per_box: "",

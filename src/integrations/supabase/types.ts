@@ -43,6 +43,7 @@ export type Database = {
           price_at_time: number
           product_id: string | null
           quantity: number
+          variant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -51,6 +52,7 @@ export type Database = {
           price_at_time?: number
           product_id?: string | null
           quantity?: number
+          variant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -59,6 +61,7 @@ export type Database = {
           price_at_time?: number
           product_id?: string | null
           quantity?: number
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -73,6 +76,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
             referencedColumns: ["id"]
           },
         ]
@@ -139,6 +149,57 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_variants: {
+        Row: {
+          created_at: string
+          id: string
+          is_published: boolean
+          price: number
+          product_id: string
+          sku: string | null
+          stock_quantity: number
+          updated_at: string
+          vial_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          price: number
+          product_id: string
+          sku?: string | null
+          stock_quantity?: number
+          updated_at?: string
+          vial_type_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          price?: number
+          product_id?: string
+          sku?: string | null
+          stock_quantity?: number
+          updated_at?: string
+          vial_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_variants_vial_type_id_fkey"
+            columns: ["vial_type_id"]
+            isOneToOne: false
+            referencedRelation: "vial_types"
             referencedColumns: ["id"]
           },
         ]

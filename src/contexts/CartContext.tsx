@@ -10,16 +10,35 @@ export interface Product {
     category: string | null;
 }
 
+export interface ProductVariant {
+    id: string;
+    product_id: string;
+    vial_type_id: string;
+    sku: string | null;
+    price: number;
+    stock_quantity: number;
+    product: {
+        name: string;
+        image_url: string | null;
+        description: string | null;
+        category: string | null;
+    };
+    vial_type: {
+        name: string;
+        size_ml: number;
+    };
+}
+
 export interface CartItem {
-    product: Product;
+    variant: ProductVariant;
     quantity: number;
 }
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (product: Product) => void;
-    removeFromCart: (productId: string) => void;
-    updateQuantity: (productId: string, quantity: number) => void;
+    addToCart: (variant: ProductVariant, quantity?: number) => void;
+    removeFromCart: (variantId: string) => void;
+    updateQuantity: (variantId: string, quantity: number) => void;
     clearCart: () => void;
     cartTotal: number;
     cartCount: number;
@@ -47,35 +66,35 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem("cart", JSON.stringify(items));
     }, [items]);
 
-    const addToCart = (product: Product) => {
+    const addToCart = (variant: ProductVariant, quantity: number = 1) => {
         setItems((currentItems) => {
-            const existingItem = currentItems.find((item) => item.product.id === product.id);
+            const existingItem = currentItems.find((item) => item.variant.id === variant.id);
             if (existingItem) {
                 toast.success("Updated quantity in cart");
                 return currentItems.map((item) =>
-                    item.product.id === product.id
-                        ? { ...item, quantity: item.quantity + 1 }
+                    item.variant.id === variant.id
+                        ? { ...item, quantity: item.quantity + quantity }
                         : item
                 );
             }
-            toast.success("Added to cart");
-            return [...currentItems, { product, quantity: 1 }];
+            toast.success(`Added ${variant.product.name} (${variant.vial_type.size_ml}ml) to cart`);
+            return [...currentItems, { variant, quantity }];
         });
     };
 
-    const removeFromCart = (productId: string) => {
-        setItems((currentItems) => currentItems.filter((item) => item.product.id !== productId));
+    const removeFromCart = (variantId: string) => {
+        setItems((currentItems) => currentItems.filter((item) => item.variant.id !== variantId));
         toast.success("Removed from cart");
     };
 
-    const updateQuantity = (productId: string, quantity: number) => {
+    const updateQuantity = (variantId: string, quantity: number) => {
         if (quantity < 1) {
-            removeFromCart(productId);
+            removeFromCart(variantId);
             return;
         }
         setItems((currentItems) =>
             currentItems.map((item) =>
-                item.product.id === productId ? { ...item, quantity } : item
+                item.variant.id === variantId ? { ...item, quantity } : item
             )
         );
     };
@@ -85,7 +104,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const cartTotal = items.reduce(
-        (total, item) => total + item.product.price * item.quantity,
+        (total, item) => total + item.variant.price * item.quantity,
         0
     );
 

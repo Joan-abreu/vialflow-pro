@@ -22,34 +22,37 @@ const Cart = () => {
                     <div className="lg:col-span-2 space-y-6">
                         {/* Cart Items */}
                         {items.map((item) => (
-                            <div key={item.product.id} className="flex gap-4 p-4 bg-card border rounded-lg">
+                            <div key={item.variant.id} className="flex gap-4 p-4 bg-card border rounded-lg">
                                 <div className="h-24 w-24 bg-muted rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                    {item.product.image_url ? (
-                                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
+                                    {item.variant.product.image_url ? (
+                                        <img src={item.variant.product.image_url} alt={item.variant.product.name} className="w-full h-full object-cover" />
                                     ) : (
                                         <span className="text-xs text-muted-foreground">No Image</span>
                                     )}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-semibold">{item.product.name}</h3>
+                                        <div>
+                                            <h3 className="font-semibold">{item.variant.product.name}</h3>
+                                            <p className="text-sm text-muted-foreground">{item.variant.vial_type.size_ml}ml</p>
+                                        </div>
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            onClick={() => removeFromCart(item.product.id)}
+                                            onClick={() => removeFromCart(item.variant.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
-                                    <p className="text-sm text-muted-foreground mb-4">{item.product.category || "Product"}</p>
+                                    <p className="text-sm text-muted-foreground mb-4">{item.variant.product.category || "Product"}</p>
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center border rounded-md">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 rounded-none"
-                                                onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                                                onClick={() => updateQuantity(item.variant.id, item.quantity - 1)}
                                             >
                                                 <Minus className="h-3 w-3" />
                                             </Button>
@@ -58,12 +61,12 @@ const Cart = () => {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 rounded-none"
-                                                onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                                                onClick={() => updateQuantity(item.variant.id, item.quantity + 1)}
                                             >
                                                 <Plus className="h-3 w-3" />
                                             </Button>
                                         </div>
-                                        <span className="font-bold">${(item.product.price * item.quantity).toFixed(2)}</span>
+                                        <span className="font-bold">${(item.variant.price * item.quantity).toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>

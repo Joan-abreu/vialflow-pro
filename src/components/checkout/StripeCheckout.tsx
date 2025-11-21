@@ -65,9 +65,10 @@ const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
             // 3. Create Order Items
             const orderItems = items.map(item => ({
                 order_id: orderData.id,
-                product_id: item.product.id,
+                product_id: item.variant.product_id,
+                variant_id: item.variant.id,
                 quantity: item.quantity,
-                price_at_time: item.product.price
+                price_at_time: item.variant.price
             }));
 
             const { error: itemsError } = await supabase

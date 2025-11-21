@@ -1,12 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter } from "lucide-react";
+import { Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { useCart, Product } from "@/contexts/CartContext";
-
+import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+
+// Group variants by product
+interface ProductWithVariants {
+    id: string;
+    name: string;
+    description: string | null;
+    image_url: string | null;
+    category: string | null;
+    variants: ProductVariant[];
+}
 
 const Products = () => {
     const navigate = useNavigate();
@@ -14,27 +24,76 @@ const Products = () => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const { addToCart } = useCart();
 
-    const { data: products, isLoading } = useQuery({
-        queryKey: ["public-products", selectedCategory],
+    const { data: productsWithVariants, isLoading } = useQuery({
+        queryKey: ["public-product-variants", selectedCategory],
         queryFn: async () => {
-            const baseQuery = supabase
-                .from("products")
-                .select("*")
-                .eq("is_active", true);
+            // Fetch all published variants with their product and vial type info
+            let query = supabase
+                .from("product_variants")
+                .select(`
+                    *,
+                    product:products!inner(id, name, description, image_url, category, is_published),
+                    vial_type:vial_types!inner(name, size_ml)
+                `)
+                .eq("is_published", true)
+                .eq("product.is_published", true);
 
-            const query = selectedCategory
-                ? baseQuery.eq("category", selectedCategory)
-                : baseQuery;
+            if (selectedCategory) {
+                query = query.eq("product.category", selectedCategory);
+            }
 
             const { data, error } = await (query as any);
             if (error) throw error;
-            return data as unknown as Product[];
+
+            // Group variants by product
+            const grouped: Record<string, ProductWithVariants> = {};
+
+            (data as any[])?.forEach((variant: any) => {
+                const productId = variant.product.id;
+
+                if (!grouped[productId]) {
+                    grouped[productId] = {
+                        id: productId,
+                        name: variant.product.name,
+                        description: variant.product.description,
+                        image_url: variant.product.image_url,
+                        category: variant.product.category,
+                        variants: [],
+                    };
+                }
+
+                grouped[productId].variants.push({
+                    id: variant.id,
+                    product_id: variant.product_id,
+                    vial_type_id: variant.vial_type_id,
+                    sku: variant.sku,
+                    price: variant.price,
+                    stock_quantity: variant.stock_quantity,
+                    product: {
+                        name: variant.product.name,
+                        image_url: variant.product.image_url,
+                        description: variant.product.description,
+                        category: variant.product.category,
+                    },
+                    vial_type: {
+                        name: variant.vial_type.name,
+                        size_ml: variant.vial_type.size_ml,
+                    },
+                });
+            });
+
+            return Object.values(grouped);
         },
     });
 
-    const filteredProducts = products?.filter(product =>
+    const filteredProducts = productsWithVariants?.filter(product =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Get the lowest price variant for display
+    const getLowestPrice = (variants: ProductVariant[]) => {
+        return Math.min(...variants.map(v => v.price));
+    };
 
     return (
         <div className="container py-12">
@@ -48,14 +107,11 @@ const Products = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Search products..."
-                            className="pl-9"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9"
                         />
                     </div>
-                    <Button variant="outline" size="icon">
-                        <Filter className="h-4 w-4" />
-                    </Button>
                 </div>
             </div>
 
@@ -119,30 +175,26 @@ const Products = () => {
                                     {product.image_url ? (
                                         <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <span className="text-muted-foreground">No Image</span>
+                                        <div className="text-muted-foreground">No image</div>
                                     )}
                                 </div>
                                 <div className="p-4">
-                                    <div className="mb-2">
-                                        <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                            {product.category || "Product"}
-                                        </span>
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">{product.name}</h3>
-                                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                                        {product.description}
-                                    </p>
+                                    <h3 className="font-semibold text-lg mb-1">{product.name}</h3>
+                                    {product.description && (
+                                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                            {product.description}
+                                        </p>
+                                    )}
                                     <div className="flex items-center justify-between">
-                                        <span className="font-bold text-lg">${product.price}</span>
-                                        <Button
-                                            size="sm"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                addToCart(product);
-                                            }}
-                                        >
-                                            Add to Cart
-                                        </Button>
+                                        <div>
+                                            <p className="text-2xl font-bold text-primary">
+                                                ${getLowestPrice(product.variants).toFixed(2)}
+                                                {product.variants.length > 1 && <span className="text-sm text-muted-foreground">+</span>}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {product.variants.length} size{product.variants.length > 1 ? 's' : ''} available
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

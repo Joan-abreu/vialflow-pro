@@ -1,9 +1,18 @@
 import { Link, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, User, Menu } from "lucide-react";
-import { useState } from "react";
+import { ShoppingCart, User, Menu, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
+import { supabase } from "@/integrations/supabase/client";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
 
 const CartIcon = () => {
     const { cartCount } = useCart();
@@ -24,6 +33,25 @@ const CartIcon = () => {
 
 const PublicLayoutContent = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [user, setUser] = useState<any>(null);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUser(user);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate("/");
+    };
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
@@ -48,12 +76,37 @@ const PublicLayoutContent = () => {
 
                     <div className="flex items-center gap-4">
                         <CartIcon />
-                        <Link to="/login">
-                            <Button variant="ghost" size="icon">
-                                <User className="h-5 w-5" />
-                                <span className="sr-only">Account</span>
-                            </Button>
-                        </Link>
+
+                        {user ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="relative">
+                                        <User className="h-5 w-5" />
+                                        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-green-500 rounded-full border-2 border-background"></span>
+                                        <span className="sr-only">Account</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem asChild>
+                                        <Link to="/account" className="cursor-pointer">
+                                            My Account
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                                        <LogOut className="mr-2 h-4 w-4" />
+                                        Logout
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <Link to="/login">
+                                <Button variant="ghost" size="icon">
+                                    <User className="h-5 w-5" />
+                                    <span className="sr-only">Login</span>
+                                </Button>
+                            </Link>
+                        )}
 
                         {/* Mobile Menu */}
                         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -79,9 +132,20 @@ const PublicLayoutContent = () => {
                                     <Link to="/cart" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Cart
                                     </Link>
-                                    <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
-                                        Login
-                                    </Link>
+                                    {user ? (
+                                        <>
+                                            <Link to="/account" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
+                                                My Account
+                                            </Link>
+                                            <button onClick={handleLogout} className="text-lg font-medium text-left">
+                                                Logout
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
+                                            Login
+                                        </Link>
+                                    )}
                                 </nav>
                             </SheetContent>
                         </Sheet>

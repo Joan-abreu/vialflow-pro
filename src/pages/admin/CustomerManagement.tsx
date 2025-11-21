@@ -22,9 +22,23 @@ const CustomerManagement = () => {
     const { data: profiles, isLoading } = useQuery({
         queryKey: ["admin-customers"],
         queryFn: async () => {
+            // First, get all user_roles to filter out admin/manager/staff
+            const { data: userRoles, error: rolesError } = await supabase
+                .from("user_roles")
+                .select("user_id, role");
+
+            if (rolesError) throw rolesError;
+
+            // Get user IDs with admin/manager/staff roles
+            const adminUserIds = userRoles
+                ?.filter(ur => ur.role === "admin" || ur.role === "manager" || ur.role === "staff")
+                .map(ur => ur.user_id) || [];
+
+            // Get all profiles excluding admin/manager/staff users
             const { data, error } = await supabase
                 .from("profiles")
                 .select("*")
+                .not("user_id", "in", `(${adminUserIds.join(",") || "''"})`)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;

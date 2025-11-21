@@ -11,6 +11,7 @@ const Register = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [fullName, setFullName] = useState("");
+    const [phone, setPhone] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -19,7 +20,7 @@ const Register = () => {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -30,6 +31,18 @@ const Register = () => {
             });
 
             if (error) throw error;
+
+            // Update profile with phone number
+            if (data.user) {
+                const { error: profileError } = await supabase
+                    .from("profiles")
+                    .update({ phone: phone })
+                    .eq("user_id", data.user.id);
+
+                if (profileError) {
+                    console.error("Error updating phone:", profileError);
+                }
+            }
 
             toast.success("Registration successful! Please check your email to verify your account.");
             navigate("/login");
@@ -46,7 +59,7 @@ const Register = () => {
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
                     <CardDescription className="text-center">
-                        Enter your email below to create your account
+                        Enter your information below to create your account
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={handleRegister}>
@@ -69,6 +82,17 @@ const Register = () => {
                                 placeholder="m@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">Phone Number</Label>
+                            <Input
+                                id="phone"
+                                type="tel"
+                                placeholder="+1 (555) 000-0000"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
                                 required
                             />
                         </div>

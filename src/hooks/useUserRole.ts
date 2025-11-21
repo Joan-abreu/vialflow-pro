@@ -13,7 +13,7 @@ export const useUserRole = () => {
     const fetchUserRole = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (!user) {
           setLoading(false);
           return;
@@ -34,7 +34,8 @@ export const useUserRole = () => {
         if (data) {
           setRole(data.role as UserRole);
           setIsAdmin(data.role === "admin");
-          setHasAccess(data.role !== "pending");
+          // Only admin, manager, and staff can access manufacturing
+          setHasAccess(data.role === "admin" || data.role === "manager" || data.role === "staff");
         }
       } catch (error) {
         console.error("Error in useUserRole:", error);

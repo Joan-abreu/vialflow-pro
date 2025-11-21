@@ -28,6 +28,7 @@ interface Product {
     name: string;
     description: string | null;
     is_active: boolean;
+    is_published: boolean;
     price: number;
     category: string | null;
     image_url: string | null;
@@ -116,6 +117,7 @@ const ProductManagement = () => {
             image_url: formData.get("image_url") as string,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
             is_active: formData.get("is_active") === "on",
+            is_published: formData.get("is_published") === "on",
         };
 
         if (editingProduct) {
@@ -197,7 +199,17 @@ const ProductManagement = () => {
                                     className="h-4 w-4 rounded border-gray-300"
                                     defaultChecked={editingProduct?.is_active ?? true}
                                 />
-                                <Label htmlFor="is_active">Active</Label>
+                                <Label htmlFor="is_active">Active (Manufacturing)</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    id="is_published"
+                                    name="is_published"
+                                    className="h-4 w-4 rounded border-gray-300"
+                                    defaultChecked={editingProduct?.is_published ?? false}
+                                />
+                                <Label htmlFor="is_published">Published (E-commerce)</Label>
                             </div>
                             <Button type="submit" className="w-full">
                                 {editingProduct ? "Update Product" : "Create Product"}
@@ -215,20 +227,21 @@ const ProductManagement = () => {
                             <TableHead>Category</TableHead>
                             <TableHead>Price</TableHead>
                             <TableHead>Stock</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead>Manufacturing</TableHead>
+                            <TableHead>E-commerce</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8">
+                                <TableCell colSpan={7} className="text-center py-8">
                                     Loading products...
                                 </TableCell>
                             </TableRow>
                         ) : products?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8">
+                                <TableCell colSpan={7} className="text-center py-8">
                                     No products found.
                                 </TableCell>
                             </TableRow>
@@ -242,6 +255,11 @@ const ProductManagement = () => {
                                     <TableCell>
                                         <span className={`px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                             {product.is_active ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className={`px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                            {product.is_published ? 'Published' : 'Draft'}
                                         </span>
                                     </TableCell>
                                     <TableCell className="text-right">

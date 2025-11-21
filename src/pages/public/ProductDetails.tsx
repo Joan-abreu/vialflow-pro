@@ -3,44 +3,92 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck } from "lucide-react";
-import { useCart } from "@/contexts/CartContext";
+import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 
-interface Product {
+interface ProductWithVariants {
     id: string;
     name: string;
     description: string | null;
-    price: number;
     image_url: string | null;
-    category: string;
-    stock_quantity: number;
+    category: string | null;
+    variants: ProductVariant[];
 }
 
 const ProductDetails = () => {
     const { id } = useParams<{ id: string }>();
     const { addToCart } = useCart();
+    const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
     const { data: product, isLoading, error } = useQuery({
-        queryKey: ["product", id],
+        queryKey: ["product-with-variants", id],
         queryFn: async () => {
             if (!id) throw new Error("Product ID is required");
 
-            const { data, error } = await supabase
+            // Fetch product with all its variants
+            const { data: productData, error: productError } = await supabase
                 .from("products")
                 .select("*")
                 .eq("id", id)
                 .single();
 
-            if (error) throw error;
-            return data as unknown as Product;
+            if (productError) throw productError;
+
+            // Fetch variants for this product
+            const { data: variantsData, error: variantsError } = await supabase
+                .from("product_variants")
+                .select(`
+                    *,
+                    vial_type:vial_types!inner(name, size_ml)
+                `)
+                .eq("product_id", id)
+                .eq("is_published", true);
+
+            if (variantsError) throw variantsError;
+
+            const variants: ProductVariant[] = (variantsData as any[])?.map((v: any) => ({
+                id: v.id,
+                product_id: v.product_id,
+                vial_type_id: v.vial_type_id,
+                sku: v.sku,
+                price: v.price,
+                stock_quantity: v.stock_quantity,
+                product: {
+                    name: productData.name,
+                    image_url: productData.image_url,
+                    description: productData.description,
+                    category: productData.category,
+                },
+                vial_type: {
+                    name: v.vial_type.name,
+                    size_ml: v.vial_type.size_ml,
+                },
+            })) || [];
+
+            // Auto-select first variant
+            if (variants.length > 0 && !selectedVariantId) {
+                setSelectedVariantId(variants[0].id);
+            }
+
+            return {
+                id: productData.id,
+                name: productData.name,
+                description: productData.description,
+                image_url: productData.image_url,
+                category: productData.category,
+                variants,
+            } as ProductWithVariants;
         },
         enabled: !!id,
     });
 
+    const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
+
     const handleAddToCart = () => {
-        if (product) {
-            addToCart(product);
-            toast.success("Added to cart");
+        if (selectedVariant) {
+            addToCart(selectedVariant);
         }
     };
 
@@ -53,7 +101,7 @@ const ProductDetails = () => {
         );
     }
 
-    if (error || !product) {
+    if (error || !product || product.variants.length === 0) {
         return (
             <div className="container py-20 text-center">
                 <h2 className="text-2xl font-bold mb-4">Product not found</h2>
@@ -92,28 +140,63 @@ const ProductDetails = () => {
                 {/* Product Info */}
                 <div className="flex flex-col justify-center space-y-8">
                     <div>
-                        <div className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium mb-4">
-                            {product.category}
-                        </div>
+                        {product.category && (
+                            <div className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium mb-4">
+                                {product.category}
+                            </div>
+                        )}
                         <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">{product.name}</h1>
-                        <p className="text-2xl font-semibold text-primary mb-6">${product.price.toFixed(2)}</p>
+                        <p className="text-2xl font-semibold text-primary mb-6">
+                            ${selectedVariant?.price.toFixed(2) || '0.00'}
+                        </p>
                         <p className="text-lg text-muted-foreground leading-relaxed">
                             {product.description || "No description available for this product."}
                         </p>
                     </div>
 
                     <div className="space-y-6 pt-6 border-t">
+                        {/* Size Selector */}
+                        <div>
+                            <label className="block text-sm font-medium mb-3">Select Size</label>
+                            <div className="flex flex-wrap gap-3">
+                                {product.variants.map((variant) => (
+                                    <button
+                                        key={variant.id}
+                                        onClick={() => setSelectedVariantId(variant.id)}
+                                        className={`px-6 py-3 rounded-lg border-2 transition-all ${selectedVariantId === variant.id
+                                                ? 'border-primary bg-primary/10 text-primary font-semibold'
+                                                : 'border-border hover:border-primary/50'
+                                            }`}
+                                    >
+                                        <div className="text-sm font-medium">{variant.vial_type.size_ml}ml</div>
+                                        <div className="text-xs text-muted-foreground">${variant.price.toFixed(2)}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="flex items-center gap-4">
-                            <Button size="lg" className="flex-1 h-14 text-lg" onClick={handleAddToCart}>
+                            <Button
+                                size="lg"
+                                className="flex-1 h-14 text-lg"
+                                onClick={handleAddToCart}
+                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
+                            >
                                 <ShoppingCart className="mr-2 h-5 w-5" />
-                                Add to Cart
+                                {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
                             </Button>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                <Check className="h-5 w-5 text-green-500" />
-                                <span>In Stock ({product.stock_quantity} units)</span>
+                                <Check className={`h-5 w-5 ${selectedVariant && selectedVariant.stock_quantity > 0 ? 'text-green-500' : 'text-gray-400'}`} />
+                                <span>
+                                    {selectedVariant
+                                        ? selectedVariant.stock_quantity > 0
+                                            ? `In Stock (${selectedVariant.stock_quantity} units)`
+                                            : 'Out of Stock'
+                                        : 'Select a size'}
+                                </span>
                             </div>
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                 <ShieldCheck className="h-5 w-5 text-primary" />

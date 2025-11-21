@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Layout from "@/components/Layout";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -93,10 +93,10 @@ const Inventory = () => {
     })
     .sort((a, b) => {
       if (!sortField) return 0;
-      
+
       const aValue = a[sortField].toLowerCase();
       const bValue = b[sortField].toLowerCase();
-      
+
       if (sortDirection === "asc") {
         return aValue.localeCompare(bValue);
       } else {
@@ -110,15 +110,15 @@ const Inventory = () => {
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
-    
+
     if (draggedIndex === null || draggedIndex === index) return;
 
     const newMaterials = [...materials];
     const draggedItem = newMaterials[draggedIndex];
-    
+
     newMaterials.splice(draggedIndex, 1);
     newMaterials.splice(index, 0, draggedItem);
-    
+
     setMaterials(newMaterials);
     setDraggedIndex(index);
   };
@@ -140,7 +140,7 @@ const Inventory = () => {
       toast.error("Error updating order");
       fetchMaterials();
     }
-    
+
     setDraggedIndex(null);
   };
 
@@ -159,79 +159,79 @@ const Inventory = () => {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Inventory</h1>
-            <p className="text-sm text-muted-foreground sm:text-base">
-              Track raw materials and stock levels
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ManageCategoriesDialog onSuccess={fetchMaterials} />
-            <AddUnitDialog onSuccess={fetchMaterials} />
-            <AddMaterialDialog onSuccess={fetchMaterials} />
-          </div>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Raw Materials</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <Input
-                placeholder="Search by name, category, or unit..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-sm"
-              />
-            </div>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : filteredMaterials.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {materials.length === 0
-                  ? "No materials yet. Click 'Add Material' to create your first one."
-                  : "No materials found matching your search."}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("name")}
-                          className="h-auto p-0 font-medium hover:bg-transparent"
-                        >
-                          Name
-                          <ArrowUpDown className="ml-2 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("category")}
-                          className="h-auto p-0 font-medium hover:bg-transparent"
-                        >
-                          Category
-                          <ArrowUpDown className="ml-2 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>Current Stock</TableHead>
-                      <TableHead>Min Level</TableHead>
-                      <TableHead>Cost/Unit</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-24">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Inventory</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Track raw materials and stock levels
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ManageCategoriesDialog onSuccess={fetchMaterials} />
+          <AddUnitDialog onSuccess={fetchMaterials} />
+          <AddMaterialDialog onSuccess={fetchMaterials} />
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Raw Materials</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4">
+            <Input
+              placeholder="Search by name, category, or unit..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : filteredMaterials.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {materials.length === 0
+                ? "No materials yet. Click 'Add Material' to create your first one."
+                : "No materials found matching your search."}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleSort("name")}
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                      >
+                        Name
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleSort("category")}
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                      >
+                        Category
+                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead>Min Level</TableHead>
+                    <TableHead>Cost/Unit</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {filteredMaterials.map((material, index) => (
-                    <TableRow 
+                    <TableRow
                       key={material.id}
                       draggable
                       onDragStart={() => handleDragStart(index)}
@@ -286,7 +286,7 @@ const Inventory = () => {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(material.id)} 
+                                <AlertDialogAction onClick={() => handleDelete(material.id)}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                   Delete
                                 </AlertDialogAction>
@@ -298,13 +298,13 @@ const Inventory = () => {
                     </TableRow>
                   ))}
                 </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </Layout>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+
   );
 };
 

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Boxes, Truck, AlertTriangle } from "lucide-react";
-import Layout from "@/components/Layout";
+import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 
 interface Activity {
   id: string;
-  type: "batch" | "shipment" | "inventory";
+  type: "batch" | "shipment" | "inventory" | "order";
   description: string;
   timestamp: string;
   status?: string;
@@ -19,12 +19,15 @@ const Dashboard = () => {
     activeBatches: 0,
     lowStockItems: 0,
     activeShipments: 0,
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalClients: 0,
   });
   const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [batches, materials, shipments] = await Promise.all([
+      const [batches, materials, shipments, orders, clients] = await Promise.all([
         supabase
           .from("production_batches")
           .select("*", { count: "exact", head: true })
@@ -36,16 +39,35 @@ const Dashboard = () => {
           .from("shipments")
           .select("*", { count: "exact", head: true })
           .in("status", ["preparing", "shipped"]),
+        supabase
+          .from("orders" as any)
+          .select("total_amount, status"),
+        supabase
+          .from("orders" as any)
+          .select("user_id", { count: "exact", head: true }) // This is an approximation for total clients based on orders
       ]);
 
       const lowStock = materials.data?.filter(
         (item) => item.current_stock < item.min_stock_level
       ) || [];
 
+      // Calculate Revenue (only for valid orders)
+      const validOrders = orders.data?.filter((o: any) =>
+        ["processing", "shipped", "delivered"].includes(o.status)
+      ) || [];
+
+      const revenue = validOrders.reduce((sum: number, order: any) => sum + Number(order.total_amount), 0);
+
+      // Calculate unique clients from orders (better approximation)
+      const uniqueClients = new Set(orders.data?.map((o: any) => o.user_id).filter(Boolean)).size;
+
       setStats({
         activeBatches: batches.count || 0,
         lowStockItems: lowStock.length,
         activeShipments: shipments.count || 0,
+        totalRevenue: revenue,
+        totalOrders: orders.data?.length || 0,
+        totalClients: uniqueClients,
       });
     };
 
@@ -90,8 +112,27 @@ const Dashboard = () => {
         });
       }
 
+      // Fetch recent orders
+      const { data: orderData } = await supabase
+        .from("orders" as any)
+        .select("id, total_amount, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (orderData) {
+        orderData.forEach((order: any) => {
+          recentActivities.push({
+            id: order.id,
+            type: "order",
+            description: `Order #${order.id.slice(0, 8)} received ($${order.total_amount})`,
+            timestamp: order.created_at,
+            status: order.status,
+          });
+        });
+      }
+
       // Sort all activities by timestamp and take the most recent 10
-      recentActivities.sort((a, b) => 
+      recentActivities.sort((a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
@@ -104,16 +145,28 @@ const Dashboard = () => {
 
   const cards = [
     {
+      title: "Total Revenue",
+      value: `$${stats.totalRevenue.toLocaleString()}`,
+      icon: DollarSign,
+      color: "text-green-600",
+    },
+    {
+      title: "Total Orders",
+      value: stats.totalOrders,
+      icon: ShoppingCart,
+      color: "text-blue-600",
+    },
+    {
+      title: "Total Clients",
+      value: stats.totalClients,
+      icon: Users,
+      color: "text-purple-600",
+    },
+    {
       title: "Active Batches",
       value: stats.activeBatches,
       icon: Package,
       color: "text-primary",
-    },
-    {
-      title: "Low Stock Alerts",
-      value: stats.lowStockItems,
-      icon: AlertTriangle,
-      color: "text-destructive",
     },
     {
       title: "Active Shipments",
@@ -121,95 +174,104 @@ const Dashboard = () => {
       icon: Truck,
       color: "text-secondary",
     },
+    {
+      title: "Low Stock Alerts",
+      value: stats.lowStockItems,
+      icon: AlertTriangle,
+      color: "text-destructive",
+    },
   ];
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
-          <p className="text-sm text-muted-foreground sm:text-base">
-            Overview of your production operations
-          </p>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {cards.map((card) => (
-            <Card key={card.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {card.title}
-                </CardTitle>
-                <card.icon className={`h-5 w-5 ${card.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{card.value}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
+          Overview of your production and e-commerce operations
+        </p>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No recent activity to display
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {activities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1">
-                        {activity.type === "batch" && (
-                          <Package className="h-4 w-4 text-primary" />
-                        )}
-                        {activity.type === "shipment" && (
-                          <Truck className="h-4 w-4 text-secondary" />
-                        )}
-                        {activity.type === "inventory" && (
-                          <Boxes className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {activity.description}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(activity.timestamp), {
-                            addSuffix: true,
-                          })}
-                        </p>
-                      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {cards.map((card) => (
+          <Card key={card.title}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {card.title}
+              </CardTitle>
+              <card.icon className={`h-5 w-5 ${card.color}`} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{card.value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No recent activity to display
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {activities.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1">
+                      {activity.type === "batch" && (
+                        <Package className="h-4 w-4 text-primary" />
+                      )}
+                      {activity.type === "shipment" && (
+                        <Truck className="h-4 w-4 text-secondary" />
+                      )}
+                      {activity.type === "inventory" && (
+                        <Boxes className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      {activity.type === "order" && (
+                        <ShoppingCart className="h-4 w-4 text-blue-600" />
+                      )}
                     </div>
-                    {activity.status && (
-                      <Badge
-                        variant={
-                          activity.status === "completed" || activity.status === "delivered"
-                            ? "secondary"
-                            : activity.status === "in_progress" || activity.status === "shipped"
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {activity.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(activity.timestamp), {
+                          addSuffix: true,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  {activity.status && (
+                    <Badge
+                      variant={
+                        activity.status === "completed" || activity.status === "delivered"
+                          ? "secondary"
+                          : activity.status === "in_progress" || activity.status === "shipped" || activity.status === "processing"
                             ? "default"
                             : "outline"
-                        }
-                        className="ml-2 flex-shrink-0 capitalize"
-                      >
-                        {activity.status.replace("_", " ")}
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </Layout>
+                      }
+                      className="ml-2 flex-shrink-0 capitalize"
+                    >
+                      {activity.status.replace("_", " ")}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+
   );
 };
 

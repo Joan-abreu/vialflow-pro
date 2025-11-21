@@ -1,20 +1,22 @@
 import { ReactNode, useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { 
-  LayoutDashboard, 
-  Package, 
-  Boxes, 
-  Truck, 
+import {
+  LayoutDashboard,
+  Package,
+  Boxes,
+  Truck,
   LogOut,
   Menu,
   Shield,
-  User
+  User,
+  Tag,
+  ShoppingCart,
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   Sidebar,
@@ -44,16 +46,16 @@ const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     const fetchUserProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
         setUserEmail(user.email || "");
-        
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
           .eq("user_id", user.id)
           .single();
-        
+
         if (profile?.full_name) {
           setUserName(profile.full_name);
         }
@@ -70,17 +72,20 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   const baseNavigation = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Production", href: "/production", icon: Package },
-    { name: "Shipments", href: "/shipments", icon: Truck },
-    { name: "Inventory", href: "/inventory", icon: Boxes },
+    { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
+    { name: "Production", href: "/manufacturing/production", icon: Package },
+    { name: "Shipments", href: "/manufacturing/shipments", icon: Truck },
+    { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
+    { name: "Products", href: "/manufacturing/products", icon: Tag },
   ];
 
   const adminNavigation = [
-    { name: "Users", href: "/users", icon: Shield },
+    { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
+    { name: "Customers", href: "/manufacturing/customers", icon: Users },
+    { name: "Users", href: "/manufacturing/users", icon: Shield },
   ];
 
-  const navigation = isAdmin 
+  const navigation = isAdmin
     ? [...baseNavigation, ...adminNavigation]
     : baseNavigation;
 
@@ -93,11 +98,10 @@ const Layout = ({ children }: LayoutProps) => {
             key={item.name}
             to={item.href}
             onClick={() => setMobileMenuOpen(false)}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
           >
             <item.icon className="h-5 w-5" />
             {item.name}
@@ -109,7 +113,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const DesktopSidebar = () => {
     const { open } = useSidebar();
-    
+
     return (
       <Sidebar collapsible="icon" className="border-r">
         <SidebarContent>
@@ -118,7 +122,7 @@ const Layout = ({ children }: LayoutProps) => {
               {open ? 'VialFlow Pro' : ''}
             </h1>
           </div>
-          
+
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-1 px-3 py-4">
@@ -129,11 +133,10 @@ const Layout = ({ children }: LayoutProps) => {
                       <SidebarMenuButton asChild>
                         <Link
                           to={item.href}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          }`}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
                         >
                           <item.icon className="h-5 w-5 flex-shrink-0" />
                           <span className={open ? '' : 'sr-only'}>{item.name}</span>

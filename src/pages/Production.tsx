@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Layout from "@/components/Layout";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,7 @@ const Production = () => {
 
   const fetchBatches = async () => {
     setLoading(true);
-    
+
     // Fetch batches with vial types, products and shipped_units
     const { data: batchData, error } = await supabase
       .from("production_batches")
@@ -126,65 +126,65 @@ const Production = () => {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Production</h1>
-            <p className="text-sm text-muted-foreground sm:text-base">
-              Manage production batches and workflows
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ManageProductsDialog />
-            <ManageVialTypesDialog />
-            <ManageProductionMaterialsDialog />
-            <AddBatchDialog onSuccess={fetchBatches} />
-          </div>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Production Batches</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : batches.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No batches yet. Click "New Batch" to create your first one.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Batch Number</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Vial Type</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Progress</TableHead>
-                      <TableHead>Sale Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Started</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Production</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Manage production batches and workflows
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ManageProductsDialog />
+          <ManageVialTypesDialog />
+          <ManageProductionMaterialsDialog />
+          <AddBatchDialog onSuccess={fetchBatches} />
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Production Batches</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : batches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No batches yet. Click "New Batch" to create your first one.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Batch Number</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Vial Type</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Sale Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Completed</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {batches.map((batch) => {
                     const unitsInProgress = batch.units_in_progress || 0;
                     const shippedUnits = batch.shipped_units || 0;
-                    
-                    const shipped = batch.sale_type === "pack" && batch.pack_quantity 
-                      ? shippedUnits / batch.pack_quantity 
+
+                    const shipped = batch.sale_type === "pack" && batch.pack_quantity
+                      ? shippedUnits / batch.pack_quantity
                       : shippedUnits;
                     const total = batch.sale_type === "pack" && batch.pack_quantity
                       ? batch.quantity / batch.pack_quantity
                       : batch.quantity;
                     const progress = total > 0 ? (unitsInProgress / total) * 100 : 0;
-                    
+
                     return (
                       <TableRow key={batch.id}>
                         <TableCell className="font-medium">{batch.batch_number}</TableCell>
@@ -261,8 +261,8 @@ const Production = () => {
                                 }
                               />
                             )}
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => window.open(`/bom/${batch.id}`, '_blank')}
                               title="Generate Bill of Materials"
@@ -279,13 +279,13 @@ const Production = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Delete Batch</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to delete batch "{batch.batch_number}"? 
+                                    Are you sure you want to delete batch "{batch.batch_number}"?
                                     This will also delete all related shipments and boxes. This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
+                                  <AlertDialogAction
                                     onClick={() => handleDeleteBatch(batch.id, batch.batch_number)}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
@@ -300,13 +300,13 @@ const Production = () => {
                     );
                   })}
                 </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </Layout>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+
   );
 };
 

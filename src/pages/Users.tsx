@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import Layout from "@/components/Layout";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,7 +76,7 @@ const Users = () => {
 
       // Call edge function to get users
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         toast.error("Not authenticated");
         return;
@@ -98,13 +98,13 @@ const Users = () => {
       }
 
       const { users: usersData } = await response.json();
-      
+
       // Add banned status to users
       const usersWithStatus = usersData.map((user: any) => ({
         ...user,
         banned_until: user.banned_until || null
       }));
-      
+
       setUsers(usersWithStatus);
     } catch (error: any) {
       console.error("Error fetching users:", error);
@@ -166,7 +166,7 @@ const Users = () => {
       setResetDialogOpen(false);
 
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         toast.error("Not authenticated");
         return;
@@ -204,12 +204,12 @@ const Users = () => {
 
   const handleToggleUserStatus = async (user: UserWithRole) => {
     const isDisabled = !!user.banned_until;
-    
+
     try {
       setTogglingStatus(user.id);
 
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         toast.error("Not authenticated");
         return;
@@ -253,7 +253,7 @@ const Users = () => {
       setDeleteDialogOpen(false);
 
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         toast.error("Not authenticated");
         return;
@@ -308,9 +308,9 @@ const Users = () => {
   }
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
@@ -320,188 +320,188 @@ const Users = () => {
             Manage user roles and access permissions
           </p>
         </div>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>System Users</CardTitle>
-            <CardDescription>
-              Assign roles to users to control their access permissions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : users.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No users registered
-              </p>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Registration Date</TableHead>
-                      <TableHead>Current Role</TableHead>
-                      <TableHead>Change Role</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium text-xs sm:text-sm">{user.email}</TableCell>
-                    <TableCell className="text-xs sm:text-sm">
-                          {user.banned_until ? (
-                            <Badge variant="destructive">Disabled</Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              Active
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(user.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getRoleBadgeVariant(user.role)}>
-                            {getRoleLabel(user.role)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => handleRoleChange(user.id, user.role_id, value)}
-                            disabled={updatingUser === user.id}
-                          >
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Administrator</SelectItem>
-                              <SelectItem value="manager">Manager</SelectItem>
-                              <SelectItem value="staff">Staff</SelectItem>
-                              <SelectItem value="pending">Pending</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {updatingUser === user.id && (
-                            <Loader2 className="h-4 w-4 animate-spin ml-2 inline" />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedUserForReset(user);
-                                setResetDialogOpen(true);
-                              }}
-                              disabled={resettingPassword === user.id || !!user.banned_until}
-                              title={user.banned_until ? "Cannot reset password for disabled user" : "Reset password"}
-                            >
-                              {resettingPassword === user.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <KeyRound className="h-4 w-4" />
-                              )}
-                            </Button>
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleToggleUserStatus(user)}
-                              disabled={togglingStatus === user.id}
-                              title="Active/Disable"
-                            >
-                              {togglingStatus === user.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : user.banned_until ? (
-                                <UserCheck className="h-4 w-4" />
-                              ) : (
-                                <UserX className="h-4 w-4" />
-                              )}
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Delete"
-                              onClick={() => {
-                                setSelectedUserForDelete(user);
-                                setDeleteDialogOpen(true);
-                              }}
-                              disabled={deletingUser === user.id}
-                            >
-                              {deletingUser === user.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              )}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reset User Password</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to send a password reset email to{" "}
-                <span className="font-semibold">{selectedUserForReset?.email}</span>?
-                <br /><br />
-                The user will receive an email with instructions to reset their password.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleResetPassword}>
-                Send Reset Email
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete User</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to permanently delete{" "}
-                <span className="font-semibold">{selectedUserForDelete?.email}</span>?
-                <br /><br />
-                This action cannot be undone. All user data, including their profile and roles, will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDeleteUser}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete User
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
-    </Layout>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>System Users</CardTitle>
+          <CardDescription>
+            Assign roles to users to control their access permissions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : users.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No users registered
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Registration Date</TableHead>
+                    <TableHead>Current Role</TableHead>
+                    <TableHead>Change Role</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium text-xs sm:text-sm">{user.email}</TableCell>
+                      <TableCell className="text-xs sm:text-sm">
+                        {user.banned_until ? (
+                          <Badge variant="destructive">Disabled</Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Active
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(user.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getRoleBadgeVariant(user.role)}>
+                          {getRoleLabel(user.role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={user.role}
+                          onValueChange={(value) => handleRoleChange(user.id, user.role_id, value)}
+                          disabled={updatingUser === user.id}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Administrator</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {updatingUser === user.id && (
+                          <Loader2 className="h-4 w-4 animate-spin ml-2 inline" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserForReset(user);
+                              setResetDialogOpen(true);
+                            }}
+                            disabled={resettingPassword === user.id || !!user.banned_until}
+                            title={user.banned_until ? "Cannot reset password for disabled user" : "Reset password"}
+                          >
+                            {resettingPassword === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <KeyRound className="h-4 w-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleUserStatus(user)}
+                            disabled={togglingStatus === user.id}
+                            title="Active/Disable"
+                          >
+                            {togglingStatus === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : user.banned_until ? (
+                              <UserCheck className="h-4 w-4" />
+                            ) : (
+                              <UserX className="h-4 w-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Delete"
+                            onClick={() => {
+                              setSelectedUserForDelete(user);
+                              setDeleteDialogOpen(true);
+                            }}
+                            disabled={deletingUser === user.id}
+                          >
+                            {deletingUser === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset User Password</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to send a password reset email to{" "}
+              <span className="font-semibold">{selectedUserForReset?.email}</span>?
+              <br /><br />
+              The user will receive an email with instructions to reset their password.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetPassword}>
+              Send Reset Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete{" "}
+              <span className="font-semibold">{selectedUserForDelete?.email}</span>?
+              <br /><br />
+              This action cannot be undone. All user data, including their profile and roles, will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+
   );
 };
 

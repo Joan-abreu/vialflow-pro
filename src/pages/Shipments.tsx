@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import Layout from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,16 +22,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 import { Button } from "@/components/ui/button";
-import { Trash2, Package, ExternalLink, Truck, Copy } from "lucide-react";
+import { Trash2, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { updateBatchStatus } from "@/services/batches";
 import CopyCell from "@/components/CopyCell";
-
 
 interface Shipment {
   id: string;
@@ -67,7 +64,7 @@ const Shipments = () => {
 
   const fetchShipments = async () => {
     setLoading(true);
-  const { data, error } = await supabase
+    const { data, error } = await supabase
       .from("shipments")
       .select(`
         *,
@@ -115,7 +112,7 @@ const Shipments = () => {
   const filteredShipments = shipments.filter((shipment) => {
     const query = searchQuery.toLowerCase();
     // Search in shipment level fields and also in box-level tracking/fba/destination
-    const hasBoxMatch = shipment.shipment_boxes?.some(box => 
+    const hasBoxMatch = shipment.shipment_boxes?.some(box =>
       box.ups_tracking_number?.toLowerCase().includes(query) ||
       box.fba_id?.toLowerCase().includes(query) ||
       box.destination?.toLowerCase().includes(query)
@@ -160,196 +157,194 @@ const Shipments = () => {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Shipments</h1>
-            <p className="text-sm text-muted-foreground sm:text-base">
-              Track shipments to Amazon FBA
-            </p>
-          </div>
-          <AddShipmentDialog onSuccess={fetchShipments} />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Shipments</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Track shipments to Amazon FBA
+          </p>
         </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="mb-4">
-              <Input
-                placeholder="Search by shipment number, batch, status, or box details..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-lg"
-              />
-            </div>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : filteredShipments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {shipments.length === 0
-                  ? "No shipments yet. Click 'New Shipment' to create your first box."
-                  : "No shipments found matching your search."}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Shipment Number</TableHead>
-                      <TableHead>Batch</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Destinations</TableHead>
-                      <TableHead>UPS Tracking</TableHead>
-                      <TableHead>FBA ID</TableHead>
-                      <TableHead>Total Boxes</TableHead>
-                      <TableHead>Delivery Date</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredShipments.map((shipment) => {
-                      // Get unique destinations from boxes
-                      const destinations = [...new Set(
-                        shipment.shipment_boxes
-                          ?.map(box => box.destination)
-                          .filter(Boolean)
-                      )];
-                      
-                      // Get unique tracking numbers from boxes
-                      const trackingNumbers = [...new Set(
-                        shipment.shipment_boxes
-                          ?.map(box => box.ups_tracking_number)
-                          .filter(Boolean)
-                      )];
-
-                      const fbaNumbers = [...new Set(
-                        shipment.shipment_boxes
-                          ?.map(box => box.fba_id)
-                          .filter(Boolean)
-                      )];
-                      
-                      // Calculate total quantity based on sale type
-                      const totalPacks = shipment.shipment_boxes?.reduce((sum, box) => 
-                        sum + (box.packs_per_box || 0), 0) || 0;
-                      const totalBottles = shipment.shipment_boxes?.reduce((sum, box) => 
-                        sum + (box.bottles_per_box || 0), 0) || 0;
-                      
-                      const saleType = shipment.production_batches?.sale_type || "individual";
-                      const qtyDisplay = saleType === "pack" 
-                        ? `${totalPacks} Packs`
-                        : `${totalBottles} Bottles`;
-                      
-                      return (
-                        <TableRow key={shipment.id}>
-                          <TableCell className="font-medium">
-                            {shipment.shipment_number}
-                          </TableCell>
-                          <TableCell>
-                            {shipment.production_batches?.batch_number || "-"}
-                            <CopyCell value={shipment.production_batches?.batch_number} size={14} />
-                          </TableCell>
-                          <TableCell>
-                            {qtyDisplay}
-                          </TableCell>
-                          <TableCell>
-                            {destinations.length > 0 ? destinations.join(", ") : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {trackingNumbers.length > 0 ? (
-                              <div className="flex flex-col gap-1.5">
-                                {trackingNumbers.map((trackingNum, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 text-xs">
-                                    <span className="font-mono">{trackingNum}</span>
-                                    <a
-                                      href={`https://www.ups.com/track?tracknum=${trackingNum}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:text-primary/80 shrink-0"
-                                      title="Track package on UPS"
-                                    >
-                                      <Truck className="h-3.5 w-3.5" />
-                                    </a>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {fbaNumbers.length > 0 ? (
-                              <div className="flex flex-col gap-1.5">
-                                {fbaNumbers.map((fbaNumber, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 text-xs">
-                                    <span className="font-mono">{fbaNumber}</span>
-                                    <CopyCell value={fbaNumber} size={10} />
-                                  </div>
-                                ))}
-                              </div>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {shipment.shipment_boxes?.length || 0} boxes
-                          </TableCell>
-                          <TableCell>
-                            {shipment.ups_delivery_date 
-                              ? shipment.ups_delivery_date.split("T")[0]
-                              : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {shipment.created_at.split("T")[0]}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getStatusColor(shipment.status)} className="capitalize">
-                              {shipment.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <ShipmentBoxesDialog 
-                                shipmentId={shipment.id}
-                                shipmentNumber={shipment.shipment_number}
-                                onSuccess={fetchShipments}
-                              />
-                              <EditShipmentDialog shipment={shipment} onSuccess={fetchShipments} />
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm" title="Delete">
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete shipment "{shipment.shipment_number}"? 
-                                      This will also delete all boxes associated with it. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                      onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <AddShipmentDialog onSuccess={fetchShipments} />
       </div>
-    </Layout>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="mb-4">
+            <Input
+              placeholder="Search by shipment number, batch, status, or box details..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-lg"
+            />
+          </div>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : filteredShipments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {shipments.length === 0
+                ? "No shipments yet. Click 'New Shipment' to create your first box."
+                : "No shipments found matching your search."}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Shipment Number</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Destinations</TableHead>
+                    <TableHead>UPS Tracking</TableHead>
+                    <TableHead>FBA ID</TableHead>
+                    <TableHead>Total Boxes</TableHead>
+                    <TableHead>Delivery Date</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredShipments.map((shipment) => {
+                    // Get unique destinations from boxes
+                    const destinations = [...new Set(
+                      shipment.shipment_boxes
+                        ?.map(box => box.destination)
+                        .filter(Boolean)
+                    )];
+
+                    // Get unique tracking numbers from boxes
+                    const trackingNumbers = [...new Set(
+                      shipment.shipment_boxes
+                        ?.map(box => box.ups_tracking_number)
+                        .filter(Boolean)
+                    )];
+
+                    const fbaNumbers = [...new Set(
+                      shipment.shipment_boxes
+                        ?.map(box => box.fba_id)
+                        .filter(Boolean)
+                    )];
+
+                    // Calculate total quantity based on sale type
+                    const totalPacks = shipment.shipment_boxes?.reduce((sum, box) =>
+                      sum + (box.packs_per_box || 0), 0) || 0;
+                    const totalBottles = shipment.shipment_boxes?.reduce((sum, box) =>
+                      sum + (box.bottles_per_box || 0), 0) || 0;
+
+                    const saleType = shipment.production_batches?.sale_type || "individual";
+                    const qtyDisplay = saleType === "pack"
+                      ? `${totalPacks} Packs`
+                      : `${totalBottles} Bottles`;
+
+                    return (
+                      <TableRow key={shipment.id}>
+                        <TableCell className="font-medium">
+                          {shipment.shipment_number}
+                        </TableCell>
+                        <TableCell>
+                          {shipment.production_batches?.batch_number || "-"}
+                          <CopyCell value={shipment.production_batches?.batch_number} size={14} />
+                        </TableCell>
+                        <TableCell>
+                          {qtyDisplay}
+                        </TableCell>
+                        <TableCell>
+                          {destinations.length > 0 ? destinations.join(", ") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {trackingNumbers.length > 0 ? (
+                            <div className="flex flex-col gap-1.5">
+                              {trackingNumbers.map((trackingNum, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className="font-mono">{trackingNum}</span>
+                                  <a
+                                    href={`https://www.ups.com/track?tracknum=${trackingNum}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:text-primary/80 shrink-0"
+                                    title="Track package on UPS"
+                                  >
+                                    <Truck className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                              ))}
+                            </div>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {fbaNumbers.length > 0 ? (
+                            <div className="flex flex-col gap-1.5">
+                              {fbaNumbers.map((fbaNumber, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className="font-mono">{fbaNumber}</span>
+                                  <CopyCell value={fbaNumber} size={10} />
+                                </div>
+                              ))}
+                            </div>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {shipment.shipment_boxes?.length || 0} boxes
+                        </TableCell>
+                        <TableCell>
+                          {shipment.ups_delivery_date
+                            ? shipment.ups_delivery_date.split("T")[0]
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {shipment.created_at.split("T")[0]}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(shipment.status)} className="capitalize">
+                            {shipment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <ShipmentBoxesDialog
+                              shipmentId={shipment.id}
+                              shipmentNumber={shipment.shipment_number}
+                              onSuccess={fetchShipments}
+                            />
+                            <EditShipmentDialog shipment={shipment} onSuccess={fetchShipments} />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" title="Delete">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete shipment "{shipment.shipment_number}"?
+                                    This will also delete all boxes associated with it. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteShipment(shipment.id, shipment.shipment_number)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

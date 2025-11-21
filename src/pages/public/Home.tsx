@@ -8,13 +8,38 @@ const Home = () => {
     const { data: featuredProducts, isLoading } = useQuery({
         queryKey: ["featured-products"],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("products")
-                .select("*")
-                .eq("is_active", true)
-                .limit(4);
+            // Fetch published variants with product info
+            const { data, error } = await (supabase
+                .from("product_variants" as any)
+                .select(`
+                    *,
+                    product:products!inner(id, name, description, image_url, category, is_published),
+                    vial_type:vial_types!inner(name, size_ml)
+                `)
+                .eq("is_published", true)
+                .eq("product.is_published", true)
+                .limit(4) as any);
+
             if (error) throw error;
-            return data;
+
+            // Group by product and get lowest price variant
+            const grouped: Record<string, any> = {};
+            (data as any[])?.forEach((variant: any) => {
+                const productId = variant.product.id;
+                if (!grouped[productId] || variant.price < grouped[productId].price) {
+                    grouped[productId] = {
+                        id: productId,
+                        name: variant.product.name,
+                        description: variant.product.description,
+                        image_url: variant.product.image_url,
+                        category: variant.product.category,
+                        price: variant.price,
+                        size_ml: variant.vial_type.size_ml,
+                    };
+                }
+            });
+
+            return Object.values(grouped).slice(0, 4);
         },
     });
 

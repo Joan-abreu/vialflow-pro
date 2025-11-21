@@ -20,8 +20,14 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ImageUpload } from "@/components/admin/ImageUpload";
 
 interface Product {
     id: string;
@@ -29,30 +35,105 @@ interface Product {
     description: string | null;
     is_active: boolean;
     is_published: boolean;
-    price: number;
     category: string | null;
     image_url: string | null;
+}
+
+interface ProductVariant {
+    id: string;
+    product_id: string;
+    vial_type_id: string;
+    sku: string | null;
+    price: number;
     stock_quantity: number;
+    is_published: boolean;
+    image_url: string | null;
+    vial_type: {
+        name: string;
+        size_ml: number;
+    };
+}
+
+interface VialType {
+    id: string;
+    name: string;
+    size_ml: number;
 }
 
 const ProductManagement = () => {
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+    const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+    const [productImageUrl, setProductImageUrl] = useState<string>("");
+    const [variantImageUrl, setVariantImageUrl] = useState<string>("");
     const queryClient = useQueryClient();
 
+    // Fetch products
     const { data: products, isLoading } = useQuery({
-        queryKey: ["products"],
+        queryKey: ["products-with-variants"],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from("products")
                 .select("*")
                 .order("name");
             if (error) throw error;
-            return data as unknown as Product[];
+            return data as Product[];
         },
     });
 
-    const createMutation = useMutation({
+    // Fetch variants for a product
+    const { data: variantsMap } = useQuery({
+        queryKey: ["product-variants-all"],
+        queryFn: async () => {
+            const { data, error } = await (supabase
+                .from("product_variants" as any)
+                .select(`
+                    *,
+                    vial_type:vial_types(name, size_ml)
+                `) as any);
+            if (error) throw error;
+
+            // Group by product_id
+            const grouped: Record<string, ProductVariant[]> = {};
+            (data as any[])?.forEach((v: any) => {
+                if (!grouped[v.product_id]) {
+                    grouped[v.product_id] = [];
+                }
+                grouped[v.product_id].push({
+                    id: v.id,
+                    product_id: v.product_id,
+                    vial_type_id: v.vial_type_id,
+                    sku: v.sku,
+                    price: v.price,
+                    stock_quantity: v.stock_quantity,
+                    is_published: v.is_published,
+                    image_url: v.image_url,
+                    vial_type: v.vial_type,
+                });
+            });
+            return grouped;
+        },
+    });
+
+    // Fetch vial types
+    const { data: vialTypes } = useQuery({
+        queryKey: ["vial-types"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("vial_types")
+                .select("*")
+                .eq("active", true)
+                .order("size_ml");
+            if (error) throw error;
+            return data as VialType[];
+        },
+    });
+
+    // Product mutations
+    const createProductMutation = useMutation({
         mutationFn: async (newProduct: Omit<Product, "id">) => {
             const { data, error } = await supabase
                 .from("products")
@@ -62,16 +143,16 @@ const ProductManagement = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
             toast.success("Product created successfully");
-            setIsDialogOpen(false);
+            setIsProductDialogOpen(false);
         },
         onError: (error) => {
             toast.error(`Error creating product: ${error.message}`);
         },
     });
 
-    const updateMutation = useMutation({
+    const updateProductMutation = useMutation({
         mutationFn: async (product: Product) => {
             const { data, error } = await supabase
                 .from("products")
@@ -82,9 +163,9 @@ const ProductManagement = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
             toast.success("Product updated successfully");
-            setIsDialogOpen(false);
+            setIsProductDialogOpen(false);
             setEditingProduct(null);
         },
         onError: (error) => {
@@ -92,13 +173,13 @@ const ProductManagement = () => {
         },
     });
 
-    const deleteMutation = useMutation({
+    const deleteProductMutation = useMutation({
         mutationFn: async (id: string) => {
             const { error } = await supabase.from("products").delete().eq("id", id);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products"] });
+            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
             toast.success("Product deleted successfully");
         },
         onError: (error) => {
@@ -106,44 +187,145 @@ const ProductManagement = () => {
         },
     });
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    // Variant mutations
+    const createVariantMutation = useMutation({
+        mutationFn: async (newVariant: Omit<ProductVariant, "id" | "vial_type">) => {
+            const { data, error } = await (supabase
+                .from("product_variants" as any)
+                .insert([newVariant])
+                .select() as any);
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["product-variants-all"] });
+            toast.success("Variant created successfully");
+            setIsVariantDialogOpen(false);
+        },
+        onError: (error: any) => {
+            toast.error(`Error creating variant: ${error.message}`);
+        },
+    });
+
+    const updateVariantMutation = useMutation({
+        mutationFn: async (variant: Omit<ProductVariant, "vial_type">) => {
+            const { data, error } = await (supabase
+                .from("product_variants" as any)
+                .update(variant)
+                .eq("id", variant.id)
+                .select() as any);
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["product-variants-all"] });
+            toast.success("Variant updated successfully");
+            setIsVariantDialogOpen(false);
+            setEditingVariant(null);
+        },
+        onError: (error: any) => {
+            toast.error(`Error updating variant: ${error.message}`);
+        },
+    });
+
+    const deleteVariantMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await (supabase.from("product_variants" as any).delete().eq("id", id) as any);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["product-variants-all"] });
+            toast.success("Variant deleted successfully");
+        },
+        onError: (error: any) => {
+            toast.error(`Error deleting variant: ${error.message}`);
+        },
+    });
+
+    const handleProductSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const productData = {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
-            price: parseFloat(formData.get("price") as string) || 0,
             category: formData.get("category") as string,
-            image_url: formData.get("image_url") as string,
-            stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
+            image_url: productImageUrl || formData.get("image_url") as string,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
         };
 
         if (editingProduct) {
-            updateMutation.mutate({ ...productData, id: editingProduct.id });
+            updateProductMutation.mutate({ ...productData, id: editingProduct.id });
         } else {
-            createMutation.mutate(productData);
+            createProductMutation.mutate(productData);
         }
     };
 
-    const handleEdit = (product: Product) => {
+    const handleVariantSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const variantData = {
+            product_id: selectedProductId!,
+            vial_type_id: formData.get("vial_type_id") as string,
+            sku: formData.get("sku") as string,
+            price: parseFloat(formData.get("price") as string) || 0,
+            stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
+            is_published: formData.get("is_published") === "on",
+            image_url: variantImageUrl || null,
+        };
+
+        if (editingVariant) {
+            updateVariantMutation.mutate({ ...variantData, id: editingVariant.id });
+        } else {
+            createVariantMutation.mutate(variantData);
+        }
+    };
+
+    const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
-        setIsDialogOpen(true);
+        setIsProductDialogOpen(true);
     };
 
-    const handleDelete = (id: string) => {
-        if (confirm("Are you sure you want to delete this product?")) {
-            deleteMutation.mutate(id);
+    const handleDeleteProduct = (id: string) => {
+        if (confirm("Are you sure you want to delete this product and all its variants?")) {
+            deleteProductMutation.mutate(id);
         }
+    };
+
+    const handleAddVariant = (productId: string) => {
+        setSelectedProductId(productId);
+        setEditingVariant(null);
+        setIsVariantDialogOpen(true);
+    };
+
+    const handleEditVariant = (variant: ProductVariant) => {
+        setSelectedProductId(variant.product_id);
+        setEditingVariant(variant);
+        setIsVariantDialogOpen(true);
+    };
+
+    const handleDeleteVariant = (id: string) => {
+        if (confirm("Are you sure you want to delete this variant?")) {
+            deleteVariantMutation.mutate(id);
+        }
+    };
+
+    const toggleExpanded = (productId: string) => {
+        const newExpanded = new Set(expandedProducts);
+        if (newExpanded.has(productId)) {
+            newExpanded.delete(productId);
+        } else {
+            newExpanded.add(productId);
+        }
+        setExpandedProducts(newExpanded);
     };
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Product Management</h1>
-                <Dialog open={isDialogOpen} onOpenChange={(open) => {
-                    setIsDialogOpen(open);
+                <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
+                    setIsProductDialogOpen(open);
                     if (!open) setEditingProduct(null);
                 }}>
                     <DialogTrigger asChild>
@@ -155,7 +337,7 @@ const ProductManagement = () => {
                         <DialogHeader>
                             <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
                         </DialogHeader>
-                        <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleSubmit} className="space-y-4">
+                        <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Name</Label>
                                 <Input id="name" name="name" defaultValue={editingProduct?.name} required />
@@ -163,16 +345,6 @@ const ProductManagement = () => {
                             <div className="space-y-2">
                                 <Label htmlFor="description">Description</Label>
                                 <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="price">Price</Label>
-                                    <Input id="price" name="price" type="number" step="0.01" defaultValue={editingProduct?.price} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="stock_quantity">Stock</Label>
-                                    <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingProduct?.stock_quantity} />
-                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="category">Category</Label>
@@ -219,16 +391,77 @@ const ProductManagement = () => {
                 </Dialog>
             </div>
 
+            {/* Variant Dialog */}
+            <Dialog open={isVariantDialogOpen} onOpenChange={(open) => {
+                setIsVariantDialogOpen(open);
+                if (!open) {
+                    setEditingVariant(null);
+                    setSelectedProductId(null);
+                }
+            }}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
+                    </DialogHeader>
+                    <form key={editingVariant ? editingVariant.id : "new"} onSubmit={handleVariantSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="vial_type_id">Vial Type</Label>
+                            <select
+                                id="vial_type_id"
+                                name="vial_type_id"
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                defaultValue={editingVariant?.vial_type_id || ""}
+                                required
+                            >
+                                <option value="" disabled>Select vial type</option>
+                                {vialTypes?.map((vt) => (
+                                    <option key={vt.id} value={vt.id}>
+                                        {vt.name} ({vt.size_ml}ml)
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="sku">SKU (Optional)</Label>
+                            <Input id="sku" name="sku" defaultValue={editingVariant?.sku || ""} placeholder="SKU-001" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="price">Price</Label>
+                                <Input id="price" name="price" type="number" step="0.01" defaultValue={editingVariant?.price} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="stock_quantity">Stock</Label>
+                                <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                id="variant_is_published"
+                                name="is_published"
+                                className="h-4 w-4 rounded border-gray-300"
+                                defaultChecked={editingVariant?.is_published ?? true}
+                            />
+                            <Label htmlFor="variant_is_published">Published</Label>
+                        </div>
+                        <Button type="submit" className="w-full">
+                            {editingVariant ? "Update Variant" : "Create Variant"}
+                        </Button>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             <div className="border rounded-lg">
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-12"></TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Category</TableHead>
-                            <TableHead>Price</TableHead>
-                            <TableHead>Stock</TableHead>
                             <TableHead>Manufacturing</TableHead>
                             <TableHead>E-commerce</TableHead>
+                            <TableHead>Variants</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -246,34 +479,103 @@ const ProductManagement = () => {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            products?.map((product) => (
-                                <TableRow key={product.id}>
-                                    <TableCell className="font-medium">{product.name}</TableCell>
-                                    <TableCell>{product.category}</TableCell>
-                                    <TableCell>${product.price}</TableCell>
-                                    <TableCell>{product.stock_quantity}</TableCell>
-                                    <TableCell>
-                                        <span className={`px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                            {product.is_active ? 'Active' : 'Inactive'}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className={`px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                            {product.is_published ? 'Published' : 'Draft'}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(product.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))
+                            products?.map((product) => {
+                                const variants = variantsMap?.[product.id] || [];
+                                const isExpanded = expandedProducts.has(product.id);
+
+                                return (
+                                    <>
+                                        <TableRow key={product.id}>
+                                            <TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6"
+                                                    onClick={() => toggleExpanded(product.id)}
+                                                >
+                                                    {isExpanded ? (
+                                                        <ChevronDown className="h-4 w-4" />
+                                                    ) : (
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </TableCell>
+                                            <TableCell className="font-medium">{product.name}</TableCell>
+                                            <TableCell>{product.category}</TableCell>
+                                            <TableCell>
+                                                <span className={`px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {product.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className={`px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {product.is_published ? 'Published' : 'Draft'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
+                                                        <Plus className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product.id)}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                        {isExpanded && variants.length > 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="bg-muted/50 p-0">
+                                                    <div className="p-4">
+                                                        <h4 className="font-semibold mb-3 text-sm">Variants</h4>
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead>Size</TableHead>
+                                                                    <TableHead>SKU</TableHead>
+                                                                    <TableHead>Price</TableHead>
+                                                                    <TableHead>Stock</TableHead>
+                                                                    <TableHead>Status</TableHead>
+                                                                    <TableHead className="text-right">Actions</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {variants.map((variant) => (
+                                                                    <TableRow key={variant.id}>
+                                                                        <TableCell>{variant.vial_type.size_ml}ml</TableCell>
+                                                                        <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
+                                                                        <TableCell>${variant.price.toFixed(2)}</TableCell>
+                                                                        <TableCell>{variant.stock_quantity}</TableCell>
+                                                                        <TableCell>
+                                                                            <span className={`px-2 py-1 rounded-full text-xs ${variant.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                                {variant.is_published ? 'Published' : 'Draft'}
+                                                                            </span>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            <div className="flex justify-end gap-2">
+                                                                                <Button variant="ghost" size="icon" onClick={() => handleEditVariant(variant)}>
+                                                                                    <Pencil className="h-3 w-3" />
+                                                                                </Button>
+                                                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteVariant(variant.id)}>
+                                                                                    <Trash2 className="h-3 w-3" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>

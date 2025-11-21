@@ -67,21 +67,21 @@ const Checkout = () => {
                         <h2 className="text-xl font-semibold mb-4">Order Review</h2>
                         <div className="space-y-4">
                             {items.map((item) => (
-                                <div key={item.product.id} className="flex justify-between items-center">
+                                <div key={item.variant.id} className="flex justify-between items-center">
                                     <div className="flex items-center gap-3">
                                         <div className="h-12 w-12 bg-background rounded border flex items-center justify-center overflow-hidden">
-                                            {item.product.image_url ? (
-                                                <img src={item.product.image_url} alt={item.product.name} className="h-full w-full object-cover" />
+                                            {item.variant.product.image_url ? (
+                                                <img src={item.variant.product.image_url} alt={item.variant.product.name} className="h-full w-full object-cover" />
                                             ) : (
                                                 <span className="text-[10px]">Img</span>
                                             )}
                                         </div>
                                         <div>
-                                            <p className="font-medium text-sm">{item.product.name}</p>
-                                            <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                                            <p className="font-medium text-sm">{item.variant.product.name}</p>
+                                            <p className="text-xs text-muted-foreground">{item.variant.vial_type.size_ml}ml - Qty: {item.quantity}</p>
                                         </div>
                                     </div>
-                                    <span className="font-medium">${(item.product.price * item.quantity).toFixed(2)}</span>
+                                    <span className="font-medium">${(item.variant.price * item.quantity).toFixed(2)}</span>
                                 </div>
                             ))}
 

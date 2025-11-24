@@ -378,6 +378,7 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          default_pack_size: number | null
           description: string | null
           id: string
           image_url: string | null
@@ -385,12 +386,14 @@ export type Database = {
           is_published: boolean | null
           name: string
           price: number | null
+          sale_type: string
           stock_quantity: number | null
           updated_at: string
         }
         Insert: {
           category?: string | null
           created_at?: string
+          default_pack_size?: number | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -398,12 +401,14 @@ export type Database = {
           is_published?: boolean | null
           name: string
           price?: number | null
+          sale_type?: string
           stock_quantity?: number | null
           updated_at?: string
         }
         Update: {
           category?: string | null
           created_at?: string
+          default_pack_size?: number | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -411,6 +416,7 @@ export type Database = {
           is_published?: boolean | null
           name?: string
           price?: number | null
+          sale_type?: string
           stock_quantity?: number | null
           updated_at?: string
         }

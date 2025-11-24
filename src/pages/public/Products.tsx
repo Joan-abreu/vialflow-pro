@@ -15,6 +15,8 @@ interface ProductWithVariants {
     description: string | null;
     image_url: string | null;
     category: string | null;
+    sale_type: string;
+    default_pack_size: number | null;
     variants: ProductVariant[];
 }
 
@@ -32,7 +34,7 @@ const Products = () => {
                 .from("product_variants")
                 .select(`
                     *,
-                    product:products!inner(id, name, description, image_url, category, is_published),
+                    product:products!inner(id, name, description, image_url, category, is_published, sale_type, default_pack_size),
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
@@ -58,6 +60,8 @@ const Products = () => {
                         description: variant.product.description,
                         image_url: variant.product.image_url,
                         category: variant.product.category,
+                        sale_type: variant.product.sale_type || 'individual',
+                        default_pack_size: variant.product.default_pack_size,
                         variants: [],
                     };
                 }
@@ -192,7 +196,7 @@ const Products = () => {
                                             {product.description}
                                         </p>
                                     )}
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between mb-3">
                                         <div>
                                             <p className="text-2xl font-bold text-primary">
                                                 ${getLowestPrice(product.variants).toFixed(2)}
@@ -203,6 +207,11 @@ const Products = () => {
                                             </p>
                                         </div>
                                     </div>
+                                    {product.sale_type === 'pack' && product.default_pack_size && (
+                                        <Badge variant="secondary" className="text-xs">
+                                            Pack of {product.default_pack_size} units
+                                        </Badge>
+                                    )}
                                 </div>
                             </div>
                         ))

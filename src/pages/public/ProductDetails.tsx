@@ -14,6 +14,8 @@ interface ProductWithVariants {
     description: string | null;
     image_url: string | null;
     category: string | null;
+    sale_type: string;
+    default_pack_size: number | null;
     variants: ProductVariant[];
 }
 
@@ -80,6 +82,8 @@ const ProductDetails = () => {
                 description: productData.description,
                 image_url: productData.image_url,
                 category: productData.category,
+                sale_type: productData.sale_type || 'individual',
+                default_pack_size: productData.default_pack_size,
                 variants,
             } as ProductWithVariants;
         },
@@ -157,6 +161,13 @@ const ProductDetails = () => {
                         <p className="text-lg text-muted-foreground leading-relaxed">
                             {product.description || "No description available for this product."}
                         </p>
+                        {product.sale_type === 'pack' && product.default_pack_size && (
+                            <div className="mt-4 flex items-center gap-2">
+                                <Badge variant="secondary" className="text-sm py-1.5 px-3">
+                                    Pack of {product.default_pack_size} units
+                                </Badge>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-6 pt-6 border-t">

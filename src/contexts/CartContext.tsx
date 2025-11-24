@@ -17,6 +17,8 @@ export interface ProductVariant {
     sku: string | null;
     price: number;
     stock_quantity: number;
+    image_url: string | null;
+    pack_size: number;
     product: {
         name: string;
         image_url: string | null;

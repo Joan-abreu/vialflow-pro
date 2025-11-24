@@ -69,6 +69,7 @@ const Products = () => {
                     sku: variant.sku,
                     price: variant.price,
                     stock_quantity: variant.stock_quantity,
+                    image_url: variant.image_url,
                     product: {
                         name: variant.product.name,
                         image_url: variant.product.image_url,
@@ -172,11 +173,16 @@ const Products = () => {
                                 onClick={() => navigate(`/products/${product.id}`)}
                             >
                                 <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                                    {product.image_url ? (
-                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="text-muted-foreground">No image</div>
-                                    )}
+                                    {(() => {
+                                        // Use product image or fallback to first variant with image
+                                        const displayImage = product.image_url || product.variants.find(v => v.image_url)?.image_url;
+
+                                        return displayImage ? (
+                                            <img src={displayImage} alt={product.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="text-muted-foreground">No image</div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="p-4">
                                     <h3 className="font-semibold text-lg mb-1">{product.name}</h3>

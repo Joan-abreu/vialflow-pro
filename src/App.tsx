@@ -2,11 +2,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import Auth from "./pages/Auth";
+
 import Dashboard from "./pages/Dashboard";
 import Production from "./pages/Production";
 import Inventory from "./pages/Inventory";
@@ -102,26 +102,20 @@ const App = () => {
               <Route path="/account" element={<Account />} />
               <Route path="/terms" element={<ComingSoon />} />
               <Route path="/privacy" element={<ComingSoon />} />
-              <Route path="/auth" element={<Auth />} />
+              <Route path="/privacy" element={<ComingSoon />} />
             </Route>
 
             {/* Manufacturing Routes */}
-            <Route path="/manufacturing">
-              {session ? (
-                <>
-                  <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
-                  <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-                  <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
-                  <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
-                  <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
-                  <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
-                  <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
-                  <Route path="bom/:batchId" element={<BillOfMaterials />} />
-                </>
-              ) : (
-                <Route path="*" element={<Navigate to="/auth" replace />} />
-              )}
+            <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
+              <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
+              <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+              <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
+              <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+              <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+              <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
+              <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
+              <Route path="bom/:batchId" element={<BillOfMaterials />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

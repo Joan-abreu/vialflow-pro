@@ -52,16 +52,43 @@ export const ImageUpload = ({
 
     return (
         <div className="space-y-2">
-            {existingUrl && (
-                <img src={existingUrl} alt="Current" className="h-24 w-24 object-cover rounded" />
+            {existingUrl ? (
+                <div className="relative inline-block">
+                    <img src={existingUrl} alt="Current" className="h-24 w-24 object-cover rounded" />
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                        onClick={() => onUpload("")}
+                    >
+                        <span className="sr-only">Remove</span>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-3 w-3"
+                        >
+                            <path d="M18 6 6 18" />
+                            <path d="m6 6 12 12" />
+                        </svg>
+                    </Button>
+                </div>
+            ) : (
+                <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    disabled={uploading}
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
             )}
-            <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={uploading}
-                className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-            />
             {uploading && <Progress value={progress} className="w-full" />}
         </div>
     );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -270,6 +271,7 @@ const ProductManagement = () => {
             sku: formData.get("sku") as string,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
+            pack_size: parseInt(formData.get("pack_size") as string) || 1,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
         };
@@ -336,6 +338,9 @@ const ProductManagement = () => {
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                             <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
+                            <DialogDescription>
+                                {editingProduct ? "Update product information" : "Create a new product"}
+                            </DialogDescription>
                         </DialogHeader>
                         <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
                             <div className="space-y-2">
@@ -360,8 +365,16 @@ const ProductManagement = () => {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="image_url">Image URL</Label>
-                                <Input id="image_url" name="image_url" defaultValue={editingProduct?.image_url || ""} placeholder="https://..." />
+                                <Label htmlFor="image_url">Product Image</Label>
+                                <ImageUpload
+                                    existingUrl={editingProduct?.image_url || ""}
+                                    onUpload={(url) => {
+                                        const input = document.getElementById('image_url') as HTMLInputElement;
+                                        if (input) input.value = url;
+                                    }}
+                                />
+                                {/* Hidden input to store the URL for form submission */}
+                                <Input type="hidden" id="image_url" name="image_url" defaultValue={editingProduct?.image_url || ""} />
                             </div>
                             <div className="flex items-center space-x-2">
                                 <input
@@ -402,6 +415,9 @@ const ProductManagement = () => {
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
+                        <DialogDescription>
+                            {editingVariant ? "Update variant details" : "Create a new product variant"}
+                        </DialogDescription>
                     </DialogHeader>
                     <form key={editingVariant ? editingVariant.id : "new"} onSubmit={handleVariantSubmit} className="space-y-4">
                         <div className="space-y-2">
@@ -435,6 +451,11 @@ const ProductManagement = () => {
                                 <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
                             </div>
                         </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="pack_size">Pack Size</Label>
+                            <Input id="pack_size" name="pack_size" type="number" min="1" defaultValue={editingVariant?.pack_size || 1} required />
+                            <p className="text-xs text-muted-foreground">Number of vials in this pack (default: 1)</p>
+                        </div>
                         <div className="flex items-center space-x-2">
                             <input
                                 type="checkbox"
@@ -457,6 +478,7 @@ const ProductManagement = () => {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-12"></TableHead>
+                            <TableHead>Image</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead>Manufacturing</TableHead>
@@ -484,8 +506,8 @@ const ProductManagement = () => {
                                 const isExpanded = expandedProducts.has(product.id);
 
                                 return (
-                                    <>
-                                        <TableRow key={product.id}>
+                                    <React.Fragment key={product.id}>
+                                        <TableRow>
                                             <TableCell>
                                                 <Button
                                                     variant="ghost"
@@ -495,21 +517,6 @@ const ProductManagement = () => {
                                                 >
                                                     {isExpanded ? (
                                                         <ChevronDown className="h-4 w-4" />
-                                                    ) : (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableCell>
-                                            <TableCell className="font-medium">{product.name}</TableCell>
-                                            <TableCell>{product.category}</TableCell>
-                                            <TableCell>
-                                                <span className={`px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {product.is_active ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className={`px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {product.is_published ? 'Published' : 'Draft'}
                                                 </span>
                                             </TableCell>
                                             <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
@@ -536,6 +543,7 @@ const ProductManagement = () => {
                                                             <TableHeader>
                                                                 <TableRow>
                                                                     <TableHead>Size</TableHead>
+                                                                    <TableHead>Pack Size</TableHead>
                                                                     <TableHead>SKU</TableHead>
                                                                     <TableHead>Price</TableHead>
                                                                     <TableHead>Stock</TableHead>
@@ -547,6 +555,7 @@ const ProductManagement = () => {
                                                                 {variants.map((variant) => (
                                                                     <TableRow key={variant.id}>
                                                                         <TableCell>{variant.vial_type.size_ml}ml</TableCell>
+                                                                        <TableCell>{variant.pack_size}x</TableCell>
                                                                         <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
                                                                         <TableCell>${variant.price.toFixed(2)}</TableCell>
                                                                         <TableCell>{variant.stock_quantity}</TableCell>
@@ -573,7 +582,7 @@ const ProductManagement = () => {
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                    </>
+                                    </React.Fragment>
                                 );
                             })
                         )}

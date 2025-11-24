@@ -78,7 +78,11 @@ const Checkout = () => {
                                         </div>
                                         <div>
                                             <p className="font-medium text-sm">{item.variant.product.name}</p>
-                                            <p className="text-xs text-muted-foreground">{item.variant.vial_type.size_ml}ml - Qty: {item.quantity}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {item.variant.vial_type.size_ml}ml
+                                                {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
+                                                {' '}- Qty: {item.quantity}
+                                            </p>
                                         </div>
                                     </div>
                                     <span className="font-medium">${(item.variant.price * item.quantity).toFixed(2)}</span>

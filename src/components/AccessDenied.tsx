@@ -11,7 +11,7 @@ const AccessDenied = () => {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     toast.success("Signed out successfully");
-    navigate("/auth");
+    navigate("/login");
   };
 
   return (
@@ -34,7 +34,7 @@ const AccessDenied = () => {
             Please contact the system administrator to request access.
           </p>
           <div className="pt-4">
-            <Button 
+            <Button
               onClick={handleSignOut}
               variant="outline"
               className="w-full"

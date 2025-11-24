@@ -34,7 +34,10 @@ const Cart = () => {
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <h3 className="font-semibold">{item.variant.product.name}</h3>
-                                            <p className="text-sm text-muted-foreground">{item.variant.vial_type.size_ml}ml</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {item.variant.vial_type.size_ml}ml
+                                                {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
+                                            </p>
                                         </div>
                                         <Button
                                             variant="ghost"

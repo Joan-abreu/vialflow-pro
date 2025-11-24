@@ -1,14 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.77.0'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 }
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { status: 204, headers: corsHeaders })
   }
 
   try {
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     // Get the user from the auth token
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
-    
+
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
@@ -68,22 +68,22 @@ Deno.serve(async (req) => {
       .from('user_roles')
       .select('id, user_id, role')
 
-      // Combine the data
-      const usersWithRoles = authUsers.users.map(authUser => {
-        const profile = profiles?.find(p => p.user_id === authUser.id)
-        const userRole = roles?.find(r => r.user_id === authUser.id)
-        const authUserData = authUser as any; // Cast to access banned_until
-        
-        return {
-          id: authUser.id,
-          email: authUser.email || 'No email',
-          created_at: authUser.created_at,
-          full_name: profile?.full_name,
-          role: userRole?.role || 'pending',
-          role_id: userRole?.id || '',
-          banned_until: authUserData.banned_until || null,
-        }
-      })
+    // Combine the data
+    const usersWithRoles = authUsers.users.map(authUser => {
+      const profile = profiles?.find(p => p.user_id === authUser.id)
+      const userRole = roles?.find(r => r.user_id === authUser.id)
+      const authUserData = authUser as any; // Cast to access banned_until
+
+      return {
+        id: authUser.id,
+        email: authUser.email || 'No email',
+        created_at: authUser.created_at,
+        full_name: profile?.full_name,
+        role: userRole?.role || 'pending',
+        role_id: userRole?.id || '',
+        banned_until: authUserData.banned_until || null,
+      }
+    })
 
     return new Response(
       JSON.stringify({ users: usersWithRoles }),

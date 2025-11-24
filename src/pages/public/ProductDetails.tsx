@@ -55,6 +55,8 @@ const ProductDetails = () => {
                 sku: v.sku,
                 price: v.price,
                 stock_quantity: v.stock_quantity,
+                image_url: v.image_url,
+                pack_size: v.pack_size || 1,
                 product: {
                     name: productData.name,
                     image_url: productData.image_url,
@@ -123,18 +125,21 @@ const ProductDetails = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
                 {/* Product Image */}
                 <div className="bg-card rounded-2xl border overflow-hidden aspect-square flex items-center justify-center p-8">
-                    {product.image_url ? (
-                        <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
-                        />
-                    ) : (
-                        <div className="text-center text-muted-foreground">
-                            <span className="block text-6xl mb-4">📦</span>
-                            <span>No image available</span>
-                        </div>
-                    )}
+                    {(() => {
+                        const displayImage = selectedVariant?.image_url || product.image_url;
+                        return displayImage ? (
+                            <img
+                                src={displayImage}
+                                alt={product.name}
+                                className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
+                            />
+                        ) : (
+                            <div className="text-center text-muted-foreground">
+                                <span className="block text-6xl mb-4">📦</span>
+                                <span>No image available</span>
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Product Info */}
@@ -164,11 +169,11 @@ const ProductDetails = () => {
                                         key={variant.id}
                                         onClick={() => setSelectedVariantId(variant.id)}
                                         className={`px-6 py-3 rounded-lg border-2 transition-all ${selectedVariantId === variant.id
-                                                ? 'border-primary bg-primary/10 text-primary font-semibold'
-                                                : 'border-border hover:border-primary/50'
+                                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                                            : 'border-border hover:border-primary/50'
                                             }`}
                                     >
-                                        <div className="text-sm font-medium">{variant.vial_type.size_ml}ml</div>
+                                        <div className="text-sm font-medium">{variant.vial_type.size_ml}ml {variant.pack_size > 1 ? `(${variant.pack_size}x Pack)` : ''}</div>
                                         <div className="text-xs text-muted-foreground">${variant.price.toFixed(2)}</div>
                                     </button>
                                 ))}

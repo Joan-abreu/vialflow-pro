@@ -37,7 +37,24 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 
 interface Product {
@@ -74,6 +91,70 @@ interface VialType {
     size_ml: number;
 }
 
+interface SortableVariantRowProps {
+    variant: ProductVariant;
+    onEdit: (variant: ProductVariant) => void;
+    onDelete: (id: string) => void;
+}
+
+const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id: variant.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    return (
+        <TableRow ref={setNodeRef} style={style}>
+            <TableCell>
+                <div {...attributes} {...listeners} className="cursor-move touch-none flex items-center justify-center">
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </div>
+            </TableCell>
+            <TableCell>
+                {variant.image_url ? (
+                    <img
+                        src={variant.image_url}
+                        alt={`${variant.vial_type.size_ml}ml variant`}
+                        className="h-10 w-10 object-cover rounded"
+                    />
+                ) : (
+                    <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
+                        —
+                    </div>
+                )}
+            </TableCell>
+            <TableCell>{variant.vial_type.size_ml}ml</TableCell>
+            <TableCell>{variant.pack_size}x</TableCell>
+            <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
+            <TableCell>${variant.price.toFixed(2)}</TableCell>
+            <TableCell>{variant.stock_quantity}</TableCell>
+            <TableCell>
+                <span className={`px-2 py-1 rounded-full text-xs ${variant.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {variant.is_published ? 'Published' : 'Draft'}
+                </span>
+            </TableCell>
+            <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(variant)}>
+                        <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDelete(variant.id)}>
+                        <Trash2 className="h-3 w-3" />
+                    </Button>
+                </div>
+            </TableCell>
+        </TableRow>
+    );
+};
+
 const ProductManagement = () => {
     const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
     const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
@@ -109,7 +190,8 @@ const ProductManagement = () => {
                 .select(`
                     *,
                     vial_type:vial_types(name, size_ml)
-                `) as any);
+                `)
+                .order('position', { ascending: true }) as any);
             if (error) throw error;
 
             // Group by product_id
@@ -198,25 +280,25 @@ const ProductManagement = () => {
                 .select("id")
                 .eq("product_id", id)
                 .limit(1);
-            
+
             if (batchError) throw batchError;
-            
+
             if (batches && batches.length > 0) {
                 throw new Error("Cannot delete product with existing production batches. Please remove or reassign the batches first.");
             }
-            
+
             // Check if there are variants
             const { data: variants, error: variantError } = await (supabase
                 .from("product_variants" as any)
                 .select("id")
                 .eq("product_id", id) as any);
-            
+
             if (variantError) throw variantError;
-            
+
             if (variants && variants.length > 0) {
                 throw new Error("Cannot delete product with existing variants. Please delete all variants first.");
             }
-            
+
             // If no dependencies, proceed with deletion
             const { error } = await supabase.from("products").delete().eq("id", id);
             if (error) throw error;
@@ -290,7 +372,7 @@ const ProductManagement = () => {
         const formData = new FormData(e.currentTarget);
         const saleType = formData.get("sale_type") as string;
         const packSize = formData.get("default_pack_size") as string;
-        
+
         const productData = {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
@@ -368,6 +450,64 @@ const ProductManagement = () => {
         }
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            let productId: string | null = null;
+            let variants: ProductVariant[] = [];
+
+            // Find which product these variants belong to
+            for (const [pid, list] of Object.entries(variantsMap || {})) {
+                if (list.find(v => v.id === active.id)) {
+                    productId = pid;
+                    variants = list;
+                    break;
+                }
+            }
+
+            if (productId && variants.length > 0) {
+                const oldIndex = variants.findIndex((v) => v.id === active.id);
+                const newIndex = variants.findIndex((v) => v.id === over.id);
+
+                if (oldIndex !== -1 && newIndex !== -1) {
+                    const newVariants = arrayMove(variants, oldIndex, newIndex);
+
+                    // Optimistic update
+                    queryClient.setQueryData(["product-variants-all"], (oldData: any) => {
+                        return {
+                            ...oldData,
+                            [productId!]: newVariants
+                        };
+                    });
+
+                    // Update positions in DB
+                    const updates = newVariants.map((v, index) => ({
+                        id: v.id,
+                        position: index,
+                    }));
+
+                    try {
+                        await Promise.all(updates.map(u =>
+                            supabase.from('product_variants' as any).update({ position: u.position }).eq('id', u.id)
+                        ));
+                        toast.success("Order updated");
+                    } catch (error) {
+                        toast.error("Failed to update order");
+                        queryClient.invalidateQueries({ queryKey: ["product-variants-all"] });
+                    }
+                }
+            }
+        }
+    };
+
     const toggleExpanded = (productId: string) => {
         const newExpanded = new Set(expandedProducts);
         if (newExpanded.has(productId)) {
@@ -379,382 +519,365 @@ const ProductManagement = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Product Management</h1>
-                <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
-                    setIsProductDialogOpen(open);
+        <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+        >
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold">Product Management</h1>
+                    <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
+                        setIsProductDialogOpen(open);
+                        if (!open) {
+                            setEditingProduct(null);
+                            setProductImageUrl("");
+                            setSaleType("individual");
+                        }
+                    }}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Add Product
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
+                                <DialogDescription>
+                                    {editingProduct ? "Update product information" : "Create a new product"}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Name</Label>
+                                    <Input id="name" name="name" defaultValue={editingProduct?.name} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Description</Label>
+                                    <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="category">Category</Label>
+                                    <select
+                                        id="category"
+                                        name="category"
+                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        defaultValue={editingProduct?.category || ""}
+                                    >
+                                        <option value="" disabled>Select a category</option>
+                                        <option value="Peptides">Peptides</option>
+                                        <option value="Water">Water</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="image_url">Product Image</Label>
+                                    <ImageUpload
+                                        existingUrl={productImageUrl}
+                                        onUpload={setProductImageUrl}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="sale_type">Sale Type</Label>
+                                    <select
+                                        id="sale_type"
+                                        name="sale_type"
+                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                        value={saleType}
+                                        onChange={(e) => setSaleType(e.target.value)}
+                                    >
+                                        <option value="individual">Individual</option>
+                                        <option value="pack">Pack</option>
+                                    </select>
+                                </div>
+                                {saleType === "pack" && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="default_pack_size">Pack Size</Label>
+                                        <Input
+                                            id="default_pack_size"
+                                            name="default_pack_size"
+                                            type="number"
+                                            min="1"
+                                            defaultValue={editingProduct?.default_pack_size || ""}
+                                            placeholder="Enter number of units in pack"
+                                            required
+                                        />
+                                        <p className="text-xs text-muted-foreground">Number of units included in this pack</p>
+                                    </div>
+                                )}
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="is_active"
+                                        name="is_active"
+                                        className="h-4 w-4 rounded border-gray-300"
+                                        defaultChecked={editingProduct?.is_active ?? true}
+                                    />
+                                    <Label htmlFor="is_active">Active (Manufacturing)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="is_published"
+                                        name="is_published"
+                                        className="h-4 w-4 rounded border-gray-300"
+                                        defaultChecked={editingProduct?.is_published ?? false}
+                                    />
+                                    <Label htmlFor="is_published">Published (E-commerce)</Label>
+                                </div>
+                                <Button type="submit" className="w-full">
+                                    {editingProduct ? "Update Product" : "Create Product"}
+                                </Button>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+
+                {/* Variant Dialog */}
+                <Dialog open={isVariantDialogOpen} onOpenChange={(open) => {
+                    setIsVariantDialogOpen(open);
                     if (!open) {
-                        setEditingProduct(null);
-                        setProductImageUrl("");
-                        setSaleType("individual");
+                        setEditingVariant(null);
+                        setSelectedProductId(null);
+                        setVariantImageUrl("");
                     }
                 }}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Add Product
-                        </Button>
-                    </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
-                            <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
+                            <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
                             <DialogDescription>
-                                {editingProduct ? "Update product information" : "Create a new product"}
+                                {editingVariant ? "Update variant details" : "Create a new product variant"}
                             </DialogDescription>
                         </DialogHeader>
-                        <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
+                        <form key={editingVariant ? editingVariant.id : "new"} onSubmit={handleVariantSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="name">Name</Label>
-                                <Input id="name" name="name" defaultValue={editingProduct?.name} required />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="category">Category</Label>
+                                <Label htmlFor="vial_type_id">Vial Type</Label>
                                 <select
-                                    id="category"
-                                    name="category"
-                                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    defaultValue={editingProduct?.category || ""}
+                                    id="vial_type_id"
+                                    name="vial_type_id"
+                                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    defaultValue={editingVariant?.vial_type_id || ""}
+                                    required
                                 >
-                                    <option value="" disabled>Select a category</option>
-                                    <option value="Peptides">Peptides</option>
-                                    <option value="Water">Water</option>
+                                    <option value="" disabled>Select vial type</option>
+                                    {vialTypes?.map((vt) => (
+                                        <option key={vt.id} value={vt.id}>
+                                            {vt.name} ({vt.size_ml}ml)
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="image_url">Product Image</Label>
-                                <ImageUpload
-                                    existingUrl={productImageUrl}
-                                    onUpload={setProductImageUrl}
-                                />
+                                <Label htmlFor="sku">SKU (Optional)</Label>
+                                <Input id="sku" name="sku" defaultValue={editingVariant?.sku || ""} placeholder="SKU-001" />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="sale_type">Sale Type</Label>
-                                <select
-                                    id="sale_type"
-                                    name="sale_type"
-                                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                    value={saleType}
-                                    onChange={(e) => setSaleType(e.target.value)}
-                                >
-                                    <option value="individual">Individual</option>
-                                    <option value="pack">Pack</option>
-                                </select>
-                            </div>
-                            {saleType === "pack" && (
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="default_pack_size">Pack Size</Label>
-                                    <Input 
-                                        id="default_pack_size" 
-                                        name="default_pack_size" 
-                                        type="number" 
-                                        min="1"
-                                        defaultValue={editingProduct?.default_pack_size || ""}
-                                        placeholder="Enter number of units in pack"
-                                        required
-                                    />
-                                    <p className="text-xs text-muted-foreground">Number of units included in this pack</p>
+                                    <Label htmlFor="price">Price</Label>
+                                    <Input id="price" name="price" type="number" step="0.01" defaultValue={editingVariant?.price} required />
                                 </div>
-                            )}
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    id="is_active"
-                                    name="is_active"
-                                    className="h-4 w-4 rounded border-gray-300"
-                                    defaultChecked={editingProduct?.is_active ?? true}
+                                <div className="space-y-2">
+                                    <Label htmlFor="stock_quantity">Stock</Label>
+                                    <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="pack_size">Pack Size</Label>
+                                <Input id="pack_size" name="pack_size" type="number" min="1" defaultValue={editingVariant?.pack_size || 1} required />
+                                <p className="text-xs text-muted-foreground">Number of vials in this pack (default: 1)</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="variant_image">Variant Image (Optional)</Label>
+                                <ImageUpload
+                                    existingUrl={variantImageUrl}
+                                    onUpload={setVariantImageUrl}
                                 />
-                                <Label htmlFor="is_active">Active (Manufacturing)</Label>
                             </div>
                             <div className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
-                                    id="is_published"
+                                    id="variant_is_published"
                                     name="is_published"
                                     className="h-4 w-4 rounded border-gray-300"
-                                    defaultChecked={editingProduct?.is_published ?? false}
+                                    defaultChecked={editingVariant?.is_published ?? true}
                                 />
-                                <Label htmlFor="is_published">Published (E-commerce)</Label>
+                                <Label htmlFor="variant_is_published">Published</Label>
                             </div>
                             <Button type="submit" className="w-full">
-                                {editingProduct ? "Update Product" : "Create Product"}
+                                {editingVariant ? "Update Variant" : "Create Variant"}
                             </Button>
                         </form>
                     </DialogContent>
                 </Dialog>
-            </div>
 
-            {/* Variant Dialog */}
-            <Dialog open={isVariantDialogOpen} onOpenChange={(open) => {
-                setIsVariantDialogOpen(open);
-                if (!open) {
-                    setEditingVariant(null);
-                    setSelectedProductId(null);
-                    setVariantImageUrl("");
-                }
-            }}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
-                        <DialogDescription>
-                            {editingVariant ? "Update variant details" : "Create a new product variant"}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form key={editingVariant ? editingVariant.id : "new"} onSubmit={handleVariantSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="vial_type_id">Vial Type</Label>
-                            <select
-                                id="vial_type_id"
-                                name="vial_type_id"
-                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                defaultValue={editingVariant?.vial_type_id || ""}
-                                required
-                            >
-                                <option value="" disabled>Select vial type</option>
-                                {vialTypes?.map((vt) => (
-                                    <option key={vt.id} value={vt.id}>
-                                        {vt.name} ({vt.size_ml}ml)
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="sku">SKU (Optional)</Label>
-                            <Input id="sku" name="sku" defaultValue={editingVariant?.sku || ""} placeholder="SKU-001" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="price">Price</Label>
-                                <Input id="price" name="price" type="number" step="0.01" defaultValue={editingVariant?.price} required />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="stock_quantity">Stock</Label>
-                                <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="pack_size">Pack Size</Label>
-                            <Input id="pack_size" name="pack_size" type="number" min="1" defaultValue={editingVariant?.pack_size || 1} required />
-                            <p className="text-xs text-muted-foreground">Number of vials in this pack (default: 1)</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="variant_image">Variant Image (Optional)</Label>
-                            <ImageUpload
-                                existingUrl={variantImageUrl}
-                                onUpload={setVariantImageUrl}
-                            />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="checkbox"
-                                id="variant_is_published"
-                                name="is_published"
-                                className="h-4 w-4 rounded border-gray-300"
-                                defaultChecked={editingVariant?.is_published ?? true}
-                            />
-                            <Label htmlFor="variant_is_published">Published</Label>
-                        </div>
-                        <Button type="submit" className="w-full">
-                            {editingVariant ? "Update Variant" : "Create Variant"}
-                        </Button>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            <div className="border rounded-lg">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-12"></TableHead>
-                            <TableHead>Image</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Category</TableHead>
-                            <TableHead>Sale Type</TableHead>
-                            <TableHead>Manufacturing</TableHead>
-                            <TableHead>E-commerce</TableHead>
-                            <TableHead>Variants</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
+                <div className="border rounded-lg">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center py-8">
-                                    Loading products...
-                                </TableCell>
+                                <TableHead className="w-12"></TableHead>
+                                <TableHead>Image</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Sale Type</TableHead>
+                                <TableHead>Manufacturing</TableHead>
+                                <TableHead>E-commerce</TableHead>
+                                <TableHead>Variants</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
-                        ) : products?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={9} className="text-center py-8">
-                                    No products found.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            products?.map((product) => {
-                                const variants = variantsMap?.[product.id] || [];
-                                const isExpanded = expandedProducts.has(product.id);
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="text-center py-8">
+                                        Loading products...
+                                    </TableCell>
+                                </TableRow>
+                            ) : products?.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="text-center py-8">
+                                        No products found.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                products?.map((product) => {
+                                    const variants = variantsMap?.[product.id] || [];
+                                    const isExpanded = expandedProducts.has(product.id);
 
-                                 return (
-                                    <React.Fragment key={product.id}>
-                                        <TableRow>
-                                            <TableCell>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6"
-                                                    onClick={() => toggleExpanded(product.id)}
-                                                >
-                                                    {isExpanded ? (
-                                                        <ChevronDown className="h-4 w-4" />
-                                                    ) : (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableCell>
-                                            <TableCell>
-                                                {product.image_url ? (
-                                                    <img 
-                                                        src={product.image_url} 
-                                                        alt={product.name}
-                                                        className="h-12 w-12 object-cover rounded"
-                                                    />
-                                                ) : (
-                                                    <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
-                                                        No image
-                                                    </div>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="font-medium">{product.name}</TableCell>
-                                            <TableCell>{product.category || "—"}</TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-sm font-medium capitalize">{product.sale_type || 'individual'}</span>
-                                                    {product.sale_type === 'pack' && product.default_pack_size && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {product.default_pack_size} units
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {product.is_active ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {product.is_published ? 'Published' : 'Draft'}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
-                                                        <Plus className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                        {isExpanded && variants.length > 0 && (
+                                    return (
+                                        <React.Fragment key={product.id}>
                                             <TableRow>
-                                                <TableCell colSpan={9} className="bg-muted/50 p-0">
-                                                    <div className="p-4">
-                                                        <h4 className="font-semibold mb-3 text-sm">Variants</h4>
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead>Image</TableHead>
-                                                                    <TableHead>Size</TableHead>
-                                                                    <TableHead>Pack Size</TableHead>
-                                                                    <TableHead>SKU</TableHead>
-                                                                    <TableHead>Price</TableHead>
-                                                                    <TableHead>Stock</TableHead>
-                                                                    <TableHead>Status</TableHead>
-                                                                    <TableHead className="text-right">Actions</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {variants.map((variant) => (
-                                                                    <TableRow key={variant.id}>
-                                                                        <TableCell>
-                                                                            {variant.image_url ? (
-                                                                                <img 
-                                                                                    src={variant.image_url} 
-                                                                                    alt={`${variant.vial_type.size_ml}ml variant`}
-                                                                                    className="h-10 w-10 object-cover rounded"
-                                                                                />
-                                                                            ) : (
-                                                                                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
-                                                                                    —
-                                                                                </div>
-                                                                            )}
-                                                                        </TableCell>
-                                                                        <TableCell>{variant.vial_type.size_ml}ml</TableCell>
-                                                                        <TableCell>{variant.pack_size}x</TableCell>
-                                                                        <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
-                                                                        <TableCell>${variant.price.toFixed(2)}</TableCell>
-                                                                        <TableCell>{variant.stock_quantity}</TableCell>
-                                                                        <TableCell>
-                                                                            <span className={`px-2 py-1 rounded-full text-xs ${variant.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                                                {variant.is_published ? 'Published' : 'Draft'}
-                                                                            </span>
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right">
-                                                                            <div className="flex justify-end gap-2">
-                                                                                <Button variant="ghost" size="icon" onClick={() => handleEditVariant(variant)}>
-                                                                                    <Pencil className="h-3 w-3" />
-                                                                                </Button>
-                                                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteVariant(variant.id)}>
-                                                                                    <Trash2 className="h-3 w-3" />
-                                                                                </Button>
-                                                                            </div>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6"
+                                                        onClick={() => toggleExpanded(product.id)}
+                                                    >
+                                                        {isExpanded ? (
+                                                            <ChevronDown className="h-4 w-4" />
+                                                        ) : (
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {product.image_url ? (
+                                                        <img
+                                                            src={product.image_url}
+                                                            alt={product.name}
+                                                            className="h-12 w-12 object-cover rounded"
+                                                        />
+                                                    ) : (
+                                                        <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
+                                                            No image
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="font-medium">{product.name}</TableCell>
+                                                <TableCell>{product.category || "—"}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-sm font-medium capitalize">{product.sale_type || 'individual'}</span>
+                                                        {product.sale_type === 'pack' && product.default_pack_size && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {product.default_pack_size} units
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {product.is_active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {product.is_published ? 'Published' : 'Draft'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+                                            {isExpanded && variants.length > 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={9} className="bg-muted/50 p-0">
+                                                        <div className="p-4">
+                                                            <h4 className="font-semibold mb-3 text-sm">Variants</h4>
+                                                            <Table>
+                                                                <TableHeader>
+                                                                    <TableRow>
+                                                                        <TableHead className="w-10"></TableHead>
+                                                                        <TableHead>Image</TableHead>
+                                                                        <TableHead>Size</TableHead>
+                                                                        <TableHead>Pack Size</TableHead>
+                                                                        <TableHead>SKU</TableHead>
+                                                                        <TableHead>Price</TableHead>
+                                                                        <TableHead>Stock</TableHead>
+                                                                        <TableHead>Status</TableHead>
+                                                                        <TableHead className="text-right">Actions</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    <SortableContext
+                                                                        items={variants.map(v => v.id)}
+                                                                        strategy={verticalListSortingStrategy}
+                                                                    >
+                                                                        {variants.map((variant) => (
+                                                                            <SortableVariantRow
+                                                                                key={variant.id}
+                                                                                variant={variant}
+                                                                                onEdit={handleEditVariant}
+                                                                                onDelete={handleDeleteVariant}
+                                                                            />
+                                                                        ))}
+                                                                    </SortableContext>
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
-            {/* Delete Product Confirmation Dialog */}
-            <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Are you sure you want to delete product "{deletingProduct?.name}"? This will also delete all related variants and cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDeleteProduct}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
+                {/* Delete Product Confirmation Dialog */}
+                <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to delete product "{deletingProduct?.name}"? This will also delete all related variants and cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={confirmDeleteProduct}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        </DndContext>
     );
 };
 

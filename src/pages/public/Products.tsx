@@ -75,6 +75,7 @@ const Products = () => {
                     stock_quantity: variant.stock_quantity,
                     pack_size: variant.pack_size || 1,
                     image_url: variant.image_url,
+                    position: variant.position || 0,
                     product: {
                         name: variant.product.name,
                         image_url: variant.product.image_url,
@@ -88,7 +89,10 @@ const Products = () => {
                 });
             });
 
-            return Object.values(grouped);
+            return Object.values(grouped).map(product => ({
+                ...product,
+                variants: product.variants.sort((a, b) => (a.position || 0) - (b.position || 0))
+            }));
         },
     });
 

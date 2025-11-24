@@ -46,7 +46,8 @@ const ProductDetails = () => {
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("product_id", id)
-                .eq("is_published", true);
+                .eq("is_published", true)
+                .order('position', { ascending: true });
 
             if (variantsError) throw variantsError;
 

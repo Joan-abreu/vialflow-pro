@@ -181,6 +181,32 @@ const ProductManagement = () => {
 
     const deleteProductMutation = useMutation({
         mutationFn: async (id: string) => {
+            // First check if there are production batches associated with this product
+            const { data: batches, error: batchError } = await supabase
+                .from("production_batches")
+                .select("id")
+                .eq("product_id", id)
+                .limit(1);
+            
+            if (batchError) throw batchError;
+            
+            if (batches && batches.length > 0) {
+                throw new Error("Cannot delete product with existing production batches. Please remove or reassign the batches first.");
+            }
+            
+            // Check if there are variants
+            const { data: variants, error: variantError } = await (supabase
+                .from("product_variants" as any)
+                .select("id")
+                .eq("product_id", id) as any);
+            
+            if (variantError) throw variantError;
+            
+            if (variants && variants.length > 0) {
+                throw new Error("Cannot delete product with existing variants. Please delete all variants first.");
+            }
+            
+            // If no dependencies, proceed with deletion
             const { error } = await supabase.from("products").delete().eq("id", id);
             if (error) throw error;
         },
@@ -301,7 +327,7 @@ const ProductManagement = () => {
     };
 
     const handleDeleteProduct = (id: string) => {
-        if (confirm("Are you sure you want to delete this product and all its variants?")) {
+        if (confirm("Are you sure you want to delete this product? Note: Products with existing production batches or variants cannot be deleted.")) {
             deleteProductMutation.mutate(id);
         }
     };

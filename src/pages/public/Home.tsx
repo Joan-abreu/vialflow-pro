@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ArrowRight, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -17,16 +18,15 @@ const Home = () => {
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true)
-                .limit(4) as any);
+                .eq("product.is_published", true) as any);
 
             if (error) throw error;
 
-            // Group by product and get lowest price variant
+            // Group by product and collect all variants
             const grouped: Record<string, any> = {};
             (data as any[])?.forEach((variant: any) => {
                 const productId = variant.product.id;
-                if (!grouped[productId] || variant.price < grouped[productId].price) {
+                if (!grouped[productId]) {
                     grouped[productId] = {
                         id: productId,
                         name: variant.product.name,
@@ -35,7 +35,15 @@ const Home = () => {
                         category: variant.product.category,
                         price: variant.price,
                         size_ml: variant.vial_type.size_ml,
+                        pack_size: variant.pack_size,
+                        variants: [variant],
                     };
+                } else {
+                    grouped[productId].variants.push(variant);
+                    // Keep the lowest price
+                    if (variant.price < grouped[productId].price) {
+                        grouped[productId].price = variant.price;
+                    }
                 }
             });
 
@@ -131,11 +139,23 @@ const Home = () => {
                                     <div className="p-4">
                                         <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{product.name}</h3>
                                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-bold">${product.price}</span>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-bold">${product.price}+</span>
                                             <Link to={`/products/${product.id}`}>
                                                 <Button size="sm" variant="secondary">View</Button>
                                             </Link>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {product.variants?.length > 1 && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {product.variants.length} sizes available
+                                                </span>
+                                            )}
+                                            {product.pack_size > 1 && (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    Pack of {product.pack_size} units
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

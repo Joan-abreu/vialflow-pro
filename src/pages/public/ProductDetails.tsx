@@ -161,10 +161,10 @@ const ProductDetails = () => {
                         <p className="text-lg text-muted-foreground leading-relaxed">
                             {product.description || "No description available for this product."}
                         </p>
-                        {product.sale_type === 'pack' && product.default_pack_size && (
+                        {selectedVariant && selectedVariant.pack_size > 1 && (
                             <div className="mt-4 flex items-center gap-2">
                                 <Badge variant="secondary" className="text-sm py-1.5 px-3">
-                                    Pack of {product.default_pack_size} units
+                                    Pack of {selectedVariant.pack_size} units
                                 </Badge>
                             </div>
                         )}

@@ -38,6 +38,8 @@ interface Product {
     is_published: boolean;
     category: string | null;
     image_url: string | null;
+    sale_type: string;
+    default_pack_size: number | null;
 }
 
 interface ProductVariant {
@@ -71,6 +73,7 @@ const ProductManagement = () => {
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
     const [productImageUrl, setProductImageUrl] = useState<string>("");
     const [variantImageUrl, setVariantImageUrl] = useState<string>("");
+    const [saleType, setSaleType] = useState<string>("individual");
     const queryClient = useQueryClient();
 
     // Fetch products
@@ -248,6 +251,9 @@ const ProductManagement = () => {
     const handleProductSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
+        const saleType = formData.get("sale_type") as string;
+        const packSize = formData.get("default_pack_size") as string;
+        
         const productData = {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
@@ -255,6 +261,8 @@ const ProductManagement = () => {
             image_url: productImageUrl || formData.get("image_url") as string,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
+            sale_type: saleType,
+            default_pack_size: saleType === "pack" ? parseInt(packSize) || null : null,
         };
 
         if (editingProduct) {
@@ -288,6 +296,7 @@ const ProductManagement = () => {
     const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
         setProductImageUrl(product.image_url || "");
+        setSaleType(product.sale_type || "individual");
         setIsProductDialogOpen(true);
     };
 
@@ -335,6 +344,7 @@ const ProductManagement = () => {
                     if (!open) {
                         setEditingProduct(null);
                         setProductImageUrl("");
+                        setSaleType("individual");
                     }
                 }}>
                     <DialogTrigger asChild>
@@ -378,6 +388,34 @@ const ProductManagement = () => {
                                     onUpload={setProductImageUrl}
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="sale_type">Sale Type</Label>
+                                <select
+                                    id="sale_type"
+                                    name="sale_type"
+                                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    value={saleType}
+                                    onChange={(e) => setSaleType(e.target.value)}
+                                >
+                                    <option value="individual">Individual</option>
+                                    <option value="pack">Pack</option>
+                                </select>
+                            </div>
+                            {saleType === "pack" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="default_pack_size">Pack Size</Label>
+                                    <Input 
+                                        id="default_pack_size" 
+                                        name="default_pack_size" 
+                                        type="number" 
+                                        min="1"
+                                        defaultValue={editingProduct?.default_pack_size || ""}
+                                        placeholder="Enter number of units in pack"
+                                        required
+                                    />
+                                    <p className="text-xs text-muted-foreground">Number of units included in this pack</p>
+                                </div>
+                            )}
                             <div className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -491,6 +529,7 @@ const ProductManagement = () => {
                             <TableHead>Image</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Category</TableHead>
+                            <TableHead>Sale Type</TableHead>
                             <TableHead>Manufacturing</TableHead>
                             <TableHead>E-commerce</TableHead>
                             <TableHead>Variants</TableHead>
@@ -500,13 +539,13 @@ const ProductManagement = () => {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8">
+                                <TableCell colSpan={9} className="text-center py-8">
                                     Loading products...
                                 </TableCell>
                             </TableRow>
                         ) : products?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8">
+                                <TableCell colSpan={9} className="text-center py-8">
                                     No products found.
                                 </TableCell>
                             </TableRow>
@@ -548,6 +587,16 @@ const ProductManagement = () => {
                                             <TableCell className="font-medium">{product.name}</TableCell>
                                             <TableCell>{product.category || "—"}</TableCell>
                                             <TableCell>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-sm font-medium capitalize">{product.sale_type || 'individual'}</span>
+                                                    {product.sale_type === 'pack' && product.default_pack_size && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {product.default_pack_size} units
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                                     {product.is_active ? 'Active' : 'Inactive'}
                                                 </span>
@@ -574,7 +623,7 @@ const ProductManagement = () => {
                                         </TableRow>
                                         {isExpanded && variants.length > 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="bg-muted/50 p-0">
+                                                <TableCell colSpan={9} className="bg-muted/50 p-0">
                                                     <div className="p-4">
                                                         <h4 className="font-semibold mb-3 text-sm">Variants</h4>
                                                         <Table>

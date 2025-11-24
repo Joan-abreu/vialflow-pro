@@ -427,7 +427,7 @@ const ProductManagement = () => {
                             <div className="space-y-2">
                                 <Label htmlFor="image_url">Product Image</Label>
                                 <ImageUpload
-                                    existingUrl={productImageUrl || editingProduct?.image_url || ""}
+                                    existingUrl={productImageUrl}
                                     onUpload={setProductImageUrl}
                                 />
                             </div>
@@ -543,7 +543,7 @@ const ProductManagement = () => {
                         <div className="space-y-2">
                             <Label htmlFor="variant_image">Variant Image (Optional)</Label>
                             <ImageUpload
-                                existingUrl={variantImageUrl || editingVariant?.image_url || ""}
+                                existingUrl={variantImageUrl}
                                 onUpload={setVariantImageUrl}
                             />
                         </div>

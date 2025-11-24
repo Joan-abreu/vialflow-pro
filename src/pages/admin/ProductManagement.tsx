@@ -287,6 +287,7 @@ const ProductManagement = () => {
 
     const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
+        setProductImageUrl(product.image_url || "");
         setIsProductDialogOpen(true);
     };
 
@@ -305,6 +306,7 @@ const ProductManagement = () => {
     const handleEditVariant = (variant: ProductVariant) => {
         setSelectedProductId(variant.product_id);
         setEditingVariant(variant);
+        setVariantImageUrl(variant.image_url || "");
         setIsVariantDialogOpen(true);
     };
 
@@ -330,7 +332,10 @@ const ProductManagement = () => {
                 <h1 className="text-3xl font-bold">Product Management</h1>
                 <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
                     setIsProductDialogOpen(open);
-                    if (!open) setEditingProduct(null);
+                    if (!open) {
+                        setEditingProduct(null);
+                        setProductImageUrl("");
+                    }
                 }}>
                     <DialogTrigger asChild>
                         <Button>
@@ -369,14 +374,9 @@ const ProductManagement = () => {
                             <div className="space-y-2">
                                 <Label htmlFor="image_url">Product Image</Label>
                                 <ImageUpload
-                                    existingUrl={editingProduct?.image_url || ""}
-                                    onUpload={(url) => {
-                                        const input = document.getElementById('image_url') as HTMLInputElement;
-                                        if (input) input.value = url;
-                                    }}
+                                    existingUrl={productImageUrl || editingProduct?.image_url || ""}
+                                    onUpload={setProductImageUrl}
                                 />
-                                {/* Hidden input to store the URL for form submission */}
-                                <Input type="hidden" id="image_url" name="image_url" defaultValue={editingProduct?.image_url || ""} />
                             </div>
                             <div className="flex items-center space-x-2">
                                 <input
@@ -412,6 +412,7 @@ const ProductManagement = () => {
                 if (!open) {
                     setEditingVariant(null);
                     setSelectedProductId(null);
+                    setVariantImageUrl("");
                 }
             }}>
                 <DialogContent className="sm:max-w-[425px]">
@@ -458,6 +459,13 @@ const ProductManagement = () => {
                             <Input id="pack_size" name="pack_size" type="number" min="1" defaultValue={editingVariant?.pack_size || 1} required />
                             <p className="text-xs text-muted-foreground">Number of vials in this pack (default: 1)</p>
                         </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="variant_image">Variant Image (Optional)</Label>
+                            <ImageUpload
+                                existingUrl={variantImageUrl || editingVariant?.image_url || ""}
+                                onUpload={setVariantImageUrl}
+                            />
+                        </div>
                         <div className="flex items-center space-x-2">
                             <input
                                 type="checkbox"
@@ -492,13 +500,13 @@ const ProductManagement = () => {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-8">
+                                <TableCell colSpan={8} className="text-center py-8">
                                     Loading products...
                                 </TableCell>
                             </TableRow>
                         ) : products?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-8">
+                                <TableCell colSpan={8} className="text-center py-8">
                                     No products found.
                                 </TableCell>
                             </TableRow>
@@ -507,23 +515,48 @@ const ProductManagement = () => {
                                 const variants = variantsMap?.[product.id] || [];
                                 const isExpanded = expandedProducts.has(product.id);
 
-                                return (
+                                 return (
                                     <React.Fragment key={product.id}>
                                         <TableRow>
                                             <TableCell>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => toggleExpanded(product.id)}
-                                >
-                                    {isExpanded ? (
-                                        <ChevronDown className="h-4 w-4" />
-                                    ) : (
-                                        <ChevronRight className="h-4 w-4" />
-                                    )}
-                                </Button>
-                            </TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6"
+                                                    onClick={() => toggleExpanded(product.id)}
+                                                >
+                                                    {isExpanded ? (
+                                                        <ChevronDown className="h-4 w-4" />
+                                                    ) : (
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </TableCell>
+                                            <TableCell>
+                                                {product.image_url ? (
+                                                    <img 
+                                                        src={product.image_url} 
+                                                        alt={product.name}
+                                                        className="h-12 w-12 object-cover rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
+                                                        No image
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="font-medium">{product.name}</TableCell>
+                                            <TableCell>{product.category || "—"}</TableCell>
+                                            <TableCell>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {product.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {product.is_published ? 'Published' : 'Draft'}
+                                                </span>
+                                            </TableCell>
                                             <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">
@@ -541,7 +574,7 @@ const ProductManagement = () => {
                                         </TableRow>
                                         {isExpanded && variants.length > 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="bg-muted/50 p-0">
+                                                <TableCell colSpan={8} className="bg-muted/50 p-0">
                                                     <div className="p-4">
                                                         <h4 className="font-semibold mb-3 text-sm">Variants</h4>
                                                         <Table>

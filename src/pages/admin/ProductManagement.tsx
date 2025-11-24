@@ -312,10 +312,11 @@ const ProductManagement = () => {
     const handleVariantSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
+        const skuValue = formData.get("sku") as string;
         const variantData = {
             product_id: selectedProductId!,
             vial_type_id: formData.get("vial_type_id") as string,
-            sku: formData.get("sku") as string,
+            sku: skuValue?.trim() || null,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
             pack_size: parseInt(formData.get("pack_size") as string) || 1,

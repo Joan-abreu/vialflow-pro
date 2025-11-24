@@ -48,6 +48,7 @@ interface ProductVariant {
     price: number;
     stock_quantity: number;
     is_published: boolean;
+    pack_size: number;
     image_url: string | null;
     vial_type: {
         name: string;
@@ -111,6 +112,7 @@ const ProductManagement = () => {
                     price: v.price,
                     stock_quantity: v.stock_quantity,
                     is_published: v.is_published,
+                    pack_size: v.pack_size || 1,
                     image_url: v.image_url,
                     vial_type: v.vial_type,
                 });
@@ -509,16 +511,19 @@ const ProductManagement = () => {
                                     <React.Fragment key={product.id}>
                                         <TableRow>
                                             <TableCell>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6"
-                                                    onClick={() => toggleExpanded(product.id)}
-                                                >
-                                                    {isExpanded ? (
-                                                        <ChevronDown className="h-4 w-4" />
-                                                </span>
-                                            </TableCell>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => toggleExpanded(product.id)}
+                                >
+                                    {isExpanded ? (
+                                        <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                        <ChevronRight className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </TableCell>
                                             <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">

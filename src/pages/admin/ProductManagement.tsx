@@ -22,6 +22,16 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
@@ -74,6 +84,7 @@ const ProductManagement = () => {
     const [productImageUrl, setProductImageUrl] = useState<string>("");
     const [variantImageUrl, setVariantImageUrl] = useState<string>("");
     const [saleType, setSaleType] = useState<string>("individual");
+    const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
     const queryClient = useQueryClient();
 
     // Fetch products
@@ -326,9 +337,14 @@ const ProductManagement = () => {
         setIsProductDialogOpen(true);
     };
 
-    const handleDeleteProduct = (id: string) => {
-        if (confirm("Are you sure you want to delete this product? Note: Products with existing production batches or variants cannot be deleted.")) {
-            deleteProductMutation.mutate(id);
+    const handleDeleteProduct = (product: Product) => {
+        setDeletingProduct(product);
+    };
+
+    const confirmDeleteProduct = () => {
+        if (deletingProduct) {
+            deleteProductMutation.mutate(deletingProduct.id);
+            setDeletingProduct(null);
         }
     };
 
@@ -641,7 +657,7 @@ const ProductManagement = () => {
                                                     <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product.id)}>
+                                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
@@ -702,6 +718,27 @@ const ProductManagement = () => {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Delete Product Confirmation Dialog */}
+            <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete product "{deletingProduct?.name}"? This will also delete all related variants and cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeleteProduct}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

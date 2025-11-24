@@ -671,6 +671,7 @@ const ProductManagement = () => {
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
+                                                                    <TableHead>Image</TableHead>
                                                                     <TableHead>Size</TableHead>
                                                                     <TableHead>Pack Size</TableHead>
                                                                     <TableHead>SKU</TableHead>
@@ -683,6 +684,19 @@ const ProductManagement = () => {
                                                             <TableBody>
                                                                 {variants.map((variant) => (
                                                                     <TableRow key={variant.id}>
+                                                                        <TableCell>
+                                                                            {variant.image_url ? (
+                                                                                <img 
+                                                                                    src={variant.image_url} 
+                                                                                    alt={`${variant.vial_type.size_ml}ml variant`}
+                                                                                    className="h-10 w-10 object-cover rounded"
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
+                                                                                    —
+                                                                                </div>
+                                                                            )}
+                                                                        </TableCell>
                                                                         <TableCell>{variant.vial_type.size_ml}ml</TableCell>
                                                                         <TableCell>{variant.pack_size}x</TableCell>
                                                                         <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>

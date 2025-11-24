@@ -32,7 +32,6 @@ export const ImageUpload = ({
             .upload(fileName, file, {
                 upsert: false,
                 cacheControl: "3600",
-                onUploadProgress: (p) => setProgress(Math.round(p.percent)),
             });
 
         if (error) {

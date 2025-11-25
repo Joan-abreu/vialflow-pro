@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FolderOpen, Loader2, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface ManageCategoriesDialogProps {
   onSuccess?: () => void;
@@ -30,14 +32,14 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [newCategory, setNewCategory] = useState("");
   const [loading, setLoading] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   const fetchCategories = async () => {
     const { data } = await supabase
       .from("material_categories")
       .select("*")
       .order("name");
-    
+
     if (data) setCategories(data);
   };
 
@@ -66,14 +68,13 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
     }
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    setDeleting(id);
+  const handleDeleteCategory = async () => {
+    if (!deletingCategory) return;
+
     const { error } = await supabase
       .from("material_categories")
       .delete()
-      .eq("id", id);
-
-    setDeleting(null);
+      .eq("id", deletingCategory.id);
 
     if (error) {
       toast.error("Cannot delete category: " + error.message);
@@ -82,6 +83,8 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
       fetchCategories();
       onSuccess?.();
     }
+
+    setDeletingCategory(null);
   };
 
   const handleToggleActive = async (id: string, active: boolean) => {
@@ -114,7 +117,7 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
             Add, remove, or toggle categories for your materials
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleAddCategory} className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 grid gap-1.5 sm:gap-2">
             <Label htmlFor="category-name" className="text-xs sm:text-sm">New Category</Label>
@@ -159,27 +162,24 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
                       <Badge variant="secondary" className="text-[10px] sm:text-xs">Disabled</Badge>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`active-${category.id}`}
+                        checked={category.active}
+                        onCheckedChange={() => handleToggleActive(category.id, category.active)}
+                      />
+                      <Label htmlFor={`active-${category.id}`} className="text-xs sm:text-sm cursor-pointer">
+                        Active
+                      </Label>
+                    </div>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleActive(category.id, category.active)}
-                      className="flex-1 sm:flex-none text-xs"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingCategory(category)}
+                      className="text-destructive hover:text-destructive"
                     >
-                      {category.active ? "Disable" : "Enable"}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteCategory(category.id)}
-                      disabled={deleting === category.id}
-                      className="flex-1 sm:flex-none"
-                    >
-                      {deleting === category.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -188,6 +188,27 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
           </div>
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingCategory} onOpenChange={(open) => !open && setDeletingCategory(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the category "{deletingCategory?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCategory}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

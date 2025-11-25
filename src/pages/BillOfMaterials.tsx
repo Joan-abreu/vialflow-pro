@@ -89,7 +89,7 @@ export default function BillOfMaterials() {
           .select(`
             id,
             quantity_per_unit,
-            raw_materials (
+            raw_materials!production_configurations_raw_material_id_fkey (
               id,
               name,
               unit,
@@ -197,16 +197,16 @@ export default function BillOfMaterials() {
           <div>
             <p className="text-sm text-gray-600">Production Quantity</p>
             <p className="text-lg font-semibold">{batch.sale_type === "pack" && batch.pack_quantity
-                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} Packs (${batch.quantity.toLocaleString()} units)`
-                            : `${batch.quantity.toLocaleString()} units`
-                          }</p>
+              ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} Packs (${batch.quantity.toLocaleString()} units)`
+              : `${batch.quantity.toLocaleString()} units`
+            }</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Sales Type</p>
             <p className="text-lg font-semibold">{batch.sale_type === "pack" && batch.pack_quantity
-                            ? "Pack Sales"
-                            : "Individual Sales"
-                          }</p>
+              ? "Pack Sales"
+              : "Individual Sales"
+            }</p>
           </div>
         </div>
 

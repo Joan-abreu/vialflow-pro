@@ -94,7 +94,7 @@ interface VialType {
 interface SortableVariantRowProps {
     variant: ProductVariant;
     onEdit: (variant: ProductVariant) => void;
-    onDelete: (id: string) => void;
+    onDelete: (variant: ProductVariant) => void;
 }
 
 const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowProps) => {
@@ -132,7 +132,16 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
                 )}
             </TableCell>
             <TableCell>{variant.vial_type.size_ml}ml</TableCell>
-            <TableCell>{variant.pack_size}x</TableCell>
+            <TableCell>
+                <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium capitalize">{variant.pack_size > 1 ? 'Pack' : 'Individual'}</span>
+                    {variant.pack_size > 1 && (
+                        <span className="text-xs text-muted-foreground">
+                            {variant.pack_size}x
+                        </span>
+                    )}
+                </div>
+            </TableCell>
             <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
             <TableCell>${variant.price.toFixed(2)}</TableCell>
             <TableCell>{variant.stock_quantity}</TableCell>
@@ -146,7 +155,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
                     <Button variant="ghost" size="icon" onClick={() => onEdit(variant)}>
                         <Pencil className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDelete(variant.id)}>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDelete(variant)}>
                         <Trash2 className="h-3 w-3" />
                     </Button>
                 </div>
@@ -164,8 +173,9 @@ const ProductManagement = () => {
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
     const [productImageUrl, setProductImageUrl] = useState<string>("");
     const [variantImageUrl, setVariantImageUrl] = useState<string>("");
-    const [saleType, setSaleType] = useState<string>("individual");
+    const [variantSaleType, setVariantSaleType] = useState<string>("individual");
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+    const [deletingVariant, setDeletingVariant] = useState<ProductVariant | null>(null);
     const queryClient = useQueryClient();
 
     // Fetch products
@@ -328,7 +338,15 @@ const ProductManagement = () => {
             setIsVariantDialogOpen(false);
         },
         onError: (error: any) => {
-            toast.error(`Error creating variant: ${error.message}`);
+            let errorMessage = "Error creating variant";
+
+            if (error.message?.includes("product_variants_product_vial_pack_unique")) {
+                errorMessage = "This variant already exists. You cannot create two variants with the same product, vial size, and sale type (Individual or Pack with the same quantity).";
+            } else if (error.message) {
+                errorMessage = `Error creating variant: ${error.message}`;
+            }
+
+            toast.error(errorMessage);
         },
     });
 
@@ -349,7 +367,15 @@ const ProductManagement = () => {
             setEditingVariant(null);
         },
         onError: (error: any) => {
-            toast.error(`Error updating variant: ${error.message}`);
+            let errorMessage = "Error updating variant";
+
+            if (error.message?.includes("product_variants_product_vial_pack_unique")) {
+                errorMessage = "This variant already exists. You cannot have two variants with the same product, vial size, and sale type (Individual or Pack with the same quantity).";
+            } else if (error.message) {
+                errorMessage = `Error updating variant: ${error.message}`;
+            }
+
+            toast.error(errorMessage);
         },
     });
 
@@ -370,8 +396,6 @@ const ProductManagement = () => {
     const handleProductSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        const saleType = formData.get("sale_type") as string;
-        const packSize = formData.get("default_pack_size") as string;
 
         const productData = {
             name: formData.get("name") as string,
@@ -380,8 +404,8 @@ const ProductManagement = () => {
             image_url: productImageUrl || formData.get("image_url") as string,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
-            sale_type: saleType,
-            default_pack_size: saleType === "pack" ? parseInt(packSize) || null : null,
+            sale_type: 'individual',
+            default_pack_size: null,
         };
 
         if (editingProduct) {
@@ -401,7 +425,7 @@ const ProductManagement = () => {
             sku: skuValue?.trim() || null,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
-            pack_size: parseInt(formData.get("pack_size") as string) || 1,
+            pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
         };
@@ -416,7 +440,6 @@ const ProductManagement = () => {
     const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
         setProductImageUrl(product.image_url || "");
-        setSaleType(product.sale_type || "individual");
         setIsProductDialogOpen(true);
     };
 
@@ -434,6 +457,7 @@ const ProductManagement = () => {
     const handleAddVariant = (productId: string) => {
         setSelectedProductId(productId);
         setEditingVariant(null);
+        setVariantSaleType("individual");
         setIsVariantDialogOpen(true);
     };
 
@@ -441,12 +465,18 @@ const ProductManagement = () => {
         setSelectedProductId(variant.product_id);
         setEditingVariant(variant);
         setVariantImageUrl(variant.image_url || "");
+        setVariantSaleType(variant.pack_size > 1 ? "pack" : "individual");
         setIsVariantDialogOpen(true);
     };
 
-    const handleDeleteVariant = (id: string) => {
-        if (confirm("Are you sure you want to delete this variant?")) {
-            deleteVariantMutation.mutate(id);
+    const handleDeleteVariant = (variant: ProductVariant) => {
+        setDeletingVariant(variant);
+    };
+
+    const confirmDeleteVariant = () => {
+        if (deletingVariant) {
+            deleteVariantMutation.mutate(deletingVariant.id);
+            setDeletingVariant(null);
         }
     };
 
@@ -532,7 +562,6 @@ const ProductManagement = () => {
                         if (!open) {
                             setEditingProduct(null);
                             setProductImageUrl("");
-                            setSaleType("individual");
                         }
                     }}>
                         <DialogTrigger asChild>
@@ -576,34 +605,7 @@ const ProductManagement = () => {
                                         onUpload={setProductImageUrl}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="sale_type">Sale Type</Label>
-                                    <select
-                                        id="sale_type"
-                                        name="sale_type"
-                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                        value={saleType}
-                                        onChange={(e) => setSaleType(e.target.value)}
-                                    >
-                                        <option value="individual">Individual</option>
-                                        <option value="pack">Pack</option>
-                                    </select>
-                                </div>
-                                {saleType === "pack" && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="default_pack_size">Pack Size</Label>
-                                        <Input
-                                            id="default_pack_size"
-                                            name="default_pack_size"
-                                            type="number"
-                                            min="1"
-                                            defaultValue={editingProduct?.default_pack_size || ""}
-                                            placeholder="Enter number of units in pack"
-                                            required
-                                        />
-                                        <p className="text-xs text-muted-foreground">Number of units included in this pack</p>
-                                    </div>
-                                )}
+
                                 <div className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
@@ -632,6 +634,48 @@ const ProductManagement = () => {
                     </Dialog>
                 </div>
 
+                <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the product
+                                "{deletingProduct?.name}" and all its data.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={confirmDeleteProduct}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog open={!!deletingVariant} onOpenChange={(open) => !open && setDeletingVariant(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the variant
+                                "{deletingVariant?.vial_type.size_ml}ml - {deletingVariant?.sku || 'No SKU'}" and all its data.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={confirmDeleteVariant}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
                 {/* Variant Dialog */}
                 <Dialog open={isVariantDialogOpen} onOpenChange={(open) => {
                     setIsVariantDialogOpen(open);
@@ -639,6 +683,7 @@ const ProductManagement = () => {
                         setEditingVariant(null);
                         setSelectedProductId(null);
                         setVariantImageUrl("");
+                        setVariantSaleType("individual");
                     }
                 }}>
                     <DialogContent className="sm:max-w-[425px]">
@@ -681,10 +726,24 @@ const ProductManagement = () => {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="pack_size">Pack Size</Label>
-                                <Input id="pack_size" name="pack_size" type="number" min="1" defaultValue={editingVariant?.pack_size || 1} required />
-                                <p className="text-xs text-muted-foreground">Number of vials in this pack (default: 1)</p>
+                                <Label htmlFor="variant_sale_type">Sale Type</Label>
+                                <select
+                                    id="variant_sale_type"
+                                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={variantSaleType}
+                                    onChange={(e) => setVariantSaleType(e.target.value)}
+                                >
+                                    <option value="individual">Individual</option>
+                                    <option value="pack">Pack</option>
+                                </select>
                             </div>
+                            {variantSaleType === "pack" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="pack_size">Pack Size</Label>
+                                    <Input id="pack_size" name="pack_size" type="number" min="2" defaultValue={editingVariant?.pack_size || 2} required />
+                                    <p className="text-xs text-muted-foreground">Number of vials in this pack</p>
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label htmlFor="variant_image">Variant Image (Optional)</Label>
                                 <ImageUpload
@@ -717,7 +776,6 @@ const ProductManagement = () => {
                                 <TableHead>Image</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Category</TableHead>
-                                <TableHead>Sale Type</TableHead>
                                 <TableHead>Manufacturing</TableHead>
                                 <TableHead>E-commerce</TableHead>
                                 <TableHead>Variants</TableHead>
@@ -727,7 +785,7 @@ const ProductManagement = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="text-center py-8">
+                                    <TableCell colSpan={8} className="text-center py-8">
                                         Loading products...
                                     </TableCell>
                                 </TableRow>
@@ -775,16 +833,6 @@ const ProductManagement = () => {
                                                 <TableCell className="font-medium">{product.name}</TableCell>
                                                 <TableCell>{product.category || "—"}</TableCell>
                                                 <TableCell>
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-sm font-medium capitalize">{product.sale_type || 'individual'}</span>
-                                                        {product.sale_type === 'pack' && product.default_pack_size && (
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {product.default_pack_size} units
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
                                                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                                         {product.is_active ? 'Active' : 'Inactive'}
                                                     </span>
@@ -811,7 +859,7 @@ const ProductManagement = () => {
                                             </TableRow>
                                             {isExpanded && variants.length > 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={9} className="bg-muted/50 p-0">
+                                                    <TableCell colSpan={8} className="bg-muted/50 p-0">
                                                         <div className="p-4">
                                                             <h4 className="font-semibold mb-3 text-sm">Variants</h4>
                                                             <Table>
@@ -820,7 +868,7 @@ const ProductManagement = () => {
                                                                         <TableHead className="w-10"></TableHead>
                                                                         <TableHead>Image</TableHead>
                                                                         <TableHead>Size</TableHead>
-                                                                        <TableHead>Pack Size</TableHead>
+                                                                        <TableHead>Sale Type</TableHead>
                                                                         <TableHead>SKU</TableHead>
                                                                         <TableHead>Price</TableHead>
                                                                         <TableHead>Stock</TableHead>

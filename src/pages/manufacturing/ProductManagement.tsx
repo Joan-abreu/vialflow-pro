@@ -425,6 +425,7 @@ const ProductManagement = () => {
             sku: skuValue?.trim() || null,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
+            sale_type: variantSaleType,
             pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,

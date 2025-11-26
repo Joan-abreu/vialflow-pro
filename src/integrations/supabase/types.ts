@@ -287,6 +287,7 @@ export type Database = {
       }
       production_configurations: {
         Row: {
+          application_basis: string | null
           application_type: string
           calculation_type: string | null
           created_at: string
@@ -296,11 +297,14 @@ export type Database = {
           percentage_value: number | null
           product_id: string
           quantity_per_unit: number
+          quantity_usage: number | null
           raw_material_id: string
           updated_at: string
+          usage_uom_id: string | null
           vial_type_id: string
         }
         Insert: {
+          application_basis?: string | null
           application_type?: string
           calculation_type?: string | null
           created_at?: string
@@ -310,11 +314,14 @@ export type Database = {
           percentage_value?: number | null
           product_id: string
           quantity_per_unit?: number
+          quantity_usage?: number | null
           raw_material_id: string
           updated_at?: string
+          usage_uom_id?: string | null
           vial_type_id: string
         }
         Update: {
+          application_basis?: string | null
           application_type?: string
           calculation_type?: string | null
           created_at?: string
@@ -324,8 +331,10 @@ export type Database = {
           percentage_value?: number | null
           product_id?: string
           quantity_per_unit?: number
+          quantity_usage?: number | null
           raw_material_id?: string
           updated_at?: string
+          usage_uom_id?: string | null
           vial_type_id?: string
         }
         Relationships: [
@@ -348,6 +357,13 @@ export type Database = {
             columns: ["raw_material_id"]
             isOneToOne: false
             referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_configurations_usage_uom_id_fkey"
+            columns: ["usage_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measurement"
             referencedColumns: ["id"]
           },
           {

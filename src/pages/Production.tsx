@@ -45,15 +45,15 @@ interface ProductionBatch {
   completed_at: string | null;
   shipped_units: number;
   units_in_progress: number;
-  vial_type_id: string;
-  product_id: string | null;
-  vial_types: {
-    name: string;
-    size_ml: number;
+  product_id: {
+    vial_type_id: {
+      name: string;
+      size_ml: number;
+    };
+    product_id: {
+      name: string;
+    };
   };
-  products?: {
-    name: string;
-  } | null;
 }
 
 const Production = () => {
@@ -66,7 +66,7 @@ const Production = () => {
     // Fetch batches with vial types, products and shipped_units
     const { data: batchData, error } = await supabase
       .from("production_batches")
-      .select("*, vial_types(name, size_ml), products(name)")
+      .select("*, product_id(vial_type_id(name, size_ml), product_id(name))")
       .order("created_at", { ascending: false });
 
     if (!error && batchData) {
@@ -187,10 +187,10 @@ const Production = () => {
                       <TableRow key={batch.id}>
                         <TableCell className="font-medium">{batch.batch_number}</TableCell>
                         <TableCell>
-                          {batch.products?.name || "-"}
+                          {batch.product_id?.product_id?.name || "-"}
                         </TableCell>
                         <TableCell>
-                          {batch.vial_types.name} ({batch.vial_types.size_ml}ml)
+                          {batch.product_id?.vial_type_id?.name} ({batch.product_id?.vial_type_id?.size_ml}ml)
                         </TableCell>
                         <TableCell>
                           {batch.sale_type === "pack" && batch.pack_quantity
@@ -214,7 +214,7 @@ const Production = () => {
                           {batch.sale_type}
                           {batch.sale_type === "pack" && batch.pack_quantity && (
                             <span className="text-muted-foreground text-sm ml-1">
-                              ({batch.pack_quantity} units)
+                              ({batch.pack_quantity}x)
                             </span>
                           )}
                         </TableCell>

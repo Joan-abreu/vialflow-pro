@@ -10,15 +10,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-interface Product {
+interface ProductVariant {
   id: string;
-  name: string;
-}
-
-interface VialType {
-  id: string;
-  name: string;
-  size_ml: number;
+  product_id: string;
+  vial_type_id: string;
+  sale_type: string;
+  pack_size: number;
+  products: { name: string };
+  vial_types: { name: string; size_ml: number };
 }
 
 interface RawMaterial {
@@ -35,6 +34,7 @@ interface ProductionConfiguration {
   calculation_type: "fixed" | "percentage" | "per_box";
   percentage_of_material_id: string | null;
   percentage_value: number | null;
+  units_per_box: number | null;
   notes: string | null;
   raw_materials: {
     name: string;
@@ -54,16 +54,13 @@ interface BoxConfiguration {
 
 export function ManageProductionMaterialsDialog() {
   const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [vialTypes, setVialTypes] = useState<VialType[]>([]);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>("");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedVialTypeId, setSelectedVialTypeId] = useState<string>("");
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [configurations, setConfigurations] = useState<ProductionConfiguration[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const [boxConfig, setBoxConfig] = useState<BoxConfiguration | null>(null);
-  const [boxConfigLoading, setBoxConfigLoading] = useState(false);
 
   const [newConfiguration, setNewConfiguration] = useState({
     material_id: "",
@@ -72,59 +69,56 @@ export function ManageProductionMaterialsDialog() {
     calculation_type: "fixed",
     percentage_of_material_id: "",
     percentage_value: "",
+    units_per_box: "",
     notes: "",
   });
 
   useEffect(() => {
     if (open) {
-      fetchProducts();
-      fetchVialTypes();
+      fetchVariants();
       fetchMaterials();
     }
   }, [open]);
 
   useEffect(() => {
+    if (selectedVariantId) {
+      const variant = variants.find(v => v.id === selectedVariantId);
+      if (variant) {
+        setSelectedProductId(variant.product_id);
+        setSelectedVialTypeId(variant.vial_type_id);
+      }
+    }
+  }, [selectedVariantId, variants]);
+
+  useEffect(() => {
     if (selectedProductId && selectedVialTypeId) {
       fetchConfigurations();
-      fetchBoxConfig();
     }
   }, [selectedProductId, selectedVialTypeId]);
 
-  const fetchProducts = async () => {
+  const fetchVariants = async () => {
     const { data, error } = await supabase
-      .from("products")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name");
+      .from("product_variants")
+      .select(`
+        id,
+        product_id,
+        vial_type_id,
+        sale_type,
+        pack_size,
+        products!inner(name),
+        vial_types!inner(name, size_ml)
+      `)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching products:", error);
-      toast.error("Failed to load products");
+      console.error("Error fetching variants:", error);
+      toast.error("Failed to load variants");
       return;
     }
 
-    setProducts(data || []);
-    if (data && data.length > 0 && !selectedProductId) {
-      setSelectedProductId(data[0].id);
-    }
-  };
-
-  const fetchVialTypes = async () => {
-    const { data, error } = await supabase
-      .from("vial_types")
-      .select("*")
-      .eq("active", true)
-      .order("name");
-
-    if (error) {
-      console.error("Error fetching vial types:", error);
-      toast.error("Failed to load vial types");
-      return;
-    }
-
-    setVialTypes(data || []);
-    if (data && data.length > 0 && !selectedVialTypeId) {
-      setSelectedVialTypeId(data[0].id);
+    setVariants((data as any) || []);
+    if (data && data.length > 0 && !selectedVariantId) {
+      setSelectedVariantId(data[0].id);
     }
   };
 
@@ -166,45 +160,7 @@ export function ManageProductionMaterialsDialog() {
     setConfigurations((data as any) || []);
   };
 
-  const fetchBoxConfig = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("box_configurations" as any)
-        .select("*")
-        .eq("variant_id", selectedVialTypeId) // Assuming vial_type_id maps to variant_id for now
-        .maybeSingle();
 
-      if (error && error.code !== '42P01') { // Ignore table not found error
-        console.error("Error fetching box config:", error);
-      }
-
-      setBoxConfig(data as any);
-    } catch (error) {
-      console.error("Error in fetchBoxConfig:", error);
-    }
-  };
-
-  const saveBoxConfig = async (packsPerBox: number) => {
-    setBoxConfigLoading(true);
-    try {
-      const { error } = await supabase
-        .from("box_configurations" as any)
-        .upsert({
-          variant_id: selectedVialTypeId,
-          packs_per_box: packsPerBox
-        });
-
-      if (error) throw error;
-
-      toast.success("Box configuration saved");
-      fetchBoxConfig();
-    } catch (error) {
-      console.error("Error saving box config:", error);
-      toast.error("Failed to save box configuration");
-    } finally {
-      setBoxConfigLoading(false);
-    }
-  };
 
   const handleAddConfiguration = async () => {
     if (!newConfiguration.material_id || !selectedProductId || !selectedVialTypeId) {
@@ -243,6 +199,12 @@ export function ManageProductionMaterialsDialog() {
         configData.quantity_per_unit = 1; // One per box
       }
 
+      // Add units_per_box if material unit is 'box'
+      const selectedMaterial = materials.find(m => m.id === newConfiguration.material_id);
+      if (selectedMaterial?.unit.toLowerCase() === 'box' && newConfiguration.units_per_box) {
+        configData.units_per_box = parseInt(newConfiguration.units_per_box);
+      }
+
       const { error } = await supabase
         .from("production_configurations")
         .insert([configData]);
@@ -257,6 +219,7 @@ export function ManageProductionMaterialsDialog() {
         calculation_type: "fixed",
         percentage_of_material_id: "",
         percentage_value: "",
+        units_per_box: "",
         notes: "",
       });
       fetchConfigurations();
@@ -313,64 +276,30 @@ export function ManageProductionMaterialsDialog() {
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Product and Vial Type Selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Product</Label>
-              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name}
+          {/* Variant Selection */}
+          <div className="space-y-2">
+            <Label>Product Variant</Label>
+            <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select variant" />
+              </SelectTrigger>
+              <SelectContent>
+                {variants.map((variant) => {
+                  const saleTypeText = variant.sale_type === 'pack'
+                    ? `Pack (${variant.pack_size}x)`
+                    : 'Individual';
+                  return (
+                    <SelectItem key={variant.id} value={variant.id}>
+                      {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Vial Type</Label>
-              <Select value={selectedVialTypeId} onValueChange={setSelectedVialTypeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vial type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vialTypes.map((vialType) => (
-                    <SelectItem key={vialType.id} value={vialType.id}>
-                      {vialType.name} ({vialType.size_ml}ml)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
-          {selectedProductId && selectedVialTypeId && (
+          {selectedVariantId && (
             <>
-              {/* Box Configuration */}
-              <div className="border-t pt-4">
-                <h3 className="text-lg font-semibold mb-4">Box Configuration</h3>
-                <div className="flex items-end gap-4">
-                  <div className="space-y-2 flex-1">
-                    <Label>Packs per Box</Label>
-                    <Input
-                      type="number"
-                      placeholder="Enter packs per box"
-                      value={boxConfig?.packs_per_box || ""}
-                      onChange={(e) => setBoxConfig(prev => prev ? { ...prev, packs_per_box: parseInt(e.target.value) || 0 } : { id: "", variant_id: selectedVialTypeId, packs_per_box: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <Button
-                    onClick={() => saveBoxConfig(boxConfig?.packs_per_box || 0)}
-                    disabled={boxConfigLoading}
-                  >
-                    Save Box Config
-                  </Button>
-                </div>
-              </div>
 
               {/* Add New Material Configuration */}
               <div className="border-t pt-4">
@@ -456,6 +385,20 @@ export function ManageProductionMaterialsDialog() {
                         />
                       </div>
                     </>
+                  )}
+
+                  {/* Show units_per_box field if selected material unit is 'box' */}
+                  {materials.find(m => m.id === newConfiguration.material_id)?.unit.toLowerCase() === 'box' && (
+                    <div className="space-y-2">
+                      <Label>Units per Box</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter units per box"
+                        value={newConfiguration.units_per_box}
+                        onChange={(e) => setNewConfiguration({ ...newConfiguration, units_per_box: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">How many units of this variant fit in this box</p>
+                    </div>
                   )}
 
                   <div className="space-y-2">

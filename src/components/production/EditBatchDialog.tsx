@@ -26,15 +26,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-interface VialType {
+interface ProductVariant {
   id: string;
-  name: string;
-  size_ml: number;
-}
-
-interface Product {
-  id: string;
-  name: string;
+  product_id: string;
+  vial_type_id: string;
+  sale_type: string;
+  pack_size: number;
+  products: { name: string };
+  vial_types: { name: string; size_ml: number };
 }
 
 interface EditBatchDialogProps {
@@ -55,19 +54,15 @@ interface EditBatchDialogProps {
 const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [vialTypes, setVialTypes] = useState<VialType[]>([]);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
-    product_id: batch.product_id,
-    vial_type_id: batch.vial_type_id,
-    quantity: batch.sale_type === "pack" && batch.pack_quantity 
-      ? (batch.quantity / batch.pack_quantity).toString() 
+    variant_id: "",
+    quantity: batch.sale_type === "pack" && batch.pack_quantity
+      ? (batch.quantity / batch.pack_quantity).toString()
       : batch.quantity.toString(),
     status: batch.status,
-    sale_type: batch.sale_type,
-    pack_quantity: batch.pack_quantity?.toString() || "2",
     started_at: batch.started_at ? new Date(batch.started_at) : null as Date | null,
     waste_quantity: "0",
     waste_notes: "",
@@ -75,31 +70,66 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
   useEffect(() => {
     if (open) {
-      fetchProducts();
-      fetchVialTypes();
-    }
-  }, [open]);
+      // Reset form data from batch
+      setFormData({
+        variant_id: "", // Will be set by fetchVariants
+        quantity: batch.sale_type === "pack" && batch.pack_quantity
+          ? (batch.quantity / batch.pack_quantity).toString()
+          : batch.quantity.toString(),
+        status: batch.status,
+        started_at: batch.started_at ? new Date(batch.started_at) : null,
+        waste_quantity: "0",
+        waste_notes: "",
+      });
 
-  const fetchProducts = async () => {
+      fetchVariants();
+    }
+  }, [open, batch]);
+
+  const fetchVariants = async () => {
     const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("is_active", true);
+      .from("product_variants")
+      .select(`
+        id,
+        product_id,
+        vial_type_id,
+        sale_type,
+        pack_size,
+        products (name),
+        vial_types (name, size_ml)
+      `)
+      .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setProducts(data);
-    }
-  };
+      setVariants(data as any);
 
-  const fetchVialTypes = async () => {
-    const { data, error } = await supabase
-      .from("vial_types")
-      .select("*")
-      .eq("active", true)
-      .order("name");
+      console.log('Debugging EditBatchDialog Variant Matching:');
+      console.log('Batch Data:', {
+        product_id: batch.product_id,
+        vial_type_id: batch.vial_type_id,
+        sale_type: batch.sale_type,
+        pack_quantity: batch.pack_quantity
+      });
 
-    if (!error && data) {
-      setVialTypes(data);
+      // Find matching variant for existing batch
+      const matchingVariant = (data as any).find((v: ProductVariant) => {
+        const match = v.product_id === batch.product_id &&
+          v.vial_type_id === batch.vial_type_id &&
+          v.sale_type === batch.sale_type &&
+          (batch.sale_type !== 'pack' || Number(v.pack_size) === Number(batch.pack_quantity));
+
+        if (match) {
+          console.log('Found match:', v);
+        }
+        return match;
+      });
+
+      if (matchingVariant) {
+        console.log('Setting variant_id to:', matchingVariant.id);
+        setFormData(prev => ({ ...prev, variant_id: matchingVariant.id }));
+      } else {
+        console.log('No matching variant found in', data.length, 'variants');
+      }
     }
   };
 
@@ -108,8 +138,6 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     setLoading(true);
 
     const inputQuantity = parseInt(formData.quantity);
-    const inputProduct = parseInt(formData.product_id);
-    const pack_quantity = formData.sale_type === "pack" ? parseInt(formData.pack_quantity) : null;
 
     if (isNaN(inputQuantity) || inputQuantity <= 0) {
       toast({
@@ -121,20 +149,21 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       return;
     }
 
-    if (isNaN(inputProduct)) {
+    if (!formData.variant_id) {
       toast({
         title: "Error",
-        description: "Please select a product",
+        description: "Please select a product variant",
         variant: "destructive",
       });
       setLoading(false);
       return;
     }
 
-    if (formData.sale_type === "pack" && (!pack_quantity || pack_quantity <= 0)) {
+    const selectedVariant = variants.find(v => v.id === formData.variant_id);
+    if (!selectedVariant) {
       toast({
         title: "Error",
-        description: "Please enter a valid pack quantity",
+        description: "Invalid variant selected",
         variant: "destructive",
       });
       setLoading(false);
@@ -142,8 +171,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     }
 
     // Convert to bottles if pack sale type
-    const totalBottles = formData.sale_type === "pack" && pack_quantity 
-      ? inputQuantity * pack_quantity 
+    const totalBottles = selectedVariant.sale_type === "pack"
+      ? inputQuantity * selectedVariant.pack_size
       : inputQuantity;
 
     const waste_quantity = parseInt(formData.waste_quantity) || 0;
@@ -167,9 +196,9 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
     if (hasShipments) {
       if (
-        formData.product_id !== batch.product_id ||
-        formData.vial_type_id !== batch.vial_type_id ||
-        formData.sale_type !== batch.sale_type
+        selectedVariant.product_id !== batch.product_id ||
+        selectedVariant.vial_type_id !== batch.vial_type_id ||
+        selectedVariant.sale_type !== batch.sale_type
       ) {
         toast({
           title: "Error",
@@ -185,12 +214,11 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     const { error } = await supabase
       .from("production_batches")
       .update({
-        product_id: formData.product_id,
-        vial_type_id: formData.vial_type_id,
+        product_id: selectedVariant.id,
         quantity: totalBottles,
-        status: formData.started_at ? "in_progress" : "pending",
-        sale_type: formData.sale_type,
-        pack_quantity,
+        status: formData.status,
+        sale_type: selectedVariant.sale_type,
+        pack_quantity: selectedVariant.sale_type === 'pack' ? selectedVariant.pack_size : 1,
         started_at: formData.started_at ? formData.started_at.toISOString() : null,
         waste_quantity,
         waste_notes: formData.waste_notes || null,
@@ -230,68 +258,35 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="product">Product</Label>
+              <Label htmlFor="variant">Product Variant</Label>
               <Select
-                value={formData.product_id}
+                value={formData.variant_id}
+                disabled
                 onValueChange={(value) =>
-                  setFormData({ ...formData, product_id: value })
+                  setFormData({ ...formData, variant_id: value })
                 }
               >
-                <SelectTrigger id="product">
-                  <SelectValue placeholder="Select product" />
+                <SelectTrigger id="variant">
+                  <SelectValue placeholder="Select product variant" />
                 </SelectTrigger>
                 <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name}
-                    </SelectItem>
-                  ))}
+                  {variants.map((variant) => {
+                    const saleTypeText = variant.sale_type === 'pack'
+                      ? `Pack (${variant.pack_size}x)`
+                      : 'Individual';
+                    return (
+                      <SelectItem key={variant.id} value={variant.id}>
+                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="vial_type">Vial Type</Label>
-              <Select
-                value={formData.vial_type_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, vial_type_id: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vial type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vialTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.size_ml}ml)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="sale_type">Sale Type</Label>
-              <Select
-                value={formData.sale_type}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, sale_type: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="individual">Individual</SelectItem>
-                  <SelectItem value="pack">Pack</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
                 value={formData.status}
@@ -348,27 +343,9 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                 )}
               </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-8">
-            {formData.sale_type === "pack" && (
-              <div className="space-y-2">
-                <Label htmlFor="pack_quantity">Units per Pack</Label>
-                <Input
-                  id="pack_quantity"
-                  type="number"
-                  min="1"
-                  value={formData.pack_quantity}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pack_quantity: e.target.value })
-                  }
-                  required
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="quantity">
-                Total Quantity {formData.sale_type === "pack" ? "(packs)" : "(bottles)"}
+                Quantity (units/packs) *
               </Label>
               <Input
                 id="quantity"
@@ -381,7 +358,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                 required
               />
             </div>
-
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-8">
             <div className="space-y-2">
               <Label htmlFor="waste_quantity">Waste Quantity</Label>
               <Input

@@ -52,7 +52,6 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
     current_stock: "",
     min_stock_level: "",
     cost_per_unit: "",
-    qty_per_box: "",
     dimension_length_in: "",
     dimension_width_in: "",
     dimension_height_in: "",
@@ -72,11 +71,11 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
           .eq("active", true)
           .order("name")
       ]);
-      
+
       if (unitsResponse.data) setUnits(unitsResponse.data);
       if (categoriesResponse.data) setCategories(categoriesResponse.data);
     };
-    
+
     if (open) fetchData();
   }, [open]);
 
@@ -94,7 +93,6 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
       current_stock: parseFloat(formData.current_stock) || 0,
       min_stock_level: parseFloat(formData.min_stock_level) || 0,
       cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-      qty_per_box: formData.qty_per_box && formData.unit.toLowerCase().includes('box') ? parseInt(formData.qty_per_box) : null,
       dimension_length_in: formData.unit.toLowerCase().includes('box') && formData.dimension_length_in ? parseFloat(formData.dimension_length_in) : null,
       dimension_width_in: formData.unit.toLowerCase().includes('box') && formData.dimension_width_in ? parseFloat(formData.dimension_width_in) : null,
       dimension_height_in: formData.unit.toLowerCase().includes('box') && formData.dimension_height_in ? parseFloat(formData.dimension_height_in) : null,
@@ -117,7 +115,6 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
         current_stock: "",
         min_stock_level: "",
         cost_per_unit: "",
-        qty_per_box: "",
         dimension_length_in: "",
         dimension_width_in: "",
         dimension_height_in: "",
@@ -176,7 +173,7 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
               <Label htmlFor="unit">Unit of Measurement *</Label>
               <Select
                 value={formData.unit}
-                onValueChange={(value) => setFormData({ ...formData, unit: value, qty_per_box: "" })}
+                onValueChange={(value) => setFormData({ ...formData, unit: value })}
                 required
               >
                 <SelectTrigger id="unit">
@@ -241,20 +238,6 @@ const AddMaterialDialog = ({ onSuccess }: AddMaterialDialogProps) => {
                 placeholder="E.g., 12 bottles per case"
               />
             </div>
-            {formData.unit.toLowerCase().includes('box') && (
-              <div className="grid gap-2">
-                <Label htmlFor="qty_per_box">Quantity per Box *</Label>
-                <Input
-                  id="qty_per_box"
-                  type="number"
-                  min="1"
-                  value={formData.qty_per_box}
-                  onChange={(e) => setFormData({ ...formData, qty_per_box: e.target.value })}
-                  required
-                  placeholder="Enter units per box"
-                />
-              </div>
-            )}
             {formData.unit.toLowerCase().includes('box') && (
               <>
                 <div className="grid gap-2">

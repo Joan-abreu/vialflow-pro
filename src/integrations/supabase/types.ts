@@ -227,7 +227,6 @@ export type Database = {
           status: string
           units_in_progress: number | null
           updated_at: string
-          vial_type_id: string
           waste_notes: string | null
           waste_quantity: number | null
         }
@@ -247,7 +246,6 @@ export type Database = {
           status?: string
           units_in_progress?: number | null
           updated_at?: string
-          vial_type_id: string
           waste_notes?: string | null
           waste_quantity?: number | null
         }
@@ -267,7 +265,6 @@ export type Database = {
           status?: string
           units_in_progress?: number | null
           updated_at?: string
-          vial_type_id?: string
           waste_notes?: string | null
           waste_quantity?: number | null
         }
@@ -285,14 +282,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_batches_vial_type_id_fkey"
-            columns: ["vial_type_id"]
-            isOneToOne: false
-            referencedRelation: "vial_types"
-            referencedColumns: ["id"]
-          },
+          }
         ]
       }
       production_configurations: {

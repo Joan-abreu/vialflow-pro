@@ -14,9 +14,9 @@ interface ProductVariant {
   id: string;
   product_id: string;
   vial_type_id: string;
-  sale_type: string;
   pack_size: number;
-  products: { name: string };
+  sale_type: string;
+  products: { name: string; sale_type: string };
   vial_types: { name: string; size_ml: number };
 }
 
@@ -36,6 +36,9 @@ interface ProductionConfiguration {
   percentage_value: number | null;
   units_per_box: number | null;
   notes: string | null;
+  application_basis: "per_pack" | "per_inner_unit" | "per_batch" | "per_volume_of_inner_unit" | "per_weight_of_inner_unit" | null;
+  usage_uom_id: string | null;
+  quantity_usage: number | null;
   raw_materials: {
     name: string;
     unit: string;
@@ -44,6 +47,17 @@ interface ProductionConfiguration {
       abbreviation: string;
     } | null;
   };
+  usage_uom?: {
+    name: string;
+    abbreviation: string;
+  } | null;
+}
+
+interface UnitOfMeasurement {
+  id: string;
+  name: string;
+  abbreviation: string;
+  category: string;
 }
 
 interface BoxConfiguration {
@@ -60,12 +74,16 @@ export function ManageProductionMaterialsDialog() {
   const [selectedVialTypeId, setSelectedVialTypeId] = useState<string>("");
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [configurations, setConfigurations] = useState<ProductionConfiguration[]>([]);
+  const [uoms, setUoms] = useState<UnitOfMeasurement[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [newConfiguration, setNewConfiguration] = useState({
     material_id: "",
-    quantity_per_unit: "",
-    application_type: "per_unit",
+    quantity_per_unit: "", // Keeping for backward compatibility or as fallback
+    quantity_usage: "",
+    application_type: "per_unit", // Deprecated but kept for now
+    application_basis: "per_inner_unit",
+    usage_uom_id: "",
     calculation_type: "fixed",
     percentage_of_material_id: "",
     percentage_value: "",
@@ -77,6 +95,7 @@ export function ManageProductionMaterialsDialog() {
     if (open) {
       fetchVariants();
       fetchMaterials();
+      fetchUOMs();
     }
   }, [open]);
 
@@ -103,9 +122,9 @@ export function ManageProductionMaterialsDialog() {
         id,
         product_id,
         vial_type_id,
-        sale_type,
         pack_size,
-        products!inner(name),
+        sale_type,
+        products!inner(name, sale_type),
         vial_types!inner(name, size_ml)
       `)
       .order("created_at", { ascending: false });
@@ -136,6 +155,21 @@ export function ManageProductionMaterialsDialog() {
     setMaterials(data || []);
   };
 
+  const fetchUOMs = async () => {
+    const { data, error } = await supabase
+      .from("units_of_measurement")
+      .select("id, name, abbreviation, category")
+      .eq("active", true)
+      .order("name");
+
+    if (error) {
+      console.error("Error fetching UOMs:", error);
+      return;
+    }
+
+    setUoms(data || []);
+  };
+
   const fetchConfigurations = async () => {
     const { data, error } = await supabase
       .from("production_configurations")
@@ -146,7 +180,8 @@ export function ManageProductionMaterialsDialog() {
           unit,
           usage_unit_id,
           units_of_measurement:usage_unit_id(abbreviation)
-        )
+        ),
+        usage_uom:usage_uom_id(name, abbreviation)
       `)
       .eq("product_id", selectedProductId)
       .eq("vial_type_id", selectedVialTypeId);
@@ -168,13 +203,8 @@ export function ManageProductionMaterialsDialog() {
       return;
     }
 
-    if (newConfiguration.calculation_type === 'fixed' && !newConfiguration.quantity_per_unit) {
-      toast.error("Please enter quantity per unit");
-      return;
-    }
-
-    if (newConfiguration.calculation_type === 'percentage' && (!newConfiguration.percentage_of_material_id || !newConfiguration.percentage_value)) {
-      toast.error("Please select a material and enter percentage value");
+    if (newConfiguration.calculation_type === 'fixed' && !newConfiguration.quantity_usage) {
+      toast.error("Please enter quantity");
       return;
     }
 
@@ -184,19 +214,51 @@ export function ManageProductionMaterialsDialog() {
         product_id: selectedProductId,
         vial_type_id: selectedVialTypeId,
         raw_material_id: newConfiguration.material_id,
-        application_type: newConfiguration.application_type,
+        application_type: newConfiguration.application_basis === 'per_batch' ? 'per_batch' : 'per_unit', // Legacy mapping
+        application_basis: newConfiguration.application_basis,
+        usage_uom_id: newConfiguration.usage_uom_id || null,
         calculation_type: newConfiguration.calculation_type,
         notes: newConfiguration.notes || null,
+        quantity_usage: parseFloat(newConfiguration.quantity_usage),
       };
 
+      // Calculate quantity_per_unit (Total per Pack) for backward compatibility
+      const variant = variants.find(v => v.id === selectedVariantId);
+      const packSize = variant?.pack_size || 1;
+      const vialSize = variant?.vial_types?.size_ml || 0;
+      const qtyUsage = parseFloat(newConfiguration.quantity_usage);
+
+      let calculatedQtyPerUnit = 0;
+
       if (newConfiguration.calculation_type === 'fixed') {
-        configData.quantity_per_unit = parseFloat(newConfiguration.quantity_per_unit);
+        switch (newConfiguration.application_basis) {
+          case 'per_pack':
+            calculatedQtyPerUnit = qtyUsage;
+            break;
+          case 'per_inner_unit':
+            calculatedQtyPerUnit = qtyUsage * packSize;
+            break;
+          case 'per_volume_of_inner_unit':
+            // Assuming usage is per mL, so usage * volume * count
+            calculatedQtyPerUnit = qtyUsage * vialSize * packSize;
+            break;
+          case 'per_weight_of_inner_unit':
+            // We don't have weight info easily, defaulting to usage * packSize for now or 0
+            calculatedQtyPerUnit = qtyUsage * packSize;
+            break;
+          case 'per_batch':
+            calculatedQtyPerUnit = 0; // Handled at batch level
+            break;
+        }
+        configData.quantity_per_unit = calculatedQtyPerUnit;
       } else if (newConfiguration.calculation_type === 'percentage') {
         configData.percentage_of_material_id = newConfiguration.percentage_of_material_id;
         configData.percentage_value = parseFloat(newConfiguration.percentage_value);
         configData.quantity_per_unit = 0; // Calculated dynamically
+        configData.quantity_usage = 0;
       } else if (newConfiguration.calculation_type === 'per_box') {
         configData.quantity_per_unit = 1; // One per box
+        configData.quantity_usage = 1;
       }
 
       // Add units_per_box if material unit is 'box'
@@ -215,7 +277,10 @@ export function ManageProductionMaterialsDialog() {
       setNewConfiguration({
         material_id: "",
         quantity_per_unit: "",
+        quantity_usage: "",
         application_type: "per_unit",
+        application_basis: "per_inner_unit",
+        usage_uom_id: "",
         calculation_type: "fixed",
         percentage_of_material_id: "",
         percentage_value: "",
@@ -255,11 +320,24 @@ export function ManageProductionMaterialsDialog() {
     } else if (config.calculation_type === "per_box") {
       return "1 per box";
     } else {
-      const unit = config.raw_materials?.units_of_measurement?.abbreviation ||
+      const unit = config.usage_uom?.abbreviation ||
+        config.raw_materials?.units_of_measurement?.abbreviation ||
         config.raw_materials?.unit ||
         "";
-      return `${config.quantity_per_unit} ${unit}`;
+      return `${config.quantity_usage || config.quantity_per_unit} ${unit}`;
     }
+  };
+
+  const getCalculatedResult = (config: ProductionConfiguration) => {
+    if (config.calculation_type !== 'fixed') return '-';
+
+    const unit = config.raw_materials?.units_of_measurement?.abbreviation || config.raw_materials?.unit || "";
+
+    // If we have a calculated quantity_per_unit (total per pack), use it
+    if (config.quantity_per_unit) {
+      return `${config.quantity_per_unit} ${unit} per pack`;
+    }
+    return '-';
   };
 
   return (
@@ -278,24 +356,29 @@ export function ManageProductionMaterialsDialog() {
         <div className="space-y-6">
           {/* Variant Selection */}
           <div className="space-y-2">
-            <Label>Product Variant</Label>
+            <Label>Product Variant *</Label>
             <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select variant" />
               </SelectTrigger>
               <SelectContent>
                 {variants.map((variant) => {
-                  const saleTypeText = variant.sale_type === 'pack'
-                    ? `Pack (${variant.pack_size}x)`
-                    : 'Individual';
-                  return (
-                    <SelectItem key={variant.id} value={variant.id}>
-                      {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
-                    </SelectItem>
-                  );
-                })}
+                    const saleTypeText = variant.sale_type === 'pack'
+                      ? `Pack (${variant.pack_size}x)`
+                      : 'Individual';
+                    return (
+                      <SelectItem key={variant.id} value={variant.id}>
+                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
+            {selectedVariantId && (
+              <div className="text-sm text-muted-foreground mt-1">
+                Variant contains: {variants.find(v => v.id === selectedVariantId)?.pack_size} inner units
+              </div>
+            )}
           </div>
 
           {selectedVariantId && (
@@ -341,78 +424,53 @@ export function ManageProductionMaterialsDialog() {
                     </Select>
                   </div>
 
-                  {newConfiguration.calculation_type === 'fixed' && (
-                    <div className="space-y-2">
-                      <Label>Quantity per Unit</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Enter quantity"
-                        value={newConfiguration.quantity_per_unit}
-                        onChange={(e) => setNewConfiguration({ ...newConfiguration, quantity_per_unit: e.target.value })}
-                      />
-                    </div>
-                  )}
-
-                  {newConfiguration.calculation_type === 'percentage' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Percentage of Material</Label>
-                        <Select
-                          value={newConfiguration.percentage_of_material_id}
-                          onValueChange={(value) => setNewConfiguration({ ...newConfiguration, percentage_of_material_id: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select reference material" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {configurations.map((config) => (
-                              <SelectItem key={config.raw_material_id} value={config.raw_material_id}>
-                                {config.raw_materials.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Percentage Value (%)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="Enter percentage"
-                          value={newConfiguration.percentage_value}
-                          onChange={(e) => setNewConfiguration({ ...newConfiguration, percentage_value: e.target.value })}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Show units_per_box field if selected material unit is 'box' */}
-                  {materials.find(m => m.id === newConfiguration.material_id)?.unit.toLowerCase() === 'box' && (
-                    <div className="space-y-2">
-                      <Label>Units per Box</Label>
-                      <Input
-                        type="number"
-                        placeholder="Enter units per box"
-                        value={newConfiguration.units_per_box}
-                        onChange={(e) => setNewConfiguration({ ...newConfiguration, units_per_box: e.target.value })}
-                      />
-                      <p className="text-xs text-muted-foreground">How many units of this variant fit in this box</p>
-                    </div>
-                  )}
-
                   <div className="space-y-2">
-                    <Label>Application Type</Label>
+                    <Label>Application Basis</Label>
                     <Select
-                      value={newConfiguration.application_type}
-                      onValueChange={(value) => setNewConfiguration({ ...newConfiguration, application_type: value })}
+                      value={newConfiguration.application_basis}
+                      onValueChange={(value: any) => setNewConfiguration({ ...newConfiguration, application_basis: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="per_unit">Per Unit</SelectItem>
+                        <SelectItem value="per_pack">Per Pack</SelectItem>
+                        <SelectItem value="per_inner_unit">Per Inner Unit</SelectItem>
                         <SelectItem value="per_batch">Per Batch</SelectItem>
+                        <SelectItem value="per_volume_of_inner_unit">Per Volume of Inner Unit</SelectItem>
+                        <SelectItem value="per_weight_of_inner_unit">Per Weight of Inner Unit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {newConfiguration.calculation_type === 'fixed' && (
+                    <div className="space-y-2">
+                      <Label>Quantity (Usage)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Enter quantity"
+                        value={newConfiguration.quantity_usage}
+                        onChange={(e) => setNewConfiguration({ ...newConfiguration, quantity_usage: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Usage UOM</Label>
+                    <Select
+                      value={newConfiguration.usage_uom_id}
+                      onValueChange={(value) => setNewConfiguration({ ...newConfiguration, usage_uom_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select UOM" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uoms.map((uom) => (
+                          <SelectItem key={uom.id} value={uom.id}>
+                            {uom.name} ({uom.abbreviation})
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -446,8 +504,9 @@ export function ManageProductionMaterialsDialog() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Material</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead>Application</TableHead>
+                        <TableHead>Basis</TableHead>
+                        <TableHead>Qty (Usage)</TableHead>
+                        <TableHead>Result (per Pack)</TableHead>
                         <TableHead>Notes</TableHead>
                         <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
@@ -456,11 +515,14 @@ export function ManageProductionMaterialsDialog() {
                       {configurations.map((config) => (
                         <TableRow key={config.id}>
                           <TableCell>{config.raw_materials.name}</TableCell>
+                          <TableCell className="capitalize">
+                            {config.application_basis ? config.application_basis.replace(/_/g, ' ') : config.application_type.replace('_', ' ')}
+                          </TableCell>
                           <TableCell>
                             {getDisplayQuantity(config)}
                           </TableCell>
-                          <TableCell className="capitalize">
-                            {config.application_type.replace('_', ' ')}
+                          <TableCell>
+                            {getCalculatedResult(config)}
                           </TableCell>
                           <TableCell>{config.notes || '-'}</TableCell>
                           <TableCell>

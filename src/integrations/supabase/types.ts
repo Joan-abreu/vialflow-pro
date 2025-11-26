@@ -288,9 +288,12 @@ export type Database = {
       production_configurations: {
         Row: {
           application_type: string
+          calculation_type: string | null
           created_at: string
           id: string
           notes: string | null
+          percentage_of_material_id: string | null
+          percentage_value: number | null
           product_id: string
           quantity_per_unit: number
           raw_material_id: string
@@ -299,9 +302,12 @@ export type Database = {
         }
         Insert: {
           application_type?: string
+          calculation_type?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          percentage_of_material_id?: string | null
+          percentage_value?: number | null
           product_id: string
           quantity_per_unit?: number
           raw_material_id: string
@@ -310,9 +316,12 @@ export type Database = {
         }
         Update: {
           application_type?: string
+          calculation_type?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          percentage_of_material_id?: string | null
+          percentage_value?: number | null
           product_id?: string
           quantity_per_unit?: number
           raw_material_id?: string
@@ -320,6 +329,13 @@ export type Database = {
           vial_type_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "production_configurations_percentage_of_material_id_fkey"
+            columns: ["percentage_of_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "production_configurations_product_id_fkey"
             columns: ["product_id"]

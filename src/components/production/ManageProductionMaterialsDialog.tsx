@@ -9,6 +9,7 @@ import { Settings, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { DialogDescription } from "@radix-ui/react-dialog";
 
 interface ProductVariant {
   id: string;
@@ -103,7 +104,7 @@ export function ManageProductionMaterialsDialog() {
     if (selectedVariantId) {
       const variant = variants.find(v => v.id === selectedVariantId);
       if (variant) {
-        setSelectedProductId(variant.product_id);
+        setSelectedProductId(variant.id);
         setSelectedVialTypeId(variant.vial_type_id);
       }
     }
@@ -205,6 +206,16 @@ export function ManageProductionMaterialsDialog() {
 
     if (newConfiguration.calculation_type === 'fixed' && !newConfiguration.quantity_usage) {
       toast.error("Please enter quantity");
+      return;
+    }
+
+    // Check if material is already added
+    const isDuplicate = configurations.some(
+      config => config.raw_material_id === newConfiguration.material_id
+    );
+
+    if (isDuplicate) {
+      toast.error("This material has already been added to this configuration");
       return;
     }
 
@@ -324,7 +335,14 @@ export function ManageProductionMaterialsDialog() {
         config.raw_materials?.units_of_measurement?.abbreviation ||
         config.raw_materials?.unit ||
         "";
-      return `${config.quantity_usage || config.quantity_per_unit} ${unit}`;
+
+      let display = `${config.quantity_usage || config.quantity_per_unit} ${unit}`;
+
+      if (config.units_per_box) {
+        display += ` (Capacity: ${config.units_per_box})`;
+      }
+
+      return display;
     }
   };
 
@@ -333,12 +351,20 @@ export function ManageProductionMaterialsDialog() {
 
     const unit = config.raw_materials?.units_of_measurement?.abbreviation || config.raw_materials?.unit || "";
 
+    // If we have units_per_box, show the calculation
+    if (config.units_per_box) {
+      return `1 ${unit} per ${config.units_per_box} units`;
+    }
+
     // If we have a calculated quantity_per_unit (total per pack), use it
     if (config.quantity_per_unit) {
       return `${config.quantity_per_unit} ${unit} per pack`;
     }
     return '-';
   };
+
+  const selectedMaterial = materials.find(m => m.id === newConfiguration.material_id);
+  const isBoxMaterial = selectedMaterial?.unit.toLowerCase() === 'box';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -351,6 +377,9 @@ export function ManageProductionMaterialsDialog() {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configure Production Materials</DialogTitle>
+          <DialogDescription>
+            Configure the materials required for production of the selected variant.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -363,15 +392,15 @@ export function ManageProductionMaterialsDialog() {
               </SelectTrigger>
               <SelectContent>
                 {variants.map((variant) => {
-                    const saleTypeText = variant.sale_type === 'pack'
-                      ? `Pack (${variant.pack_size}x)`
-                      : 'Individual';
-                    return (
-                      <SelectItem key={variant.id} value={variant.id}>
-                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
-                      </SelectItem>
-                    );
-                  })}
+                  const saleTypeText = variant.sale_type === 'pack'
+                    ? `Pack (${variant.pack_size}x)`
+                    : 'Individual';
+                  return (
+                    <SelectItem key={variant.id} value={variant.id}>
+                      {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {selectedVariantId && (
@@ -474,6 +503,20 @@ export function ManageProductionMaterialsDialog() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {isBoxMaterial && (
+                    <div className="space-y-2">
+                      <Label>Units per Box (Capacity)</Label>
+                      <Input
+                        type="number"
+                        step="1"
+                        placeholder="e.g. 50"
+                        value={newConfiguration.units_per_box}
+                        onChange={(e) => setNewConfiguration({ ...newConfiguration, units_per_box: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">How many units of this variant fit in one box</p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Notes (Optional)</Label>

@@ -282,49 +282,74 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       production_configurations: {
         Row: {
+          application_basis: string | null
           application_type: string
+          calculation_type: string | null
           created_at: string
           id: string
           notes: string | null
+          percentage_of_material_id: string | null
+          percentage_value: number | null
           product_id: string
           quantity_per_unit: number
+          quantity_usage: number | null
           raw_material_id: string
           updated_at: string
+          usage_uom_id: string | null
           vial_type_id: string
         }
         Insert: {
+          application_basis?: string | null
           application_type?: string
+          calculation_type?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          percentage_of_material_id?: string | null
+          percentage_value?: number | null
           product_id: string
           quantity_per_unit?: number
+          quantity_usage?: number | null
           raw_material_id: string
           updated_at?: string
+          usage_uom_id?: string | null
           vial_type_id: string
         }
         Update: {
+          application_basis?: string | null
           application_type?: string
+          calculation_type?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          percentage_of_material_id?: string | null
+          percentage_value?: number | null
           product_id?: string
           quantity_per_unit?: number
+          quantity_usage?: number | null
           raw_material_id?: string
           updated_at?: string
+          usage_uom_id?: string | null
           vial_type_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "production_configurations_percentage_of_material_id_fkey"
+            columns: ["percentage_of_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "production_configurations_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "product_variants"
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -332,6 +357,13 @@ export type Database = {
             columns: ["raw_material_id"]
             isOneToOne: false
             referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_configurations_usage_uom_id_fkey"
+            columns: ["usage_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measurement"
             referencedColumns: ["id"]
           },
           {

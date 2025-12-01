@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, CalendarIcon } from "lucide-react";
+import { Pencil, CalendarIcon, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -45,7 +45,6 @@ interface EditBatchDialogProps {
     sale_type: string;
     pack_quantity: number | null;
     product_id: string;
-    vial_type_id: string;
     started_at: string | null;
   };
   onSuccess: () => void;
@@ -86,6 +85,21 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
     }
   }, [open, batch]);
 
+  useEffect(() => {
+    if (open && variants.length > 0) {
+      // Find matching variant for existing batch
+      // batch.product_id is the variant ID string
+      const targetId = typeof batch.product_id === 'object' ? (batch.product_id as any).id : batch.product_id;
+
+      const matchingVariant = variants.find(v => v.id === targetId);
+
+      if (matchingVariant) {
+        console.log('Setting matching variant:', matchingVariant.id);
+        setFormData(prev => ({ ...prev, variant_id: matchingVariant.id }));
+      }
+    }
+  }, [open, variants, batch.product_id]);
+
   const fetchVariants = async () => {
     const { data, error } = await supabase
       .from("product_variants")
@@ -102,34 +116,6 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
     if (!error && data) {
       setVariants(data as any);
-
-      console.log('Debugging EditBatchDialog Variant Matching:');
-      console.log('Batch Data:', {
-        product_id: batch.product_id,
-        vial_type_id: batch.vial_type_id,
-        sale_type: batch.sale_type,
-        pack_quantity: batch.pack_quantity
-      });
-
-      // Find matching variant for existing batch
-      const matchingVariant = (data as any).find((v: ProductVariant) => {
-        const match = v.product_id === batch.product_id &&
-          v.vial_type_id === batch.vial_type_id &&
-          v.sale_type === batch.sale_type &&
-          (batch.sale_type !== 'pack' || Number(v.pack_size) === Number(batch.pack_quantity));
-
-        if (match) {
-          console.log('Found match:', v);
-        }
-        return match;
-      });
-
-      if (matchingVariant) {
-        console.log('Setting variant_id to:', matchingVariant.id);
-        setFormData(prev => ({ ...prev, variant_id: matchingVariant.id }));
-      } else {
-        console.log('No matching variant found in', data.length, 'variants');
-      }
     }
   };
 
@@ -196,8 +182,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
     if (hasShipments) {
       if (
-        selectedVariant.product_id !== batch.product_id ||
-        selectedVariant.vial_type_id !== batch.vial_type_id ||
+        selectedVariant.id !== batch.product_id ||
         selectedVariant.sale_type !== batch.sale_type
       ) {
         toast({
@@ -219,7 +204,13 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
         status: formData.status,
         sale_type: selectedVariant.sale_type,
         pack_quantity: selectedVariant.sale_type === 'pack' ? selectedVariant.pack_size : 1,
-        started_at: formData.started_at ? formData.started_at.toISOString() : null,
+        started_at: formData.started_at ? (() => {
+          const d = new Date(formData.started_at);
+          const now = new Date();
+          d.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+          return d.toISOString();
+        })()
+          : null,
         waste_quantity,
         waste_notes: formData.waste_notes || null,
       })
@@ -285,7 +276,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                 </SelectContent>
               </Select>
             </div>
-
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-8">
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
@@ -305,17 +297,15 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4 mb-4">
             <div className="space-y-2">
               <Label>Production Start Date</Label>
-              <div className="flex gap-2">
+              <div className="relative">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       className={cn(
-                        "flex-1 justify-start text-left font-normal",
+                        "w-full justify-start text-left font-normal pr-10",
                         !formData.started_at && "text-muted-foreground"
                       )}
                     >
@@ -333,16 +323,21 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                   </PopoverContent>
                 </Popover>
                 {formData.started_at && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setFormData({ ...formData, started_at: null })}
+                  <div
+                    className="absolute right-0 top-0 h-full px-3 flex items-center justify-center cursor-pointer text-muted-foreground hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFormData({ ...formData, started_at: null });
+                    }}
                   >
-                    Clear
-                  </Button>
+                    <X className="h-4 w-4" />
+                  </div>
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4 mb-4">
             <div className="space-y-2">
               <Label htmlFor="quantity">
                 Quantity (units/packs) *
@@ -359,6 +354,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
               />
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-8">
             <div className="space-y-2">
               <Label htmlFor="waste_quantity">Waste Quantity</Label>

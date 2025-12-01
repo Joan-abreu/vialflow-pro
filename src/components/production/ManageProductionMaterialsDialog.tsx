@@ -209,6 +209,11 @@ export function ManageProductionMaterialsDialog() {
       return;
     }
 
+    if (newConfiguration.calculation_type === 'per_box' && !newConfiguration.units_per_box) {
+      toast.error("Please enter yield/capacity");
+      return;
+    }
+
     // Check if material is already added
     const isDuplicate = configurations.some(
       config => config.raw_material_id === newConfiguration.material_id
@@ -268,14 +273,28 @@ export function ManageProductionMaterialsDialog() {
         configData.quantity_per_unit = 0; // Calculated dynamically
         configData.quantity_usage = 0;
       } else if (newConfiguration.calculation_type === 'per_box') {
-        configData.quantity_per_unit = 1; // One per box
-        configData.quantity_usage = 1;
-      }
+        // Yield Calculation
+        const yieldQty = parseFloat(newConfiguration.units_per_box);
+        configData.units_per_box = yieldQty;
+        configData.quantity_usage = 1; // 1 unit of material
 
-      // Add units_per_box if material unit is 'box'
-      const selectedMaterial = materials.find(m => m.id === newConfiguration.material_id);
-      if (selectedMaterial?.unit.toLowerCase() === 'box' && newConfiguration.units_per_box) {
-        configData.units_per_box = parseInt(newConfiguration.units_per_box);
+        // Calculate cost basis per pack
+        if (yieldQty > 0) {
+          switch (newConfiguration.application_basis) {
+            case 'per_pack':
+              // 1 material covers X packs. So per pack usage is 1/X
+              calculatedQtyPerUnit = 1 / yieldQty;
+              break;
+            case 'per_inner_unit':
+              // 1 material covers X inner units.
+              // Per pack usage = (1/X) * packSize
+              calculatedQtyPerUnit = (1 / yieldQty) * packSize;
+              break;
+            default:
+              calculatedQtyPerUnit = 1 / yieldQty; // Default fallback
+          }
+        }
+        configData.quantity_per_unit = calculatedQtyPerUnit;
       }
 
       const { error } = await supabase
@@ -329,7 +348,10 @@ export function ManageProductionMaterialsDialog() {
       const refMaterial = materials.find(m => m.id === config.percentage_of_material_id);
       return `${config.percentage_value}% of ${refMaterial?.name || 'material'}`;
     } else if (config.calculation_type === "per_box") {
-      return "1 per box";
+      const unit = config.raw_materials?.units_of_measurement?.abbreviation ||
+        config.raw_materials?.unit ||
+        "Unit";
+      return `1 ${unit} per ${config.units_per_box} ${config.application_basis === 'per_pack' ? 'Packs' : 'Inner Units'}`;
     } else {
       const unit = config.usage_uom?.abbreviation ||
         config.raw_materials?.units_of_measurement?.abbreviation ||
@@ -345,16 +367,18 @@ export function ManageProductionMaterialsDialog() {
       return display;
     }
   };
-
   const getCalculatedResult = (config: ProductionConfiguration) => {
-    if (config.calculation_type !== 'fixed') return '-';
-
     const unit = config.raw_materials?.units_of_measurement?.abbreviation || config.raw_materials?.unit || "";
 
-    // If we have units_per_box, show the calculation
-    if (config.units_per_box) {
-      return `1 ${unit} per ${config.units_per_box} units`;
+    if (config.calculation_type === 'per_box' && config.units_per_box) {
+      // Show the effective usage per pack
+      if (config.quantity_per_unit) {
+        return `${parseFloat(config.quantity_per_unit.toFixed(8))} ${unit} per pack`;
+      }
+      return '-';
     }
+
+    if (config.calculation_type !== 'fixed') return '-';
 
     // If we have a calculated quantity_per_unit (total per pack), use it
     if (config.quantity_per_unit) {
@@ -362,6 +386,7 @@ export function ManageProductionMaterialsDialog() {
     }
     return '-';
   };
+
 
   const selectedMaterial = materials.find(m => m.id === newConfiguration.material_id);
   const isBoxMaterial = selectedMaterial?.unit.toLowerCase() === 'box';
@@ -448,7 +473,7 @@ export function ManageProductionMaterialsDialog() {
                       <SelectContent>
                         <SelectItem value="fixed">Fixed Quantity</SelectItem>
                         <SelectItem value="percentage">Percentage of Material</SelectItem>
-                        <SelectItem value="per_box">Per Box</SelectItem>
+                        <SelectItem value="per_box">Yield (1 Unit / X Items)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -504,17 +529,19 @@ export function ManageProductionMaterialsDialog() {
                     </Select>
                   </div>
 
-                  {isBoxMaterial && (
+                  {newConfiguration.calculation_type === 'per_box' && (
                     <div className="space-y-2">
-                      <Label>Units per Box (Capacity)</Label>
+                      <Label>Yield (Product Units per Material Unit)</Label>
                       <Input
                         type="number"
                         step="1"
-                        placeholder="e.g. 50"
+                        placeholder="e.g. 2640"
                         value={newConfiguration.units_per_box}
                         onChange={(e) => setNewConfiguration({ ...newConfiguration, units_per_box: e.target.value })}
                       />
-                      <p className="text-xs text-muted-foreground">How many units of this variant fit in one box</p>
+                      <p className="text-xs text-muted-foreground">
+                        How many {newConfiguration.application_basis === 'per_pack' ? 'packs' : 'inner units'} does one unit of material produce?
+                      </p>
                     </div>
                   )}
 

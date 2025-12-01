@@ -50,7 +50,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     batch_number: "",
     variant_id: "",
     quantity: "",
-    started_at: null as Date | null,
   });
 
   useEffect(() => {
@@ -161,7 +160,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         calculation_type,
         percentage_value,
         percentage_of_material_id,
-        raw_materials (
+        raw_materials!production_configurations_raw_material_id_fkey (
           id,
           name,
           current_stock,
@@ -273,8 +272,8 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       sale_type: selectedVariant.sale_type,
       pack_quantity: selectedVariant.sale_type === 'pack' ? selectedVariant.pack_size : 1,
       created_by: user.id,
-      status: formData.started_at ? "in_progress" : "pending",
-      started_at: formData.started_at ? formData.started_at.toISOString() : null,
+      status: "pending",
+      started_at: null,
     });
 
     setLoading(false);
@@ -307,7 +306,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
         batch_number: "",
         variant_id: "",
         quantity: "",
-        started_at: null,
       });
       onSuccess();
     }
@@ -361,43 +359,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
                   })}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Production Start Date</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className={cn(
-                        "flex-1 justify-start text-left font-normal",
-                        !formData.started_at && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.started_at ? format(formData.started_at, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.started_at || undefined}
-                      onSelect={(date) => setFormData({ ...formData, started_at: date || null })}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                {formData.started_at && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setFormData({ ...formData, started_at: null })}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quantity">Quantity (units/packs) *</Label>

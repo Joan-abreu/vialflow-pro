@@ -31,6 +31,7 @@ import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog
 import { ManageProductionMaterialsDialog } from "@/components/production/ManageProductionMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
+import StartProductionDialog from "@/components/production/StartProductionDialog";
 import { Package, Trash2, FileText } from "lucide-react";
 
 interface ProductionBatch {
@@ -45,7 +46,8 @@ interface ProductionBatch {
   completed_at: string | null;
   shipped_units: number;
   units_in_progress: number;
-  product_id: {
+  product_id: string; // Keep as string ID
+  product_variant_details: { // New property for expanded details
     vial_type_id: {
       name: string;
       size_ml: number;
@@ -64,9 +66,10 @@ const Production = () => {
     setLoading(true);
 
     // Fetch batches with vial types, products and shipped_units
+    // Alias the relation to product_variant_details to keep product_id as the ID string
     const { data: batchData, error } = await supabase
       .from("production_batches")
-      .select("*, product_id(vial_type_id(name, size_ml), product_id(name))")
+      .select("*, product_variant_details:product_id(vial_type_id(name, size_ml), product_id(name))")
       .order("created_at", { ascending: false });
 
     if (!error && batchData) {
@@ -187,10 +190,10 @@ const Production = () => {
                       <TableRow key={batch.id}>
                         <TableCell className="font-medium">{batch.batch_number}</TableCell>
                         <TableCell>
-                          {batch.product_id?.product_id?.name || "-"}
+                          {batch.product_variant_details?.product_id?.name || "-"}
                         </TableCell>
                         <TableCell>
-                          {batch.product_id?.vial_type_id?.name} ({batch.product_id?.vial_type_id?.size_ml}ml)
+                          {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.size_ml}ml)
                         </TableCell>
                         <TableCell>
                           {batch.sale_type === "pack" && batch.pack_quantity
@@ -244,6 +247,12 @@ const Production = () => {
                         <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
+                            {batch.status === "pending" && (
+                              <StartProductionDialog
+                                batch={batch}
+                                onSuccess={fetchBatches}
+                              />
+                            )}
                             <EditBatchDialog
                               batch={batch}
                               onSuccess={fetchBatches}
@@ -262,7 +271,7 @@ const Production = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => window.open(`/bom/${batch.id}`, '_blank')}
+                              onClick={() => window.open(`/manufacturing/bom/${batch.id}`, '_blank')}
                               title="Generate Bill of Materials"
                             >
                               <FileText className="h-4 w-4" />

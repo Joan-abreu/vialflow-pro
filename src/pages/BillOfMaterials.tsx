@@ -46,49 +46,58 @@ export default function BillOfMaterials() {
           .from("production_batches")
           .select(`
             batch_number,
-            products (name),
             sale_type,
             pack_quantity,
             quantity,
             started_at,
             created_at,
-            vial_types (
-              name,
-              size_ml
+            product_id (
+              id,
+              product_id,
+              vial_type_id,
+              products (name),
+              vial_types (name, size_ml)
             )
           `)
           .eq("id", batchId)
           .single();
 
         if (batchError) throw batchError;
+        if (!batchData) {
+          setLoading(false);
+          return;
+        }
+
+        const productVariant = batchData.product_id as any;
 
         setBatch({
           batch_number: batchData.batch_number,
-          products: batchData.products,
+          products: productVariant?.products || null,
           sale_type: batchData.sale_type,
           quantity: batchData.quantity,
           pack_quantity: batchData.pack_quantity,
           started_at: batchData.started_at,
           created_at: batchData.created_at,
-          vial_type_name: batchData.vial_types.name,
-          vial_type_size: batchData.vial_types.size_ml,
+          vial_type_name: productVariant?.vial_types?.name || '',
+          vial_type_size: productVariant?.vial_types?.size_ml || 0,
         });
 
-        // Fetch vial type ID
-        const { data: batchConfigData } = await supabase
-          .from("production_batches")
-          .select("vial_type_id, product_id")
-          .eq("id", batchId)
-          .single();
+        // Fetch materials for this product variant
+        console.log('Product Variant:', productVariant);
+        console.log('Looking for materials with:', {
+          vial_type_id: productVariant.vial_type_id,
+          product_id: productVariant.id  // Use variant ID, not product_id
+        });
 
-        if (!batchConfigData) return;
-
-        // Fetch materials for this vial type
         const { data: materialsData, error: materialsError } = await supabase
           .from("production_configurations")
           .select(`
             id,
             quantity_per_unit,
+            quantity_usage,
+            application_basis,
+            calculation_type,
+            units_per_box,
             raw_materials!production_configurations_raw_material_id_fkey (
               id,
               name,
@@ -96,14 +105,41 @@ export default function BillOfMaterials() {
               cost_per_unit
             )
           `)
-          .eq("vial_type_id", batchConfigData.vial_type_id)
-          .eq("product_id", batchConfigData.product_id);
+          .eq("vial_type_id", productVariant.vial_type_id)
+          .eq("product_id", productVariant.id);  // Use variant ID, not product_id
+
+        console.log('Materials query result:', { materialsData, materialsError });
 
         if (materialsError) throw materialsError;
 
+        // Calculate quantity in packs (for material calculation)
+        const quantityInPacks = batchData.sale_type === "pack" && batchData.pack_quantity
+          ? batchData.quantity / batchData.pack_quantity
+          : batchData.quantity;
+
         // Calculate quantities and costs
         const processedMaterials: MaterialItem[] = materialsData.map((item: any) => {
-          const totalQty = item.quantity_per_unit * batchData.quantity;
+          let totalQty = 0;
+
+          // Calculate based on calculation type
+          if (item.calculation_type === 'fixed') {
+            if (item.application_basis === 'per_batch') {
+              totalQty = item.quantity_usage || 0;
+            } else {
+              // For other bases, quantity_per_unit is already calculated as "per pack"
+              totalQty = quantityInPacks * item.quantity_per_unit;
+            }
+          } else if (item.calculation_type === 'per_box') {
+            // Yield calculation - quantity_per_unit already has the per-pack usage
+            totalQty = quantityInPacks * item.quantity_per_unit;
+          }
+
+          // Round up for units and boxes (discrete items)
+          const unit = item.raw_materials.unit.toLowerCase();
+          if (unit === 'units' || unit === 'unit' || unit === 'box' || unit === 'boxes') {
+            totalQty = Math.ceil(totalQty);
+          }
+
           const costPerUnit = item.raw_materials.cost_per_unit || 0;
           const totalCost = totalQty * costPerUnit;
 
@@ -226,28 +262,38 @@ export default function BillOfMaterials() {
             </thead>
             <tbody>
               {materials.length > 0 ? (
-                materials.map((material) => (
-                  <tr key={material.id} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 p-3">{material.name}</td>
-                    <td className="border border-gray-300 p-3 text-right">
-                      {material.quantity_per_unit.toFixed(2)}
-                    </td>
-                    <td className="border border-gray-300 p-3 text-center">{material.unit}</td>
-                    <td className="border border-gray-300 p-3 text-right">
-                      {material.total_quantity.toFixed(2)}
-                    </td>
-                    <td className="border border-gray-300 p-3 text-right">
-                      ${material.cost_per_unit.toFixed(2)}
-                    </td>
-                    <td className="border border-gray-300 p-3 text-right font-semibold">
-                      ${material.total_cost.toFixed(2)}
-                    </td>
-                  </tr>
-                ))
+                materials.map((material) => {
+                  const isDiscreteUnit = ['units', 'unit', 'box', 'boxes'].includes(material.unit.toLowerCase());
+                  const qtyPerUnitDisplay = isDiscreteUnit
+                    ? material.quantity_per_unit.toFixed(2)
+                    : material.quantity_per_unit.toFixed(4);
+                  const totalQtyDisplay = isDiscreteUnit
+                    ? material.total_quantity.toFixed(0)
+                    : material.total_quantity.toFixed(2);
+
+                  return (
+                    <tr key={material.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 p-3">{material.name}</td>
+                      <td className="border border-gray-300 p-3 text-right">
+                        {qtyPerUnitDisplay}
+                      </td>
+                      <td className="border border-gray-300 p-3 text-center">{material.unit}</td>
+                      <td className="border border-gray-300 p-3 text-right">
+                        {totalQtyDisplay}
+                      </td>
+                      <td className="hidden sm:table-cell border border-gray-300 p-3 text-right">
+                        ${material.cost_per_unit?.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="border border-gray-300 p-3 text-right font-semibold">
+                        ${material.total_cost.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={6} className="border border-gray-300 p-4 text-center text-gray-500">
-                    No materials configured for this vial type
+                    No materials configured for this product variant
                   </td>
                 </tr>
               )}

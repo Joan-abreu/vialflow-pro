@@ -14,50 +14,91 @@ const EmailConfirmation = () => {
 
     useEffect(() => {
         const confirmEmail = async () => {
-            // Supabase handles email confirmation automatically via the URL
-            // We just need to check the auth state after the redirect
+            // Supabase can send confirmation in two ways:
+            // 1. New format: ?token_hash=xxx&type=email
+            // 2. Old format: #access_token=xxx&refresh_token=xxx&type=signup
 
-            // Get the token from URL - Supabase uses different param names
+            // Check for new format first
             const token_hash = searchParams.get("token_hash");
             const type = searchParams.get("type");
 
-            if (!token_hash || type !== "email") {
+            // Check for old format in hash
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const access_token = hashParams.get("access_token");
+            const refresh_token = hashParams.get("refresh_token");
+            const hashType = hashParams.get("type");
+
+            // Handle new format
+            if (token_hash && type === "email") {
+                try {
+                    const { data, error } = await supabase.auth.verifyOtp({
+                        token_hash,
+                        type: "email",
+                    });
+
+                    if (error) {
+                        console.error("Email confirmation error:", error);
+                        setStatus("error");
+                        setMessage(error.message || "Failed to confirm email. The link may have expired.");
+                        return;
+                    }
+
+                    if (data?.user) {
+                        setStatus("success");
+                        setMessage("Your email has been confirmed successfully! You can now sign in.");
+                        toast.success("Email confirmed successfully!");
+
+                        setTimeout(() => {
+                            navigate("/");
+                        }, 2000);
+                    } else {
+                        setStatus("error");
+                        setMessage("Unable to confirm email. Please try again.");
+                    }
+                } catch (error: any) {
+                    console.error("Confirmation error:", error);
+                    setStatus("error");
+                    setMessage("An unexpected error occurred. Please try again.");
+                }
+            }
+            // Handle old format (hash-based tokens)
+            else if (access_token && refresh_token && hashType === "signup") {
+                try {
+                    // Set the session using the tokens from the URL
+                    const { data, error } = await supabase.auth.setSession({
+                        access_token,
+                        refresh_token,
+                    });
+
+                    if (error) {
+                        console.error("Email confirmation error:", error);
+                        setStatus("error");
+                        setMessage(error.message || "Failed to confirm email. The link may have expired.");
+                        return;
+                    }
+
+                    if (data?.user) {
+                        setStatus("success");
+                        setMessage("Your email has been confirmed successfully! You can now sign in.");
+                        toast.success("Email confirmed successfully!");
+
+                        setTimeout(() => {
+                            navigate("/");
+                        }, 2000);
+                    } else {
+                        setStatus("error");
+                        setMessage("Unable to confirm email. Please try again.");
+                    }
+                } catch (error: any) {
+                    console.error("Confirmation error:", error);
+                    setStatus("error");
+                    setMessage("An unexpected error occurred. Please try again.");
+                }
+            }
+            // No valid confirmation parameters found
+            else {
                 setStatus("error");
                 setMessage("Invalid confirmation link. Please try again or request a new confirmation email.");
-                return;
-            }
-
-            try {
-                // Verify the OTP token
-                const { data, error } = await supabase.auth.verifyOtp({
-                    token_hash,
-                    type: "email",
-                });
-
-                if (error) {
-                    console.error("Email confirmation error:", error);
-                    setStatus("error");
-                    setMessage(error.message || "Failed to confirm email. The link may have expired.");
-                    return;
-                }
-
-                if (data?.user) {
-                    setStatus("success");
-                    setMessage("Your email has been confirmed successfully! You can now sign in.");
-                    toast.success("Email confirmed successfully!");
-
-                    // Redirect to home page after a short delay
-                    setTimeout(() => {
-                        navigate("/");
-                    }, 2000);
-                } else {
-                    setStatus("error");
-                    setMessage("Unable to confirm email. Please try again.");
-                }
-            } catch (error: any) {
-                console.error("Confirmation error:", error);
-                setStatus("error");
-                setMessage("An unexpected error occurred. Please try again.");
             }
         };
 

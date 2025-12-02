@@ -20,12 +20,25 @@ const Register = () => {
         setLoading(true);
 
         try {
+            // Check if email already exists
+            const { data: existingEmail } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("email", email)
+                .maybeSingle();
+
+            if (existingEmail) {
+                toast.error("Email already registered. Please use a different email or sign in.");
+                setLoading(false);
+                return;
+            }
+
             // Check if phone number already exists
             const { data: existingPhone } = await supabase
                 .from("profiles")
                 .select("id")
                 .eq("phone", phone)
-                .single();
+                .maybeSingle();
 
             if (existingPhone) {
                 toast.error("Phone number already registered");

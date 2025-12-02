@@ -28,7 +28,9 @@ const Login = () => {
             navigate("/");
         } catch (error: any) {
             if (error.message.includes("Email not confirmed")) {
-                toast.error("Please verify your email address before logging in.");
+                toast.error("Please verify your email address before logging in. Check your inbox for the confirmation link.");
+            } else if (error.message.includes("Invalid login credentials")) {
+                toast.error("Invalid email or password. Please try again.");
             } else {
                 toast.error(error.message || "Error logging in");
             }

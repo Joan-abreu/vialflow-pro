@@ -151,6 +151,8 @@ const Users = () => {
         return "secondary";
       case "staff":
         return "outline";
+      case "customer":
+        return "outline";
       case "pending":
         return "destructive";
       default:
@@ -294,6 +296,7 @@ const Users = () => {
       admin: "Administrator",
       manager: "Manager",
       staff: "Staff",
+      customer: "Customer",
       pending: "Pending",
     };
     return labels[role] || role;
@@ -389,6 +392,7 @@ const Users = () => {
                             <SelectItem value="admin">Administrator</SelectItem>
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="customer">Customer</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                           </SelectContent>
                         </Select>

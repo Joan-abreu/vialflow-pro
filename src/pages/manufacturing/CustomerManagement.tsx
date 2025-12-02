@@ -13,6 +13,8 @@ import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Profile {
+    phone: string;
+    email: string;
     id: string;
     full_name: string | null;
     created_at: string;
@@ -22,23 +24,26 @@ const CustomerManagement = () => {
     const { data: profiles, isLoading } = useQuery({
         queryKey: ["admin-customers"],
         queryFn: async () => {
-            // First, get all user_roles to filter out admin/manager/staff
+            // Get all user_roles with 'customer' role
             const { data: userRoles, error: rolesError } = await supabase
                 .from("user_roles")
-                .select("user_id, role");
+                .select("user_id, role")
+                .eq("role", "customer");
 
             if (rolesError) throw rolesError;
 
-            // Get user IDs with admin/manager/staff roles
-            const adminUserIds = userRoles
-                ?.filter(ur => ur.role === "admin" || ur.role === "manager" || ur.role === "staff")
-                .map(ur => ur.user_id) || [];
+            // Get user IDs with customer role
+            const customerUserIds = userRoles?.map(ur => ur.user_id) || [];
 
-            // Get all profiles excluding admin/manager/staff users
+            if (customerUserIds.length === 0) {
+                return [];
+            }
+
+            // Get all customer profiles
             const { data, error } = await supabase
                 .from("profiles")
                 .select("*")
-                .not("user_id", "in", `(${adminUserIds.join(",") || "''"})`)
+                .in("user_id", customerUserIds)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
@@ -59,6 +64,8 @@ const CustomerManagement = () => {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Customer</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Phone</TableHead>
                                 <TableHead>Joined Date</TableHead>
                                 <TableHead>ID</TableHead>
                             </TableRow>
@@ -94,6 +101,8 @@ const CustomerManagement = () => {
                                                 </div>
                                             </div>
                                         </TableCell>
+                                        <TableCell>{profile.email}</TableCell>
+                                        <TableCell>{profile.phone}</TableCell>
                                         <TableCell>{format(new Date(profile.created_at), "MMM d, yyyy")}</TableCell>
                                         <TableCell className="font-mono text-xs text-muted-foreground">
                                             {profile.id}

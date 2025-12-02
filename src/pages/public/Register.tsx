@@ -20,6 +20,19 @@ const Register = () => {
         setLoading(true);
 
         try {
+            // Check if phone number already exists
+            const { data: existingPhone } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("phone", phone)
+                .single();
+
+            if (existingPhone) {
+                toast.error("Phone number already registered");
+                setLoading(false);
+                return;
+            }
+
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
@@ -27,6 +40,7 @@ const Register = () => {
                     data: {
                         full_name: fullName,
                     },
+                    emailRedirectTo: `${window.location.origin}/auth/confirm`,
                 },
             });
 

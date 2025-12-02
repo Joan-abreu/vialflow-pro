@@ -27,6 +27,7 @@ import Cart from "./pages/public/Cart";
 import Checkout from "./pages/public/Checkout";
 import Login from "./pages/public/Login";
 import Register from "./pages/public/Register";
+import EmailConfirmation from "./pages/auth/EmailConfirmation";
 import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
 import Account from "./pages/public/Account";
@@ -97,6 +98,7 @@ const App = () => {
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/auth/confirm" element={<EmailConfirmation />} />
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/account" element={<Account />} />

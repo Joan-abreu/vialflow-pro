@@ -34,15 +34,46 @@ const CartIcon = () => {
 const PublicLayoutContent = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        supabase.auth.getUser().then(({ data: { user } }) => {
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
             setUser(user);
-        });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (user) {
+                const { data } = await supabase
+                    .from("user_roles")
+                    .select("role")
+                    .eq("user_id", user.id)
+                    .single();
+
+                if (data && data.role === "admin") {
+                    setIsAdmin(true);
+                }
+            }
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             setUser(session?.user ?? null);
+            if (session?.user) {
+                const { data } = await supabase
+                    .from("user_roles")
+                    .select("role")
+                    .eq("user_id", session.user.id)
+                    .single();
+
+                if (data && data.role === "admin") {
+                    setIsAdmin(true);
+                } else {
+                    setIsAdmin(false);
+                }
+            } else {
+                setIsAdmin(false);
+            }
         });
 
         return () => subscription.unsubscribe();
@@ -71,6 +102,11 @@ const PublicLayoutContent = () => {
                             <Link to="/contact" className="transition-colors hover:text-primary">
                                 Contact
                             </Link>
+                            {isAdmin && (
+                                <Link to="/manufacturing" className="transition-colors hover:text-primary font-semibold text-primary">
+                                    Manufacturing
+                                </Link>
+                            )}
                         </nav>
                     </div>
 
@@ -92,6 +128,13 @@ const PublicLayoutContent = () => {
                                             My Account
                                         </Link>
                                     </DropdownMenuItem>
+                                    {isAdmin && (
+                                        <DropdownMenuItem asChild>
+                                            <Link to="/manufacturing" className="cursor-pointer">
+                                                Manufacturing Dashboard
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                                         <LogOut className="mr-2 h-4 w-4" />
@@ -132,6 +175,11 @@ const PublicLayoutContent = () => {
                                     <Link to="/cart" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Cart
                                     </Link>
+                                    {isAdmin && (
+                                        <Link to="/manufacturing" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium text-primary">
+                                            Manufacturing
+                                        </Link>
+                                    )}
                                     {user ? (
                                         <>
                                             <Link to="/account" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">

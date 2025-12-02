@@ -23,10 +23,10 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
       reader.onloadend = async () => {
         try {
           const base64Image = reader.result as string;
-          
+
           setProcessingMessage("Analyzing shipping label with AI...");
           console.log("Sending image to AI for analysis...");
-          
+
           // Call edge function to extract data
           const { data, error } = await supabase.functions.invoke('extract-label-data', {
             body: { imageBase64: base64Image }
@@ -58,13 +58,13 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
           setProcessingMessage("");
         }
       };
-      
+
       reader.onerror = () => {
         setLoading(false);
         setProcessingMessage("");
         toast.error("Error reading image file");
       };
-      
+
       reader.readAsDataURL(file);
     } catch (error: any) {
       console.error('Error processing image:', error);
@@ -86,44 +86,39 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={loading}
-          className="flex-1"
-        >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Camera className="mr-2 h-4 w-4" />
-          )}
-          Take Photo
-        </Button>
-        
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={loading}
-          className="flex-1"
-        >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Upload className="mr-2 h-4 w-4" />
-          )}
-          Upload Image
-        </Button>
-      </div>
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => cameraInputRef.current?.click()}
+        disabled={loading}
+        title="Take Photo"
+      >
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Camera className="h-4 w-4" />
+        )}
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={loading}
+        title="Upload Image"
+      >
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Upload className="h-4 w-4" />
+        )}
+      </Button>
 
       {loading && processingMessage && (
-        <div className="flex items-center justify-center gap-2 p-3 bg-primary/10 rounded-lg animate-pulse">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-sm font-medium text-primary">{processingMessage}</span>
-        </div>
+        <span className="text-xs text-muted-foreground animate-pulse ml-2">{processingMessage}</span>
       )}
 
       <input
@@ -134,7 +129,7 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
         onChange={handleFileSelect}
         className="hidden"
       />
-      
+
       <input
         ref={fileInputRef}
         type="file"
@@ -142,10 +137,6 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
         onChange={handleFileSelect}
         className="hidden"
       />
-      
-      <p className="text-xs text-muted-foreground text-center">
-        Scan or upload a photo of the shipping label to auto-fill the data
-      </p>
     </div>
   );
 };

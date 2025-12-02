@@ -78,7 +78,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     if (open) {
       fetchBatches();
       fetchBoxes();
-      
+
       // Set initial batch if provided
       if (initialBatchId && formData.batch_id === "") {
         setFormData(prev => ({ ...prev, batch_id: initialBatchId }));
@@ -89,7 +89,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       }
     }
   }, [open, initialBatchId]);
-  
+
   useEffect(() => {
     // Update selected batch when batches are loaded and initialBatchId is set
     if (initialBatchId && batches.length > 0 && !selectedBatch) {
@@ -140,7 +140,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
 
     // Create the shipment first
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       toast.error("User not authenticated");
       return;
@@ -152,12 +152,12 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
       // Generate shipment number
       const date = new Date();
       const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
-      
+
       const { data: todayShipments } = await supabase
         .from("shipments")
         .select("shipment_number")
         .like("shipment_number", `SHIP-${dateStr}-%`);
-      
+
       const shipmentCount = todayShipments?.length || 0;
       const shipmentNumber = `SHIP-${dateStr}-${String(shipmentCount + 1).padStart(3, '0')}`;
 
@@ -203,7 +203,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
 
       // Update batch
       await updateBatchStatus(formData.batch_id);
-      
+
       setStep("boxes");
     } catch (error: any) {
       toast.error("Error creating shipment: " + error.message);
@@ -214,7 +214,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
 
   const handleLabelDataExtracted = (index: number, extractedData: any) => {
     const newBoxes = [...boxesData];
-    
+
     if (extractedData.destination) {
       newBoxes[index].destination = extractedData.destination;
     }
@@ -236,7 +236,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     if (extractedData.dimension_height_in) {
       newBoxes[index].dimension_height_in = extractedData.dimension_height_in.toString();
     }
-    
+
     // Handle quantity based on batch sale_type
     if (extractedData.qty && selectedBatch) {
       const qty = parseInt(extractedData.qty);
@@ -256,14 +256,14 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
   const updateBox = (index: number, field: string, value: string) => {
     const newBoxes = [...boxesData];
     newBoxes[index] = { ...newBoxes[index], [field]: value };
-    
+
     // Auto-calculate bottles_per_box only when packs_per_box changes in pack-type batches
     if (field === "packs_per_box" && selectedBatch?.sale_type === "pack") {
       const packsPerBox = parseInt(value) || 0;
       const bottlesPerBox = packsPerBox * (selectedBatch.pack_quantity || 1);
       newBoxes[index].bottles_per_box = bottlesPerBox.toString();
     }
-    
+
     setBoxesData(newBoxes);
   };
 
@@ -363,7 +363,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[1100px] max-h-[90vh] overflow-y-auto">
         {step === "initial" ? (
           <div>
             <DialogHeader>
@@ -390,8 +390,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                   <SelectContent>
                     {batches.map((batch) => (
                       <SelectItem key={batch.id} value={batch.id}>
-                        {batch.batch_number} ({batch.sale_type === 'pack' 
-                          ? `${batch.quantity / batch.pack_quantity} packs (${batch.pack_quantity} units per pack)` 
+                        {batch.batch_number} ({batch.sale_type === 'pack'
+                          ? `${batch.quantity / batch.pack_quantity} packs (${batch.pack_quantity} units per pack)`
                           : `${batch.quantity} units - individual`})
                       </SelectItem>
                     ))}
@@ -459,140 +459,126 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                 Enter details for each of the {boxesData.length} boxes
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-6 py-4">
+            <div className="grid gap-4 py-4">
               {boxesData.map((box, index) => (
-                <div key={index} className={`border rounded-lg p-4 space-y-4 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-background'}`}>
-                  <h3 className="font-semibold text-lg">Box #{index + 1}</h3>
-                  
-                  {/* Label Scanner */}
-                  <div className="mb-4 p-4 border rounded-lg bg-primary/5">
-                    <h4 className="text-sm font-medium mb-3">Scan Shipping Label</h4>
+                <div key={index} className={`border rounded-lg p-3 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-background'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="font-semibold text-sm">Box #{index + 1}</span>
                     <LabelImageScanner onDataExtracted={(data) => handleLabelDataExtracted(index, data)} />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-9 gap-2">
                     {selectedBatch?.sale_type === "pack" && (
-                      <div className="grid gap-2">
-                        <Label htmlFor={`packs_${index}`}>Packs per Box *</Label>
+                      <div className="grid gap-1">
+                        <Label htmlFor={`packs_${index}`} className="text-xs">Packs *</Label>
                         <Input
                           id={`packs_${index}`}
                           type="number"
                           value={box.packs_per_box}
                           onChange={(e) => updateBox(index, "packs_per_box", e.target.value)}
-                          placeholder="Enter packs quantity"
+                          placeholder="0"
                           min="0"
+                          className="h-8 text-sm"
                           required
                         />
                       </div>
                     )}
                     {selectedBatch?.sale_type === "individual" && (
-                      <div className="grid gap-2">
-                        <Label htmlFor={`bottles_${index}`}>Bottles per Box *</Label>
+                      <div className="grid gap-1">
+                        <Label htmlFor={`bottles_${index}`} className="text-xs">Bottles *</Label>
                         <Input
                           id={`bottles_${index}`}
                           type="number"
                           value={box.bottles_per_box}
                           onChange={(e) => updateBox(index, "bottles_per_box", e.target.value)}
-                          placeholder="Enter bottles quantity"
+                          placeholder="0"
                           min="0"
+                          className="h-8 text-sm"
                           required
                         />
                       </div>
                     )}
-                    <div className="grid gap-2">
-                      <Label htmlFor={`bottles_calc_${index}`}>Bottles per Box (calculated)</Label>
-                      <Input
-                        id={`bottles_calc_${index}`}
-                        type="number"
-                        value={box.bottles_per_box}
-                        disabled
-                        className="bg-muted"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor={`length_${index}`}>Length (in)</Label>
-                      <Input
-                        id={`length_${index}`}
-                        type="number"
-                        step="0.1"
-                        value={box.dimension_length_in}
-                        onChange={(e) => updateBox(index, "dimension_length_in", e.target.value)}
-                        placeholder="Length"
-                        min="0"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`width_${index}`}>Width (in)</Label>
-                      <Input
-                        id={`width_${index}`}
-                        type="number"
-                        step="0.1"
-                        value={box.dimension_width_in}
-                        onChange={(e) => updateBox(index, "dimension_width_in", e.target.value)}
-                        placeholder="Width"
-                        min="0"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`height_${index}`}>Height (in)</Label>
-                      <Input
-                        id={`height_${index}`}
-                        type="number"
-                        step="0.1"
-                        value={box.dimension_height_in}
-                        onChange={(e) => updateBox(index, "dimension_height_in", e.target.value)}
-                        placeholder="Height"
-                        min="0"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`weight_${index}`}>Weight (lb) *</Label>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`weight_${index}`} className="text-xs">Weight (lb) *</Label>
                       <Input
                         id={`weight_${index}`}
                         type="number"
                         step="0.01"
                         value={box.weight_lb}
                         onChange={(e) => updateBox(index, "weight_lb", e.target.value)}
-                        placeholder="Weight"
+                        placeholder="0"
                         min="0"
+                        className="h-8 text-sm"
                         required
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor={`ups_tracking_${index}`}>UPS Tracking Number</Label>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`length_${index}`} className="text-xs">L (in)</Label>
+                      <Input
+                        id={`length_${index}`}
+                        type="number"
+                        step="0.1"
+                        value={box.dimension_length_in}
+                        onChange={(e) => updateBox(index, "dimension_length_in", e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`width_${index}`} className="text-xs">W (in)</Label>
+                      <Input
+                        id={`width_${index}`}
+                        type="number"
+                        step="0.1"
+                        value={box.dimension_width_in}
+                        onChange={(e) => updateBox(index, "dimension_width_in", e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`height_${index}`} className="text-xs">H (in)</Label>
+                      <Input
+                        id={`height_${index}`}
+                        type="number"
+                        step="0.1"
+                        value={box.dimension_height_in}
+                        onChange={(e) => updateBox(index, "dimension_height_in", e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="grid gap-1 col-span-2">
+                      <Label htmlFor={`ups_tracking_${index}`} className="text-xs">UPS Tracking</Label>
                       <Input
                         id={`ups_tracking_${index}`}
                         value={box.ups_tracking_number}
                         onChange={(e) => updateBox(index, "ups_tracking_number", e.target.value)}
                         placeholder="1Z..."
+                        className="h-8 text-sm"
                       />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`fba_id_${index}`}>FBA ID</Label>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`fba_id_${index}`} className="text-xs">FBA ID</Label>
                       <Input
                         id={`fba_id_${index}`}
                         value={box.fba_id}
                         onChange={(e) => updateBox(index, "fba_id", e.target.value)}
                         placeholder="FBA..."
+                        className="h-8 text-sm"
                       />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`destination_${index}`}>Destination *</Label>
+                    <div className="grid gap-1">
+                      <Label htmlFor={`destination_${index}`} className="text-xs">Dest</Label>
                       <Input
                         id={`destination_${index}`}
                         value={box.destination}
                         onChange={(e) => updateBox(index, "destination", e.target.value)}
-                        placeholder="e.g., IN, FL, CA"
-                        required
+                        placeholder="IN"
+                        className="h-8 text-sm"
                       />
                     </div>
                   </div>

@@ -36,7 +36,7 @@ const Auth = () => {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/`
+        emailRedirectTo: `${window.location.origin}/auth/confirm`
       }
     });
 
@@ -45,8 +45,8 @@ const Auth = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Account created successfully!");
-      navigate("/");
+      toast.success("Account created! Please check your email to confirm your account.");
+      // Don't navigate - let them confirm email first
     }
   };
 

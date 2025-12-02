@@ -33,6 +33,7 @@ import {
 import { Shield, Loader2, KeyRound, UserX, UserCheck, Trash2 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface UserWithRole {
   id: string;
@@ -46,6 +47,8 @@ interface UserWithRole {
 const Users = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -355,109 +358,118 @@ const Users = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium text-xs sm:text-sm">{user.email}</TableCell>
-                      <TableCell className="text-xs sm:text-sm">
-                        {user.banned_until ? (
-                          <Badge variant="destructive">Disabled</Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            Active
+                  {users
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium text-xs sm:text-sm">{user.email}</TableCell>
+                        <TableCell className="text-xs sm:text-sm">
+                          {user.banned_until ? (
+                            <Badge variant="destructive">Disabled</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              Active
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(user.created_at).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getRoleBadgeVariant(user.role)}>
+                            {getRoleLabel(user.role)}
                           </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(user.role)}>
-                          {getRoleLabel(user.role)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={user.role}
-                          onValueChange={(value) => handleRoleChange(user.id, user.role_id, value)}
-                          disabled={updatingUser === user.id}
-                        >
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Administrator</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="staff">Staff</SelectItem>
-                            <SelectItem value="customer">Customer</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {updatingUser === user.id && (
-                          <Loader2 className="h-4 w-4 animate-spin ml-2 inline" />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUserForReset(user);
-                              setResetDialogOpen(true);
-                            }}
-                            disabled={resettingPassword === user.id || !!user.banned_until}
-                            title={user.banned_until ? "Cannot reset password for disabled user" : "Reset password"}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) => handleRoleChange(user.id, user.role_id, value)}
+                            disabled={updatingUser === user.id}
                           >
-                            {resettingPassword === user.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <KeyRound className="h-4 w-4" />
-                            )}
-                          </Button>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              <SelectItem value="staff">Staff</SelectItem>
+                              <SelectItem value="customer">Customer</SelectItem>
+                              <SelectItem value="pending">Pending</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {updatingUser === user.id && (
+                            <Loader2 className="h-4 w-4 animate-spin ml-2 inline" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUserForReset(user);
+                                setResetDialogOpen(true);
+                              }}
+                              disabled={resettingPassword === user.id || !!user.banned_until}
+                              title={user.banned_until ? "Cannot reset password for disabled user" : "Reset password"}
+                            >
+                              {resettingPassword === user.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <KeyRound className="h-4 w-4" />
+                              )}
+                            </Button>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleUserStatus(user)}
-                            disabled={togglingStatus === user.id}
-                            title="Active/Disable"
-                          >
-                            {togglingStatus === user.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : user.banned_until ? (
-                              <UserCheck className="h-4 w-4" />
-                            ) : (
-                              <UserX className="h-4 w-4" />
-                            )}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleUserStatus(user)}
+                              disabled={togglingStatus === user.id}
+                              title="Active/Disable"
+                            >
+                              {togglingStatus === user.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : user.banned_until ? (
+                                <UserCheck className="h-4 w-4" />
+                              ) : (
+                                <UserX className="h-4 w-4" />
+                              )}
+                            </Button>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Delete"
-                            onClick={() => {
-                              setSelectedUserForDelete(user);
-                              setDeleteDialogOpen(true);
-                            }}
-                            disabled={deletingUser === user.id}
-                          >
-                            {deletingUser === user.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Delete"
+                              onClick={() => {
+                                setSelectedUserForDelete(user);
+                                setDeleteDialogOpen(true);
+                              }}
+                              disabled={deletingUser === user.id}
+                            >
+                              {deletingUser === user.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </div>
+          )}
+          {!loading && users.length > 0 && (
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(users.length / itemsPerPage)}
+              onPageChange={setCurrentPage}
+            />
           )}
         </CardContent>
       </Card>

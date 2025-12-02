@@ -33,6 +33,7 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
 import StartProductionDialog from "@/components/production/StartProductionDialog";
 import { Package, Trash2, FileText } from "lucide-react";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface ProductionBatch {
   id: string;
@@ -61,6 +62,8 @@ interface ProductionBatch {
 const Production = () => {
   const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -174,141 +177,150 @@ const Production = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {batches.map((batch) => {
-                    const unitsInProgress = batch.units_in_progress || 0;
-                    const shippedUnits = batch.shipped_units || 0;
+                  {batches
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((batch) => {
+                      const unitsInProgress = batch.units_in_progress || 0;
+                      const shippedUnits = batch.shipped_units || 0;
 
-                    const shipped = batch.sale_type === "pack" && batch.pack_quantity
-                      ? shippedUnits / batch.pack_quantity
-                      : shippedUnits;
-                    const total = batch.sale_type === "pack" && batch.pack_quantity
-                      ? batch.quantity / batch.pack_quantity
-                      : batch.quantity;
-                    const progress = total > 0 ? (unitsInProgress / total) * 100 : 0;
+                      const shipped = batch.sale_type === "pack" && batch.pack_quantity
+                        ? shippedUnits / batch.pack_quantity
+                        : shippedUnits;
+                      const total = batch.sale_type === "pack" && batch.pack_quantity
+                        ? batch.quantity / batch.pack_quantity
+                        : batch.quantity;
+                      const progress = total > 0 ? (unitsInProgress / total) * 100 : 0;
 
-                    return (
-                      <TableRow key={batch.id}>
-                        <TableCell className="font-medium">{batch.batch_number}</TableCell>
-                        <TableCell>
-                          {batch.product_variant_details?.product_id?.name || "-"}
-                        </TableCell>
-                        <TableCell>
-                          {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.size_ml}ml)
-                        </TableCell>
-                        <TableCell>
-                          {batch.sale_type === "pack" && batch.pack_quantity
-                            ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} packs`
-                            : batch.quantity
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1 min-w-[120px]">
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">
-                                {unitsInProgress.toFixed(0)} / {total.toFixed(0)}
-                                {batch.sale_type === "pack" ? " packs" : ""}
-                              </span>
-                              <span className="text-muted-foreground">{progress.toFixed(0)}%</span>
+                      return (
+                        <TableRow key={batch.id}>
+                          <TableCell className="font-medium">{batch.batch_number}</TableCell>
+                          <TableCell>
+                            {batch.product_variant_details?.product_id?.name || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.size_ml}ml)
+                          </TableCell>
+                          <TableCell>
+                            {batch.sale_type === "pack" && batch.pack_quantity
+                              ? `${(batch.quantity / batch.pack_quantity).toFixed(0)} packs`
+                              : batch.quantity
+                            }
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1 min-w-[120px]">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">
+                                  {unitsInProgress.toFixed(0)} / {total.toFixed(0)}
+                                  {batch.sale_type === "pack" ? " packs" : ""}
+                                </span>
+                                <span className="text-muted-foreground">{progress.toFixed(0)}%</span>
+                              </div>
+                              <Progress value={progress} className="h-2" />
                             </div>
-                            <Progress value={progress} className="h-2" />
-                          </div>
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {batch.sale_type}
-                          {batch.sale_type === "pack" && batch.pack_quantity && (
-                            <span className="text-muted-foreground text-sm ml-1">
-                              ({batch.pack_quantity}x)
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusColor(batch.status)} className="capitalize">
-                            {batch.status.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {batch.started_at ? (
-                            <span className="text-sm">
-                              {format(new Date(batch.started_at), "PP p")}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {batch.completed_at ? (
-                            <span className="text-sm">
-                              {format(new Date(batch.completed_at), "PP p")}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {batch.status === "pending" && (
-                              <StartProductionDialog
+                          </TableCell>
+                          <TableCell className="capitalize">
+                            {batch.sale_type}
+                            {batch.sale_type === "pack" && batch.pack_quantity && (
+                              <span className="text-muted-foreground text-sm ml-1">
+                                ({batch.pack_quantity}x)
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusColor(batch.status)} className="capitalize">
+                              {batch.status.replace("_", " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {batch.started_at ? (
+                              <span className="text-sm">
+                                {format(new Date(batch.started_at), "PP p")}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {batch.completed_at ? (
+                              <span className="text-sm">
+                                {format(new Date(batch.completed_at), "PP p")}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{format(new Date(batch.created_at), "PP")}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {batch.status === "pending" && (
+                                <StartProductionDialog
+                                  batch={batch}
+                                  onSuccess={fetchBatches}
+                                />
+                              )}
+                              <EditBatchDialog
                                 batch={batch}
                                 onSuccess={fetchBatches}
                               />
-                            )}
-                            <EditBatchDialog
-                              batch={batch}
-                              onSuccess={fetchBatches}
-                            />
-                            {shipped < total && (
-                              <AddShipmentDialog
-                                initialBatchId={batch.id}
-                                onSuccess={fetchBatches}
-                                trigger={
-                                  <Button variant="ghost" size="icon" title="New Shipment">
-                                    <Package className="h-4 w-4" />
+                              {shipped < total && (
+                                <AddShipmentDialog
+                                  initialBatchId={batch.id}
+                                  onSuccess={fetchBatches}
+                                  trigger={
+                                    <Button variant="ghost" size="icon" title="New Shipment">
+                                      <Package className="h-4 w-4" />
+                                    </Button>
+                                  }
+                                />
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`/manufacturing/bom/${batch.id}`, '_blank')}
+                                title="Generate Bill of Materials"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" title="Delete">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
                                   </Button>
-                                }
-                              />
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(`/manufacturing/bom/${batch.id}`, '_blank')}
-                              title="Generate Bill of Materials"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" title="Delete">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Batch</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete batch "{batch.batch_number}"?
-                                    This will also delete all related shipments and boxes. This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteBatch(batch.id, batch.batch_number)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete batch "{batch.batch_number}"?
+                                      This will also delete all related shipments and boxes. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteBatch(batch.id, batch.batch_number)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                 </TableBody>
               </Table>
             </div>
+          )}
+          {!loading && batches.length > 0 && (
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(batches.length / itemsPerPage)}
+              onPageChange={setCurrentPage}
+            />
           )}
         </CardContent>
       </Card>

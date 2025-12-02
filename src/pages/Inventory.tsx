@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface RawMaterial {
   id: string;
@@ -50,6 +51,8 @@ const Inventory = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<"name" | "category" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -230,76 +233,85 @@ const Inventory = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMaterials.map((material, index) => (
-                    <TableRow
-                      key={material.id}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDragEnd={handleDragEnd}
-                      className="cursor-move"
-                    >
-                      <TableCell>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      </TableCell>
-                      <TableCell className="font-medium">{material.name}</TableCell>
-                      <TableCell className="capitalize">{material.category}</TableCell>
-                      <TableCell>
-                        {material.current_stock} {material.unit}
-                      </TableCell>
-                      <TableCell>
-                        {material.min_stock_level} {material.unit}
-                      </TableCell>
-                      <TableCell>
-                        {material.cost_per_unit
-                          ? `$${material.cost_per_unit.toFixed(2)}`
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {isLowStock(material) ? (
-                          <Badge variant="destructive" className="gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Low Stock
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">OK</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <EditMaterialDialog
-                            material={material}
-                            onSuccess={fetchMaterials}
-                          />
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" title="Delete">
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Material</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{material.name}"? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(material.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredMaterials
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((material, index) => (
+                      <TableRow
+                        key={material.id}
+                        draggable
+                        onDragStart={() => handleDragStart(index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragEnd={handleDragEnd}
+                        className="cursor-move"
+                      >
+                        <TableCell>
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        </TableCell>
+                        <TableCell className="font-medium">{material.name}</TableCell>
+                        <TableCell className="capitalize">{material.category}</TableCell>
+                        <TableCell>
+                          {material.current_stock} {material.unit}
+                        </TableCell>
+                        <TableCell>
+                          {material.min_stock_level} {material.unit}
+                        </TableCell>
+                        <TableCell>
+                          {material.cost_per_unit
+                            ? `$${material.cost_per_unit.toFixed(2)}`
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {isLowStock(material) ? (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Low Stock
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">OK</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <EditMaterialDialog
+                              material={material}
+                              onSuccess={fetchMaterials}
+                            />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" title="Delete">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Material</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{material.name}"? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(material.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </div>
+          )}
+          {!loading && filteredMaterials.length > 0 && (
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredMaterials.length / itemsPerPage)}
+              onPageChange={setCurrentPage}
+            />
           )}
         </CardContent>
       </Card>

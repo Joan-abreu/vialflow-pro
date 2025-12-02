@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.77.0'
+import { createClient, User } from 'https://esm.sh/@supabase/supabase-js@2.77.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 }
 
-Deno.serve(async (req) => {
+// @ts-ignore
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -15,7 +16,9 @@ Deno.serve(async (req) => {
   try {
     // Create a Supabase client with the service role key
     const supabaseAdmin = createClient(
+      // @ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
+      // @ts-ignore
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
@@ -63,23 +66,24 @@ Deno.serve(async (req) => {
     // Get profiles and roles for all users
     const { data: profiles } = await supabaseAdmin
       .from('profiles')
-      .select('user_id, full_name')
+      .select('user_id, full_name, phone')
 
     const { data: roles } = await supabaseAdmin
       .from('user_roles')
       .select('id, user_id, role')
 
     // Combine the data
-    const usersWithRoles = authUsers.users.map(authUser => {
-      const profile = profiles?.find(p => p.user_id === authUser.id)
-      const userRole = roles?.find(r => r.user_id === authUser.id)
+    const usersWithRoles = authUsers.users.map((authUser: User) => {
+      const profile = profiles?.find((p: any) => p.user_id === authUser.id)
+      const userRole = roles?.find((r: any) => r.user_id === authUser.id)
       const authUserData = authUser as any; // Cast to access banned_until
 
       return {
         id: authUser.id,
         email: authUser.email || 'No email',
+        phone: authUser.phone || authUser.user_metadata?.phone || profile?.phone || 'No phone',
         created_at: authUser.created_at,
-        full_name: profile?.full_name,
+        full_name: profile?.full_name || authUser.user_metadata?.full_name || 'No name',
         role: userRole?.role || 'pending',
         role_id: userRole?.id || '',
         banned_until: authUserData.banned_until || null,

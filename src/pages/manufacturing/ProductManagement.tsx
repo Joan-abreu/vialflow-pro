@@ -56,6 +56,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ImageUpload } from "@/components/admin/ImageUpload";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface Product {
     id: string;
@@ -177,6 +178,8 @@ const ProductManagement = () => {
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
     const [deletingVariant, setDeletingVariant] = useState<ProductVariant | null>(null);
     const queryClient = useQueryClient();
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     // Fetch products
     const { data: products, isLoading } = useQuery({
@@ -797,113 +800,123 @@ const ProductManagement = () => {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                products?.map((product) => {
-                                    const variants = variantsMap?.[product.id] || [];
-                                    const isExpanded = expandedProducts.has(product.id);
+                                products
+                                    ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((product) => {
+                                        const variants = variantsMap?.[product.id] || [];
+                                        const isExpanded = expandedProducts.has(product.id);
 
-                                    return (
-                                        <React.Fragment key={product.id}>
-                                            <TableRow>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6"
-                                                        onClick={() => toggleExpanded(product.id)}
-                                                    >
-                                                        {isExpanded ? (
-                                                            <ChevronDown className="h-4 w-4" />
-                                                        ) : (
-                                                            <ChevronRight className="h-4 w-4" />
-                                                        )}
-                                                    </Button>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {product.image_url ? (
-                                                        <img
-                                                            src={product.image_url}
-                                                            alt={product.name}
-                                                            className="h-12 w-12 object-cover rounded"
-                                                        />
-                                                    ) : (
-                                                        <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
-                                                            No image
-                                                        </div>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="font-medium">{product.name}</TableCell>
-                                                <TableCell>{product.category || "—"}</TableCell>
-                                                <TableCell>
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                        {product.is_active ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                        {product.is_published ? 'Published' : 'Draft'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
-                                                            <Plus className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                            {isExpanded && variants.length > 0 && (
+                                        return (
+                                            <React.Fragment key={product.id}>
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="bg-muted/50 p-0">
-                                                        <div className="p-4">
-                                                            <h4 className="font-semibold mb-3 text-sm">Variants</h4>
-                                                            <Table>
-                                                                <TableHeader>
-                                                                    <TableRow>
-                                                                        <TableHead className="w-10"></TableHead>
-                                                                        <TableHead>Image</TableHead>
-                                                                        <TableHead>Size</TableHead>
-                                                                        <TableHead>Sale Type</TableHead>
-                                                                        <TableHead>SKU</TableHead>
-                                                                        <TableHead>Price</TableHead>
-                                                                        <TableHead>Stock</TableHead>
-                                                                        <TableHead>Status</TableHead>
-                                                                        <TableHead className="text-right">Actions</TableHead>
-                                                                    </TableRow>
-                                                                </TableHeader>
-                                                                <TableBody>
-                                                                    <SortableContext
-                                                                        items={variants.map(v => v.id)}
-                                                                        strategy={verticalListSortingStrategy}
-                                                                    >
-                                                                        {variants.map((variant) => (
-                                                                            <SortableVariantRow
-                                                                                key={variant.id}
-                                                                                variant={variant}
-                                                                                onEdit={handleEditVariant}
-                                                                                onDelete={handleDeleteVariant}
-                                                                            />
-                                                                        ))}
-                                                                    </SortableContext>
-                                                                </TableBody>
-                                                            </Table>
+                                                    <TableCell>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6"
+                                                            onClick={() => toggleExpanded(product.id)}
+                                                        >
+                                                            {isExpanded ? (
+                                                                <ChevronDown className="h-4 w-4" />
+                                                            ) : (
+                                                                <ChevronRight className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {product.image_url ? (
+                                                            <img
+                                                                src={product.image_url}
+                                                                alt={product.name}
+                                                                className="h-12 w-12 object-cover rounded"
+                                                            />
+                                                        ) : (
+                                                            <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
+                                                                No image
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="font-medium">{product.name}</TableCell>
+                                                    <TableCell>{product.category || "—"}</TableCell>
+                                                    <TableCell>
+                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                            {product.is_active ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                            {product.is_published ? 'Published' : 'Draft'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
+                                                                <Plus className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })
+                                                {isExpanded && variants.length > 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={8} className="bg-muted/50 p-0">
+                                                            <div className="p-4">
+                                                                <h4 className="font-semibold mb-3 text-sm">Variants</h4>
+                                                                <Table>
+                                                                    <TableHeader>
+                                                                        <TableRow>
+                                                                            <TableHead className="w-10"></TableHead>
+                                                                            <TableHead>Image</TableHead>
+                                                                            <TableHead>Size</TableHead>
+                                                                            <TableHead>Sale Type</TableHead>
+                                                                            <TableHead>SKU</TableHead>
+                                                                            <TableHead>Price</TableHead>
+                                                                            <TableHead>Stock</TableHead>
+                                                                            <TableHead>Status</TableHead>
+                                                                            <TableHead className="text-right">Actions</TableHead>
+                                                                        </TableRow>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        <SortableContext
+                                                                            items={variants.map(v => v.id)}
+                                                                            strategy={verticalListSortingStrategy}
+                                                                        >
+                                                                            {variants.map((variant) => (
+                                                                                <SortableVariantRow
+                                                                                    key={variant.id}
+                                                                                    variant={variant}
+                                                                                    onEdit={handleEditVariant}
+                                                                                    onDelete={handleDeleteVariant}
+                                                                                />
+                                                                            ))}
+                                                                        </SortableContext>
+                                                                    </TableBody>
+                                                                </Table>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })
                             )}
                         </TableBody>
                     </Table>
                 </div>
+
+                {!isLoading && products && products.length > 0 && (
+                    <DataTablePagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(products.length / itemsPerPage)}
+                        onPageChange={setCurrentPage}
+                    />
+                )}
 
                 {/* Delete Product Confirmation Dialog */}
                 <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>

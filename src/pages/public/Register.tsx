@@ -39,6 +39,7 @@ const Register = () => {
                 options: {
                     data: {
                         full_name: fullName,
+                        phone: phone,
                     },
                     emailRedirectTo: `${window.location.origin}/auth/confirm`,
                 },

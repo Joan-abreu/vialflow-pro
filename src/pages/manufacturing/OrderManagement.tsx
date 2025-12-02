@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useState } from "react";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface Order {
     id: string;
@@ -24,6 +26,8 @@ interface Order {
 }
 
 const OrderManagement = () => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
     const { data: orders, isLoading, refetch } = useQuery({
         queryKey: ["admin-orders"],
         queryFn: async () => {
@@ -114,39 +118,48 @@ const OrderManagement = () => {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                orders?.map((order) => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}...</TableCell>
-                                        <TableCell>{format(new Date(order.created_at), "MMM d, yyyy")}</TableCell>
-                                        <TableCell>{order.user_id ? "Registered User" : "Guest"}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className={getStatusColor(order.status)}>
-                                                {order.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">${order.total_amount.toFixed(2)}</TableCell>
-                                        <TableCell>
-                                            <Select
-                                                defaultValue={order.status}
-                                                onValueChange={(value) => handleStatusChange(order.id, value)}
-                                            >
-                                                <SelectTrigger className="w-[130px] h-8">
-                                                    <SelectValue placeholder="Status" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="pending">Pending</SelectItem>
-                                                    <SelectItem value="processing">Processing</SelectItem>
-                                                    <SelectItem value="shipped">Shipped</SelectItem>
-                                                    <SelectItem value="delivered">Delivered</SelectItem>
-                                                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                orders
+                                    ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((order) => (
+                                        <TableRow key={order.id}>
+                                            <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}...</TableCell>
+                                            <TableCell>{format(new Date(order.created_at), "MMM d, yyyy")}</TableCell>
+                                            <TableCell>{order.user_id ? "Registered User" : "Guest"}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="secondary" className={getStatusColor(order.status)}>
+                                                    {order.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">${order.total_amount.toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    defaultValue={order.status}
+                                                    onValueChange={(value) => handleStatusChange(order.id, value)}
+                                                >
+                                                    <SelectTrigger className="w-[130px] h-8">
+                                                        <SelectValue placeholder="Status" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="pending">Pending</SelectItem>
+                                                        <SelectItem value="processing">Processing</SelectItem>
+                                                        <SelectItem value="shipped">Shipped</SelectItem>
+                                                        <SelectItem value="delivered">Delivered</SelectItem>
+                                                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
                             )}
                         </TableBody>
                     </Table>
+                    {!isLoading && orders && orders.length > 0 && (
+                        <DataTablePagination
+                            currentPage={currentPage}
+                            totalPages={Math.ceil(orders.length / itemsPerPage)}
+                            onPageChange={setCurrentPage}
+                        />
+                    )}
                 </CardContent>
             </Card>
         </div>

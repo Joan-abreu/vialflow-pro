@@ -15,11 +15,23 @@ const Register = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    const isValidPhone = (phone: string) => {
+        const phoneRegex = /^\+?\d{7,15}$/;
+        return phoneRegex.test(phone);
+    };
+
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            // Validate phone format
+            if (!isValidPhone(phone)) {
+                toast.error("Please enter a valid phone number in international format (example: +17895551234)");
+                setLoading(false);
+                return;
+            }
+
             // Check if email already exists
             const { data: existingEmail } = await supabase
                 .from("profiles")
@@ -116,12 +128,24 @@ const Register = () => {
                         <div className="space-y-2">
                             <Label htmlFor="phone">Phone Number</Label>
                             <Input
-                                id="phone"
-                                type="tel"
-                                placeholder="+1 (555) 000-0000"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                required
+                            id="phone"
+                            type="tel"
+                            placeholder="(305) 555-1234"
+                            value={phone}
+                            onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, "");
+                                let formatted = raw;
+
+                                if (raw.length > 3 && raw.length <= 6) {
+                                formatted = `(${raw.slice(0, 3)}) ${raw.slice(3)}`;
+                                } else if (raw.length > 6) {
+                                formatted = `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6, 10)}`;
+                                }
+
+                                setPhone(formatted);
+                            }}
+                            maxLength={14}
+                            required
                             />
                         </div>
                         <div className="space-y-2">

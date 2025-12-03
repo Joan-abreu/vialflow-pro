@@ -77,7 +77,7 @@ const Dashboard = () => {
       // Fetch recent batches
       const { data: batchData } = await supabase
         .from("production_batches")
-        .select("id, batch_number, status, created_at, vial_types(name)")
+        .select("id, batch_number, status, created_at")
         .order("created_at", { ascending: false })
         .limit(5);
 

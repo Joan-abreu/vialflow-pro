@@ -38,8 +38,12 @@ interface OrderItem {
         product_id: string;
         vial_type_id: string;
         sku: string;
+        sale_type: string;
+        pack_size: number;
+        image_url: string | null;
         product: {
             name: string;
+            image_url: string | null;
         };
         vial_type: {
             name: string;
@@ -122,13 +126,18 @@ const OrderManagement = () => {
                 const batchNumber = `ORD-${order.id.slice(0, 8)}-${index + 1}`;
                 return {
                     batch_number: batchNumber,
+                    product_id: group.variant.id,
                     variant_id: variantId,
-                    quantity: group.totalQuantity,
+                    sale_type: group.variant.sale_type,
+                    pack_quantity: group.variant.pack_size,
+                    quantity: group.totalQuantity * group.variant.pack_size,
                     status: 'pending',
                     order_id: order.id,
                     created_by: user.id,
                 };
             });
+
+            console.log("Attempting to create batches:", batches);
 
             // Insert batches
             const { error: batchError } = await supabase
@@ -270,7 +279,7 @@ const OrderManagement = () => {
                                     .map((order) => (
                                         <TableRow key={order.id}>
                                             <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}...</TableCell>
-                                            <TableCell>{format(new Date(order.created_at), "MMM d, yyyy")}</TableCell>
+                                            <TableCell>{format(new Date(order.created_at), "MMMM d, yyyy 'at' h:mm a")}</TableCell>
                                             <TableCell>
                                                 <div className="text-sm">
                                                     {order.customer_email || "N/A"}
@@ -352,13 +361,31 @@ const OrderManagement = () => {
                             {getVariantGroups(selectedOrder).map((group, index) => (
                                 <div key={index} className="border rounded-lg p-3 bg-gray-50">
                                     <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="font-medium">
-                                                {group.variant?.product?.name || "Unknown Product"}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {group.variant?.vial_type?.name || "Unknown Size"}
-                                            </p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-12 w-12 bg-muted rounded flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                {(() => {
+                                                    const displayImage = group.variant?.image_url || group.variant?.product?.image_url;
+                                                    return displayImage ? (
+                                                        <img
+                                                            src={displayImage}
+                                                            alt={group.variant?.product?.name}
+                                                            className="h-full w-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <Factory className="h-6 w-6 text-muted-foreground" />
+                                                    );
+                                                })()}
+                                            </div>
+                                            <div>
+                                                <p className="font-medium">
+                                                    {group.variant?.product?.name || "Unknown Product"}
+                                                </p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {group.variant?.vial_type?.size_ml}ml
+                                                    {group.variant?.pack_size && group.variant.pack_size > 1 ? ` (${group.variant.pack_size}x Pack)` : ''}
+                                                    {group.variant?.sale_type === 'pack' ? ' - Pack' : ' - Individual'}
+                                                </p>
+                                            </div>
                                         </div>
                                         <Badge variant="secondary">
                                             Qty: {group.totalQuantity}

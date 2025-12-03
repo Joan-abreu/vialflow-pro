@@ -58,7 +58,7 @@ const Checkout = () => {
 
                     <div className="bg-card border rounded-lg p-6">
                         <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-                        <StripeCheckout amount={totalAmount} onSuccess={handlePaymentSuccess} />
+                        <StripeCheckout amount={Number(totalAmount.toFixed(2))} onSuccess={handlePaymentSuccess} />
                     </div>
                 </div>
 

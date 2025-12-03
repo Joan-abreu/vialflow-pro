@@ -22,6 +22,7 @@ export interface ProductVariant {
     position?: number;
     product: {
         name: string;
+        slug?: string;
         image_url: string | null;
         description: string | null;
         category: string | null;

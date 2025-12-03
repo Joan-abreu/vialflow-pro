@@ -23,7 +23,7 @@ const Cart = () => {
                         {/* Cart Items */}
                         {items.map((item) => (
                             <div key={item.variant.id} className="flex gap-4 p-4 bg-card border rounded-lg">
-                                <div className="h-24 w-24 bg-muted rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                <Link to={`/products/${item.variant.product.slug || item.variant.product_id}`} className="h-24 w-24 bg-muted rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden hover:opacity-80 transition-opacity">
                                     {(() => {
                                         const displayImage = item.variant.image_url || item.variant.product.image_url;
                                         return displayImage ? (
@@ -32,11 +32,13 @@ const Cart = () => {
                                             <span className="text-xs text-muted-foreground">No Image</span>
                                         );
                                     })()}
-                                </div>
+                                </Link>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <h3 className="font-semibold">{item.variant.product.name}</h3>
+                                            <Link to={`/products/${item.variant.product.slug || item.variant.product_id}`} className="hover:underline">
+                                                <h3 className="font-semibold">{item.variant.product.name}</h3>
+                                            </Link>
                                             <p className="text-sm text-muted-foreground">
                                                 {item.variant.vial_type.size_ml}ml
                                                 {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}

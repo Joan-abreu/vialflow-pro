@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 // Group variants by product
 interface ProductWithVariants {
     id: string;
+    slug: string;
     name: string;
     description: string | null;
     image_url: string | null;
@@ -34,7 +35,7 @@ const Products = () => {
                 .from("product_variants")
                 .select(`
                     *,
-                    product:products!inner(id, name, description, image_url, category, is_published, sale_type, default_pack_size),
+                    product:products!inner(id, slug, name, description, image_url, category, is_published, sale_type, default_pack_size),
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
@@ -56,6 +57,7 @@ const Products = () => {
                 if (!grouped[productId]) {
                     grouped[productId] = {
                         id: productId,
+                        slug: variant.product.slug,
                         name: variant.product.name,
                         description: variant.product.description,
                         image_url: variant.product.image_url,
@@ -179,7 +181,7 @@ const Products = () => {
                             <div
                                 key={product.id}
                                 className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-lg transition-all cursor-pointer"
-                                onClick={() => navigate(`/products/${product.id}`)}
+                                onClick={() => navigate(`/products/${product.slug || product.id}`)}
                             >
                                 <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
                                     {(() => {

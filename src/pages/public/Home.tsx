@@ -14,7 +14,7 @@ const Home = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    product:products!inner(id, name, description, image_url, category, is_published),
+                    product:products!inner(id, slug, name, description, image_url, category, is_published),
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
@@ -29,6 +29,7 @@ const Home = () => {
                 if (!grouped[productId]) {
                     grouped[productId] = {
                         id: productId,
+                        slug: variant.product.slug,
                         name: variant.product.name,
                         description: variant.product.description,
                         image_url: variant.product.image_url,
@@ -128,10 +129,14 @@ const Home = () => {
                             <div className="col-span-full text-center py-12">No products found.</div>
                         ) : (
                             featuredProducts?.map((product: any) => (
-                                <div key={product.id} className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-lg transition-all">
+                                <Link
+                                    key={product.id}
+                                    to={`/products/${product.slug || product.id}`}
+                                    className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-lg transition-all block"
+                                >
                                     <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
                                         {product.image_url ? (
-                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                         ) : (
                                             <span className="text-muted-foreground">No Image</span>
                                         )}
@@ -140,10 +145,7 @@ const Home = () => {
                                         <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{product.name}</h3>
                                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-bold">${product.price}+</span>
-                                            <Link to={`/products/${product.id}`}>
-                                                <Button size="sm" variant="secondary">View</Button>
-                                            </Link>
+                                            <span className="font-bold text-lg">${product.price}+</span>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
                                             {product.variants?.length > 1 && (
@@ -158,7 +160,7 @@ const Home = () => {
                                             )}
                                         </div>
                                     </div>
-                                </div>
+                                </Link>
                             ))
                         )}
                     </div>

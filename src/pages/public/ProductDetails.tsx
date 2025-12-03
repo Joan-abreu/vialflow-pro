@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus } from "lucide-react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
@@ -28,25 +29,32 @@ const ProductDetails = () => {
     const { data: product, isLoading, error } = useQuery({
         queryKey: ["product-with-variants", id],
         queryFn: async () => {
-            if (!id) throw new Error("Product ID is required");
+            if (!id) throw new Error("Product ID or Slug is required");
 
-            // Fetch product with all its variants
-            const { data: productData, error: productError } = await supabase
-                .from("products")
-                .select("*")
-                .eq("id", id)
-                .single();
+            // Check if id is a valid UUID
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+            let query = supabase.from("products").select("*");
+
+            if (isUuid) {
+                query = query.eq("id", id);
+            } else {
+                query = query.eq("slug", id);
+            }
+
+            const { data: productData, error: productError } = await query.single();
 
             if (productError) throw productError;
+            if (!productData) throw new Error("Product not found");
 
-            // Fetch variants for this product
+            // Fetch variants
             const { data: variantsData, error: variantsError } = await supabase
                 .from("product_variants")
                 .select(`
                     *,
-                    vial_type:vial_types!inner(name, size_ml)
+                    vial_type:vial_types(name, size_ml)
                 `)
-                .eq("product_id", id)
+                .eq("product_id", productData.id)
                 .eq("is_published", true)
                 .order('position', { ascending: true });
 
@@ -63,6 +71,7 @@ const ProductDetails = () => {
                 pack_size: v.pack_size || 1,
                 product: {
                     name: productData.name,
+                    slug: productData.slug,
                     image_url: productData.image_url,
                     description: productData.description,
                     category: productData.category,
@@ -211,7 +220,27 @@ const ProductDetails = () => {
                                     >
                                         <Minus className="h-4 w-4" />
                                     </Button>
-                                    <span className="w-16 text-center text-lg font-medium">{quantity}</span>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max={selectedVariant?.stock_quantity}
+                                        value={quantity}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 1) {
+                                                if (selectedVariant && val > selectedVariant.stock_quantity) {
+                                                    setQuantity(selectedVariant.stock_quantity);
+                                                    toast.error(`Only ${selectedVariant.stock_quantity} units available`);
+                                                } else {
+                                                    setQuantity(val);
+                                                }
+                                            } else if (e.target.value === '') {
+                                                // Allow empty string temporarily for typing
+                                                setQuantity(1);
+                                            }
+                                        }}
+                                        className="w-16 h-12 text-center text-lg font-medium border-0 rounded-none focus-visible:ring-0"
+                                    />
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -228,7 +257,7 @@ const ProductDetails = () => {
                         <div className="flex items-center gap-4">
                             <Button
                                 size="lg"
-                                className="flex-1 h-14 text-lg"
+                                className="flex-1 h-14 text-lg active:scale-95 transition-transform duration-100"
                                 onClick={handleAddToCart}
                                 disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
                             >

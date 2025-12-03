@@ -25,10 +25,18 @@ interface Order {
         id: string;
         quantity: number;
         price_at_time: number;
-        products: {
-            name: string;
-            image_url: string;
-        } | null;
+        variant?: {
+            image_url: string | null;
+            pack_size: number;
+            product: {
+                name: string;
+                image_url: string | null;
+            };
+            vial_type: {
+                name: string;
+                size_ml: number;
+            };
+        };
     }[];
 }
 
@@ -84,9 +92,17 @@ const Account = () => {
                     id,
                     quantity,
                     price_at_time,
-                    products (
-                        name,
-                        image_url
+                    variant:product_variants (
+                        image_url,
+                        pack_size,
+                        product:products (
+                            name,
+                            image_url
+                        ),
+                        vial_type:vial_types (
+                            name,
+                            size_ml
+                        )
                     )
                 )
             `)
@@ -280,26 +296,36 @@ const Account = () => {
                                         <CardContent>
                                             <div className="space-y-3">
                                                 <h4 className="font-semibold text-sm">Order Items:</h4>
-                                                {order.order_items.map((item) => (
-                                                    <div key={item.id} className="flex items-center gap-4 py-2 border-b last:border-0">
-                                                        <div className="h-16 w-16 bg-muted rounded flex items-center justify-center overflow-hidden">
-                                                            {item.products?.image_url ? (
-                                                                <img
-                                                                    src={item.products.image_url}
-                                                                    alt={item.products.name}
-                                                                    className="h-full w-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <Package className="h-6 w-6 text-muted-foreground" />
-                                                            )}
+                                                {order.order_items.map((item) => {
+                                                    const variant = item.variant;
+                                                    const product = variant?.product;
+                                                    const displayImage = variant?.image_url || product?.image_url;
+
+                                                    return (
+                                                        <div key={item.id} className="flex items-center gap-4 py-2 border-b last:border-0">
+                                                            <div className="h-16 w-16 bg-muted rounded flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                                {displayImage ? (
+                                                                    <img
+                                                                        src={displayImage}
+                                                                        alt={product?.name || "Product"}
+                                                                        className="h-full w-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <Package className="h-6 w-6 text-muted-foreground" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <p className="font-medium">{product?.name || "Unknown Product"}</p>
+                                                                <p className="text-sm text-muted-foreground">
+                                                                    {variant?.vial_type?.size_ml}ml
+                                                                    {variant?.pack_size && variant.pack_size > 1 ? ` (${variant.pack_size}x Pack)` : ''}
+                                                                </p>
+                                                                <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                                            </div>
+                                                            <p className="font-medium">${item.price_at_time.toFixed(2)}</p>
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <p className="font-medium">{item.products?.name || "Product"}</p>
-                                                            <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
-                                                        </div>
-                                                        <p className="font-medium">${item.price_at_time.toFixed(2)}</p>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </CardContent>
                                     </CollapsibleContent>

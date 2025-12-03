@@ -16,7 +16,7 @@ const Register = () => {
     const navigate = useNavigate();
 
     const isValidPhone = (phone: string) => {
-        const phoneRegex = /^\+?\d{7,15}$/;
+        const phoneRegex = /^\(\d{3}\)\s\d{3}-\d{4}$/;
         return phoneRegex.test(phone);
     };
 
@@ -27,7 +27,7 @@ const Register = () => {
         try {
             // Validate phone format
             if (!isValidPhone(phone)) {
-                toast.error("Please enter a valid phone number in international format (example: +17895551234)");
+                toast.error("Please enter a valid phone number (example: (789) 555-1234)");
                 setLoading(false);
                 return;
             }

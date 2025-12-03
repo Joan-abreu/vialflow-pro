@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       return {
         id: authUser.id,
         email: authUser.email || 'No email',
-        phone: authUser.phone || authUser.user_metadata?.phone || profile?.phone || 'No phone',
+        phone: profile?.phone || authUser.user_metadata?.phone || '',
         created_at: authUser.created_at,
         full_name: profile?.full_name || authUser.user_metadata?.full_name || 'No name',
         role: userRole?.role || 'pending',

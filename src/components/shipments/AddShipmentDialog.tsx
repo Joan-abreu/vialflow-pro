@@ -391,7 +391,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                     {batches.map((batch) => (
                       <SelectItem key={batch.id} value={batch.id}>
                         {batch.batch_number} ({batch.sale_type === 'pack'
-                          ? `${batch.quantity / batch.pack_quantity} packs (${batch.pack_quantity} units per pack)`
+                          ? `${batch.quantity / batch.pack_quantity} packs (Pack ${batch.pack_quantity}x)`
                           : `${batch.quantity} units - individual`})
                       </SelectItem>
                     ))}

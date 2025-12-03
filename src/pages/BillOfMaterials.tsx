@@ -166,6 +166,18 @@ export default function BillOfMaterials() {
     fetchBoM();
   }, [batchId]);
 
+  // Update document title for PDF filename
+  useEffect(() => {
+    if (batch?.batch_number) {
+      document.title = `BOM-${batch.batch_number}`;
+    }
+
+    // Cleanup: restore title on unmount
+    return () => {
+      document.title = "VialFlow Pro";
+    };
+  }, [batch?.batch_number]);
+
   const handlePrint = () => {
     window.print();
   };

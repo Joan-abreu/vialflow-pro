@@ -28,6 +28,16 @@ const EmailConfirmation = () => {
             const refresh_token = hashParams.get("refresh_token");
             const hashType = hashParams.get("type");
 
+            console.log("Debug EmailConfirmation:", {
+                url: window.location.href,
+                hash: window.location.hash,
+                token_hash,
+                type,
+                access_token: access_token ? "present" : "missing",
+                refresh_token: refresh_token ? "present" : "missing",
+                hashType
+            });
+
             // Handle new format
             if (token_hash && type === "email") {
                 try {

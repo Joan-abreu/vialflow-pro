@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
   Package,
@@ -41,6 +42,7 @@ const Layout = ({ children }: LayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
   const { isAdmin } = useUserRole();
 
   useEffect(() => {
@@ -62,8 +64,24 @@ const Layout = ({ children }: LayoutProps) => {
       }
     };
 
+    const fetchPendingOrdersCount = async () => {
+      if (isAdmin) {
+        const { count } = await supabase
+          .from("orders" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending");
+
+        setPendingOrdersCount(count || 0);
+      }
+    };
+
     fetchUserProfile();
-  }, []);
+    fetchPendingOrdersCount();
+
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingOrdersCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -93,6 +111,7 @@ const Layout = ({ children }: LayoutProps) => {
     <>
       {navigation.map((item) => {
         const isActive = location.pathname === item.href;
+        const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
         return (
           <Link
             key={item.name}
@@ -104,7 +123,12 @@ const Layout = ({ children }: LayoutProps) => {
               }`}
           >
             <item.icon className="h-5 w-5" />
-            {item.name}
+            <span className="flex-1">{item.name}</span>
+            {showBadge && (
+              <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
+                {pendingOrdersCount}
+              </Badge>
+            )}
           </Link>
         );
       })}
@@ -128,6 +152,7 @@ const Layout = ({ children }: LayoutProps) => {
               <SidebarMenu className="space-y-1 px-3 py-4">
                 {navigation.map((item) => {
                   const isActive = location.pathname === item.href;
+                  const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
                   return (
                     <SidebarMenuItem key={item.name}>
                       <SidebarMenuButton asChild>
@@ -139,7 +164,12 @@ const Layout = ({ children }: LayoutProps) => {
                             }`}
                         >
                           <item.icon className="h-5 w-5 flex-shrink-0" />
-                          <span className={open ? '' : 'sr-only'}>{item.name}</span>
+                          <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                          {showBadge && open && (
+                            <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
+                              {pendingOrdersCount}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

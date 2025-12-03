@@ -40,10 +40,14 @@ const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
                 throw new Error("You must be logged in to place an order");
             }
 
+            // Get user email for customer_email field
+            const customerEmail = user.email || "";
+
             const { data: order, error: orderError } = await supabase
                 .from("orders" as any)
                 .insert({
                     user_id: user.id,
+                    customer_email: customerEmail,
                     total_amount: amount,
                     status: "processing",
                     shipping_address: {
@@ -77,12 +81,21 @@ const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
 
             if (itemsError) throw itemsError;
 
-            // 4. Trigger Email Notification
+            // 4. Send Email Notifications
             try {
+                // Send customer confirmation email
                 await supabase.functions.invoke("send-order-email", {
                     body: {
                         order_id: orderData.id,
-                        type: "confirmation"
+                        type: "customer_confirmation"
+                    }
+                });
+
+                // Send admin notification email
+                await supabase.functions.invoke("send-order-email", {
+                    body: {
+                        order_id: orderData.id,
+                        type: "admin_notification"
                     }
                 });
             } catch (emailError) {

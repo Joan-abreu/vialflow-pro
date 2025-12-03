@@ -24,11 +24,14 @@ const Cart = () => {
                         {items.map((item) => (
                             <div key={item.variant.id} className="flex gap-4 p-4 bg-card border rounded-lg">
                                 <div className="h-24 w-24 bg-muted rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                    {item.variant.product.image_url ? (
-                                        <img src={item.variant.product.image_url} alt={item.variant.product.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">No Image</span>
-                                    )}
+                                    {(() => {
+                                        const displayImage = item.variant.image_url || item.variant.product.image_url;
+                                        return displayImage ? (
+                                            <img src={displayImage} alt={item.variant.product.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">No Image</span>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start mb-2">

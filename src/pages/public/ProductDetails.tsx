@@ -2,7 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus } from "lucide-react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -23,6 +23,7 @@ const ProductDetails = () => {
     const { id } = useParams<{ id: string }>();
     const { addToCart } = useCart();
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+    const [quantity, setQuantity] = useState<number>(1);
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ["product-with-variants", id],
@@ -95,7 +96,11 @@ const ProductDetails = () => {
 
     const handleAddToCart = () => {
         if (selectedVariant) {
-            addToCart(selectedVariant);
+            for (let i = 0; i < quantity; i++) {
+                addToCart(selectedVariant);
+            }
+            toast.success(`Added ${quantity} item${quantity > 1 ? 's' : ''} to cart`);
+            setQuantity(1); // Reset quantity after adding
         }
     };
 
@@ -189,6 +194,34 @@ const ProductDetails = () => {
                                         <div className="text-xs text-muted-foreground">${variant.price.toFixed(2)}</div>
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* Quantity Selector */}
+                        <div>
+                            <label className="block text-sm font-medium mb-3">Quantity</label>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center border rounded-lg">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-12 w-12 rounded-none"
+                                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                        disabled={quantity <= 1}
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <span className="w-16 text-center text-lg font-medium">{quantity}</span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-12 w-12 rounded-none"
+                                        onClick={() => setQuantity(quantity + 1)}
+                                        disabled={!selectedVariant || quantity >= selectedVariant.stock_quantity}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </div>
 

@@ -105,6 +105,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
     const clearCart = () => {
         setItems([]);
+        localStorage.removeItem("cart");
     };
 
     const cartTotal = items.reduce(

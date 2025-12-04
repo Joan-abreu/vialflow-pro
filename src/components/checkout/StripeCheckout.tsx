@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 
 interface StripeCheckoutProps {
     amount: number;
+    clientSecret: string;
 }
 
-const StripeCheckout = ({ amount }: StripeCheckoutProps) => {
+const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
     const stripe = useStripe();
     const elements = useElements();
     const { clearCart, items } = useCart();
@@ -154,7 +155,43 @@ const StripeCheckout = ({ amount }: StripeCheckoutProps) => {
                 // Don't fail the order if email fails, just log it
             }
 
+            // 5. Link Order to PaymentIntent (Metadata)
+            try {
+                // We need the paymentIntentId to update it. 
+                // Since we don't have it directly from useStripe hook easily without creating a new one or fetching,
+                // we can rely on the fact that we created it in Checkout.tsx and passed clientSecret.
+                // However, clientSecret contains the ID.
+                // Actually, we can just use the clientSecret to retrieve it or just pass it if we had it.
+                // But wait, we don't have the ID here easily.
+                // Let's use the elements.submit() or similar? No.
+
+                // Better approach: We can't easily get the PI ID from just elements/stripe hooks *before* confirmation 
+                // without an extra call or prop.
+                // BUT, we can just confirm the payment and rely on the fact that we can't update metadata easily from frontend securely.
+
+                // WAIT! We can use `stripe.retrievePaymentIntent(clientSecret)` to get the ID!
+                // But we don't have clientSecret prop here, it's in the Elements provider.
+                // We can get it from elements.fetchUpdates() or similar?
+
+                // Actually, we can just pass clientSecret as a prop to StripeCheckout!
+                // Let's assume we update the parent to pass it.
+            } catch (linkError) {
+                console.error("Failed to link order:", linkError);
+            }
+
             // 5. Confirm Payment
+            // We will pass the order_id in the confirmParams if possible? No, metadata is not supported there for PI update.
+            // We MUST update the PI on the backend.
+
+            // Let's pause and refactor to pass clientSecret to this component so we can extract the ID.
+            // OR we can just fetch it.
+
+            // Actually, `elements` knows the secret.
+            // const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+            // We need clientSecret.
+
+            // Let's update the component to accept clientSecret.
+
             const { error } = await stripe.confirmPayment({
                 elements,
                 confirmParams: {

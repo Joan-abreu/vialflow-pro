@@ -71,7 +71,7 @@ const Checkout = () => {
                         <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
                         {clientSecret ? (
                             <Elements options={options} stripe={stripePromise}>
-                                <StripeCheckout amount={totalAmount} />
+                                <StripeCheckout amount={totalAmount} clientSecret={clientSecret} />
                             </Elements>
                         ) : (
                             <div className="flex justify-center py-12">

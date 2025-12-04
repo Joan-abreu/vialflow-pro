@@ -4,11 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Package, Truck, MapPin } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCart } from "@/contexts/CartContext";
 
 const OrderConfirmation = () => {
     const { orderId } = useParams();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const { clearCart } = useCart();
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -37,6 +39,8 @@ const OrderConfirmation = () => {
         };
 
         fetchOrder();
+        // Clear cart when order confirmation loads
+        clearCart();
     }, [orderId]);
 
     if (loading) {
@@ -77,10 +81,7 @@ const OrderConfirmation = () => {
                 </p>
                 <div className="flex justify-center gap-4 pt-4">
                     <Link to="/products">
-                        <Button variant="outline">Continue Shopping</Button>
-                    </Link>
-                    <Link to="/manufacturing/orders">
-                        <Button>View Order Status</Button>
+                        <Button>Continue Shopping</Button>
                     </Link>
                 </div>
             </div>

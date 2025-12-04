@@ -132,7 +132,29 @@ const StripeCheckout = ({ amount }: StripeCheckoutProps) => {
 
             if (itemsError) throw itemsError;
 
-            // 4. Confirm Payment
+            // 4. Send Email Notifications
+            try {
+                // Send customer confirmation email
+                await supabase.functions.invoke("send-order-email", {
+                    body: {
+                        order_id: order.id,
+                        type: "customer_confirmation"
+                    }
+                });
+
+                // Send admin notification email
+                await supabase.functions.invoke("send-order-email", {
+                    body: {
+                        order_id: order.id,
+                        type: "admin_notification"
+                    }
+                });
+            } catch (emailError) {
+                console.error("Failed to send email:", emailError);
+                // Don't fail the order if email fails, just log it
+            }
+
+            // 5. Confirm Payment
             const { error } = await stripe.confirmPayment({
                 elements,
                 confirmParams: {
@@ -142,10 +164,8 @@ const StripeCheckout = ({ amount }: StripeCheckoutProps) => {
 
             if (error) {
                 toast.error(error.message || "An unexpected error occurred.");
-            } else {
-                // Success is handled by redirect
-                clearCart();
             }
+            // Cart will be cleared on the OrderConfirmation page
         } catch (error: any) {
             console.error("Payment error:", error);
             toast.error(error.message || "Payment failed");

@@ -442,6 +442,18 @@ export const ShipmentBoxesDialog = ({
 
       toast.success("Box updated successfully");
       setEditingBoxId(null);
+
+      // Update batch status after editing box
+      const { data: shipment } = await supabase
+        .from("shipments")
+        .select("batch_id")
+        .eq("id", shipmentId)
+        .single();
+
+      if (shipment?.batch_id) {
+        await updateBatchStatus(shipment.batch_id);
+      }
+
       fetchBoxes();
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
       // Don't call onSuccess here to keep modal open for editing more boxes

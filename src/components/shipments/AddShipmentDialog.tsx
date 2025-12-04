@@ -38,6 +38,7 @@ interface Batch {
   sale_type: string;
   pack_quantity: number;
   status: string;
+  created_at: string;
 }
 
 interface BoxMaterial {
@@ -73,6 +74,11 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     ups_tracking_number: string;
     fba_id: string;
   }>>([]);
+  const [defaultValues, setDefaultValues] = useState({
+    packs_per_box: "",
+    weight_lb: "",
+    destination: "",
+  });
 
   useEffect(() => {
     if (open) {
@@ -104,8 +110,7 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
   const fetchBatches = async () => {
     const { data, error } = await supabase
       .from("production_batches")
-      .select("id, batch_number, quantity, sale_type, pack_quantity, status")
-      .neq("status", "completed")
+      .select("id, batch_number, quantity, sale_type, pack_quantity, status, created_at")
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -267,6 +272,40 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     setBoxesData(newBoxes);
   };
 
+  const applyDefaultsToAllBoxes = () => {
+    if (!defaultValues.packs_per_box && !defaultValues.weight_lb && !defaultValues.destination) {
+      toast.error("Please enter at least one default value to apply");
+      return;
+    }
+
+    const newBoxes = boxesData.map((box) => {
+      const updatedBox = { ...box };
+
+      // Apply default packs (only for pack-type batches)
+      if (defaultValues.packs_per_box && selectedBatch?.sale_type === "pack") {
+        updatedBox.packs_per_box = defaultValues.packs_per_box;
+        // Auto-calculate bottles
+        const packsPerBox = parseInt(defaultValues.packs_per_box) || 0;
+        updatedBox.bottles_per_box = (packsPerBox * (selectedBatch.pack_quantity || 1)).toString();
+      }
+
+      // Apply default weight
+      if (defaultValues.weight_lb) {
+        updatedBox.weight_lb = defaultValues.weight_lb;
+      }
+
+      // Apply default destination
+      if (defaultValues.destination) {
+        updatedBox.destination = defaultValues.destination;
+      }
+
+      return updatedBox;
+    });
+
+    setBoxesData(newBoxes);
+    toast.success(`Default values applied to all ${boxesData.length} boxes`);
+  };
+
   const addBox = () => {
     // Get selected box dimensions
     const selectedBox = boxes.find(b => b.id === selectedBoxType);
@@ -423,13 +462,20 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                     <SelectValue placeholder="Select batch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {batches.map((batch) => (
-                      <SelectItem key={batch.id} value={batch.id}>
-                        {batch.batch_number} ({batch.sale_type === 'pack'
-                          ? `${batch.quantity / batch.pack_quantity} packs (Pack ${batch.pack_quantity}x)`
-                          : `${batch.quantity} units - individual`})
-                      </SelectItem>
-                    ))}
+                    {batches
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map((batch) => (
+                        <SelectItem
+                          key={batch.id}
+                          value={batch.id}
+                          disabled={batch.status === "completed"}
+                        >
+                          {batch.batch_number} ({batch.sale_type === 'pack'
+                            ? `${batch.quantity / (batch.pack_quantity || 1)} packs (Pack ${batch.pack_quantity}x)`
+                            : `${batch.quantity} units - individual`})
+                          {batch.status === "completed" ? " (Completed)" : ""}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -495,6 +541,63 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              {/* Default Values Section */}
+              <div className="border-2 border-primary/20 rounded-lg p-4 bg-primary/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-sm">Default Values (Optional)</h3>
+                    <p className="text-xs text-muted-foreground">Set common values to apply to all boxes at once</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={applyDefaultsToAllBoxes}
+                  >
+                    Apply to All Boxes
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {selectedBatch?.sale_type === "pack" && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="default_packs" className="text-xs">Packs per Box</Label>
+                      <Input
+                        id="default_packs"
+                        type="number"
+                        placeholder="e.g., 10"
+                        value={defaultValues.packs_per_box}
+                        onChange={(e) => setDefaultValues({ ...defaultValues, packs_per_box: e.target.value })}
+                        className="h-8"
+                      />
+                    </div>
+                  )}
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="default_weight" className="text-xs">Weight (lb)</Label>
+                    <Input
+                      id="default_weight"
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g., 25.5"
+                      value={defaultValues.weight_lb}
+                      onChange={(e) => setDefaultValues({ ...defaultValues, weight_lb: e.target.value })}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="default_destination" className="text-xs">Destination</Label>
+                    <Input
+                      id="default_destination"
+                      placeholder="e.g., IN"
+                      maxLength={2}
+                      value={defaultValues.destination}
+                      onChange={(e) => setDefaultValues({ ...defaultValues, destination: e.target.value.toUpperCase() })}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Individual Box Details */}
               {boxesData.map((box, index) => (
                 <div key={index} className={`border rounded-lg p-3 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-background'}`}>
                   <div className="flex items-center gap-2 mb-3">

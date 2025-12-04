@@ -25,6 +25,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { updateBatchStatus } from "@/services/batches";
+import { Textarea } from "../ui/textarea";
 
 interface ProductVariant {
   id: string;
@@ -46,6 +48,8 @@ interface EditBatchDialogProps {
     pack_quantity: number | null;
     product_id: string;
     started_at: string | null;
+    waste_quantity: number | null;
+    waste_notes: string | null;
   };
   onSuccess: () => void;
 }
@@ -63,8 +67,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       : batch.quantity.toString(),
     status: batch.status,
     started_at: batch.started_at ? new Date(batch.started_at) : null as Date | null,
-    waste_quantity: "0",
-    waste_notes: "",
+    waste_quantity: batch.waste_quantity?.toString() || "0",
+    waste_notes: batch.waste_notes || "",
   });
 
   useEffect(() => {
@@ -77,8 +81,8 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
           : batch.quantity.toString(),
         status: batch.status,
         started_at: batch.started_at ? new Date(batch.started_at) : null,
-        waste_quantity: "0",
-        waste_notes: "",
+        waste_quantity: batch.waste_quantity?.toString() || "0",
+        waste_notes: batch.waste_notes || "",
       });
 
       fetchVariants();
@@ -223,6 +227,9 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
         variant: "destructive",
       });
     } else {
+
+      await updateBatchStatus(batch.id);
+
       toast({
         title: "Success",
         description: "Batch updated successfully",
@@ -375,7 +382,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
 
             <div className="grid gap-2">
               <Label htmlFor="waste_notes">Waste Notes</Label>
-              <Input
+              <Textarea
                 id="waste_notes"
                 value={formData.waste_notes}
                 onChange={(e) =>

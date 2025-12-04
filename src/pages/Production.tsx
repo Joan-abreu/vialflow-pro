@@ -47,6 +47,8 @@ interface ProductionBatch {
   completed_at: string | null;
   shipped_units: number;
   units_in_progress: number;
+  waste_quantity: number | null;
+  waste_notes: string | null;
   product_id: string; // Keep as string ID
   product_variant_details: { // New property for expanded details
     vial_type_id: {
@@ -182,6 +184,7 @@ const Production = () => {
                     .map((batch) => {
                       const unitsInProgress = batch.units_in_progress || 0;
                       const shippedUnits = batch.shipped_units || 0;
+                      const wasteQuantity = batch.waste_quantity / batch.pack_quantity || 0;
 
                       const shipped = batch.sale_type === "pack" && batch.pack_quantity
                         ? shippedUnits / batch.pack_quantity
@@ -189,7 +192,7 @@ const Production = () => {
                       const total = batch.sale_type === "pack" && batch.pack_quantity
                         ? batch.quantity / batch.pack_quantity
                         : batch.quantity;
-                      const progress = total > 0 ? (unitsInProgress / total) * 100 : 0;
+                      const progress = total > 0 ? Math.min(((unitsInProgress) / total) * 100, 100) : 0;
 
                       return (
                         <TableRow key={batch.id}>
@@ -213,7 +216,7 @@ const Production = () => {
                                   {unitsInProgress.toFixed(0)} / {total.toFixed(0)}
                                   {batch.sale_type === "pack" ? " packs" : ""}
                                 </span>
-                                <span className="text-muted-foreground">{progress.toFixed(0)}%</span>
+                                <span className="text-muted-foreground">{progress.toFixed(2)}%</span>
                               </div>
                               <Progress value={progress} className="h-2" />
                             </div>
@@ -262,7 +265,7 @@ const Production = () => {
                                 batch={batch}
                                 onSuccess={fetchBatches}
                               />
-                              {shipped < total && (
+                              {shipped < total && batch.status !== "completed" && (
                                 <AddShipmentDialog
                                   initialBatchId={batch.id}
                                   onSuccess={fetchBatches}

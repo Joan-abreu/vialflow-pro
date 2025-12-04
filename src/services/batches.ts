@@ -10,7 +10,7 @@ export const updateBatchStatus = async (batchId: string) => {
     // 1️⃣ Obtener el batch
     const { data: batchData, error: batchError } = await supabase
       .from("production_batches")
-      .select("id, status, started_at, sale_type")
+      .select("id, status, started_at, sale_type, quantity, pack_quantity, waste_quantity")
       .eq("id", batchId)
       .single();
 
@@ -43,8 +43,8 @@ export const updateBatchStatus = async (batchId: string) => {
     // const inProgressShipmentIds = shipments
     //   ?.filter((s) => s.status === "preparing" || s.status === "pending")
     //   ?.map((s) => s.id) || [];
-    
-    const inProgressBoxes = boxes?.filter((box) => 
+
+    const inProgressBoxes = boxes?.filter((box) =>
       shipmentIds.includes(box.shipment_id)
     ) || [];
 
@@ -53,12 +53,16 @@ export const updateBatchStatus = async (batchId: string) => {
       return sum + (box.bottles_per_box || 0);
     }, 0);
 
+    // Include waste_quantity in progress calculation
+    const wasteQuantity = batch.waste_quantity / batch.pack_quantity || 0;
+    const totalProcessed = unitsInProgress + wasteQuantity;
+
     // 6️⃣ Calcular shipped_units (shipped + delivered)
     const shippedShipmentIds = shipments
       ?.filter((s) => s.status === "shipped" || s.status === "delivered")
       ?.map((s) => s.id) || [];
-    
-    const shippedBoxes = boxes?.filter((box) => 
+
+    const shippedBoxes = boxes?.filter((box) =>
       shippedShipmentIds.includes(box.shipment_id)
     ) || [];
 
@@ -72,24 +76,33 @@ export const updateBatchStatus = async (batchId: string) => {
 
     // Si NO hay shipments → el batch está vacío, sigue pending
     if (!shipments || shipments.length === 0) {
-        newStatus = "pending";
+      newStatus = "pending";
     }
 
-    // Si TODOS están delivered → completed
+    // Si TODOS están delivered Y la cantidad procesada + waste = total → completed
     else if (shipments.every((s) => s.status === "delivered")) {
+      // Verificar que el total procesado (shipments + waste) coincida con la cantidad del batch
+      const batchQuantity = batch.quantity / batch.pack_quantity || 0;
+      const totalAccountedFor = unitsInProgress + wasteQuantity;
+
+      if (totalAccountedFor >= batchQuantity) {
         newStatus = "completed";
+      } else {
+        // Si no se ha procesado todo, mantener en in_progress
+        newStatus = "in_progress";
+      }
     }
 
     // Si ALGUNO está pending o preparing → in_progress
     else if (shipments.some((s) => s.status === "pending" || s.status === "preparing")) {
-        newStatus = "in_progress";
+      newStatus = "in_progress";
     }
-    
+
     // 8️⃣ Construir objeto de update
     const updateData: any = {
       status: newStatus,
       shipped_units: shippedUnits,
-      units_in_progress: unitsInProgress,
+      units_in_progress: totalProcessed, // Include waste in progress
     };
 
     // Si no tiene started_at y hay un shipment pending → marcar started_at

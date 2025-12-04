@@ -1,74 +1,125 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
-import { CreditCard, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
+import { PaymentElement, useStripe, useElements, AddressElement } from "@stripe/react-stripe-js";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 interface StripeCheckoutProps {
     amount: number;
-    onSuccess: () => void;
 }
 
-const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
-    const [loading, setLoading] = useState(false);
-    const [cardNumber, setCardNumber] = useState("");
-    const [expiry, setExpiry] = useState("");
-    const [cvc, setCvc] = useState("");
-    const { items, clearCart } = useCart();
+const StripeCheckout = ({ amount }: StripeCheckoutProps) => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const { clearCart, items } = useCart();
 
-    const handlePayment = async (e: React.FormEvent) => {
+    const [loading, setLoading] = useState(false);
+    const [saveAddress, setSaveAddress] = useState(false);
+    const [addressState, setAddressState] = useState<any>(null);
+    const [user, setUser] = useState<any>(null);
+    const [defaultAddress, setDefaultAddress] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchUserAndProfile = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (profile && profile.address_line1) {
+                    setDefaultAddress({
+                        name: profile.full_name || user.user_metadata?.full_name || '',
+                        address: {
+                            line1: profile.address_line1,
+                            line2: profile.address_line2,
+                            city: profile.city,
+                            state: profile.state,
+                            postal_code: profile.postal_code,
+                            country: profile.country || 'US',
+                        }
+                    });
+                    // Also set initial address state so it's valid if they don't change anything
+                    setAddressState({
+                        line1: profile.address_line1,
+                        line2: profile.address_line2,
+                        city: profile.city,
+                        state: profile.state,
+                        postal_code: profile.postal_code,
+                        country: profile.country || 'US',
+                    });
+                } else {
+                    setDefaultAddress({
+                        name: user.user_metadata?.full_name || '',
+                    });
+                }
+            }
+        };
+        fetchUserAndProfile();
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!stripe || !elements) {
+            return;
+        }
+
         setLoading(true);
 
         try {
-            // 1. Simulate Stripe Payment
-            if (cardNumber.length < 16) {
-                throw new Error("Invalid card number");
+            // 1. Save address if requested and user is logged in
+            if (saveAddress && user && addressState) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({
+                        address_line1: addressState.line1,
+                        address_line2: addressState.line2,
+                        city: addressState.city,
+                        state: addressState.state,
+                        postal_code: addressState.postal_code,
+                        country: addressState.country,
+                    })
+                    .eq('user_id', user.id);
+
+                if (profileError) {
+                    console.error("Error saving address:", profileError);
+                    toast.error("Failed to save address, but proceeding with payment.");
+                }
             }
 
-            // Simulate processing delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // 2. Create Order in Supabase
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                throw new Error("You must be logged in to place an order");
-            }
+            // 2. Create Order in Supabase (Pending Payment)
+            const cartItems = items;
 
             // Get user email for customer_email field
-            const customerEmail = user.email || "";
+            const customerEmail = user?.email || "";
 
             const { data: order, error: orderError } = await supabase
-                .from("orders" as any)
+                .from("orders")
                 .insert({
-                    user_id: user.id,
+                    user_id: user?.id,
                     customer_email: customerEmail,
                     total_amount: amount,
-                    status: "processing",
-                    shipping_address: {
-                        // Mock address for now, ideally passed from parent
-                        line1: "123 Main St",
-                        city: "New York",
-                        state: "NY",
-                        postal_code: "10001",
-                        country: "US"
-                    }
+                    status: "pending_payment", // Initial status
+                    shipping_address: addressState || {}, // Save the address used for this order
                 })
                 .select()
                 .single();
 
             if (orderError) throw orderError;
 
-            const orderData = order as any;
-
             // 3. Create Order Items
-            const orderItems = items.map(item => ({
-                order_id: orderData.id,
+            const orderItems = cartItems.map(item => ({
+                order_id: order.id,
                 product_id: item.variant.product_id,
                 variant_id: item.variant.id,
                 quantity: item.quantity,
@@ -76,36 +127,25 @@ const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
             }));
 
             const { error: itemsError } = await supabase
-                .from("order_items" as any)
+                .from("order_items")
                 .insert(orderItems);
 
             if (itemsError) throw itemsError;
 
-            // 4. Send Email Notifications
-            try {
-                // Send customer confirmation email
-                await supabase.functions.invoke("send-order-email", {
-                    body: {
-                        order_id: orderData.id,
-                        type: "customer_confirmation"
-                    }
-                });
+            // 4. Confirm Payment
+            const { error } = await stripe.confirmPayment({
+                elements,
+                confirmParams: {
+                    return_url: `${window.location.origin}/order-confirmation/${order.id}`,
+                },
+            });
 
-                // Send admin notification email
-                await supabase.functions.invoke("send-order-email", {
-                    body: {
-                        order_id: orderData.id,
-                        type: "admin_notification"
-                    }
-                });
-            } catch (emailError) {
-                console.error("Failed to send email:", emailError);
-                // Don't fail the order if email fails, just log it
+            if (error) {
+                toast.error(error.message || "An unexpected error occurred.");
+            } else {
+                // Success is handled by redirect
+                clearCart();
             }
-
-            toast.success("Payment successful! Order placed.");
-            onSuccess();
-
         } catch (error: any) {
             console.error("Payment error:", error);
             toast.error(error.message || "Payment failed");
@@ -115,71 +155,68 @@ const StripeCheckout = ({ amount, onSuccess }: StripeCheckoutProps) => {
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Payment Details</CardTitle>
-                <CardDescription>Enter your card information to complete the purchase.</CardDescription>
-            </CardHeader>
-            <form onSubmit={handlePayment}>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="card-number">Card Number</Label>
-                        <div className="relative">
-                            <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                id="card-number"
-                                placeholder="0000 0000 0000 0000"
-                                className="pl-9"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                                required
+        <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-6 px-0">
+                <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Shipping Address</h3>
+                    {/* Only render AddressElement when we have determined if there's a default address or not */}
+                    {/* This prevents the form from flickering or not showing defaults if they load late */}
+                    {/* However, for better UX we might want to show it immediately. 
+                        AddressElement's defaultValues prop is only read on mount. 
+                        So we need to key it or wait. Keying it is better. */}
+                    <AddressElement
+                        key={defaultAddress ? 'loaded' : 'loading'}
+                        options={{
+                            mode: 'shipping',
+                            defaultValues: defaultAddress || {
+                                name: user?.user_metadata?.full_name || '',
+                            }
+                        }}
+                        onChange={(e) => {
+                            if (e.complete) {
+                                setAddressState(e.value.address);
+                            }
+                        }}
+                    />
+                    {user && (
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox
+                                id="save-address"
+                                checked={saveAddress}
+                                onCheckedChange={(checked) => setSaveAddress(checked as boolean)}
                             />
+                            <Label htmlFor="save-address" className="text-sm text-muted-foreground font-normal cursor-pointer">
+                                Save this address for future orders
+                            </Label>
                         </div>
+                    )}
+                </div>
+
+                <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Payment Details</h3>
+                    <PaymentElement />
+                </div>
+
+                <div className="pt-4">
+                    <div className="flex justify-between text-sm font-medium">
+                        <span>Total Amount</span>
+                        <span>${amount.toFixed(2)}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="expiry">Expiry Date</Label>
-                            <Input
-                                id="expiry"
-                                placeholder="MM/YY"
-                                value={expiry}
-                                onChange={(e) => setExpiry(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="cvc">CVC</Label>
-                            <Input
-                                id="cvc"
-                                placeholder="123"
-                                maxLength={3}
-                                value={cvc}
-                                onChange={(e) => setCvc(e.target.value)}
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div className="pt-4">
-                        <div className="flex justify-between text-sm font-medium">
-                            <span>Total Amount</span>
-                            <span>${amount.toFixed(2)}</span>
-                        </div>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button className="w-full" type="submit" disabled={loading}>
-                        {loading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Processing...
-                            </>
-                        ) : (
-                            `Pay $${amount.toFixed(2)}`
-                        )}
-                    </Button>
-                </CardFooter>
-            </form>
-        </Card>
+                </div>
+            </CardContent>
+            <CardFooter className="px-0">
+                <Button className="w-full" type="submit" disabled={!stripe || loading}>
+                    {loading ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                        </>
+                    ) : (
+                        `Pay $${amount.toFixed(2)}`
+                    )}
+                </Button>
+            </CardFooter>
+        </form>
     );
 };
 

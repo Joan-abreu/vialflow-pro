@@ -1,19 +1,47 @@
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import StripeCheckout from "@/components/checkout/StripeCheckout";
+import { useEffect, useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import StripeCheckout from "@/components/checkout/StripeCheckout";
+import { Loader2 } from "lucide-react";
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 const Checkout = () => {
     const { items, cartTotal, clearCart } = useCart();
     const navigate = useNavigate();
+    const [clientSecret, setClientSecret] = useState("");
+    const [loading, setLoading] = useState(false);
+
     const shippingCost = 10.00;
     const totalAmount = cartTotal + shippingCost;
 
-    const handlePaymentSuccess = () => {
-        clearCart();
-        navigate("/");
-    };
+    useEffect(() => {
+        if (items.length > 0) {
+            setLoading(true);
+            // Create PaymentIntent as soon as the page loads
+            const createIntent = async () => {
+                try {
+                    const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+                        body: { amount: totalAmount, currency: 'usd' }
+                    });
+
+                    if (error) throw error;
+                    if (data?.clientSecret) {
+                        setClientSecret(data.clientSecret);
+                    }
+                } catch (error) {
+                    console.error("Error creating payment intent:", error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            createIntent();
+        }
+    }, [items, totalAmount]);
 
     if (items.length === 0) {
         return (
@@ -24,41 +52,32 @@ const Checkout = () => {
         );
     }
 
+    const appearance = {
+        theme: 'stripe' as const,
+    };
+    const options = {
+        clientSecret,
+        appearance,
+    };
+
     return (
         <div className="container py-12">
             <h1 className="text-3xl font-bold mb-8">Checkout</h1>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <div className="space-y-8">
+                    {/* Payment & Shipping Section */}
                     <div className="bg-card border rounded-lg p-6">
-                        <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="firstName">First Name</Label>
-                                <Input id="firstName" placeholder="John" />
+                        <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
+                        {clientSecret ? (
+                            <Elements options={options} stripe={stripePromise}>
+                                <StripeCheckout amount={totalAmount} />
+                            </Elements>
+                        ) : (
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="lastName">Last Name</Label>
-                                <Input id="lastName" placeholder="Doe" />
-                            </div>
-                            <div className="col-span-2 space-y-2">
-                                <Label htmlFor="address">Address</Label>
-                                <Input id="address" placeholder="123 Research Way" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="city">City</Label>
-                                <Input id="city" placeholder="New York" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="zip">ZIP Code</Label>
-                                <Input id="zip" placeholder="10001" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-card border rounded-lg p-6">
-                        <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-                        <StripeCheckout amount={Number(totalAmount.toFixed(2))} onSuccess={handlePaymentSuccess} />
+                        )}
                     </div>
                 </div>
 

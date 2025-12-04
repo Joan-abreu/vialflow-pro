@@ -1,11 +1,12 @@
 // Cleaned ShipmentBoxesDialog component
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -30,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Package, Trash2, Plus, Truck } from "lucide-react";
+import { Package, Trash2, Plus, Truck, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -94,6 +95,19 @@ export const ShipmentBoxesDialog = ({
   });
   const [selectedBoxDetail, setSelectedBoxDetail] = useState<ShipmentBox | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [editingBoxId, setEditingBoxId] = useState<string | null>(null);
+  const [editBox, setEditBox] = useState({
+    box_number: "",
+    packs_per_box: "",
+    bottles_per_box: "",
+    weight_lb: "",
+    dimension_length_in: "",
+    dimension_width_in: "",
+    dimension_height_in: "",
+    destination: "",
+    ups_tracking_number: "",
+    fba_id: "",
+  });
   const queryClient = useQueryClient();
 
   // Helper functions -------------------------------------------------------
@@ -367,6 +381,81 @@ export const ShipmentBoxesDialog = ({
     }
   };
 
+  const handleEditBox = (box: ShipmentBox) => {
+    setEditingBoxId(box.id);
+    setEditBox({
+      box_number: box.box_number.toString(),
+      packs_per_box: box.packs_per_box?.toString() || "",
+      bottles_per_box: box.bottles_per_box?.toString() || "",
+      weight_lb: box.weight_lb?.toString() || "",
+      dimension_length_in: box.dimension_length_in?.toString() || "",
+      dimension_width_in: box.dimension_width_in?.toString() || "",
+      dimension_height_in: box.dimension_height_in?.toString() || "",
+      destination: box.destination || "",
+      ups_tracking_number: box.ups_tracking_number || "",
+      fba_id: box.fba_id || "",
+    });
+  };
+
+  const handleEditLabelDataExtracted = (extractedData: any) => {
+    const updates: Partial<typeof editBox> = {};
+    if (extractedData.destination) updates.destination = extractedData.destination;
+    if (extractedData.ups_tracking_number) updates.ups_tracking_number = extractedData.ups_tracking_number;
+    if (extractedData.fba_id) updates.fba_id = extractedData.fba_id;
+    if (extractedData.weight_lb) updates.weight_lb = extractedData.weight_lb.toString();
+    if (extractedData.dimension_length_in) updates.dimension_length_in = extractedData.dimension_length_in.toString();
+    if (extractedData.dimension_width_in) updates.dimension_width_in = extractedData.dimension_width_in.toString();
+    if (extractedData.dimension_height_in) updates.dimension_height_in = extractedData.dimension_height_in.toString();
+    if (extractedData.qty && batchInfo) {
+      const qty = parseInt(extractedData.qty);
+      if (batchInfo.sale_type === "pack") {
+        updates.packs_per_box = qty.toString();
+        updates.bottles_per_box = (qty * batchInfo.pack_quantity).toString();
+      } else {
+        updates.bottles_per_box = qty.toString();
+      }
+    }
+    setEditBox((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBoxId) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("shipment_boxes")
+        .update({
+          box_number: parseInt(editBox.box_number),
+          packs_per_box: editBox.packs_per_box ? parseInt(editBox.packs_per_box) : null,
+          bottles_per_box: editBox.bottles_per_box ? parseInt(editBox.bottles_per_box) : null,
+          weight_lb: editBox.weight_lb ? parseFloat(editBox.weight_lb) : null,
+          dimension_length_in: editBox.dimension_length_in ? parseFloat(editBox.dimension_length_in) : null,
+          dimension_width_in: editBox.dimension_width_in ? parseFloat(editBox.dimension_width_in) : null,
+          dimension_height_in: editBox.dimension_height_in ? parseFloat(editBox.dimension_height_in) : null,
+          destination: editBox.destination || null,
+          ups_tracking_number: editBox.ups_tracking_number || null,
+          fba_id: editBox.fba_id || null,
+        })
+        .eq("id", editingBoxId);
+
+      if (error) throw error;
+
+      toast.success("Box updated successfully");
+      setEditingBoxId(null);
+      fetchBoxes();
+      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      // Don't call onSuccess here to keep modal open for editing more boxes
+    } catch (error: any) {
+      toast.error("Error updating box: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingBoxId(null);
+  };
+
   const handleDeleteBox = async (boxId: string) => {
     try {
       const { data: boxInfo, error: boxInfoError } = await supabase
@@ -425,6 +514,9 @@ export const ShipmentBoxesDialog = ({
         <DialogContent className="max-w-[1200px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Boxes for Shipment {shipmentNumber}</DialogTitle>
+            <DialogDescription>
+              Here you can view and manage the boxes for this shipment.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
             {/* Existing Boxes */}
@@ -450,64 +542,104 @@ export const ShipmentBoxesDialog = ({
                     </TableHeader>
                     <TableBody>
                       {boxes.map((box) => (
-                        <TableRow key={box.id}>
-                          <TableCell className="font-medium">{box.box_number}</TableCell>
-                          <TableCell>{box.destination || "-"}</TableCell>
-                          <TableCell className="text-xs">
-                            {box.ups_tracking_number ? (
-                              <div className="flex items-center gap-2">
-                                <span>{box.ups_tracking_number}</span>
-                                <a
-                                  href={`https://www.ups.com/track?tracknum=${box.ups_tracking_number}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:text-primary/80"
-                                  title="Track package on UPS"
-                                >
-                                  <Truck className="h-4 w-4" />
-                                </a>
-                              </div>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell className="text-xs">{box.fba_id || "-"}</TableCell>
-                          <TableCell>{box.packs_per_box || "-"}</TableCell>
-                          <TableCell>{box.bottles_per_box || "-"}</TableCell>
-                          <TableCell>{box.weight_lb || "-"}</TableCell>
-                          <TableCell>
-                            {box.dimension_length_in && box.dimension_width_in && box.dimension_height_in
-                              ? `${box.dimension_length_in} × ${box.dimension_width_in} × ${box.dimension_height_in}`
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="flex space-x-2">
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Box</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete Box #{box.box_number}?\nThis action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteBox(box.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedBoxDetail(box); setDetailOpen(true); }}>
-                              Details
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={box.id}>
+                          {editingBoxId === box.id && (
+                            <TableRow key={`${box.id}-scanner`}>
+                              <TableCell colSpan={9} className="bg-muted/30 py-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">Scan Label:</span>
+                                  <LabelImageScanner onDataExtracted={handleEditLabelDataExtracted} />
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow key={box.id}>
+                            {editingBoxId === box.id ? (
+                              <>
+                                <TableCell>
+                                  <Input type="number" value={editBox.box_number} onChange={(e) => setEditBox({ ...editBox, box_number: e.target.value })} className="h-8 w-16" />
+                                </TableCell>
+                                <TableCell>
+                                  <Input value={editBox.destination} onChange={(e) => setEditBox({ ...editBox, destination: e.target.value })} className="h-8 w-16" placeholder="IN" />
+                                </TableCell>
+                                <TableCell>
+                                  <Input value={editBox.ups_tracking_number} onChange={(e) => setEditBox({ ...editBox, ups_tracking_number: e.target.value })} className="h-8 text-xs" placeholder="1Z..." />
+                                </TableCell>
+                                <TableCell>
+                                  <Input value={editBox.fba_id} onChange={(e) => setEditBox({ ...editBox, fba_id: e.target.value })} className="h-8 text-xs" placeholder="FBA..." />
+                                </TableCell>
+                                <TableCell>
+                                  <Input type="number" value={editBox.packs_per_box} onChange={(e) => { const packs = e.target.value; const bottles = packs && batchInfo ? (parseInt(packs) * batchInfo.pack_quantity).toString() : ""; setEditBox({ ...editBox, packs_per_box: packs, bottles_per_box: bottles }); }} className="h-8 w-16" placeholder="0" disabled={batchInfo?.sale_type !== "pack"} />
+                                </TableCell>
+                                <TableCell>
+                                  <Input type="number" value={editBox.bottles_per_box} onChange={(e) => setEditBox({ ...editBox, bottles_per_box: e.target.value })} className="h-8 w-16" placeholder="0" disabled={batchInfo?.sale_type === "pack"} />
+                                </TableCell>
+                                <TableCell>
+                                  <Input type="number" step="0.01" value={editBox.weight_lb} onChange={(e) => setEditBox({ ...editBox, weight_lb: e.target.value })} className="h-8 w-20" placeholder="0" />
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Input type="number" step="0.1" value={editBox.dimension_length_in} onChange={(e) => setEditBox({ ...editBox, dimension_length_in: e.target.value })} className="h-8 w-14 text-xs" placeholder="L" />
+                                    <Input type="number" step="0.1" value={editBox.dimension_width_in} onChange={(e) => setEditBox({ ...editBox, dimension_width_in: e.target.value })} className="h-8 w-14 text-xs" placeholder="W" />
+                                    <Input type="number" step="0.1" value={editBox.dimension_height_in} onChange={(e) => setEditBox({ ...editBox, dimension_height_in: e.target.value })} className="h-8 w-14 text-xs" placeholder="H" />
+                                  </div>
+                                </TableCell>
+                                <TableCell className="flex space-x-2">
+                                  <Button variant="default" size="sm" onClick={handleSaveEdit} disabled={loading}>Save</Button>
+                                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell className="font-medium">{box.box_number}</TableCell>
+                                <TableCell>{box.destination || "-"}</TableCell>
+                                <TableCell className="text-xs">
+                                  {box.ups_tracking_number ? (
+                                    <div className="flex items-center gap-2">
+                                      <span>{box.ups_tracking_number}</span>
+                                      <a href={`https://www.ups.com/track?tracknum=${box.ups_tracking_number}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80" title="Track package on UPS">
+                                        <Truck className="h-4 w-4" />
+                                      </a>
+                                    </div>
+                                  ) : "-"}
+                                </TableCell>
+                                <TableCell className="text-xs">{box.fba_id || "-"}</TableCell>
+                                <TableCell>{box.packs_per_box || "-"}</TableCell>
+                                <TableCell>{box.bottles_per_box || "-"}</TableCell>
+                                <TableCell>{box.weight_lb || "-"}</TableCell>
+                                <TableCell>
+                                  {box.dimension_length_in && box.dimension_width_in && box.dimension_height_in ? `${box.dimension_length_in} × ${box.dimension_width_in} × ${box.dimension_height_in}` : "-"}
+                                </TableCell>
+                                <TableCell className="flex space-x-2">
+                                  <Button variant="ghost" size="sm" onClick={() => handleEditBox(box)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="sm">
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Box</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete Box #{box.box_number}?\nThis action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteBox(box.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </TableCell>
+                              </>
+                            )}
+                          </TableRow>
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>

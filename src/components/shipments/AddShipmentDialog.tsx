@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Trash2 } from "lucide-react";
 import BarcodeScanner from "./BarcodeScanner";
 import { LabelImageScanner } from "./LabelImageScanner";
 import { updateBatchStatus } from "@/services/batches";
@@ -267,6 +267,41 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     setBoxesData(newBoxes);
   };
 
+  const addBox = () => {
+    // Get selected box dimensions
+    const selectedBox = boxes.find(b => b.id === selectedBoxType);
+    const defaultDimensions = selectedBox ? {
+      dimension_length_in: selectedBox.dimension_length_in?.toString() || "",
+      dimension_width_in: selectedBox.dimension_width_in?.toString() || "",
+      dimension_height_in: selectedBox.dimension_height_in?.toString() || "",
+    } : {
+      dimension_length_in: "",
+      dimension_width_in: "",
+      dimension_height_in: "",
+    };
+
+    const newBox = {
+      packs_per_box: "",
+      bottles_per_box: "",
+      weight_lb: "",
+      destination: "",
+      ups_tracking_number: "",
+      fba_id: "",
+      ...defaultDimensions,
+    };
+
+    setBoxesData([...boxesData, newBox]);
+  };
+
+  const removeBox = (index: number) => {
+    if (boxesData.length === 1) {
+      toast.error("You must have at least one box");
+      return;
+    }
+    const newBoxes = boxesData.filter((_, i) => i !== index);
+    setBoxesData(newBoxes);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -465,6 +500,15 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                   <div className="flex items-center gap-2 mb-3">
                     <span className="font-semibold text-sm">Box #{index + 1}</span>
                     <LabelImageScanner onDataExtracted={(data) => handleLabelDataExtracted(index, data)} />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBox(index)}
+                      className="ml-auto h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
 
                   <div className="grid grid-cols-9 gap-2">
@@ -584,6 +628,15 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
                   </div>
                 </div>
               ))}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addBox}
+                className="w-full"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Another Box
+              </Button>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCancel}>

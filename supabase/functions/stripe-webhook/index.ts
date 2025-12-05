@@ -53,25 +53,34 @@ serve(async (req) => {
 
                     // Send Email Notifications
                     try {
-                        // Send customer confirmation email
-                        await supabase.functions.invoke("send-order-email", {
+                        const { error: customerEmailError } = await supabase.functions.invoke("send-order-email", {
                             body: {
                                 order_id: orderId,
                                 type: "customer_confirmation"
                             }
                         });
 
-                        // Send admin notification email
-                        await supabase.functions.invoke("send-order-email", {
+                        if (customerEmailError) {
+                            console.error(`Error sending customer email: ${JSON.stringify(customerEmailError)}`);
+                        } else {
+                            console.log(`Customer email triggered for order ${orderId}`);
+                        }
+
+                        const { error: adminEmailError } = await supabase.functions.invoke("send-order-email", {
                             body: {
                                 order_id: orderId,
                                 type: "admin_notification"
                             }
                         });
-                        console.log(`Emails triggered for order ${orderId}`);
+
+                        if (adminEmailError) {
+                            console.error(`Error sending admin email: ${JSON.stringify(adminEmailError)}`);
+                        } else {
+                            console.log(`Admin email triggered for order ${orderId}`);
+                        }
+
                     } catch (emailError) {
-                        console.error(`Error sending emails: ${emailError.message}`);
-                        // Don't fail the webhook if email fails, just log it
+                        console.error(`Unexpected error sending emails: ${emailError.message}`);
                     }
                 } else {
                     console.warn("Payment succeeded but no order_id found in metadata");

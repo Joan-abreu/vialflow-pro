@@ -432,10 +432,15 @@ const ProductManagement = () => {
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
             sale_type: variantSaleType,
             pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
-            weight: parseFloat(formData.get("weight") as string) || 0,
+            weight: parseFloat(formData.get("weight") as string),
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
         };
+
+        if (variantData.weight <= 0) {
+            toast.error("Weight must be greater than 0");
+            return;
+        }
 
         if (editingVariant) {
             updateVariantMutation.mutate({ ...variantData, id: editingVariant.id });
@@ -734,7 +739,17 @@ const ProductManagement = () => {
                             </div>
                             <div className="col-span-2 space-y-2">
                                 <Label htmlFor="weight">Weight (lbs)</Label>
-                                <Input id="weight" name="weight" type="number" step="0.01" defaultValue={editingVariant?.weight || 0} placeholder="0.00" />
+                                <Input
+                                    id="weight"
+                                    name="weight"
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    defaultValue={editingVariant?.weight || ""}
+                                    placeholder="0.01"
+                                    required
+                                />
+                                <p className="text-xs text-muted-foreground">Must be greater than 0 (e.g., 0.50)</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="variant_sale_type">Sale Type</Label>

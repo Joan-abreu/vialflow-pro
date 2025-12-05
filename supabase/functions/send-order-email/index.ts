@@ -36,21 +36,38 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Manual Auth Check
     // Auth Check
+    // Auth Check
     const authHeader = req.headers.get("Authorization");
     const isServiceKey = authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`;
 
+    console.log(`[Auth Debug] Header Present: ${!!authHeader}`);
+    console.log(`[Auth Debug] Is Service Key: ${isServiceKey}`);
+
     if (!isServiceKey) {
+      if (!authHeader) {
+        console.error("[Auth Error] Missing Authorization header");
+        return new Response(JSON.stringify({ error: "Unauthorized - Missing Header" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
       // Create a client with the incoming auth header to verify the user
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+      console.log(`[Auth Debug] Using Anon Key: ${!!anonKey}`);
+
       const supabaseAuth = createClient(
         SUPABASE_URL!,
-        Deno.env.get("SUPABASE_ANON_KEY") || "",
-        { global: { headers: { Authorization: authHeader || "" } } }
+        anonKey,
+        { global: { headers: { Authorization: authHeader } } }
       );
 
       const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+      console.log(`[Auth Debug] getUser result: ${user?.id ? 'Success' : 'Failure'}`);
 
       if (userError || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        console.error("[Auth Error] User validation failed:", userError);
+        return new Response(JSON.stringify({ error: "Unauthorized", details: userError }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });

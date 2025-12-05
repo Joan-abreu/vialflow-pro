@@ -5,7 +5,10 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import StripeCheckout from "@/components/checkout/StripeCheckout";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
@@ -13,6 +16,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 const Checkout = () => {
     const { items, cartTotal, clearCart } = useCart();
     const navigate = useNavigate();
+    const { session, loading: authLoading } = useAuth();
     const [clientSecret, setClientSecret] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -20,7 +24,7 @@ const Checkout = () => {
     const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
 
     useEffect(() => {
-        if (items.length > 0) {
+        if (items.length > 0 && session) {
             setLoading(true);
             // Create PaymentIntent as soon as the page loads
             const createIntent = async () => {
@@ -41,7 +45,49 @@ const Checkout = () => {
             };
             createIntent();
         }
-    }, [items, totalAmount]);
+    }, [items, totalAmount, session]);
+
+    if (authLoading) {
+        return (
+            <div className="container py-12 flex justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!session) {
+        return (
+            <div className="container py-12 flex justify-center">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center">
+                        <div className="mx-auto bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                            <LogIn className="w-6 h-6 text-primary" />
+                        </div>
+                        <CardTitle className="text-2xl">Log In Required</CardTitle>
+                        <CardDescription>
+                            Please log in or create an account to complete your purchase.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <Button
+                            className="w-full"
+                            size="lg"
+                            onClick={() => navigate("/login", { state: { from: "/checkout" } })}
+                        >
+                            Log In
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => navigate("/register", { state: { from: "/checkout" } })}
+                        >
+                            Create Account
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     if (items.length === 0) {
         return (

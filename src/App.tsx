@@ -3,9 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 import Dashboard from "./pages/Dashboard";
 import Production from "./pages/Production";
@@ -34,6 +32,7 @@ import Contact from "./pages/public/Contact";
 import Account from "./pages/public/Account";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
+import ScrollToTop from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -55,27 +54,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <Layout>{children}</Layout>;
 };
 
-import ScrollToTop from "./components/ScrollToTop";
-
-const App = () => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+const AppRoutes = () => {
+  const { session, loading } = useAuth();
 
   if (loading) {
     return (
@@ -86,48 +66,58 @@ const App = () => {
   }
 
   return (
+    <>
+      <ScrollToTop />
+      <Routes>
+        {/* Public E-commerce Routes */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<ProductDetails />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/auth/confirm" element={<EmailConfirmation />} />
+          <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/terms" element={<ComingSoon />} />
+          <Route path="/privacy" element={<ComingSoon />} />
+          <Route path="/privacy" element={<ComingSoon />} />
+        </Route>
+
+        {/* Manufacturing Routes */}
+        <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
+          <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
+          <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+          <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+          <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+          <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
+          <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
+          <Route path="bom/:batchId" element={<BillOfMaterials />} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
+  );
+};
+
+const App = () => {
+  return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <ScrollToTop />
-          <Routes>
-            {/* Public E-commerce Routes */}
-            <Route element={<PublicLayout />}>
-              <Route path="/" element={<Home />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/products/:id" element={<ProductDetails />} />
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/auth/confirm" element={<EmailConfirmation />} />
-              <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/account" element={<Account />} />
-              <Route path="/terms" element={<ComingSoon />} />
-              <Route path="/privacy" element={<ComingSoon />} />
-              <Route path="/privacy" element={<ComingSoon />} />
-            </Route>
-
-            {/* Manufacturing Routes */}
-            <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
-              <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
-              <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-              <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
-              <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
-              <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
-              <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
-              <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
-              <Route path="bom/:batchId" element={<BillOfMaterials />} />
-            </Route>
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

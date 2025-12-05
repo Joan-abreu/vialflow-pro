@@ -15,10 +15,15 @@ import {
 import { useNavigate } from "react-router-dom";
 
 const CartIcon = () => {
-    const { cartCount } = useCart();
+    const { cartCount, isAnimating } = useCart();
     return (
         <Link to="/cart">
-            <Button variant="ghost" size="icon" className="relative">
+            <Button
+                variant="ghost"
+                size="icon"
+                className={`relative transition-transform duration-300 ${isAnimating ? "scale-125 text-primary" : ""
+                    }`}
+            >
                 <ShoppingCart className="h-5 w-5" />
                 {cartCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">

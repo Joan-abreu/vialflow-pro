@@ -46,12 +46,14 @@ interface CartContextType {
     clearCart: () => void;
     cartTotal: number;
     cartCount: number;
+    isAnimating: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const [items, setItems] = useState<CartItem[]>([]);
+    const [isAnimating, setIsAnimating] = useState(false);
 
     // Load cart from local storage on mount
     useEffect(() => {
@@ -71,6 +73,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }, [items]);
 
     const addToCart = (variant: ProductVariant, quantity: number = 1) => {
+        // Trigger animation
+        setIsAnimating(true);
+        setTimeout(() => setIsAnimating(false), 300);
+
         setItems((currentItems) => {
             const existingItem = currentItems.find((item) => item.variant.id === variant.id);
             if (existingItem) {
@@ -125,6 +131,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 clearCart,
                 cartTotal,
                 cartCount,
+                isAnimating,
             }}
         >
             {children}

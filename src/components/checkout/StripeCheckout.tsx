@@ -157,26 +157,26 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
 
             // 5. Link Order to PaymentIntent (Metadata)
             try {
-                // We need the paymentIntentId to update it. 
-                // Since we don't have it directly from useStripe hook easily without creating a new one or fetching,
-                // we can rely on the fact that we created it in Checkout.tsx and passed clientSecret.
-                // However, clientSecret contains the ID.
-                // Actually, we can just use the clientSecret to retrieve it or just pass it if we had it.
-                // But wait, we don't have the ID here easily.
-                // Let's use the elements.submit() or similar? No.
+                if (clientSecret) {
+                    const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
 
-                // Better approach: We can't easily get the PI ID from just elements/stripe hooks *before* confirmation 
-                // without an extra call or prop.
-                // BUT, we can just confirm the payment and rely on the fact that we can't update metadata easily from frontend securely.
+                    if (paymentIntent) {
+                        const { error: updateError } = await supabase.functions.invoke("update-payment-intent", {
+                            body: {
+                                paymentIntentId: paymentIntent.id,
+                                orderId: order.id,
+                            }
+                        });
 
-                // WAIT! We can use `stripe.retrievePaymentIntent(clientSecret)` to get the ID!
-                // But we don't have clientSecret prop here, it's in the Elements provider.
-                // We can get it from elements.fetchUpdates() or similar?
-
-                // Actually, we can just pass clientSecret as a prop to StripeCheckout!
-                // Let's assume we update the parent to pass it.
+                        if (updateError) {
+                            console.error("Failed to link order to payment intent:", updateError);
+                            // We proceed anyway, as the order is created and payment will proceed. 
+                            // The webhook might fail to update status automatically, but the order exists.
+                        }
+                    }
+                }
             } catch (linkError) {
-                console.error("Failed to link order:", linkError);
+                console.error("Failed to retrieve or link payment intent:", linkError);
             }
 
             // 5. Confirm Payment

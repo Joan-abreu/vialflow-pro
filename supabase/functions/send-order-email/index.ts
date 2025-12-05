@@ -62,7 +62,10 @@ const handler = async (req: Request): Promise<Response> => {
         { global: { headers: { Authorization: authHeader } } }
       );
 
-      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+      // Extract the token to pass explicitly to getUser
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
+
       console.log(`[Auth Debug] getUser result: ${user?.id ? 'Success' : 'Failure'}`);
 
       if (userError || !user) {

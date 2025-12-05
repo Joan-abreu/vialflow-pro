@@ -133,27 +133,9 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
 
             if (itemsError) throw itemsError;
 
-            // 4. Send Email Notifications
-            try {
-                // Send customer confirmation email
-                await supabase.functions.invoke("send-order-email", {
-                    body: {
-                        order_id: order.id,
-                        type: "customer_confirmation"
-                    }
-                });
-
-                // Send admin notification email
-                await supabase.functions.invoke("send-order-email", {
-                    body: {
-                        order_id: order.id,
-                        type: "admin_notification"
-                    }
-                });
-            } catch (emailError) {
-                console.error("Failed to send email:", emailError);
-                // Don't fail the order if email fails, just log it
-            }
+            // 4. Send Email Notifications - MOVED TO STRIPE WEBHOOK
+            // We no longer send emails here to avoid "pending payment" confusion. 
+            // The webhook will send the email once payment is confirmed.
 
             // 5. Link Order to PaymentIntent (Metadata)
             try {

@@ -50,6 +50,29 @@ serve(async (req) => {
                         console.error(`Error updating order status: ${error.message}`);
                         return new Response(`Error updating order: ${error.message}`, { status: 500 });
                     }
+
+                    // Send Email Notifications
+                    try {
+                        // Send customer confirmation email
+                        await supabase.functions.invoke("send-order-email", {
+                            body: {
+                                order_id: orderId,
+                                type: "customer_confirmation"
+                            }
+                        });
+
+                        // Send admin notification email
+                        await supabase.functions.invoke("send-order-email", {
+                            body: {
+                                order_id: orderId,
+                                type: "admin_notification"
+                            }
+                        });
+                        console.log(`Emails triggered for order ${orderId}`);
+                    } catch (emailError) {
+                        console.error(`Error sending emails: ${emailError.message}`);
+                        // Don't fail the webhook if email fails, just log it
+                    }
                 } else {
                     console.warn("Payment succeeded but no order_id found in metadata");
                 }

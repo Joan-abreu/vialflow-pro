@@ -69,7 +69,7 @@ const Layout = ({ children }: LayoutProps) => {
         const { count } = await supabase
           .from("orders" as any)
           .select("*", { count: "exact", head: true })
-          .eq("status", "pending");
+          .in("status", ["pending_payment", "pending", "processing"]);
 
         setPendingOrdersCount(count || 0);
       }

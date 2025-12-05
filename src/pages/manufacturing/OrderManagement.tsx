@@ -66,6 +66,7 @@ interface Order {
 }
 
 const OrderManagement = () => {
+    const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [showProductionDialog, setShowProductionDialog] = useState(false);
@@ -93,6 +94,15 @@ const OrderManagement = () => {
             if (error) throw error;
             return data as unknown as Order[];
         },
+    });
+
+    const filteredOrders = orders?.filter((order) => {
+        const query = searchQuery.toLowerCase();
+        return (
+            order.id.toLowerCase().includes(query) ||
+            (order.customer_email && order.customer_email.toLowerCase().includes(query)) ||
+            order.status.toLowerCase().includes(query)
+        );
     });
 
     const sendToProductionMutation = useMutation({
@@ -241,11 +251,27 @@ const OrderManagement = () => {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold">Order Management</h1>
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold">Order Management</h1>
+            </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Recent Orders</CardTitle>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Recent Orders</CardTitle>
+                        <div className="relative w-72">
+                            <input
+                                type="text"
+                                placeholder="Search orders..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1); // Reset to first page on search
+                                }}
+                                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -267,14 +293,14 @@ const OrderManagement = () => {
                                         Loading orders...
                                     </TableCell>
                                 </TableRow>
-                            ) : orders?.length === 0 ? (
+                            ) : filteredOrders?.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={7} className="text-center py-8">
-                                        No orders found.
+                                        No orders found matching your search.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                orders
+                                filteredOrders
                                     ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((order) => (
                                         <TableRow key={order.id}>
@@ -330,10 +356,10 @@ const OrderManagement = () => {
                             )}
                         </TableBody>
                     </Table>
-                    {!isLoading && orders && orders.length > 0 && (
+                    {!isLoading && filteredOrders && filteredOrders.length > 0 && (
                         <DataTablePagination
                             currentPage={currentPage}
-                            totalPages={Math.ceil(orders.length / itemsPerPage)}
+                            totalPages={Math.ceil(filteredOrders.length / itemsPerPage)}
                             onPageChange={setCurrentPage}
                         />
                     )}

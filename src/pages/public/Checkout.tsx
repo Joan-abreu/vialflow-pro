@@ -17,7 +17,7 @@ const Checkout = () => {
     const [loading, setLoading] = useState(false);
 
     const shippingCost = 10.00;
-    const totalAmount = cartTotal + shippingCost;
+    const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
 
     useEffect(() => {
         if (items.length > 0) {

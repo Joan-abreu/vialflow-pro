@@ -109,7 +109,7 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
                 .insert({
                     user_id: user?.id,
                     customer_email: customerEmail,
-                    total_amount: amount,
+                    total_amount: Number(amount.toFixed(2)),
                     status: "pending_payment", // Initial status
                     shipping_address: addressState || {}, // Save the address used for this order
                 })

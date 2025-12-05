@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label";
 interface StripeCheckoutProps {
     amount: number;
     clientSecret: string;
+    onAddressChange?: (address: any) => void;
 }
 
-const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
+const StripeCheckout = ({ amount, clientSecret, onAddressChange }: StripeCheckoutProps) => {
     const stripe = useStripe();
     const elements = useElements();
     const { clearCart, items } = useCart();
@@ -38,7 +39,7 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
                     .single();
 
                 if (profile && profile.address_line1) {
-                    setDefaultAddress({
+                    const savedAddress = {
                         name: profile.full_name || user.user_metadata?.full_name || '',
                         address: {
                             line1: profile.address_line1,
@@ -48,16 +49,17 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
                             postal_code: profile.postal_code,
                             country: profile.country || 'US',
                         }
-                    });
+                    };
+                    setDefaultAddress(savedAddress);
+
                     // Also set initial address state so it's valid if they don't change anything
-                    setAddressState({
-                        line1: profile.address_line1,
-                        line2: profile.address_line2,
-                        city: profile.city,
-                        state: profile.state,
-                        postal_code: profile.postal_code,
-                        country: profile.country || 'US',
-                    });
+                    const initialAddressState = savedAddress.address;
+                    setAddressState(initialAddressState);
+
+                    // Notify parent immediately if address exists
+                    if (onAddressChange) {
+                        onAddressChange(initialAddressState);
+                    }
                 } else {
                     setDefaultAddress({
                         name: user.user_metadata?.full_name || '',
@@ -66,7 +68,7 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
             }
         };
         fetchUserAndProfile();
-    }, []);
+    }, []); // Run only once on mount
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -133,11 +135,7 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
 
             if (itemsError) throw itemsError;
 
-            // 4. Send Email Notifications - MOVED TO STRIPE WEBHOOK
-            // We no longer send emails here to avoid "pending payment" confusion. 
-            // The webhook will send the email once payment is confirmed.
-
-            // 5. Link Order to PaymentIntent (Metadata)
+            // 4. Link Order to PaymentIntent (Metadata)
             try {
                 if (clientSecret) {
                     const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
@@ -152,8 +150,6 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
 
                         if (updateError) {
                             console.error("Failed to link order to payment intent:", updateError);
-                            // We proceed anyway, as the order is created and payment will proceed. 
-                            // The webhook might fail to update status automatically, but the order exists.
                         }
                     }
                 }
@@ -162,18 +158,6 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
             }
 
             // 5. Confirm Payment
-            // We will pass the order_id in the confirmParams if possible? No, metadata is not supported there for PI update.
-            // We MUST update the PI on the backend.
-
-            // Let's pause and refactor to pass clientSecret to this component so we can extract the ID.
-            // OR we can just fetch it.
-
-            // Actually, `elements` knows the secret.
-            // const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
-            // We need clientSecret.
-
-            // Let's update the component to accept clientSecret.
-
             const { error } = await stripe.confirmPayment({
                 elements,
                 confirmParams: {
@@ -198,11 +182,6 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
             <CardContent className="space-y-6 px-0">
                 <div className="space-y-2">
                     <h3 className="text-sm font-medium">Shipping Address</h3>
-                    {/* Only render AddressElement when we have determined if there's a default address or not */}
-                    {/* This prevents the form from flickering or not showing defaults if they load late */}
-                    {/* However, for better UX we might want to show it immediately. 
-                        AddressElement's defaultValues prop is only read on mount. 
-                        So we need to key it or wait. Keying it is better. */}
                     <AddressElement
                         key={defaultAddress ? 'loaded' : 'loading'}
                         options={{
@@ -213,7 +192,11 @@ const StripeCheckout = ({ amount, clientSecret }: StripeCheckoutProps) => {
                         }}
                         onChange={(e) => {
                             if (e.complete) {
-                                setAddressState(e.value.address);
+                                const newAddress = e.value.address;
+                                setAddressState(newAddress);
+                                if (onAddressChange) {
+                                    onAddressChange(newAddress);
+                                }
                             }
                         }}
                     />

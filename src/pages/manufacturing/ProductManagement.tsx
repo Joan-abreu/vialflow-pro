@@ -79,6 +79,7 @@ interface ProductVariant {
     stock_quantity: number;
     is_published: boolean;
     pack_size: number;
+    weight: number | null;
     image_url: string | null;
     vial_type: {
         name: string;
@@ -222,6 +223,7 @@ const ProductManagement = () => {
                     stock_quantity: v.stock_quantity,
                     is_published: v.is_published,
                     pack_size: v.pack_size || 1,
+                    weight: v.weight,
                     image_url: v.image_url,
                     vial_type: v.vial_type,
                 });
@@ -430,6 +432,7 @@ const ProductManagement = () => {
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
             sale_type: variantSaleType,
             pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
+            weight: parseFloat(formData.get("weight") as string) || 0,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
         };
@@ -728,6 +731,10 @@ const ProductManagement = () => {
                                     <Label htmlFor="stock_quantity">Stock</Label>
                                     <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
                                 </div>
+                            </div>
+                            <div className="col-span-2 space-y-2">
+                                <Label htmlFor="weight">Weight (lbs)</Label>
+                                <Input id="weight" name="weight" type="number" step="0.01" defaultValue={editingVariant?.weight || 0} placeholder="0.00" />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="variant_sale_type">Sale Type</Label>

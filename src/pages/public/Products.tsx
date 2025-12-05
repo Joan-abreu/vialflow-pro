@@ -79,6 +79,7 @@ const Products = () => {
                     sku: variant.sku,
                     price: variant.price,
                     stock_quantity: variant.stock_quantity,
+                    weight: variant.weight,
                     pack_size: variant.pack_size || 1,
                     image_url: variant.image_url,
                     position: variant.position || 0,

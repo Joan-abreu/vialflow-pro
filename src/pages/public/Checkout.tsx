@@ -9,25 +9,73 @@ import { Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 const Checkout = () => {
-    const { items, cartTotal, clearCart } = useCart();
+    const { items, cartTotal } = useCart();
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
     const [clientSecret, setClientSecret] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    const shippingCost = 10.00;
+    // Real-Time Shipping State
+    const [shippingCost, setShippingCost] = useState<number>(0);
+    const [shippingService, setShippingService] = useState<string>("Standard");
+    const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+
+    // Calculate total weight (default to 1lb per item if weight is missing)
+    const totalWeight = items.reduce((sum, item) => {
+        return sum + ((item.variant.weight || 0) * item.quantity);
+    }, 0);
+
     const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
 
+    // Handle Address Change from StripeCheckout
+    const handleAddressChange = async (address: any) => {
+        if (!address?.country || !address?.state) return;
+
+        setIsCalculatingShipping(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+                body: { weight: totalWeight, address }
+            });
+
+            if (error) throw error;
+
+            console.log("Shipping Rates:", data.rates);
+
+            // For now, auto-select the first/cheapest option (Ground)
+            if (data.rates && data.rates.length > 0) {
+                const selectedRate = data.rates[0];
+                setShippingCost(selectedRate.rate);
+                setShippingService(selectedRate.service);
+            }
+        } catch (error) {
+            console.error("Error calculating shipping:", error);
+            // Fallback to flat rate?
+            setShippingCost(calculateShipping(totalWeight));
+            setShippingService(getShippingLabel(totalWeight));
+        } finally {
+            setIsCalculatingShipping(false);
+        }
+    };
+
+    // Initial Payment Intent Creation (runs once) 
+    // AND Re-creation/Update when Total Amount changes significantly
+    // Note: Creating a new PaymentIntent invalidates the old clientSecret. 
+    // This effectively "updates" the amount for the user.
     useEffect(() => {
         if (items.length > 0 && session) {
-            setLoading(true);
-            // Create PaymentIntent as soon as the page loads
-            const createIntent = async () => {
+            // Debounce slightly to avoid rapid updates while typing? 
+            // Actually handleAddressChange is triggered on "complete" or specific events, so it should be fine.
+
+            const createOrUpdateIntent = async () => {
+                // If we are calculating shipping, wait.
+                if (isCalculatingShipping) return;
+
                 try {
                     const { data, error } = await supabase.functions.invoke('create-payment-intent', {
                         body: { amount: totalAmount, currency: 'usd' }
@@ -39,13 +87,15 @@ const Checkout = () => {
                     }
                 } catch (error) {
                     console.error("Error creating payment intent:", error);
-                } finally {
-                    setLoading(false);
                 }
             };
-            createIntent();
+
+            // Only update if totalAmount is greater than 0
+            if (totalAmount > 0) {
+                createOrUpdateIntent();
+            }
         }
-    }, [items, totalAmount, session]);
+    }, [items, totalAmount, session, isCalculatingShipping]);
 
     if (authLoading) {
         return (
@@ -117,11 +167,21 @@ const Checkout = () => {
                         <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
                         {clientSecret ? (
                             <Elements options={options} stripe={stripePromise}>
-                                <StripeCheckout amount={totalAmount} clientSecret={clientSecret} />
+                                <StripeCheckout
+                                    amount={totalAmount}
+                                    clientSecret={clientSecret}
+                                    onAddressChange={handleAddressChange}
+                                />
                             </Elements>
                         ) : (
                             <div className="flex justify-center py-12">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        )}
+                        {isCalculatingShipping && (
+                            <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Updating shipping rates...
                             </div>
                         )}
                     </div>
@@ -160,10 +220,13 @@ const Checkout = () => {
                                     <span>${cartTotal.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span>Shipping</span>
+                                    <span>Shipping ({shippingService})</span>
                                     <span>${shippingCost.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between font-bold text-lg pt-2">
+                                <div className="text-xs text-muted-foreground text-right -mt-1 mb-2">
+                                    Total Weight: {totalWeight > 0 ? `${totalWeight.toFixed(1)} lbs` : 'N/A'}
+                                </div>
+                                <div className="flex justify-between font-bold text-lg pt-2 border-t">
                                     <span>Total</span>
                                     <span>${totalAmount.toFixed(2)}</span>
                                 </div>

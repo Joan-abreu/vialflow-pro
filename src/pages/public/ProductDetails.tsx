@@ -67,6 +67,7 @@ const ProductDetails = () => {
                 sku: v.sku,
                 price: v.price,
                 stock_quantity: v.stock_quantity,
+                weight: v.weight,
                 image_url: v.image_url,
                 pack_size: v.pack_size || 1,
                 product: {

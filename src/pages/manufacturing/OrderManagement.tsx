@@ -194,15 +194,18 @@ const OrderManagement = () => {
             toast.success("Order status updated");
 
             // Trigger email notification
-            try {
-                await supabase.functions.invoke("send-order-email", {
-                    body: {
-                        order_id: orderId,
-                        type: "status_update"
-                    }
-                });
-            } catch (emailError) {
-                console.error("Failed to send email:", emailError);
+            // Skip email for 'processing' (handled by webhook) and 'in_production' (internal)
+            if (!["processing", "in_production"].includes(newStatus)) {
+                try {
+                    await supabase.functions.invoke("send-order-email", {
+                        body: {
+                            order_id: orderId,
+                            type: "status_update"
+                        }
+                    });
+                } catch (emailError) {
+                    console.error("Failed to send email:", emailError);
+                }
             }
 
             refetch();

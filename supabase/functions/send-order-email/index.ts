@@ -35,12 +35,26 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Manual Auth Check
+    // Auth Check
     const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
+    const isServiceKey = authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`;
+
+    if (!isServiceKey) {
+      // Create a client with the incoming auth header to verify the user
+      const supabaseAuth = createClient(
+        SUPABASE_URL!,
+        Deno.env.get("SUPABASE_ANON_KEY") || "",
+        { global: { headers: { Authorization: authHeader || "" } } }
+      );
+
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     }
 
     const supabase = createClient(

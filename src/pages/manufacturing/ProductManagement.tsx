@@ -347,6 +347,8 @@ const ProductManagement = () => {
 
             if (error.message?.includes("product_variants_product_vial_pack_unique")) {
                 errorMessage = "This variant already exists. You cannot create two variants with the same product, vial size, and sale type (Individual or Pack with the same quantity).";
+            } else if (error.message?.includes("weight_positive_check")) {
+                errorMessage = "Weight must be greater than 0.";
             } else if (error.message) {
                 errorMessage = `Error creating variant: ${error.message}`;
             }
@@ -376,6 +378,8 @@ const ProductManagement = () => {
 
             if (error.message?.includes("product_variants_product_vial_pack_unique")) {
                 errorMessage = "This variant already exists. You cannot have two variants with the same product, vial size, and sale type (Individual or Pack with the same quantity).";
+            } else if (error.message?.includes("weight_positive_check")) {
+                errorMessage = "Weight must be greater than 0.";
             } else if (error.message) {
                 errorMessage = `Error updating variant: ${error.message}`;
             }

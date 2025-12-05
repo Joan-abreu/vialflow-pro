@@ -48,33 +48,42 @@ serve(async (req) => {
 
                     if (error) {
                         console.error(`Error updating order status: ${error.message}`);
-                        return new Response(`Error updating order: ${error.message}`, { status: 500 });
                     }
 
                     // Send Email Notifications
-                    try {
-                        const { error: customerEmailError } = await supabase.functions.invoke("send-order-email", {
-                            body: {
+                    const sendEmail = async (type: "customer_confirmation" | "admin_notification") => {
+                        const response = await fetch(`${supabaseUrl}/functions/v1/send-order-email`, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
                                 order_id: orderId,
-                                type: "customer_confirmation"
-                            }
+                                type: type,
+                            }),
                         });
 
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            return { error: `HTTP ${response.status}: ${errorText}` };
+                        }
+                        return { data: await response.json() };
+                    };
+
+                    try {
+                        const { error: customerEmailError } = await sendEmail("customer_confirmation");
+
                         if (customerEmailError) {
-                            console.error(`Error sending customer email: ${JSON.stringify(customerEmailError)}`);
+                            console.error(`Error sending customer email: ${customerEmailError}`);
                         } else {
                             console.log(`Customer email triggered for order ${orderId}`);
                         }
 
-                        const { error: adminEmailError } = await supabase.functions.invoke("send-order-email", {
-                            body: {
-                                order_id: orderId,
-                                type: "admin_notification"
-                            }
-                        });
+                        const { error: adminEmailError } = await sendEmail("admin_notification");
 
                         if (adminEmailError) {
-                            console.error(`Error sending admin email: ${JSON.stringify(adminEmailError)}`);
+                            console.error(`Error sending admin email: ${adminEmailError}`);
                         } else {
                             console.log(`Admin email triggered for order ${orderId}`);
                         }

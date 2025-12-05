@@ -27,9 +27,9 @@ const Products = () => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const { addToCart } = useCart();
 
-    const { data: productsWithVariants, isLoading } = useQuery({
+    const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", selectedCategory],
-        queryFn: async () => {
+        queryFn: async ({ signal }) => {
             // Fetch all published variants with their product and vial type info
             let query = supabase
                 .from("product_variants")
@@ -39,14 +39,18 @@ const Products = () => {
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true);
+                .eq("product.is_published", true)
+                .abortSignal(signal);
 
             if (selectedCategory) {
                 query = query.eq("product.category", selectedCategory);
             }
 
             const { data, error } = await (query as any);
-            if (error) throw error;
+            if (error) {
+                console.error("Error fetching products:", error);
+                throw error;
+            }
 
             // Group variants by product
             const grouped: Record<string, ProductWithVariants> = {};
@@ -172,7 +176,12 @@ const Products = () => {
 
                 {/* Product Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {isLoading ? (
+                    {isError ? (
+                        <div className="col-span-full text-center py-12">
+                            <p className="text-red-500 mb-4">Failed to load products. Please try again.</p>
+                            <Button onClick={() => refetch()} variant="outline">Retry</Button>
+                        </div>
+                    ) : isLoading ? (
                         <div className="col-span-full text-center py-12">Loading products...</div>
                     ) : filteredProducts?.length === 0 ? (
                         <div className="col-span-full text-center py-12">No products found.</div>

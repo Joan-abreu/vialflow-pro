@@ -63,6 +63,9 @@ const Checkout = () => {
         }
     };
 
+    // Track the amount for which we created the current payment intent
+    const intentAmountRef = useRef<number>(0);
+
     // Initial Payment Intent Creation (runs once) 
     // AND Re-creation/Update when Total Amount changes significantly
     // Note: Creating a new PaymentIntent invalidates the old clientSecret. 
@@ -77,13 +80,15 @@ const Checkout = () => {
                 if (isCalculatingShipping || isProcessing) return;
 
                 try {
+                    console.log(`Creating payment intent for $${totalAmount}`);
                     const { data, error } = await supabase.functions.invoke('create-payment-intent', {
                         body: { amount: totalAmount, currency: 'usd' }
                     });
 
                     if (error) throw error;
-                    if (data?.clientSecret && data.clientSecret !== clientSecret) {
+                    if (data?.clientSecret) {
                         setClientSecret(data.clientSecret);
+                        intentAmountRef.current = totalAmount;
                     }
                 } catch (error) {
                     console.error("Error creating payment intent:", error);

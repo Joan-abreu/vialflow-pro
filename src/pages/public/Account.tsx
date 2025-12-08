@@ -26,6 +26,7 @@ interface Order {
         id: string;
         quantity: number;
         price_at_time: number;
+        variant_id: string;
         variant?: {
             image_url: string | null;
             pack_size: number;
@@ -95,6 +96,7 @@ const Account = () => {
                     id,
                     quantity,
                     price_at_time,
+                    variant_id,
                     variant:product_variants (
                         image_url,
                         pack_size,
@@ -167,50 +169,66 @@ const Account = () => {
 
             // Fetch current variant data for each item
             for (const item of order.order_items) {
-                if (!item.variant) {
+                if (!item.variant_id) {
                     unavailableCount++;
+                    unavailableItems.push(item.variant?.product?.name || "Unknown");
                     continue;
                 }
 
                 // Fetch the latest variant data
-                const { data: currentVariant, error } = await supabase
+                const { data: variantData, error: variantError } = await supabase
                     .from("product_variants")
                     .select(`
                         *,
-                        product:products!inner(id, slug, name, description, image_url, category),
-                        vial_type:vial_types!inner(name, size_ml)
+                        product:products(*),
+                        vial_type:vial_types(name, size_ml)
                     `)
-                    .eq("id", item.variant.id)
+                    .eq("id", item.variant_id)
                     .eq("is_published", true)
-                    .eq("product.is_published", true)
                     .single();
 
-                if (error || !currentVariant) {
+                if (variantError || !variantData) {
                     unavailableCount++;
-                    unavailableItems.push(item.variant.product?.name || "Unknown");
+                    unavailableItems.push(item.variant?.product?.name || "Unknown");
+                    continue;
+                }
+
+                // Check if product is published
+                if (!variantData.product?.is_published) {
+                    unavailableCount++;
+                    unavailableItems.push(variantData.product?.name || "Unknown");
                     continue;
                 }
 
                 // Check stock
-                if (currentVariant.stock_quantity < item.quantity) {
+                if (variantData.stock_quantity < item.quantity) {
                     unavailableCount++;
-                    unavailableItems.push(item.variant.product?.name || "Unknown");
+                    unavailableItems.push(variantData.product?.name || "Unknown");
                     continue;
                 }
 
-                // Add to cart
-                const variantForCart = {
-                    ...currentVariant,
+                // Add to cart - construct proper variant object
+                const variantForCart: any = {
+                    id: variantData.id,
+                    product_id: variantData.product_id,
+                    vial_type_id: variantData.vial_type_id,
+                    sku: variantData.sku,
+                    price: variantData.price,
+                    stock_quantity: variantData.stock_quantity,
+                    max_online_quantity: (variantData as any).max_online_quantity || 100,
+                    weight: (variantData as any).weight || 0,
+                    image_url: variantData.image_url,
+                    pack_size: variantData.pack_size || 1,
                     product: {
-                        name: currentVariant.product.name,
-                        slug: currentVariant.product.slug,
-                        image_url: currentVariant.product.image_url,
-                        description: currentVariant.product.description,
-                        category: currentVariant.product.category,
+                        name: variantData.product.name,
+                        slug: (variantData.product as any).slug || '',
+                        image_url: variantData.product.image_url,
+                        description: variantData.product.description,
+                        category: variantData.product.category,
                     },
                     vial_type: {
-                        name: currentVariant.vial_type.name,
-                        size_ml: currentVariant.vial_type.size_ml,
+                        name: variantData.vial_type.name,
+                        size_ml: variantData.vial_type.size_ml,
                     },
                 };
 

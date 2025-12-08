@@ -26,6 +26,8 @@ import Cart from "./pages/public/Cart";
 import Checkout from "./pages/public/Checkout";
 import Login from "./pages/public/Login";
 import Register from "./pages/public/Register";
+import ForgotPassword from "./pages/public/ForgotPassword";
+import ResetPassword from "./pages/public/ResetPassword";
 import EmailConfirmation from "./pages/auth/EmailConfirmation";
 import OrderConfirmation from "./pages/public/OrderConfirmation";
 import About from "./pages/public/About";
@@ -79,6 +81,8 @@ const AppRoutes = () => {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/confirm" element={<EmailConfirmation />} />
           <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
           <Route path="/about" element={<About />} />

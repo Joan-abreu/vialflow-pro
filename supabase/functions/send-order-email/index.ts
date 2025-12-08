@@ -310,6 +310,24 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const data = await res.json();
+    const status = res.ok ? "sent" : "failed";
+
+    // Log to email_logs table
+    const { error: logError } = await supabase
+      .from("email_logs")
+      .insert({
+        recipient: emailTo.join(", "),
+        subject,
+        content: htmlContent,
+        status,
+        type,
+        related_id: order.id,
+        metadata: { resend_response: data }
+      });
+
+    if (logError) {
+      console.error("Error logging email:", logError);
+    }
 
     if (!res.ok) {
       console.error("Resend API Error:", data);

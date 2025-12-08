@@ -15,7 +15,9 @@ import {
   User,
   Tag,
   ShoppingCart,
-  Users
+  Users,
+  Store,
+  Mail
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -101,6 +103,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
     { name: "Customers", href: "/manufacturing/customers", icon: Users },
     { name: "Users", href: "/manufacturing/users", icon: Shield },
+    { name: "Communications", href: "/manufacturing/communications", icon: Mail },
   ];
 
   const navigation = isAdmin
@@ -272,9 +275,20 @@ const Layout = ({ children }: LayoutProps) => {
 
           {/* Main content with header */}
           <div className="flex-1 flex flex-col">
-            <header className="hidden md:flex h-12 items-center border-b bg-card px-2 sticky top-0 z-50">
-              <SidebarTrigger />
+            <header className="hidden md:flex h-12 items-center justify-between border-b bg-card px-2 sticky top-0 z-50">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger />
+              </div>
+              <div className="flex items-center gap-2 px-2">
+                <Link to="/" target="_blank" title="Go to Store">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Store className="h-4 w-4" />
+                    <span className="sr-only">Go to Store</span>
+                  </Button>
+                </Link>
+              </div>
             </header>
+
             <main className="flex-1 overflow-y-auto">
               <div className="mx-auto p-4 md:p-6">
                 {children}

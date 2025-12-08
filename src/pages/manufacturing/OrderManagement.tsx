@@ -280,10 +280,11 @@ const OrderManagement = () => {
                                                         defaultValue={order.status}
                                                         onValueChange={(value) => handleStatusChange(order.id, value)}
                                                     >
-                                                        <SelectTrigger className="w-[130px] h-8">
+                                                        <SelectTrigger className="w-[170px] h-8">
                                                             <SelectValue placeholder="Status" />
                                                         </SelectTrigger>
                                                         <SelectContent>
+                                                            <SelectItem value="pending_payment">Pending-Payment</SelectItem>
                                                             <SelectItem value="pending">Pending</SelectItem>
                                                             <SelectItem value="processing">Processing</SelectItem>
                                                             <SelectItem value="in_production">In Production</SelectItem>

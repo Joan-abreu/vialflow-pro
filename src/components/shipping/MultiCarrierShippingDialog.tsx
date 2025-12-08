@@ -1,0 +1,481 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { Loader2, Package, Truck, Calendar, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+
+interface ShippingDialogProps {
+    orderId: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSuccess?: () => void;
+}
+
+export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSuccess }: ShippingDialogProps) => {
+    const [loading, setLoading] = useState(false);
+    const [step, setStep] = useState<'carrier' | 'rates' | 'label' | 'pickup'>('carrier');
+
+    // Carrier selection
+    const [availableCarriers, setAvailableCarriers] = useState<any[]>([]);
+    const [selectedCarrier, setSelectedCarrier] = useState<string>("");
+
+    // Rates
+    const [rates, setRates] = useState<any[]>([]);
+    const [selectedService, setSelectedService] = useState<string>("");
+
+    // Label
+    const [labelUrl, setLabelUrl] = useState<string>("");
+    const [trackingNumber, setTrackingNumber] = useState<string>("");
+    const [shipmentId, setShipmentId] = useState<string>("");
+
+    // Package dimensions
+    const [weight, setWeight] = useState<string>("5");
+    const [length, setLength] = useState<string>("12");
+    const [width, setWidth] = useState<string>("8");
+    const [height, setHeight] = useState<string>("6");
+
+    // Pickup details
+    const [pickupDate, setPickupDate] = useState<string>("");
+    const [pickupReadyTime, setPickupReadyTime] = useState<string>("09:00");
+    const [pickupCloseTime, setPickupCloseTime] = useState<string>("17:00");
+
+    useEffect(() => {
+        if (open) {
+            fetchAvailableCarriers();
+        }
+    }, [open]);
+
+    const fetchAvailableCarriers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("carrier_settings")
+                .select("carrier, shipper_name, default_service_code")
+                .eq("is_active", true);
+
+            if (error) throw error;
+            setAvailableCarriers(data || []);
+
+            if (data && data.length === 1) {
+                setSelectedCarrier(data[0].carrier);
+            }
+        } catch (error: any) {
+            console.error("Error fetching carriers:", error);
+            toast.error("Failed to load carriers");
+        }
+    };
+
+    const getShippingRates = async () => {
+        if (!selectedCarrier) {
+            toast.error("Please select a carrier");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .select(`
+                    *,
+                    order_items(
+                        quantity,
+                        variant:product_variants(weight)
+                    )
+                `)
+                .eq("id", orderId)
+                .single();
+
+            if (orderError) throw orderError;
+
+            // Calculate total weight
+            const totalWeight = order.order_items.reduce((sum: number, item: any) => {
+                return sum + ((item.variant?.weight || 0) * item.quantity);
+            }, 0);
+
+            if (totalWeight > 0) {
+                setWeight(totalWeight.toFixed(2));
+            }
+
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "get_rates",
+                    data: {
+                        shipper: {
+                            name: "Liv Well Research Labs",
+                            address: {
+                                line1: "123 Main St",
+                                city: "Miami",
+                                state: "FL",
+                                zip: "33101",
+                                country: "US",
+                            },
+                        },
+                        recipient: {
+                            name: order.customer_name || "Customer",
+                            address: order.shipping_address || {},
+                        },
+                        packages: [{
+                            weight: parseFloat(weight),
+                            length: parseFloat(length),
+                            width: parseFloat(width),
+                            height: parseFloat(height),
+                        }],
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            setRates(data.data?.rates || []);
+            setStep('rates');
+            toast.success("Rates retrieved successfully");
+        } catch (error: any) {
+            console.error("Error getting rates:", error);
+            toast.error(error.message || "Failed to get shipping rates");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const createShippingLabel = async () => {
+        if (!selectedService) {
+            toast.error("Please select a shipping service");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .select("*")
+                .eq("id", orderId)
+                .single();
+
+            if (orderError) throw orderError;
+
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "create_shipment",
+                    data: {
+                        orderId: orderId,
+                        serviceCode: selectedService,
+                        description: `Order #${order.id.slice(0, 8)}`,
+                        shipper: {
+                            name: "Liv Well Research Labs",
+                            address: {
+                                line1: "123 Main St",
+                                city: "Miami",
+                                state: "FL",
+                                zip: "33101",
+                                country: "US",
+                            },
+                        },
+                        recipient: {
+                            name: order.customer_name || "Customer",
+                            address: order.shipping_address || {},
+                        },
+                        packages: [{
+                            weight: parseFloat(weight),
+                            length: parseFloat(length),
+                            width: parseFloat(width),
+                            height: parseFloat(height),
+                        }],
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            if (data.data?.success) {
+                setTrackingNumber(data.data.trackingNumber);
+                setLabelUrl(`data:application/pdf;base64,${data.data.labelData}`);
+
+                toast.success("Shipping label created successfully!");
+                setStep('pickup');
+            }
+        } catch (error: any) {
+            console.error("Error creating label:", error);
+            toast.error(error.message || "Failed to create shipping label");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const schedulePickup = async () => {
+        if (!pickupDate) {
+            toast.error("Please select a pickup date");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "schedule_pickup",
+                    data: {
+                        shipmentId: shipmentId,
+                        date: pickupDate.replace(/-/g, ""),
+                        readyTime: pickupReadyTime.replace(":", ""),
+                        closeTime: pickupCloseTime.replace(":", ""),
+                        packageCount: 1,
+                        totalWeight: parseFloat(weight),
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            toast.success("Pickup scheduled successfully!");
+            onSuccess?.();
+            onOpenChange(false);
+        } catch (error: any) {
+            console.error("Error scheduling pickup:", error);
+            toast.error(error.message || "Failed to schedule pickup");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const downloadLabel = () => {
+        if (!labelUrl) return;
+
+        const link = document.createElement('a');
+        link.href = labelUrl;
+        link.download = `${selectedCarrier}-label-${trackingNumber}.pdf`;
+        link.click();
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Create Shipping Label</DialogTitle>
+                    <DialogDescription>
+                        Multi-carrier shipping support
+                    </DialogDescription>
+                </DialogHeader>
+
+                {step === 'carrier' && (
+                    <div className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Select Carrier</CardTitle>
+                                <CardDescription>Choose your shipping carrier</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {availableCarriers.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">
+                                        No carriers configured. Please configure carriers in settings.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select carrier" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {availableCarriers.map((carrier) => (
+                                                    <SelectItem key={carrier.carrier} value={carrier.carrier}>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline">{carrier.carrier}</Badge>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {carrier.shipper_name}
+                                                            </span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label>Weight (lbs)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={weight}
+                                                    onChange={(e) => setWeight(e.target.value)}
+                                                    step="0.1"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Length (in)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={length}
+                                                    onChange={(e) => setLength(e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Width (in)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={width}
+                                                    onChange={(e) => setWidth(e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Height (in)</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={height}
+                                                    onChange={(e) => setHeight(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={getShippingRates}
+                                            disabled={loading || !selectedCarrier}
+                                            className="w-full"
+                                        >
+                                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Get Shipping Rates
+                                        </Button>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {step === 'rates' && (
+                    <div className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Badge>{selectedCarrier}</Badge>
+                                    Select Service
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {rates.length > 0 ? (
+                                    <>
+                                        <div className="space-y-2">
+                                            {rates.map((rate, index) => (
+                                                <div
+                                                    key={index}
+                                                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedService === rate.serviceCode
+                                                            ? 'border-primary bg-primary/5'
+                                                            : 'hover:border-primary/50'
+                                                        }`}
+                                                    onClick={() => setSelectedService(rate.serviceCode)}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <p className="font-medium">{rate.serviceName}</p>
+                                                            {rate.estimatedDays && (
+                                                                <p className="text-sm text-muted-foreground">
+                                                                    {rate.estimatedDays} business days
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-lg font-bold">
+                                                            ${rate.cost.toFixed(2)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Button
+                                            onClick={createShippingLabel}
+                                            disabled={loading || !selectedService}
+                                            className="w-full"
+                                        >
+                                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Create Shipping Label
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                        No rates available. Please try again.
+                                    </p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {step === 'pickup' && (
+                    <div className="space-y-4">
+                        {labelUrl && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Package className="h-5 w-5" />
+                                        Label Created
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="font-semibold flex items-center gap-2">
+                                            <Badge>{selectedCarrier}</Badge>
+                                            Tracking: {trackingNumber}
+                                        </p>
+                                    </div>
+                                    <Button onClick={downloadLabel} variant="outline" className="w-full">
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Download Label
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Truck className="h-5 w-5" />
+                                    Schedule Pickup (Optional)
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label>Pickup Date</Label>
+                                    <Input
+                                        type="date"
+                                        value={pickupDate}
+                                        onChange={(e) => setPickupDate(e.target.value)}
+                                        min={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Ready Time</Label>
+                                        <Input
+                                            type="time"
+                                            value={pickupReadyTime}
+                                            onChange={(e) => setPickupReadyTime(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Close Time</Label>
+                                        <Input
+                                            type="time"
+                                            value={pickupCloseTime}
+                                            onChange={(e) => setPickupCloseTime(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <Button onClick={schedulePickup} disabled={loading} className="w-full">
+                                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    Schedule Pickup
+                                </Button>
+                                <Button onClick={() => onOpenChange(false)} variant="outline" className="w-full">
+                                    Skip & Close
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+};

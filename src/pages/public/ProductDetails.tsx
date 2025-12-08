@@ -67,6 +67,7 @@ const ProductDetails = () => {
                 sku: v.sku,
                 price: v.price,
                 stock_quantity: v.stock_quantity,
+                max_online_quantity: v.max_online_quantity,
                 weight: v.weight,
                 image_url: v.image_url,
                 pack_size: v.pack_size || 1,
@@ -224,17 +225,11 @@ const ProductDetails = () => {
                                     <Input
                                         type="number"
                                         min="1"
-                                        max={selectedVariant?.stock_quantity}
                                         value={quantity}
                                         onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 1) {
-                                                if (selectedVariant && val > selectedVariant.stock_quantity) {
-                                                    setQuantity(selectedVariant.stock_quantity);
-                                                    toast.error(`Only ${selectedVariant.stock_quantity} units available`);
-                                                } else {
-                                                    setQuantity(val);
-                                                }
+                                                setQuantity(val);
                                             } else if (e.target.value === '') {
                                                 // Allow empty string temporarily for typing
                                                 setQuantity(1);
@@ -243,54 +238,13 @@ const ProductDetails = () => {
                                         className="w-16 h-12 text-center text-lg font-medium border-0 rounded-none focus-visible:ring-0"
                                     />
                                     <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-12 w-12 rounded-none"
-                                        onClick={() => setQuantity(quantity + 1)}
-                                        disabled={!selectedVariant || quantity >= selectedVariant.stock_quantity}
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            <Button
-                                size="lg"
-                                className="flex-1 h-14 text-lg active:scale-95 transition-transform duration-100"
-                                onClick={handleAddToCart}
-                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
-                            >
-                                <ShoppingCart className="mr-2 h-5 w-5" />
-                                {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                            </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                <Check className={`h-5 w-5 ${selectedVariant && selectedVariant.stock_quantity > 0 ? 'text-green-500' : 'text-gray-400'}`} />
-                                <span>
-                                    {selectedVariant
-                                        ? selectedVariant.stock_quantity > 0
-                                            ? `In Stock (${selectedVariant.stock_quantity} units)`
-                                            : 'Out of Stock'
-                                        : 'Select a size'}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                <ShieldCheck className="h-5 w-5 text-primary" />
-                                <span>Lab Verified Purity</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                <Truck className="h-5 w-5 text-primary" />
-                                <span>Fast Shipping</span>
+                                        <span> Fast Shipping</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

@@ -13,8 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Mail, Eye } from "lucide-react";
+import { Loader2, Mail, Eye, Search } from "lucide-react";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 type EmailLog = {
     id: string;
@@ -29,6 +31,9 @@ type EmailLog = {
 
 const CommunicationLogs = () => {
     const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const { data: logs, isLoading } = useQuery({
         queryKey: ["email_logs"],
@@ -54,6 +59,21 @@ const CommunicationLogs = () => {
         }
     };
 
+    const filteredLogs = logs?.filter((log) => {
+        const query = searchQuery.toLowerCase();
+        return (
+            log.recipient.toLowerCase().includes(query) ||
+            log.subject.toLowerCase().includes(query) ||
+            log.type.toLowerCase().includes(query)
+        );
+    });
+
+    const totalPages = Math.ceil((filteredLogs?.length || 0) / itemsPerPage);
+    const paginatedLogs = filteredLogs?.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -62,6 +82,21 @@ const CommunicationLogs = () => {
                     <p className="text-muted-foreground">
                         View history of all system emails and notifications.
                     </p>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search logs..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="pl-8"
+                    />
                 </div>
             </div>
 
@@ -75,55 +110,65 @@ const CommunicationLogs = () => {
                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Recipient</TableHead>
-                                    <TableHead>Subject</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {logs?.length === 0 && (
+                        <>
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                            No logs found.
-                                        </TableCell>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Recipient</TableHead>
+                                        <TableHead>Subject</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
-                                )}
-                                {logs?.map((log) => (
-                                    <TableRow key={log.id}>
-                                        <TableCell>
-                                            {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
-                                        </TableCell>
-                                        <TableCell className="capitalize">
-                                            {log.type.replace(/_/g, " ")}
-                                        </TableCell>
-                                        <TableCell>{log.recipient}</TableCell>
-                                        <TableCell className="max-w-[200px] truncate" title={log.subject}>
-                                            {log.subject}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant={getStatusColor(log.status) as any}>
-                                                {log.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => setSelectedLog(log)}
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedLogs?.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                                                No logs found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {paginatedLogs?.map((log) => (
+                                        <TableRow key={log.id}>
+                                            <TableCell>
+                                                {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                                            </TableCell>
+                                            <TableCell className="capitalize">
+                                                {log.type.replace(/_/g, " ")}
+                                            </TableCell>
+                                            <TableCell>{log.recipient}</TableCell>
+                                            <TableCell className="max-w-[200px] truncate" title={log.subject}>
+                                                {log.subject}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={getStatusColor(log.status) as any}>
+                                                    {log.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => setSelectedLog(log)}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+
+                            {totalPages > 1 && (
+                                <DataTablePagination
+                                    currentPage={currentPage}
+                                    totalPages={totalPages}
+                                    onPageChange={setCurrentPage}
+                                />
+                            )}
+                        </>
                     )}
                 </CardContent>
             </Card>

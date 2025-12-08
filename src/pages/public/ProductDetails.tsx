@@ -238,13 +238,65 @@ const ProductDetails = () => {
                                         className="w-16 h-12 text-center text-lg font-medium border-0 rounded-none focus-visible:ring-0"
                                     />
                                     <Button
-                                        <span> Fast Shipping</span>
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-12 w-12 rounded-none"
+                                        onClick={() => setQuantity(quantity + 1)}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add to Cart Button */}
+                        <Button
+                            className="w-full h-14 text-lg font-semibold"
+                            onClick={handleAddToCart}
+                            disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
+                        >
+                            <ShoppingCart className="mr-2 h-5 w-5" />
+                            {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+                        </Button>
+
+                        {/* Product Features */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t">
+                            <div className="flex items-start gap-3">
+                                <div className="bg-primary/10 p-2 rounded-lg">
+                                    <Check className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                    <div className="font-medium">In Stock</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        {selectedVariant?.stock_quantity || 0} units available
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-3">
+                                <div className="bg-primary/10 p-2 rounded-lg">
+                                    <Truck className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                    <div className="font-medium">Fast Shipping</div>
+                                    <div className="text-sm text-muted-foreground">2-3 business days</div>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-3 sm:col-span-2">
+                                <div className="bg-primary/10 p-2 rounded-lg">
+                                    <ShieldCheck className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                    <div className="font-medium">Quality Guaranteed</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        All products are tested and certified
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 };
 

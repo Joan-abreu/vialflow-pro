@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getOrderConfirmationEmail, getAdminNotificationEmail, getOrderStatusUpdateEmail } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -135,48 +136,22 @@ const handler = async (req: Request): Promise<Response> => {
 
       emailTo = [customerEmail];
       subject = `Order Confirmation #${order.id.slice(0, 8)}`;
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { padding: 20px; background: #f9f9f9; border-radius: 0 0 8px 8px; }
-            .order-item { padding: 10px; border-bottom: 1px solid #ddd; }
-            .total { font-size: 1.2em; font-weight: bold; margin-top: 20px; padding: 15px; background: white; border-radius: 4px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Thank You for Your Order!</h1>
-            </div>
-            <div class="content">
-              <p>Order #${order.id.slice(0, 8)} has been received and is being processed.</p>
-              <p><strong>Order Date:</strong> ${new Date(order.created_at).toLocaleDateString()}</p>
-              <p><strong>Status:</strong> ${order.status}</p>
 
-              <h2>Order Items:</h2>
-              ${order.order_items.map((item: any) => `
-                <div class="order-item">
-                  <strong>${item.variant?.product?.name || "Product"}</strong> - ${item.variant?.vial_type?.name || ""}
-                  <br>
-                  Quantity: ${item.quantity} × $${item.price_at_time} = $${(item.quantity * item.price_at_time).toFixed(2)}
-                </div>
-              `).join("")}
+      // Prepare order data for template
+      const items = order.order_items.map((item: any) => ({
+        name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+        quantity: item.quantity,
+        price: item.quantity * item.price_at_time
+      }));
 
-              <div class="total">
-                Total: $${order.total_amount}
-              </div>
-
-              <p style="margin-top: 20px;">We will notify you when your order ships.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+      htmlContent = getOrderConfirmationEmail({
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerEmail.split('@')[0], // Use email username as fallback
+        items,
+        subtotal: order.total_amount, // Adjust if you have separate subtotal
+        shipping: 0, // Add shipping if available
+        total: order.total_amount,
+      });
     }
 
     // ADMIN NOTIFICATION
@@ -188,59 +163,21 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       subject = `🎉 New Order Received #${order.id.slice(0, 8)}`;
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #059669; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { padding: 20px; background: #f9f9f9; border-radius: 0 0 8px 8px; }
-            .order-item { padding: 10px; border-bottom: 1px solid #ddd; background: white; margin: 5px 0; border-radius: 4px; }
-            .alert { background: #FEF3C7; padding: 15px; border-left: 4px solid #F59E0B; margin: 20px 0; border-radius: 4px; }
-            .button { background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎉 New Order Received!</h1>
-            </div>
-            <div class="content">
-              <div class="alert">
-                <strong>⚡ Action Required:</strong> A new customer order needs to be processed.
-              </div>
 
-              <p><strong>Order ID:</strong> ${order.id}</p>
-              <p><strong>Order Number:</strong> #${order.id.slice(0, 8)}</p>
-              <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleString()}</p>
-              <p><strong>Customer Email:</strong> ${order.customer_email || "N/A"}</p>
-              <p><strong>Status:</strong> ${order.status}</p>
+      // Prepare order data for template
+      const items = order.order_items.map((item: any) => ({
+        name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+        quantity: item.quantity,
+        price: item.quantity * item.price_at_time
+      }));
 
-              <h2>Order Items:</h2>
-              ${order.order_items.map((item: any) => `
-                <div class="order-item">
-                  <strong>${item.variant?.product?.name || "Product"}</strong> - ${item.variant?.vial_type?.name || ""}
-                  <br>
-                  Quantity: ${item.quantity} × $${item.price_at_time} = $${(item.quantity * item.price_at_time).toFixed(2)}
-                </div>
-              `).join("")}
-
-              <p style="font-size: 1.2em; font-weight: bold; margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
-                💰 Total Amount: $${order.total_amount}
-              </p>
-
-              <p style="margin-top: 20px;">
-                <a href="${DOMAIN}/manufacturing/orders" class="button">
-                  View Order in Dashboard →
-                </a>
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+      htmlContent = getAdminNotificationEmail({
+        orderNumber: order.id.slice(0, 8),
+        customerName: order.customer_email?.split('@')[0] || "Customer",
+        customerEmail: order.customer_email || "N/A",
+        items,
+        total: order.total_amount,
+      });
     }
 
     // STATUS UPDATE
@@ -264,34 +201,12 @@ const handler = async (req: Request): Promise<Response> => {
 
       emailTo = [customerEmail];
       subject = `Order Update #${order.id.slice(0, 8)}`;
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { padding: 20px; background: #f9f9f9; border-radius: 0 0 8px 8px; }
-            .status { background: #D1FAE5; color: #059669; padding: 15px; border-radius: 4px; font-size: 1.1em; font-weight: bold; text-align: center; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Order Status Update</h1>
-            </div>
-            <div class="content">
-              <p>Your order #${order.id.slice(0, 8)} status has been updated.</p>
-              <div class="status">
-                New Status: ${order.status.toUpperCase()}
-              </div>
-              <p>Thank you for your patience!</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+
+      htmlContent = getOrderStatusUpdateEmail({
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerEmail.split('@')[0],
+        status: order.status,
+      });
     }
 
     // Send using Resend
@@ -302,7 +217,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "VialFlow Pro <onboarding@resend.dev>",
+        from: "Liv Well Research Labs <onboarding@resend.dev>",
         to: emailTo,
         subject,
         html: htmlContent,

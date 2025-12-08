@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { User, Package, Settings, ChevronDown, ChevronUp } from "lucide-react";
+import { User, Package, Settings, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { useCart } from "@/contexts/CartContext";
 import {
     Collapsible,
     CollapsibleContent,
@@ -42,6 +43,7 @@ interface Order {
 
 const Account = () => {
     const navigate = useNavigate();
+    const { addToCart } = useCart();
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [orders, setOrders] = useState<Order[]>([]);
@@ -50,6 +52,7 @@ const Account = () => {
     const [phone, setPhone] = useState("");
     const [updating, setUpdating] = useState(false);
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+    const [reordering, setReordering] = useState<string | null>(null);
 
     useEffect(() => {
         checkUser();
@@ -153,6 +156,88 @@ const Account = () => {
             newExpanded.add(orderId);
         }
         setExpandedOrders(newExpanded);
+    };
+
+    const handleReorder = async (order: Order) => {
+        setReordering(order.id);
+        try {
+            let addedCount = 0;
+            let unavailableCount = 0;
+            const unavailableItems: string[] = [];
+
+            // Fetch current variant data for each item
+            for (const item of order.order_items) {
+                if (!item.variant) {
+                    unavailableCount++;
+                    continue;
+                }
+
+                // Fetch the latest variant data
+                const { data: currentVariant, error } = await supabase
+                    .from("product_variants")
+                    .select(`
+                        *,
+                        product:products!inner(id, slug, name, description, image_url, category),
+                        vial_type:vial_types!inner(name, size_ml)
+                    `)
+                    .eq("id", item.variant.id)
+                    .eq("is_published", true)
+                    .eq("product.is_published", true)
+                    .single();
+
+                if (error || !currentVariant) {
+                    unavailableCount++;
+                    unavailableItems.push(item.variant.product?.name || "Unknown");
+                    continue;
+                }
+
+                // Check stock
+                if (currentVariant.stock_quantity < item.quantity) {
+                    unavailableCount++;
+                    unavailableItems.push(item.variant.product?.name || "Unknown");
+                    continue;
+                }
+
+                // Add to cart
+                const variantForCart = {
+                    ...currentVariant,
+                    product: {
+                        name: currentVariant.product.name,
+                        slug: currentVariant.product.slug,
+                        image_url: currentVariant.product.image_url,
+                        description: currentVariant.product.description,
+                        category: currentVariant.product.category,
+                    },
+                    vial_type: {
+                        name: currentVariant.vial_type.name,
+                        size_ml: currentVariant.vial_type.size_ml,
+                    },
+                };
+
+                for (let i = 0; i < item.quantity; i++) {
+                    addToCart(variantForCart);
+                }
+                addedCount++;
+            }
+
+            // Show appropriate toast messages
+            if (addedCount > 0) {
+                toast.success(`${addedCount} item${addedCount > 1 ? 's' : ''} added to cart`);
+            }
+            if (unavailableCount > 0) {
+                toast.warning(`${unavailableCount} item${unavailableCount > 1 ? 's were' : ' was'} unavailable: ${unavailableItems.join(', ')}`);
+            }
+
+            // Navigate to cart if any items were added
+            if (addedCount > 0) {
+                navigate("/cart");
+            }
+        } catch (error: any) {
+            console.error("Reorder error:", error);
+            toast.error("Failed to reorder. Please try again.");
+        } finally {
+            setReordering(null);
+        }
     };
 
     if (loading) {
@@ -326,6 +411,17 @@ const Account = () => {
                                                         </div>
                                                     );
                                                 })}
+                                            </div>
+                                            <div className="mt-4 pt-4 border-t">
+                                                <Button
+                                                    onClick={() => handleReorder(order)}
+                                                    disabled={reordering === order.id}
+                                                    variant="outline"
+                                                    className="w-full"
+                                                >
+                                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                                    {reordering === order.id ? "Adding to cart..." : "Reorder"}
+                                                </Button>
                                             </div>
                                         </CardContent>
                                     </CollapsibleContent>

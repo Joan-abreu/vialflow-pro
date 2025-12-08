@@ -109,7 +109,7 @@ const ProductDetails = () => {
             for (let i = 0; i < quantity; i++) {
                 addToCart(selectedVariant);
             }
-            toast.success(`Added ${quantity} item${quantity > 1 ? 's' : ''} to cart`);
+            // Toast is handled in CartContext
             setQuantity(1); // Reset quantity after adding
         }
     };

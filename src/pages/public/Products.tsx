@@ -29,7 +29,7 @@ const Products = () => {
 
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", selectedCategory],
-        queryFn: async ({ signal }) => {
+        queryFn: async () => {
             // Fetch all published variants with their product and vial type info
             let query = supabase
                 .from("product_variants")
@@ -39,8 +39,7 @@ const Products = () => {
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true)
-                .abortSignal(signal);
+                .eq("product.is_published", true);
 
             if (selectedCategory) {
                 query = query.eq("product.category", selectedCategory);

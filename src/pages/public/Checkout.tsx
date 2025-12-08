@@ -166,7 +166,7 @@ const Checkout = () => {
                     <div className="bg-card border rounded-lg p-6">
                         <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
                         {clientSecret ? (
-                            <Elements options={options} stripe={stripePromise}>
+                            <Elements key={clientSecret} options={options} stripe={stripePromise}>
                                 <StripeCheckout
                                     amount={totalAmount}
                                     clientSecret={clientSecret}

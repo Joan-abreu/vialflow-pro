@@ -16,17 +16,21 @@ serve(async (req) => {
     }
 
     try {
-        const { paymentIntentId, orderId } = await req.json();
+        const { paymentIntentId, orderId, order_id, receipt_email } = await req.json();
 
-        if (!paymentIntentId || !orderId) {
+        // Handle both camelCase and snake_case for order ID
+        const finalOrderId = orderId || order_id;
+
+        if (!paymentIntentId || !finalOrderId) {
             throw new Error("PaymentIntent ID and Order ID are required");
         }
 
         // Update the PaymentIntent with the orderId in metadata
         const paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
             metadata: {
-                order_id: orderId,
+                order_id: finalOrderId,
             },
+            receipt_email: receipt_email,
         });
 
         return new Response(

@@ -144,12 +144,14 @@ const StripeCheckout = ({ amount, clientSecret, onAddressChange }: StripeCheckou
                         const { error: updateError } = await supabase.functions.invoke("update-payment-intent", {
                             body: {
                                 paymentIntentId: paymentIntent.id,
-                                order_id: order.id,
+                                orderId: order.id,
+                                receipt_email: customerEmail,
                             }
                         });
 
                         if (updateError) {
                             console.error("Failed to link order to payment intent:", updateError);
+                            toast.error("Warning: Could not link order to payment. Please contact support if issues arise.");
                         }
                     }
                 }

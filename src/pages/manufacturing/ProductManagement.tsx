@@ -77,6 +77,7 @@ interface ProductVariant {
     sku: string | null;
     price: number;
     stock_quantity: number;
+    max_online_quantity: number | null;
     is_published: boolean;
     pack_size: number;
     weight: number | null;
@@ -147,6 +148,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
             <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
             <TableCell>${variant.price.toFixed(2)}</TableCell>
             <TableCell>{variant.stock_quantity}</TableCell>
+            <TableCell>{variant.max_online_quantity ?? 'Unlimited'}</TableCell>
             <TableCell>
                 <span className={`px-2 py-1 rounded-full text-xs ${variant.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
                     {variant.is_published ? 'Published' : 'Draft'}
@@ -221,6 +223,7 @@ const ProductManagement = () => {
                     sku: v.sku,
                     price: v.price,
                     stock_quantity: v.stock_quantity,
+                    max_online_quantity: v.max_online_quantity,
                     is_published: v.is_published,
                     pack_size: v.pack_size || 1,
                     weight: v.weight,
@@ -434,6 +437,7 @@ const ProductManagement = () => {
             sku: skuValue?.trim() || null,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
+            max_online_quantity: formData.get("max_online_quantity") ? parseInt(formData.get("max_online_quantity") as string) : null,
             sale_type: variantSaleType,
             pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
             weight: parseFloat(formData.get("weight") as string),
@@ -741,6 +745,18 @@ const ProductManagement = () => {
                                     <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
                                 </div>
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="max_online_quantity">Max Quantity for Online Sales</Label>
+                                <Input
+                                    id="max_online_quantity"
+                                    name="max_online_quantity"
+                                    type="number"
+                                    min="1"
+                                    defaultValue={editingVariant?.max_online_quantity || ""}
+                                    placeholder="Leave empty for unlimited"
+                                />
+                                <p className="text-xs text-muted-foreground">Maximum quantity customers can purchase online (leave empty for unlimited)</p>
+                            </div>
                             <div className="col-span-2 space-y-2">
                                 <Label htmlFor="weight">Weight (lbs)</Label>
                                 <Input
@@ -904,6 +920,7 @@ const ProductManagement = () => {
                                                                             <TableHead>SKU</TableHead>
                                                                             <TableHead>Price</TableHead>
                                                                             <TableHead>Stock</TableHead>
+                                                                            <TableHead>Max Online</TableHead>
                                                                             <TableHead>Status</TableHead>
                                                                             <TableHead className="text-right">Actions</TableHead>
                                                                         </TableRow>

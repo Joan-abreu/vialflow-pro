@@ -108,7 +108,7 @@ const OrderManagement = () => {
 
             if (status !== 'processing' && status !== 'in_production') {
                 await supabase.functions.invoke("send-order-email", {
-                    body: { orderId, type: "status_update" },
+                    body: { order_id: orderId, type: "status_update" },
                 });
             }
         },

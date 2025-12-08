@@ -144,7 +144,7 @@ const StripeCheckout = ({ amount, clientSecret, onAddressChange }: StripeCheckou
                         const { error: updateError } = await supabase.functions.invoke("update-payment-intent", {
                             body: {
                                 paymentIntentId: paymentIntent.id,
-                                orderId: order.id,
+                                order_id: order.id,
                             }
                         });
 

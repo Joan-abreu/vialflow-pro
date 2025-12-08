@@ -103,18 +103,15 @@ const Checkout = () => {
             // A simpler approach: create intent only if !clientSecret initially.
             // UPDATES to amount should ideally update the EXISTING intent, but here we are creating a new one.
 
-            // Correct fix: check if we already have a secret and the amount is stable. 
-            // BUT the issue is that totalAmount changes => effect runs => new secret => component remounts.
-            // If we just want to load it initially:
-            if (!clientSecret) {
-                createOrUpdateIntent();
-            } else {
-                // If we already have a secret, we might want to update the intent instead of creating a new one
-                // but for now let's just create a new one ONLY if the amount actually changed from when we created it.
-                // We can use a ref to track the amount 'attached' to the current clientSecret.
+            // Only create/update if we don't have a secret yet OR if the amount has changed
+            if (!clientSecret || intentAmountRef.current !== totalAmount) {
+                const timeoutId = setTimeout(() => {
+                    createOrUpdateIntent();
+                }, 300);
+                return () => clearTimeout(timeoutId);
             }
         }
-    }, [items, totalAmount, session, isCalculatingShipping]);
+    }, [items, totalAmount, session, isCalculatingShipping, isProcessing, clientSecret]);
 
     if (authLoading) {
         return (

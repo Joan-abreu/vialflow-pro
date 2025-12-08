@@ -17,7 +17,8 @@ import {
   ShoppingCart,
   Users,
   Store,
-  Mail
+  Mail,
+  Settings
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -104,6 +105,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Customers", href: "/manufacturing/customers", icon: Users },
     { name: "Users", href: "/manufacturing/users", icon: Shield },
     { name: "Communications", href: "/manufacturing/communications", icon: Mail },
+    { name: "Shipping Settings", href: "/manufacturing/shipping-settings", icon: Settings },
   ];
 
   const navigation = isAdmin

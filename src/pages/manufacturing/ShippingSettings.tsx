@@ -244,15 +244,19 @@ const ShippingSettings = () => {
                                 />
                             </div>
 
+
                             {carrier.carrier === "FEDEX" && (
                                 <div className="space-y-2">
-                                    <Label htmlFor="meter_number">Meter Number</Label>
+                                    <Label htmlFor="meter_number">Meter Number (Optional)</Label>
                                     <Input
                                         id="meter_number"
                                         value={formData.meter_number || ""}
                                         onChange={(e) => handleChange('meter_number', e.target.value)}
-                                        placeholder="Enter meter number"
+                                        placeholder="Enter meter number (not required for modern API)"
                                     />
+                                    <p className="text-xs text-muted-foreground">
+                                        Meter number is optional in recent FedEx REST API versions
+                                    </p>
                                 </div>
                             )}
 

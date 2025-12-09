@@ -24,7 +24,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Factory, Loader2, Eye, Tag } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck } from "lucide-react";
+import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 
 interface OrderItem {
     id: string;
@@ -71,6 +72,7 @@ const OrderManagement = () => {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showProductionDialog, setShowProductionDialog] = useState(false);
+    const [showShippingDialog, setShowShippingDialog] = useState(false);
     const queryClient = useQueryClient();
     const itemsPerPage = 10;
 
@@ -160,6 +162,11 @@ const OrderManagement = () => {
         setShowProductionDialog(true);
     };
 
+    const handleCreateShippingLabel = (order: Order) => {
+        setSelectedOrder(order);
+        setShowShippingDialog(true);
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case "pending": return "bg-yellow-100 text-yellow-800";
@@ -233,18 +240,19 @@ const OrderManagement = () => {
                                 <TableHead className="text-right">Total</TableHead>
                                 <TableHead>Actions</TableHead>
                                 <TableHead>Production</TableHead>
+                                <TableHead>Shipping</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8">
+                                    <TableCell colSpan={8} className="text-center py-8">
                                         Loading orders...
                                     </TableCell>
                                 </TableRow>
                             ) : filteredOrders?.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8">
+                                    <TableCell colSpan={8} className="text-center py-8">
                                         No orders found matching your search.
                                     </TableCell>
                                 </TableRow>
@@ -310,6 +318,17 @@ const OrderManagement = () => {
                                                         Send to Production
                                                     </Button>
                                                 )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleCreateShippingLabel(order)}
+                                                    disabled={order.status === 'cancelled' || order.status === 'pending_payment'}
+                                                >
+                                                    <Truck className="h-4 w-4 mr-2" />
+                                                    Create Label
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -501,6 +520,15 @@ const OrderManagement = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <MultiCarrierShippingDialog
+                orderId={selectedOrder?.id || ""}
+                open={showShippingDialog}
+                onOpenChange={setShowShippingDialog}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ["orders"] });
+                }}
+            />
         </div>
     );
 };

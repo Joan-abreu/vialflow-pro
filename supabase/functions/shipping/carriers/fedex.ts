@@ -119,11 +119,11 @@ export class FedExCarrier {
             requestedShipment: {
                 shipper: {
                     contact: {
-                        personName: shipment.shipper.name,
+                        personName: this.settings.shipper_name || shipment.shipper.name,
                         phoneNumber: this.settings.shipper_phone || "0000000000",
                         companyName: this.settings.shipper_name || shipment.shipper.name,
                     },
-                    address: this.formatAddress(shipment.shipper),
+                    address: this.formatAddress(this.settings.shipper_address || shipment.shipper),
                 },
                 recipients: [
                     {
@@ -135,7 +135,7 @@ export class FedExCarrier {
                     },
                 ],
                 shipDatestamp: new Date().toISOString().split("T")[0],
-                serviceType: shipment.serviceCode || this.settings.default_service_code || "FEDEX_GROUND",
+                serviceType: shipment.serviceCode || this.settings.default_service_code || "FDXG",
                 packagingType: "YOUR_PACKAGING",
                 pickupType: "USE_SCHEDULED_PICKUP",
                 blockInsightVisibility: false,
@@ -210,8 +210,8 @@ export class FedExCarrier {
             labelUrl,
             labelFormat: "PDF",
             serviceName: this.getServiceName(shipment.serviceCode || this.settings.default_service_code),
-            cost: parseFloat(output.shipmentDocuments?.[0]?.shippingDocumentDisposition || "0"),
-            totalCost: parseFloat(output.completedShipmentDetail?.shipmentRating?.totalNetCharge || "0"),
+            shippingCost: parseFloat(output.completedShipmentDetail?.shipmentRating?.shipmentRateDetails?.[0]?.totalNetFreight) || "0",
+            totalCost: parseFloat(output.completedShipmentDetail?.shipmentRating?.shipmentRateDetails?.[0]?.totalNetCharge || "0"),
             rawResponse: data,
         };
     }

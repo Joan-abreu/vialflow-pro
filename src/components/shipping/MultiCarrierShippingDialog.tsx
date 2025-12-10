@@ -109,10 +109,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         shipper: {
                             name: "Liv Well Research Labs",
                             address: {
-                                line1: "123 Main St",
-                                city: "Miami",
+                                line1: "3839 N Andrews Ave",
+                                city: "Oakland Park",
                                 state: "FL",
-                                zip: "33101",
+                                zip: "33309",
                                 country: "US",
                             },
                         },

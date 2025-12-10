@@ -158,6 +158,20 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .single();
 
             if (orderError) throw orderError;
+            
+            let customerName = "Customer";
+
+            if (order.user_id) {
+                const { data: profile, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("full_name")
+                    .eq("user_id", order.user_id)
+                    .single();
+
+                if (!profileError && profile?.full_name) {
+                    customerName = profile.full_name;
+                }
+            }
 
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
@@ -178,7 +192,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             },
                         },
                         recipient: {
-                            name: order.customer_name || "Customer",
+                            name: customerName,
                             address: order.shipping_address || {},
                         },
                         packages: [{
@@ -196,6 +210,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             if (data.data?.success) {
                 setTrackingNumber(data.data.trackingNumber);
                 setLabelUrl(`data:application/pdf;base64,${data.data.labelData}`);
+                setShipmentId(data.data.shipmentId);
 
                 toast.success("Shipping label created successfully!");
                 setStep('pickup');
@@ -216,6 +231,9 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
         setLoading(true);
         try {
+            const readyISO = `${pickupDate}T${pickupReadyTime}:00`;
+            const closeISO = `${pickupCloseTime}:00`;
+            
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
                     carrier: selectedCarrier,
@@ -223,8 +241,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     data: {
                         shipmentId: shipmentId,
                         date: pickupDate.replace(/-/g, ""),
-                        readyTime: pickupReadyTime.replace(":", ""),
-                        closeTime: pickupCloseTime.replace(":", ""),
+                        readyTime: readyISO,
+                        closeTime: closeISO,
                         packageCount: 1,
                         totalWeight: parseFloat(weight),
                     },

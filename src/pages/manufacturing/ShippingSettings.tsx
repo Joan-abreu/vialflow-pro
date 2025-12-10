@@ -392,11 +392,11 @@ const ShippingSettings = () => {
                                     id="default_service_code"
                                     value={formData.default_service_code || ""}
                                     onChange={(e) => handleChange('default_service_code', e.target.value)}
-                                    placeholder={carrier.carrier === "UPS" ? "03 (Ground)" : "FEDEX_GROUND"}
+                                    placeholder={carrier.carrier === "UPS" ? "03 (Ground)" : "FDXG"}
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     {carrier.carrier === "UPS" && "UPS: 01=Next Day, 02=2nd Day, 03=Ground"}
-                                    {carrier.carrier === "FEDEX" && "FedEx: FEDEX_GROUND, FEDEX_2_DAY, etc."}
+                                    {carrier.carrier === "FEDEX" && "FedEx: FDXG, FDXE, etc."}
                                 </p>
                             </div>
 

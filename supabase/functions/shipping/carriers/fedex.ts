@@ -77,6 +77,7 @@ export class FedExCarrier {
                 })),
             },
         };
+        console.log("FedEx Request Body:", requestBody);
 
         const response = await fetch(`${this.apiUrl}/rate/v1/rates/quotes`, {
             method: "POST",
@@ -222,6 +223,7 @@ export class FedExCarrier {
             associatedAccountNumber: {
                 value: this.settings.account_number,
             },
+            carrierCode: pickup.serviceCode || this.settings.default_service_code,
             originDetail: {
                 pickupLocation: {
                     contact: {
@@ -231,8 +233,8 @@ export class FedExCarrier {
                     },
                     address: this.formatAddress(pickup.address || this.settings.shipper_address),
                 },
-                readyDateTimestamp: `${pickup.date}T${pickup.readyTime || "09:00:00"}`,
-                customerCloseTime: pickup.closeTime || "17:00:00",
+                readyDateTimestamp: pickup.readyTime,
+                customerCloseTime: pickup.closeTime,
                 pickupDateType: "SAME_DAY",
             },
             packageDetails: {
@@ -243,6 +245,8 @@ export class FedExCarrier {
                 },
             },
         };
+
+        console.log("FedEx Pickup Request:", requestBody);
 
         const response = await fetch(`${this.apiUrl}/pickup/v1/pickups`, {
             method: "POST",
@@ -351,7 +355,7 @@ export class FedExCarrier {
             streetLines: [address.address?.line1 || address.line1],
             city: address.address?.city || address.city,
             stateOrProvinceCode: address.address?.state || address.state,
-            postalCode: address.address?.zip || address.zip,
+            postalCode: address.address?.postal_code || address.postal_code || address.address?.zip || address.zip,
             countryCode: address.address?.country || address.country || "US",
             residential: false,
         };

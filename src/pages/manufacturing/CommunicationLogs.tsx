@@ -85,24 +85,21 @@ const CommunicationLogs = () => {
                 </div>
             </div>
 
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search logs..."
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                        className="pl-8"
-                    />
-                </div>
-            </div>
-
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                     <CardTitle>Email History</CardTitle>
+                    <div className="flex items-center gap-2 w-72">
+                        <Search className="w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search logs..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="w-full"
+                        />
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (

@@ -32,7 +32,8 @@ import { ManageProductionMaterialsDialog } from "@/components/production/ManageP
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
 import StartProductionDialog from "@/components/production/StartProductionDialog";
-import { Package, Trash2, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Package, Trash2, FileText, Search } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface ProductionBatch {
@@ -64,8 +65,15 @@ interface ProductionBatch {
 const Production = () => {
   const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filteredBatches = batches.filter((batch) =>
+    batch.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    batch.product_variant_details?.product_id?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    batch.status.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -150,15 +158,28 @@ const Production = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Production Batches</CardTitle>
+          <div className="flex items-center gap-2 w-72">
+            <Search className="w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search batches..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1); // Reset to first page on search
+              }}
+              className="w-full"
+            />
+          </div>
         </CardHeader>
         <CardContent>
+
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : batches.length === 0 ? (
+          ) : filteredBatches.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No batches yet. Click "New Batch" to create your first one.
+              {searchQuery ? "No matching batches found." : "No batches yet. Click \"New Batch\" to create your first one."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -179,7 +200,7 @@ const Production = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {batches
+                  {filteredBatches
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((batch) => {
                       const unitsInProgress = batch.units_in_progress || 0;
@@ -318,10 +339,10 @@ const Production = () => {
               </Table>
             </div>
           )}
-          {!loading && batches.length > 0 && (
+          {!loading && filteredBatches.length > 0 && (
             <DataTablePagination
               currentPage={currentPage}
-              totalPages={Math.ceil(batches.length / itemsPerPage)}
+              totalPages={Math.ceil(filteredBatches.length / itemsPerPage)}
               onPageChange={setCurrentPage}
             />
           )}

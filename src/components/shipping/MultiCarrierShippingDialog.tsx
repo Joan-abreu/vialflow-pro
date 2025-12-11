@@ -44,10 +44,71 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [pickupDate, setPickupDate] = useState<string>("");
     const [pickupReadyTime, setPickupReadyTime] = useState<string>("09:00");
     const [pickupCloseTime, setPickupCloseTime] = useState<string>("17:00");
+    const [pickupInstructions, setPickupInstructions] = useState<string>("");
+    const [pickupConfirmation, setPickupConfirmation] = useState<string>("");
 
     useEffect(() => {
         if (open) {
+            checkExistingShipment();
             fetchAvailableCarriers();
+        }
+    }, [open, orderId]);
+
+    const checkExistingShipment = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("order_shipments")
+                .select("*")
+                .eq("order_id", orderId)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data) {
+                setShipmentId(data.id);
+                setTrackingNumber(data.tracking_number);
+                setLabelUrl(data.label_url);
+                setSelectedCarrier(data.carrier);
+
+                if (data.pickup_confirmation) {
+                    setPickupConfirmation(data.pickup_confirmation);
+                    setPickupDate(data.pickup_date || "");
+                    setPickupReadyTime(data.pickup_ready_time || "");
+                    setPickupCloseTime(data.pickup_close_time || "");
+                }
+
+                setStep('pickup'); // Go directly to details/pickup view
+            } else {
+                // Reset if no shipment found (already handled by the other useEffect, but good to ensure)
+                // actually the other useEffect clears state when !open.
+            }
+        } catch (error) {
+            console.error("Error checking existing shipment:", error);
+        }
+    };
+
+    useEffect(() => {
+        if (!open) {
+            // ... (keep existing reset logic)
+            setStep("carrier");
+            setAvailableCarriers([]);
+            setSelectedCarrier("");
+            setRates([]);
+            setSelectedService("");
+            setLabelUrl("");
+            setTrackingNumber("");
+            setShipmentId("");
+
+            setWeight("5");
+            setLength("12");
+            setWidth("8");
+            setHeight("6");
+
+            setPickupDate("");
+            setPickupReadyTime("09:00");
+            setPickupCloseTime("17:00");
+            setPickupInstructions("");
+            setPickupConfirmation("");
         }
     }, [open]);
 
@@ -158,7 +219,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .single();
 
             if (orderError) throw orderError;
-            
+
             let customerName = "Customer";
 
             if (order.user_id) {
@@ -184,10 +245,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         shipper: {
                             name: "Liv Well Research Labs",
                             address: {
-                                line1: "123 Main St",
-                                city: "Miami",
+                                line1: "3839 N Andrews Ave",
+                                city: "Oakland Park",
                                 state: "FL",
-                                zip: "33101",
+                                zip: "33309",
                                 country: "US",
                             },
                         },
@@ -213,6 +274,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 setShipmentId(data.data.shipmentId);
 
                 toast.success("Shipping label created successfully!");
+                onSuccess?.();
                 setStep('pickup');
             }
         } catch (error: any) {
@@ -233,7 +295,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         try {
             const readyISO = `${pickupDate}T${pickupReadyTime}:00`;
             const closeISO = `${pickupCloseTime}:00`;
-            
+
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
                     carrier: selectedCarrier,
@@ -245,6 +307,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         closeTime: closeISO,
                         packageCount: 1,
                         totalWeight: parseFloat(weight),
+                        instructions: pickupInstructions,
                     },
                 },
             });
@@ -381,8 +444,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                                 <div
                                                     key={index}
                                                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedService === rate.serviceCode
-                                                            ? 'border-primary bg-primary/5'
-                                                            : 'hover:border-primary/50'
+                                                        ? 'border-primary bg-primary/5'
+                                                        : 'hover:border-primary/50'
                                                         }`}
                                                     onClick={() => setSelectedService(rate.serviceCode)}
                                                 >
@@ -433,10 +496,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                                        <p className="font-semibold flex items-center gap-2">
+                                        <div className="font-semibold flex items-center gap-2">
                                             <Badge>{selectedCarrier}</Badge>
                                             Tracking: {trackingNumber}
-                                        </p>
+                                        </div>
                                     </div>
                                     <Button onClick={downloadLabel} variant="outline" className="w-full">
                                         <Download className="mr-2 h-4 w-4" />
@@ -450,45 +513,75 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Truck className="h-5 w-5" />
-                                    Schedule Pickup (Optional)
+                                    {pickupConfirmation ? "Pickup Scheduled" : "Schedule Pickup (Optional)"}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div>
-                                    <Label>Pickup Date</Label>
-                                    <Input
-                                        type="date"
-                                        value={pickupDate}
-                                        onChange={(e) => setPickupDate(e.target.value)}
-                                        min={new Date().toISOString().split('T')[0]}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label>Ready Time</Label>
-                                        <Input
-                                            type="time"
-                                            value={pickupReadyTime}
-                                            onChange={(e) => setPickupReadyTime(e.target.value)}
-                                        />
+                                {pickupConfirmation ? (
+                                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                                        <div className="font-semibold text-green-800 flex items-center gap-2">
+                                            <Calendar className="h-4 w-4" />
+                                            Pickup Confirmed
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-sm text-green-700">
+                                            <div><span className="font-semibold">Confirmation:</span> {pickupConfirmation}</div>
+                                            <div><span className="font-semibold">Date:</span> {pickupDate}</div>
+                                            <div><span className="font-semibold">Ready Time:</span> {pickupReadyTime}</div>
+                                            <div><span className="font-semibold">Close Time:</span> {pickupCloseTime}</div>
+                                        </div>
+                                        <div className="pt-2">
+                                            <Button onClick={() => onOpenChange(false)} variant="outline" className="w-full bg-white hover:bg-green-50 border-green-200">
+                                                Close
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <Label>Close Time</Label>
-                                        <Input
-                                            type="time"
-                                            value={pickupCloseTime}
-                                            onChange={(e) => setPickupCloseTime(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <Button onClick={schedulePickup} disabled={loading} className="w-full">
-                                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    <Calendar className="mr-2 h-4 w-4" />
-                                    Schedule Pickup
-                                </Button>
-                                <Button onClick={() => onOpenChange(false)} variant="outline" className="w-full">
-                                    Skip & Close
-                                </Button>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <Label>Pickup Date</Label>
+                                            <Input
+                                                type="date"
+                                                value={pickupDate}
+                                                onChange={(e) => setPickupDate(e.target.value)}
+                                                min={new Date().toISOString().split('T')[0]}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label>Ready Time</Label>
+                                                <Input
+                                                    type="time"
+                                                    value={pickupReadyTime}
+                                                    onChange={(e) => setPickupReadyTime(e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Close Time</Label>
+                                                <Input
+                                                    type="time"
+                                                    value={pickupCloseTime}
+                                                    onChange={(e) => setPickupCloseTime(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Additional Instructions (e.g., Gate Code)</Label>
+                                            <Input
+                                                value={pickupInstructions}
+                                                onChange={(e) => setPickupInstructions(e.target.value)}
+                                                placeholder="Enter instructions for the driver..."
+                                            />
+                                        </div>
+                                        <Button onClick={schedulePickup} disabled={loading} className="w-full">
+                                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            Schedule Pickup
+                                        </Button>
+                                        <Button onClick={() => onOpenChange(false)} variant="outline" className="w-full">
+                                            Skip & Close
+                                        </Button>
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

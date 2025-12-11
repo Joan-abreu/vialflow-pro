@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
+import { AlertTriangle, Trash2, GripVertical, ArrowUpDown, Search } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
@@ -179,18 +179,19 @@ const Inventory = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Raw Materials</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
+          <div className="flex items-center gap-2 w-72">
+            <Search className="w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, category, or unit..."
+              placeholder="Search by name, category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-sm"
+              className="w-full"
             />
           </div>
+        </CardHeader>
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : filteredMaterials.length === 0 ? (

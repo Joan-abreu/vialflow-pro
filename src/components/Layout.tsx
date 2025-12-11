@@ -27,6 +27,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -92,7 +93,7 @@ const Layout = ({ children }: LayoutProps) => {
     navigate("/login");
   };
 
-  const baseNavigation = [
+  const mainNavigation = [
     { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
     { name: "Production", href: "/manufacturing/production", icon: Package },
     { name: "Shipments", href: "/manufacturing/shipments", icon: Truck },
@@ -100,21 +101,24 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Products", href: "/manufacturing/products", icon: Tag },
   ];
 
-  const adminNavigation = [
-    { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
-    { name: "Customers", href: "/manufacturing/customers", icon: Users },
+  if (isAdmin) {
+    mainNavigation.push(
+      { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
+      { name: "Customers", href: "/manufacturing/customers", icon: Users }
+    );
+  }
+
+  const settingsNavigation = isAdmin ? [
     { name: "Users", href: "/manufacturing/users", icon: Shield },
     { name: "Communications", href: "/manufacturing/communications", icon: Mail },
     { name: "Shipping Settings", href: "/manufacturing/shipping-settings", icon: Settings },
-  ];
+  ] : [];
 
-  const navigation = isAdmin
-    ? [...baseNavigation, ...adminNavigation]
-    : baseNavigation;
+  const navigation = [...mainNavigation, ...settingsNavigation];
 
   const NavigationLinks = () => (
     <>
-      {navigation.map((item) => {
+      {mainNavigation.map((item) => {
         const isActive = location.pathname === item.href;
         const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
         return (
@@ -137,6 +141,31 @@ const Layout = ({ children }: LayoutProps) => {
           </Link>
         );
       })}
+
+      {settingsNavigation.length > 0 && (
+        <>
+          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground mt-4 mb-2">
+            Settings
+          </div>
+          {settingsNavigation.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="flex-1">{item.name}</span>
+              </Link>
+            );
+          })}
+        </>
+      )}
     </>
   );
 
@@ -155,7 +184,7 @@ const Layout = ({ children }: LayoutProps) => {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-1 px-3 py-4">
-                {navigation.map((item) => {
+                {mainNavigation.map((item) => {
                   const isActive = location.pathname === item.href;
                   const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
                   return (
@@ -183,6 +212,37 @@ const Layout = ({ children }: LayoutProps) => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {settingsNavigation.length > 0 && (
+            <SidebarGroup>
+              <SidebarGroupLabel className={open ? "px-6 text-xs font-semibold text-muted-foreground mb-2" : "sr-only"}>
+                Settings
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu className="space-y-1 px-3">
+                  {settingsNavigation.map((item) => {
+                    const isActive = location.pathname === item.href;
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton asChild>
+                          <Link
+                            to={item.href}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              }`}
+                          >
+                            <item.icon className="h-5 w-5 flex-shrink-0" />
+                            <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
 
           <div className="mt-auto border-t">
             {userName && (

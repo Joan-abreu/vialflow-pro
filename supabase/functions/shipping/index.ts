@@ -77,7 +77,7 @@ const handler = async (req: Request): Promise<Response> => {
 
                 // Save shipment to database
                 if (result.success) {
-                    const { error: insertError } = await supabase
+                    const { data: savedShipment, error: insertError } = await supabase
                         .from("order_shipments")
                         .insert({
                             order_id: data.orderId,
@@ -103,19 +103,32 @@ const handler = async (req: Request): Promise<Response> => {
                             currency: "USD",
                             status: "label_created",
                             carrier_response: result.rawResponse,
-                        });
+                        })
+                        .select()
+                        .single();
 
                     if (insertError) {
                         console.error("Error saving shipment:", insertError);
                     } else {
                         // Update order with tracking number
-                        await supabase
+                        const { error: orderUpdateError } = await supabase
                             .from("orders")
                             .update({
                                 status: "shipped",
                                 tracking_number: result.trackingNumber,
                             })
                             .eq("id", data.orderId);
+
+                        if (orderUpdateError) {
+                            console.error("Error updating order status:", orderUpdateError);
+                        } else {
+                            console.log(`Order ${data.orderId} updated to shipped`);
+                        }
+
+                        // Add shipmentId to result so it can be used for pickup scheduling
+                        if (savedShipment) {
+                            result.shipmentId = savedShipment.id;
+                        }
                     }
                 }
                 break;

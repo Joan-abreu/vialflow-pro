@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +26,7 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import { EditShipmentDialog } from "@/components/shipments/EditShipmentDialog";
 import { ShipmentBoxesDialog } from "@/components/shipments/ShipmentBoxesDialog";
 import { Button } from "@/components/ui/button";
-import { Trash2, Truck } from "lucide-react";
+import { Trash2, Truck, Search } from "lucide-react";
 import { toast } from "sonner";
 import { updateBatchStatus } from "@/services/batches";
 import CopyCell from "@/components/CopyCell";
@@ -172,15 +172,19 @@ const Shipments = () => {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle>All Shipments</CardTitle>
+          <div className="flex items-center gap-2 w-72">
+            <Search className="w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by shipment number, batch, status, or box details..."
+              placeholder="Search shipments..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-lg"
+              className="w-full"
             />
           </div>
+        </CardHeader>
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : filteredShipments.length === 0 ? (

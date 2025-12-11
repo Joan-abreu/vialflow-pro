@@ -236,6 +236,7 @@ export class FedExCarrier {
                 readyDateTimestamp: pickup.readyTime,
                 customerCloseTime: pickup.closeTime,
                 pickupDateType: "SAME_DAY",
+                remarks: pickup.instructions,
             },
             packageDetails: {
                 count: pickup.packageCount || 1,

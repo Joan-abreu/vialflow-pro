@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Factory, Loader2, Eye, Tag, Truck } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 
 interface OrderItem {
@@ -63,7 +64,15 @@ interface Order {
     shipping_address: any;
     sent_to_production: boolean;
     sent_to_production_at: string | null;
+    tracking_number?: string | null;
     order_items?: OrderItem[];
+    order_shipments?: {
+        carrier: string;
+        tracking_number: string;
+        tracking_url: string;
+        label_url: string;
+        pickup_confirmation?: string;
+    }[];
 }
 
 const OrderManagement = () => {
@@ -90,7 +99,8 @@ const OrderManagement = () => {
                             product:products (*),
                             vial_type:vial_types (*)
                         )
-                    )
+                    ),
+                    order_shipments (*)
                 `)
                 .order("created_at", { ascending: false });
 
@@ -98,6 +108,10 @@ const OrderManagement = () => {
             return data as any as Order[];
         },
     });
+
+
+
+
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
@@ -215,16 +229,16 @@ const OrderManagement = () => {
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle>Recent Orders</CardTitle>
-                        <div className="relative w-72">
-                            <input
-                                type="text"
+                        <div className="flex items-center gap-2 w-72">
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                            <Input
                                 placeholder="Search orders..."
                                 value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);
                                     setCurrentPage(1); // Reset to first page on search
                                 }}
-                                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full"
                             />
                         </div>
                     </div>
@@ -320,15 +334,45 @@ const OrderManagement = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleCreateShippingLabel(order)}
-                                                    disabled={order.status === 'cancelled' || order.status === 'pending_payment'}
-                                                >
-                                                    <Truck className="h-4 w-4 mr-2" />
-                                                    Create Label
-                                                </Button>
+                                                <div className="flex flex-col gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleCreateShippingLabel(order)}
+                                                        disabled={order.status === 'cancelled' || order.status === 'pending_payment'}
+                                                        variant={order.status === 'shipped' ? "secondary" : "outline"}
+                                                    >
+                                                        <Truck className="h-4 w-4 mr-2" />
+                                                        {order.status === 'shipped' ? "Manage Shipping" : "Create Label"}
+                                                    </Button>
+
+                                                    {order.order_shipments && order.order_shipments.length > 0 && (
+                                                        <div className="flex flex-col gap-1 text-xs">
+                                                            {order.order_shipments.map((shipment, idx) => (
+                                                                <div key={idx} className="flex items-center gap-1">
+                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{shipment.carrier}</Badge>
+                                                                    {shipment.tracking_url ? (
+                                                                        <a
+                                                                            href={shipment.tracking_url}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-blue-600 hover:underline flex items-center gap-1"
+                                                                        >
+                                                                            {shipment.tracking_number}
+                                                                            <Eye className="h-3 w-3" />
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span className="text-muted-foreground">{shipment.tracking_number}</span>
+                                                                    )}
+                                                                    {shipment.pickup_confirmation && (
+                                                                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 text-green-700 border-green-200">
+                                                                            Pickup: {shipment.pickup_confirmation}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))

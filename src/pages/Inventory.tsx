@@ -179,9 +179,9 @@ const Inventory = () => {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between space-y-0 pb-4">
           <CardTitle>Raw Materials</CardTitle>
-          <div className="flex items-center gap-2 w-72">
+          <div className="flex items-center gap-2 w-full md:w-72">
             <Search className="w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, category..."
@@ -191,7 +191,7 @@ const Inventory = () => {
             />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : filteredMaterials.length === 0 ? (

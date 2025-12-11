@@ -277,7 +277,7 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Mobile header */}
       <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-card px-4 md:hidden">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -336,7 +336,7 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
 
           {/* Main content with header */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-w-0">
             <header className="hidden md:flex h-12 items-center justify-between border-b bg-card px-2 sticky top-0 z-50">
               <div className="flex items-center gap-2">
                 <SidebarTrigger />
@@ -352,7 +352,7 @@ const Layout = ({ children }: LayoutProps) => {
             </header>
 
             <main className="flex-1 overflow-y-auto">
-              <div className="mx-auto p-4 md:p-6">
+              <div className="container mx-auto p-4 md:p-6 max-w-full">
                 {children}
               </div>
             </main>

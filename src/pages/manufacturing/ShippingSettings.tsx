@@ -23,6 +23,8 @@ interface CarrierSettings {
     api_key: string | null;
     meter_number: string | null;
     api_url: string | null;
+    tracking_client_id: string | null;
+    tracking_client_secret: string | null;
     default_service_code: string | null;
     default_package_type: string | null;
     shipper_name: string | null;
@@ -195,7 +197,7 @@ const ShippingSettings = () => {
                     <CardContent className="space-y-4">
                         <div className="grid gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="client_id">Client ID</Label>
+                                <Label htmlFor="client_id">Client ID (Shipping)</Label>
                                 <Input
                                     id="client_id"
                                     value={formData.client_id || ""}
@@ -205,7 +207,7 @@ const ShippingSettings = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="client_secret">Client Secret</Label>
+                                <Label htmlFor="client_secret">Client Secret (Shipping)</Label>
                                 <div className="relative">
                                     <Input
                                         id="client_secret"
@@ -233,6 +235,53 @@ const ShippingSettings = () => {
                                     </Button>
                                 </div>
                             </div>
+
+                            {carrier.carrier === "FEDEX" && (
+                                <>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="tracking_client_id">Tracking Client ID (Optional)</Label>
+                                        <Input
+                                            id="tracking_client_id"
+                                            value={formData.tracking_client_id || ""}
+                                            onChange={(e) => handleChange('tracking_client_id', e.target.value)}
+                                            placeholder="Enter tracking-specific client ID"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Use this if your tracking credentials are different from shipping
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="tracking_client_secret">Tracking Client Secret (Optional)</Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="tracking_client_secret"
+                                                type={showSecrets[`${carrier.carrier}_TRACK`] ? "text" : "password"}
+                                                value={formData.tracking_client_secret || ""}
+                                                onChange={(e) => handleChange('tracking_client_secret', e.target.value)}
+                                                placeholder="Enter tracking-specific client secret"
+                                                className="pr-10"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="absolute right-0 top-0 h-full"
+                                                onClick={() => setShowSecrets(prev => ({
+                                                    ...prev,
+                                                    [`${carrier.carrier}_TRACK`]: !prev[`${carrier.carrier}_TRACK`]
+                                                }))}
+                                            >
+                                                {showSecrets[`${carrier.carrier}_TRACK`] ? (
+                                                    <EyeOff className="h-4 w-4" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="account_number">Account Number</Label>

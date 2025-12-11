@@ -11,13 +11,23 @@ export class FedExCarrier {
         this.apiUrl = settings.api_url || "https://apis-sandbox.fedex.com";
     }
 
-
-    private async getToken(): Promise<string> {
+    private async getToken(purpose: 'ship' | 'track' = 'ship'): Promise<string> {
         // FedEx uses OAuth 2.0
-        console.log("FedEx OAuth Request:");
+        // Check if we have specific tracking credentials and if the purpose is tracking
+        let clientId = this.settings.client_id;
+        let clientSecret = this.settings.client_secret;
+
+        if (purpose === 'track' && this.settings.tracking_client_id && this.settings.tracking_client_secret) {
+            console.log("Using FedEx Tracking Credentials");
+            clientId = this.settings.tracking_client_id;
+            clientSecret = this.settings.tracking_client_secret;
+        }
+
+        console.log(`FedEx OAuth Request (${purpose}):`);
         console.log("- API URL:", this.apiUrl);
-        console.log("- Client ID:", this.settings.client_id ? `${this.settings.client_id.substring(0, 10)}...` : "MISSING");
-        console.log("- Client Secret:", this.settings.client_secret ? "Present (hidden)" : "MISSING");
+        // Show first 10 chars of client ID if present
+        console.log("- Client ID:", clientId ? `${clientId.substring(0, 10)}...` : "MISSING");
+        console.log("- Client Secret:", clientSecret ? "Present (hidden)" : "MISSING");
 
         const response = await fetch(`${this.apiUrl}/oauth/token`, {
             method: "POST",
@@ -26,29 +36,29 @@ export class FedExCarrier {
             },
             body: new URLSearchParams({
                 grant_type: "client_credentials",
-                client_id: this.settings.client_id,
-                client_secret: this.settings.client_secret,
+                client_id: clientId,
+                client_secret: clientSecret,
             }).toString(),
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("FedEx OAuth error:", errorText);
+            console.error(`FedEx OAuth error (${purpose}):`, errorText);
             console.error("Request details:", {
                 url: `${this.apiUrl}/oauth/token`,
-                client_id_length: this.settings.client_id?.length,
-                client_secret_length: this.settings.client_secret?.length,
+                client_id_length: clientId?.length,
+                client_secret_length: clientSecret?.length,
             });
             throw new Error(`Failed to get FedEx OAuth token: ${errorText}`);
         }
 
         const data = await response.json();
-        console.log("FedEx OAuth success - token received");
+        console.log(`FedEx OAuth success (${purpose}) - token received`);
         return data.access_token;
     }
 
     async getRates(shipment: any) {
-        const token = await this.getToken();
+        const token = await this.getToken('ship');
 
         const requestBody = {
             accountNumber: {
@@ -112,7 +122,7 @@ export class FedExCarrier {
     }
 
     async createShipment(shipment: any) {
-        const token = await this.getToken();
+        const token = await this.getToken('ship');
 
         const requestBody = {
             labelResponseOptions: "URL_ONLY",
@@ -217,7 +227,7 @@ export class FedExCarrier {
     }
 
     async schedulePickup(pickup: any) {
-        const token = await this.getToken();
+        const token = await this.getToken('ship');
 
         const requestBody = {
             associatedAccountNumber: {
@@ -235,7 +245,7 @@ export class FedExCarrier {
                 },
                 readyDateTimestamp: pickup.readyTime,
                 customerCloseTime: pickup.closeTime,
-                pickupDateType: "SAME_DAY",
+                pickupDateType: this.isFutureDate(pickup.readyTime) ? "FUTURE_DAY" : "SAME_DAY",
                 remarks: pickup.instructions,
             },
             packageDetails: {
@@ -275,7 +285,7 @@ export class FedExCarrier {
     }
 
     async trackShipment(trackingNumber: string) {
-        const token = await this.getToken();
+        const token = await this.getToken('track');
 
         const requestBody = {
             includeDetailedScans: true,
@@ -317,7 +327,7 @@ export class FedExCarrier {
     }
 
     async cancelShipment(trackingNumber: string) {
-        const token = await this.getToken();
+        const token = await this.getToken('ship');
 
         const requestBody = {
             accountNumber: {
@@ -341,6 +351,45 @@ export class FedExCarrier {
             const error = await response.text();
             console.error("FedEx Cancel Shipment error:", error);
             throw new Error(`FedEx Cancel Shipment error: ${error}`);
+        }
+
+        const data = await response.json();
+
+        return {
+            success: true,
+            rawResponse: data,
+        };
+    }
+
+    async cancelPickup(confirmationNumber: string, scheduledDate?: string) {
+        const token = await this.getToken('ship');
+
+        const requestBody = {
+            associatedAccountNumber: {
+                value: this.settings.account_number
+            },
+            pickupConfirmationCode: confirmationNumber,
+            scheduledDate: scheduledDate,
+            remarks: "Cancelled by user via VialFlow",
+            carrierCode: this.settings.default_service_code?.startsWith("FEDEX_EXPRESS") ? "FDXE" : "FDXG", // Basic inference, can be improved
+        };
+        // FedEx often requires carrier code for pickup cancellation differentiation (Express vs Ground)
+        // Ideally we store which one was used, but for now we try to infer or default.
+
+        const response = await fetch(`${this.apiUrl}/pickup/v1/pickups/cancel`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "X-locale": "en_US",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error("FedEx Cancel Pickup error:", error);
+            throw new Error(`FedEx Cancel Pickup error: ${error}`);
         }
 
         const data = await response.json();
@@ -391,5 +440,15 @@ export class FedExCarrier {
             "INTERNATIONAL_PRIORITY": "FedEx International Priority",
         };
         return services[code] || code;
+    }
+    private isFutureDate(readyTime: string): boolean {
+        try {
+            // readyTime is in YYYY-MM-DDTHH:mm:ss format
+            const pickupDateStr = readyTime.split('T')[0];
+            const now = new Date().toISOString().split('T')[0];
+            return pickupDateStr > now;
+        } catch (e) {
+            return false;
+        }
     }
 }

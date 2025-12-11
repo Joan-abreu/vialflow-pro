@@ -33,7 +33,7 @@ import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
 import StartProductionDialog from "@/components/production/StartProductionDialog";
 import { Input } from "@/components/ui/input";
-import { Package, Trash2, FileText, Search } from "lucide-react";
+import { Package, Trash2, FileText, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 
 interface ProductionBatch {
@@ -67,6 +67,7 @@ const Production = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const itemsPerPage = 10;
 
   const filteredBatches = batches.filter((batch) =>
@@ -83,7 +84,7 @@ const Production = () => {
     const { data: batchData, error } = await supabase
       .from("production_batches")
       .select("*, product_variant_details:product_id(vial_type_id(name, size_ml), product_id(name))")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: sortDirection === 'asc' });
 
     if (!error && batchData) {
       setBatches(batchData as any);
@@ -93,7 +94,7 @@ const Production = () => {
 
   useEffect(() => {
     fetchBatches();
-  }, []);
+  }, [sortDirection]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -195,7 +196,19 @@ const Production = () => {
                     <TableHead>Status</TableHead>
                     <TableHead>Started</TableHead>
                     <TableHead>Completed</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Created
+                        {sortDirection === 'asc' ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : (
+                          <ArrowDown className="h-4 w-4" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>

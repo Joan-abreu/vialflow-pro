@@ -178,7 +178,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             },
                         },
                         recipient: {
-                            name: order.customer_name || "Customer",
+                            name: (order.shipping_address as any)?.name || "Customer",
                             address: order.shipping_address || {},
                         },
                         packages: [{
@@ -276,6 +276,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 toast.success("Shipping label created successfully!");
                 onSuccess?.();
                 setStep('pickup');
+
+                // Update order status
+                await supabase
+                    .from("orders")
+                    .update({ status: "label_created" })
+                    .eq("id", orderId);
             }
         } catch (error: any) {
             console.error("Error creating label:", error);
@@ -293,6 +299,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
         setLoading(true);
         try {
+            // FedEx prefers YYYY-MM-DDTHH:mm:ss format, implied local time of pickup address
             const readyISO = `${pickupDate}T${pickupReadyTime}:00`;
             const closeISO = `${pickupCloseTime}:00`;
 
@@ -315,11 +322,119 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             if (error) throw error;
 
             toast.success("Pickup scheduled successfully!");
+
+            // Update order status
+            await supabase
+                .from("orders")
+                .update({ status: "pickup_scheduled" })
+                .eq("id", orderId);
+
             onSuccess?.();
             onOpenChange(false);
         } catch (error: any) {
             console.error("Error scheduling pickup:", error);
             toast.error(error.message || "Failed to schedule pickup");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const cancelPickup = async () => {
+        if (!pickupConfirmation || !shipmentId) return;
+
+        if (!confirm("Are you sure you want to cancel this pickup?")) return;
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "cancel_pickup",
+                    data: {
+                        shipmentId: shipmentId,
+                        confirmationNumber: pickupConfirmation,
+                        date: pickupDate,
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            if (data.data?.success) {
+                setPickupConfirmation("");
+                setPickupDate("");
+                setPickupReadyTime("09:00");
+                setPickupCloseTime("17:00");
+                toast.success("Pickup cancelled successfully");
+            }
+        } catch (error: any) {
+            console.error("Error cancelling pickup:", error);
+            toast.error(error.message || "Failed to cancel pickup");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const cancelShipment = async () => {
+        if (!shipmentId) return;
+
+        if (!confirm("Are you sure you want to cancel this shipment? This will void the label.")) return;
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "cancel_shipment",
+                    data: {
+                        shipmentId: shipmentId,
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            if (data.data?.success) {
+                toast.success("Shipment cancelled successfully");
+                onSuccess?.();
+                onOpenChange(false);
+            }
+        } catch (error: any) {
+            console.error("Error cancelling shipment:", error);
+            toast.error(error.message || "Failed to cancel shipment");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const trackShipment = async () => {
+        if (!trackingNumber || !shipmentId) return;
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke("shipping", {
+                body: {
+                    carrier: selectedCarrier,
+                    action: "track_shipment",
+                    data: {
+                        shipmentId: shipmentId,
+                        trackingNumber: trackingNumber,
+                    },
+                },
+            });
+
+            if (error) throw error;
+
+            if (data.data?.success) {
+                const events = data.data.events || [];
+                const latestStatus = data.data.status;
+
+                // Simple alert for now, can be improved with a custom dialog
+                alert(`Status: ${latestStatus}\nLatest Event: ${events[0]?.eventDescription || events[0]?.description || "No details available"}`);
+            }
+        } catch (error: any) {
+            console.error("Error tracking shipment:", error);
+            toast.error(error.message || "Failed to track shipment");
         } finally {
             setLoading(false);
         }
@@ -529,7 +644,16 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                             <div><span className="font-semibold">Ready Time:</span> {pickupReadyTime}</div>
                                             <div><span className="font-semibold">Close Time:</span> {pickupCloseTime}</div>
                                         </div>
-                                        <div className="pt-2">
+                                        <div className="pt-2 flex flex-col gap-2">
+                                            <Button
+                                                onClick={cancelPickup}
+                                                variant="destructive"
+                                                disabled={loading}
+                                                className="w-full"
+                                            >
+                                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                Cancel Pickup
+                                            </Button>
                                             <Button onClick={() => onOpenChange(false)} variant="outline" className="w-full bg-white hover:bg-green-50 border-green-200">
                                                 Close
                                             </Button>
@@ -584,6 +708,36 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                 )}
                             </CardContent>
                         </Card>
+
+                        {/* Additional Actions for existing shipments */}
+                        {shipmentId && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Shipment Actions</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <Button
+                                        onClick={trackShipment}
+                                        variant="secondary"
+                                        className="w-full"
+                                        disabled={loading}
+                                    >
+                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Track Shipment
+                                    </Button>
+
+                                    <Button
+                                        onClick={cancelShipment}
+                                        variant="destructive"
+                                        className="w-full"
+                                        disabled={loading}
+                                    >
+                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Cancel Shipment
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 )}
             </DialogContent>

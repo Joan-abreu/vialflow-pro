@@ -25,7 +25,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 
 interface OrderItem {
@@ -71,6 +71,7 @@ interface Order {
         tracking_number: string;
         tracking_url: string;
         label_url: string;
+        status: string;
         pickup_confirmation?: string;
     }[];
 }
@@ -109,10 +110,6 @@ const OrderManagement = () => {
         },
     });
 
-
-
-
-
     const updateStatusMutation = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
             const { error } = await supabase
@@ -122,7 +119,7 @@ const OrderManagement = () => {
 
             if (error) throw error;
 
-            if (status !== 'processing' && status !== 'in_production') {
+            if (status !== 'processing' && status !== 'in_production' && status !== 'ready_to_ship' && status !== 'label_created' && status !== 'pickup_scheduled') {
                 await supabase.functions.invoke("send-order-email", {
                     body: { order_id: orderId, type: "status_update" },
                 });
@@ -139,8 +136,30 @@ const OrderManagement = () => {
 
     const sendToProductionMutation = useMutation({
         mutationFn: async (order: Order) => {
-            // This is where we would ideally create production batches
-            // For now, we'll mark the order as sent to production
+            const variantGroups = getVariantGroups(order);
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) throw new Error("User not authenticated");
+
+            // Create production batches for each variant group
+            const batchInserts = variantGroups.map((group, index) => ({
+                batch_number: `ORD-${order.id.slice(0, 8)}-${index + 1}`,
+                product_id: group.variant.id,
+                quantity: group.totalQuantity * group.variant.pack_size,
+                sale_type: group.variant.sale_type,
+                pack_quantity: group.variant.sale_type === 'pack' ? group.variant.pack_size : null,
+                status: 'pending',
+                order_id: order.id,
+                created_by: user.id
+            }));
+
+            const { error: batchError } = await supabase
+                .from("production_batches")
+                .insert(batchInserts);
+
+            if (batchError) throw batchError;
+
+            // Mark the order as sent to production
             const { error } = await supabase
                 .from("orders")
                 .update({
@@ -183,9 +202,13 @@ const OrderManagement = () => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case "pending": return "bg-yellow-100 text-yellow-800";
+            case "pending": return "bg-gray-100 text-gray-800";
+            case "pending_payment": return "bg-yellow-100 text-yellow-800";
             case "processing": return "bg-blue-100 text-blue-800";
             case "in_production": return "bg-purple-100 text-purple-800";
+            case "ready_to_ship": return "bg-orange-100 text-orange-800";
+            case "label_created": return "bg-cyan-100 text-cyan-800";
+            case "pickup_scheduled": return "bg-teal-100 text-teal-800";
             case "shipped": return "bg-indigo-100 text-indigo-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
@@ -284,7 +307,7 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="secondary" className={getStatusColor(order.status)}>
-                                                    {order.status}
+                                                    {order.status.replace(/_/g, " ")}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right">${order.total_amount.toFixed(2)}</TableCell>
@@ -299,17 +322,19 @@ const OrderManagement = () => {
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
                                                     <Select
-                                                        defaultValue={order.status}
+                                                        value={order.status}
                                                         onValueChange={(value) => handleStatusChange(order.id, value)}
                                                     >
                                                         <SelectTrigger className="w-[170px] h-8">
                                                             <SelectValue placeholder="Status" />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            <SelectItem value="pending_payment">Pending-Payment</SelectItem>
-                                                            <SelectItem value="pending">Pending</SelectItem>
+                                                            <SelectItem value="pending_payment">Pending Payment</SelectItem>
                                                             <SelectItem value="processing">Processing</SelectItem>
                                                             <SelectItem value="in_production">In Production</SelectItem>
+                                                            <SelectItem value="ready_to_ship">Ready to Ship</SelectItem>
+                                                            <SelectItem value="label_created">Label Created</SelectItem>
+                                                            <SelectItem value="pickup_scheduled">Pickup Scheduled</SelectItem>
                                                             <SelectItem value="shipped">Shipped</SelectItem>
                                                             <SelectItem value="delivered">Delivered</SelectItem>
                                                             <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -318,7 +343,17 @@ const OrderManagement = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                {order.sent_to_production ? (
+                                                {order.status === 'in_production' ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="default"
+                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                        onClick={() => handleStatusChange(order.id, 'ready_to_ship')}
+                                                    >
+                                                        <Package className="h-4 w-4 mr-2" />
+                                                        Complete Production
+                                                    </Button>
+                                                ) : order.sent_to_production ? (
                                                     <Badge variant="outline" className="bg-green-50 text-green-700">
                                                         ✓ Sent {order.sent_to_production_at && `on ${format(new Date(order.sent_to_production_at), "MMM d")}`}
                                                     </Badge>
@@ -327,6 +362,8 @@ const OrderManagement = () => {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => handleSendToProduction(order)}
+                                                        disabled={order.status !== 'processing'}
+                                                        title={order.status !== 'processing' ? "Order must be Processing to send to production" : ""}
                                                     >
                                                         <Factory className="h-4 w-4 mr-2" />
                                                         Send to Production
@@ -338,38 +375,45 @@ const OrderManagement = () => {
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleCreateShippingLabel(order)}
-                                                        disabled={order.status === 'cancelled' || order.status === 'pending_payment'}
-                                                        variant={order.status === 'shipped' ? "secondary" : "outline"}
+                                                        disabled={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status)}
+                                                        variant={['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "secondary" : "outline"}
+                                                        title={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Complete production first" : ""}
                                                     >
                                                         <Truck className="h-4 w-4 mr-2" />
-                                                        {order.status === 'shipped' ? "Manage Shipping" : "Create Label"}
+                                                        {['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Manage Shipping" : "Create Label"}
                                                     </Button>
 
-                                                    {order.order_shipments && order.order_shipments.length > 0 && (
+                                                    {order.order_shipments && order.order_shipments.filter(s => s.status !== 'cancelled').length > 0 && (
                                                         <div className="flex flex-col gap-1 text-xs">
-                                                            {order.order_shipments.map((shipment, idx) => (
-                                                                <div key={idx} className="flex items-center gap-1">
-                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{shipment.carrier}</Badge>
-                                                                    {shipment.tracking_url ? (
-                                                                        <a
-                                                                            href={shipment.tracking_url}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="text-blue-600 hover:underline flex items-center gap-1"
-                                                                        >
-                                                                            {shipment.tracking_number}
-                                                                            <Eye className="h-3 w-3" />
-                                                                        </a>
-                                                                    ) : (
-                                                                        <span className="text-muted-foreground">{shipment.tracking_number}</span>
-                                                                    )}
-                                                                    {shipment.pickup_confirmation && (
-                                                                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 text-green-700 border-green-200">
-                                                                            Pickup: {shipment.pickup_confirmation}
-                                                                        </Badge>
-                                                                    )}
-                                                                </div>
-                                                            ))}
+                                                            {order.order_shipments
+                                                                .filter(s => s.status !== 'cancelled')
+                                                                .map((shipment, idx) => (
+                                                                    <div key={idx} className="flex flex-col items-start gap-1">
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{shipment.carrier}</Badge>
+                                                                            {shipment.tracking_url ? (
+                                                                                <a
+                                                                                    href={shipment.tracking_url}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="text-blue-600 hover:underline flex items-center gap-1"
+                                                                                >
+                                                                                    {shipment.tracking_number}
+                                                                                    <Eye className="h-3 w-3" />
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span className="text-muted-foreground">{shipment.tracking_number}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        {shipment.pickup_confirmation && (
+                                                                            <div className="flex items-center gap-1">
+                                                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-teal-50 text-teal-700 border-teal-200">
+                                                                                    Pickup #: {shipment.pickup_confirmation}
+                                                                                </Badge>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
                                                         </div>
                                                     )}
                                                 </div>

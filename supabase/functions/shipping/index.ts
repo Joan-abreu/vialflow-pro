@@ -19,7 +19,8 @@ interface ICarrier {
     createShipment(shipment: any): Promise<any>;
     schedulePickup(pickup: any): Promise<any>;
     trackShipment(trackingNumber: string): Promise<any>;
-    cancelShipment(shipmentId: string): Promise<any>;
+    cancelShipment(trackingNumber: string): Promise<any>;
+    cancelPickup(confirmationNumber: string): Promise<any>;
 }
 
 // Carrier factory
@@ -166,13 +167,65 @@ const handler = async (req: Request): Promise<Response> => {
                 }
                 break;
 
-            case "cancel_shipment":
-                result = await carrierInstance.cancelShipment(data.shipmentId);
+            case "cancel_shipment": {
+                // Fetch shipment to get tracking number
+                const { data: shipmentToCancel, error: fetchError } = await supabase
+                    .from("order_shipments")
+                    .select("tracking_number, order_id")
+                    .eq("id", data.shipmentId)
+                    .single();
+
+                if (fetchError || !shipmentToCancel) {
+                    throw new Error("Shipment not found");
+                }
+
+                result = await carrierInstance.cancelShipment(shipmentToCancel.tracking_number);
 
                 if (result.success) {
                     await supabase
                         .from("order_shipments")
                         .update({ status: "cancelled" })
+                        .eq("id", data.shipmentId);
+
+                    // Check if there are any other active shipments for this order
+                    if (shipmentToCancel.order_id) {
+                        const { count, error: countError } = await supabase
+                            .from("order_shipments")
+                            .select("*", { count: "exact", head: true })
+                            .eq("order_id", shipmentToCancel.order_id)
+                            .neq("status", "cancelled")
+                            .neq("id", data.shipmentId); // Exclude the one we just cancelled
+
+                        if (!countError && count === 0) {
+                            // No other active shipments, revert order status
+                            await supabase
+                                .from("orders")
+                                .update({
+                                    status: "ready_to_ship",
+                                    tracking_number: null
+                                })
+                                .eq("id", shipmentToCancel.order_id);
+
+                            console.log(`Order ${shipmentToCancel.order_id} reverted to ready_to_ship`);
+                        }
+                    }
+                }
+                break;
+            }
+
+            case "cancel_pickup":
+                result = await carrierInstance.cancelPickup(data.confirmationNumber, data.date);
+
+                // Clear pickup info
+                if (result.success && data.shipmentId) {
+                    await supabase
+                        .from("order_shipments")
+                        .update({
+                            pickup_confirmation: null,
+                            pickup_date: null,
+                            pickup_ready_time: null,
+                            pickup_close_time: null,
+                        })
                         .eq("id", data.shipmentId);
                 }
                 break;

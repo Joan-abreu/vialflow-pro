@@ -82,9 +82,25 @@ const Layout = ({ children }: LayoutProps) => {
     fetchUserProfile();
     fetchPendingOrdersCount();
 
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingOrdersCount, 30000);
-    return () => clearInterval(interval);
+    // Real-time subscription for order updates
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          fetchPendingOrdersCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isAdmin]);
 
   const handleSignOut = async () => {

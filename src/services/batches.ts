@@ -10,12 +10,99 @@ export const updateBatchStatus = async (batchId: string) => {
     // 1️⃣ Obtener el batch
     const { data: batchData, error: batchError } = await supabase
       .from("production_batches")
-      .select("id, status, started_at, sale_type, quantity, pack_quantity, waste_quantity")
+      .select("id, status, started_at, sale_type, quantity, pack_quantity, waste_quantity, order_id")
       .eq("id", batchId)
       .single();
 
     if (batchError) throw batchError;
     const batch = batchData;
+
+    let newStatus = batch.status;
+    let shippedUnits = 0;
+    let totalProcessed = 0;
+
+    // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
+    // No usamos la lógica de shipments para calcular el estado, ya que se gestiona diferente.
+    // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
+    // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
+    if (batch.order_id) {
+      // Consultamos shipments para ver el estado del envío asociado al batch
+      const { data: orderShipments, error: orderShipmentsError } = await supabase
+        .from("shipments")
+        .select("status")
+        .eq("batch_id", batchId);
+
+      console.log("batchId: ", batchId);
+
+      if (!orderShipmentsError && orderShipments && orderShipments.length > 0) {
+        // Lógica simplificada: Si hay algún shipment, asumimos que afecta a todos los batches de la orden por igual
+
+        const hasLabel = orderShipments.some(s => ['preparing'].includes(s.status));
+        const isDelivered = orderShipments.every(s => s.status === 'delivered');
+
+        if (isDelivered) {
+          newStatus = 'completed';
+          shippedUnits = batch.quantity / batch.pack_quantity; // Todo enviado
+          totalProcessed = batch.quantity / batch.pack_quantity + (batch.waste_quantity || 0);
+        } else if (hasLabel) {
+          newStatus = 'in_progress';
+          totalProcessed = batch.quantity / batch.pack_quantity + (batch.waste_quantity || 0); // Asumimos en proceso
+
+          const isShipped = orderShipments.some(s => s.status === 'shipped');
+          if (isShipped) {
+            shippedUnits = batch.quantity / batch.pack_quantity;
+          }
+        }
+      }
+
+      // Si el status calculado (o mantenido) es completed, verificamos si todos los batches de la orden están completos
+      if (newStatus === 'completed') {
+        const { data: allBatches, error: allBatchesErr } = await supabase
+          .from("production_batches")
+          .select("id, status")
+          .eq("order_id", batch.order_id);
+
+        if (!allBatchesErr && allBatches) {
+          // Todos deben estar completed (el actual lo consideramos completed por newStatus)
+          const othersCompleted = allBatches.every(b => b.id === batchId || b.status === 'completed');
+
+          if (othersCompleted) {
+            console.log(`All batches for order ${batch.order_id} are completed (with current update). Updating order status.`);
+            const { error: orderUpdateError } = await supabase
+              .from("orders")
+              .update({ status: 'ready_to_ship' })
+              .eq("id", batch.order_id);
+
+            if (orderUpdateError) {
+              console.error("Error updating order status:", orderUpdateError);
+            }
+          }
+        }
+      }
+
+      // PREPARAMOS DATA PARA UPDATE Y SALIMOS
+      const updateDataEcommerce: any = {
+        status: newStatus,
+        shipped_units: shippedUnits,
+        units_in_progress: totalProcessed,
+      };
+
+      if (newStatus === 'completed') {
+        updateDataEcommerce.completed_at = new Date().toISOString();
+      }
+
+      const { error: updateError } = await supabase
+        .from("production_batches")
+        .update(updateDataEcommerce)
+        .eq("id", batchId);
+
+      if (updateError) throw updateError;
+      console.log("Batch (Ecommerce) updated successfully:", updateDataEcommerce);
+
+      return;
+    }
+
+    // LÓGICA EXISTENTE PARA FBA / BATCHES SIN ORDER_ID
 
     // 2️⃣ Obtener los shipments del batch
     const { data: shipments, error: shipmentsError } = await supabase
@@ -55,7 +142,7 @@ export const updateBatchStatus = async (batchId: string) => {
 
     // Include waste_quantity in progress calculation
     const wasteQuantity = batch.waste_quantity / batch.pack_quantity || 0;
-    const totalProcessed = unitsInProgress + wasteQuantity;
+    totalProcessed = unitsInProgress + wasteQuantity;
 
     // 6️⃣ Calcular shipped_units (shipped + delivered)
     const shippedShipmentIds = shipments
@@ -66,13 +153,13 @@ export const updateBatchStatus = async (batchId: string) => {
       shippedShipmentIds.includes(box.shipment_id)
     ) || [];
 
-    const shippedUnits = shippedBoxes.reduce((sum, box) => {
+    shippedUnits = shippedBoxes.reduce((sum, box) => {
       if (batch.sale_type === "pack") return sum + (box.packs_per_box || 0);
       return sum + (box.bottles_per_box || 0);
     }, 0);
 
     // 7️⃣ Determinar estado del batch
-    let newStatus = "pending";
+    newStatus = "pending";
 
     // Si NO hay shipments → el batch está vacío, sigue pending
     if (!shipments || shipments.length === 0) {

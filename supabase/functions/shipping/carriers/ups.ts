@@ -279,10 +279,63 @@ export class UPSCarrier {
         };
     }
 
-    async cancelShipment(shipmentId: string) {
-        // UPS doesn't have a direct cancel API for created labels
-        // You would need to void the shipment on the same day
-        throw new Error("UPS shipment cancellation not implemented");
+    async cancelShipment(trackingNumber: string) {
+        const token = await this.getToken();
+
+        // UPS Void Shipment API
+        const response = await fetch(
+            `${this.apiUrl}/void/v1/voiding/shipments/${trackingNumber}`,
+            {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "transId": crypto.randomUUID(),
+                    "transactionSrc": "VialFlow",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error("UPS Void Shipment error:", error);
+            throw new Error(`UPS Void Shipment error: ${error}`);
+        }
+
+        const data = await response.json();
+
+        return {
+            success: true,
+            rawResponse: data,
+        };
+    }
+
+    async cancelPickup(confirmationNumber: string, scheduledDate?: string) {
+        const token = await this.getToken();
+
+        const response = await fetch(
+            `${this.apiUrl}/pickup/v1/pickups/${confirmationNumber}`,
+            {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "transId": crypto.randomUUID(),
+                    "transactionSrc": "VialFlow",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error("UPS Cancel Pickup error:", error);
+            throw new Error(`UPS Cancel Pickup error: ${error}`);
+        }
+
+        const data = await response.json();
+
+        return {
+            success: true,
+            rawResponse: data,
+        };
     }
 
     private formatAddress(address: any, accountNumber?: string) {

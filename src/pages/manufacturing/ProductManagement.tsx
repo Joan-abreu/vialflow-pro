@@ -57,6 +57,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import { ManageCategoriesDialog } from "@/components/admin/ManageCategoriesDialog";
+
+interface ProductCategory {
+    id: string;
+    name: string;
+    description: string | null;
+}
 
 interface Product {
     id: string;
@@ -64,10 +71,12 @@ interface Product {
     description: string | null;
     is_active: boolean;
     is_published: boolean;
-    category: string | null;
+    category_id: string | null;
+    product_categories?: ProductCategory | null;
     image_url: string | null;
     sale_type: string;
     default_pack_size: number | null;
+    slug?: string;
 }
 
 interface ProductVariant {
@@ -190,10 +199,23 @@ const ProductManagement = () => {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from("products")
+                .select("*, product_categories(id, name)")
+                .order("name");
+            if (error) throw error;
+            return data as any as Product[];
+        },
+    });
+
+    // Fetch categories
+    const { data: categories } = useQuery({
+        queryKey: ["product-categories"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("product_categories" as any)
                 .select("*")
                 .order("name");
             if (error) throw error;
-            return data as Product[];
+            return data as any as ProductCategory[];
         },
     });
 
@@ -251,10 +273,14 @@ const ProductManagement = () => {
 
     // Product mutations
     const createProductMutation = useMutation({
-        mutationFn: async (newProduct: Omit<Product, "id">) => {
+        mutationFn: async (newProduct: Omit<Product, "id" | "product_categories">) => {
+            const productWithSlug = {
+                ...newProduct,
+                slug: newProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+            };
             const { data, error } = await supabase
                 .from("products")
-                .insert([newProduct])
+                .insert([productWithSlug] as any)
                 .select();
             if (error) throw error;
             return data;
@@ -271,9 +297,16 @@ const ProductManagement = () => {
 
     const updateProductMutation = useMutation({
         mutationFn: async (product: Product) => {
+            // Exclude product_categories from update payload
+            const { product_categories, ...updateData } = product;
+            const updatePayload = {
+                ...updateData,
+                slug: updateData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+            };
+
             const { data, error } = await supabase
                 .from("products")
-                .update(product)
+                .update(updatePayload as any)
                 .eq("id", product.id)
                 .select();
             if (error) throw error;
@@ -412,7 +445,7 @@ const ProductManagement = () => {
         const productData = {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
-            category: formData.get("category") as string,
+            category_id: formData.get("category_id") as string || null,
             image_url: productImageUrl || formData.get("image_url") as string,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
@@ -576,82 +609,93 @@ const ProductManagement = () => {
         >
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">Product Management</h1>
-                    <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
-                        setIsProductDialogOpen(open);
-                        if (!open) {
-                            setEditingProduct(null);
-                            setProductImageUrl("");
-                        }
-                    }}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> Add Product
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                                <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
-                                <DialogDescription>
-                                    {editingProduct ? "Update product information" : "Create a new product"}
-                                </DialogDescription>
-                            </DialogHeader>
-                            <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Name</Label>
-                                    <Input id="name" name="name" defaultValue={editingProduct?.name} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="description">Description</Label>
-                                    <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="category">Category</Label>
-                                    <select
-                                        id="category"
-                                        name="category"
-                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        defaultValue={editingProduct?.category || ""}
-                                    >
-                                        <option value="" disabled>Select a category</option>
-                                        <option value="Peptides">Peptides</option>
-                                        <option value="Water">Water</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="image_url">Product Image</Label>
-                                    <ImageUpload
-                                        existingUrl={productImageUrl}
-                                        onUpload={setProductImageUrl}
-                                    />
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        id="is_active"
-                                        name="is_active"
-                                        className="h-4 w-4 rounded border-gray-300"
-                                        defaultChecked={editingProduct?.is_active ?? true}
-                                    />
-                                    <Label htmlFor="is_active">Active (Manufacturing)</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        id="is_published"
-                                        name="is_published"
-                                        className="h-4 w-4 rounded border-gray-300"
-                                        defaultChecked={editingProduct?.is_published ?? false}
-                                    />
-                                    <Label htmlFor="is_published">Published (E-commerce)</Label>
-                                </div>
-                                <Button type="submit" className="w-full">
-                                    {editingProduct ? "Update Product" : "Create Product"}
+                    <div>
+                        <h1 className="text-3xl font-bold">Product Management</h1>
+                        <p className="text-muted-foreground mt-2">
+                            Manage your product catalog, variants, and categories.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <ManageCategoriesDialog />
+                        <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
+                            setIsProductDialogOpen(open);
+                            if (!open) {
+                                setEditingProduct(null);
+                                setProductImageUrl("");
+                            }
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button>
+                                    <Plus className="mr-2 h-4 w-4" /> Add Product
                                 </Button>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                    <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
+                                    <DialogDescription>
+                                        {editingProduct ? "Update product information" : "Create a new product"}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Name</Label>
+                                        <Input id="name" name="name" defaultValue={editingProduct?.name} required />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="description">Description</Label>
+                                        <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="category_id">Category</Label>
+                                        <select
+                                            id="category_id"
+                                            name="category_id"
+                                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            defaultValue={editingProduct?.category_id || ""}
+                                        >
+                                            <option value="">No category</option>
+                                            {categories?.map((cat) => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="image_url">Product Image</Label>
+                                        <ImageUpload
+                                            existingUrl={productImageUrl}
+                                            onUpload={setProductImageUrl}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            id="is_active"
+                                            name="is_active"
+                                            className="h-4 w-4 rounded border-gray-300"
+                                            defaultChecked={editingProduct?.is_active ?? true}
+                                        />
+                                        <Label htmlFor="is_active">Active (Manufacturing)</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            id="is_published"
+                                            name="is_published"
+                                            className="h-4 w-4 rounded border-gray-300"
+                                            defaultChecked={editingProduct?.is_published ?? false}
+                                        />
+                                        <Label htmlFor="is_published">Published (E-commerce)</Label>
+                                    </div>
+                                    <Button type="submit" className="w-full">
+                                        {editingProduct ? "Update Product" : "Create Product"}
+                                    </Button>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
 
                 <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
@@ -879,7 +923,7 @@ const ProductManagement = () => {
                                                         )}
                                                     </TableCell>
                                                     <TableCell className="font-medium">{product.name}</TableCell>
-                                                    <TableCell>{product.category || "—"}</TableCell>
+                                                    <TableCell>{product.product_categories?.name || "—"}</TableCell>
                                                     <TableCell>
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                                             {product.is_active ? 'Active' : 'Inactive'}

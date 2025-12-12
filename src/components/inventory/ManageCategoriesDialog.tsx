@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FolderOpen, Loader2, Plus, Trash2 } from "lucide-react";
+import { FolderOpen, Loader2, Plus, Trash2, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -33,6 +33,7 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
   const [newCategory, setNewCategory] = useState("");
   const [loading, setLoading] = useState(false);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   const fetchCategories = async () => {
     const { data } = await supabase
@@ -47,25 +48,53 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
     if (open) fetchCategories();
   }, [open]);
 
-  const handleAddCategory = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from("material_categories")
-      .insert({ name: newCategory.trim().toLowerCase() });
+
+    if (editingCategory) {
+      const { error } = await supabase
+        .from("material_categories")
+        .update({ name: newCategory.trim().toLowerCase() })
+        .eq("id", editingCategory.id);
+
+      if (error) {
+        toast.error("Error updating category: " + error.message);
+      } else {
+        toast.success("Category updated successfully");
+        setNewCategory("");
+        setEditingCategory(null);
+        fetchCategories();
+        onSuccess?.();
+      }
+    } else {
+      const { error } = await supabase
+        .from("material_categories")
+        .insert({ name: newCategory.trim().toLowerCase() });
+
+      if (error) {
+        toast.error("Error creating category: " + error.message);
+      } else {
+        toast.success("Category created successfully");
+        setNewCategory("");
+        fetchCategories();
+        onSuccess?.();
+      }
+    }
 
     setLoading(false);
+  };
 
-    if (error) {
-      toast.error("Error creating category: " + error.message);
-    } else {
-      toast.success("Category created successfully");
-      setNewCategory("");
-      fetchCategories();
-      onSuccess?.();
-    }
+  const handleEdit = (category: Category) => {
+    setEditingCategory(category);
+    setNewCategory(category.name);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCategory(null);
+    setNewCategory("");
   };
 
   const handleDeleteCategory = async () => {
@@ -103,9 +132,12 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => {
+      setOpen(val);
+      if (!val) handleCancelEdit();
+    }}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="lg">
           <FolderOpen className="mr-2 h-4 w-4" />
           Manage Categories
         </Button>
@@ -114,13 +146,15 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
         <DialogHeader>
           <DialogTitle className="text-base sm:text-lg">Manage Material Categories</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Add, remove, or toggle categories for your materials
+            Add, edit, remove, or toggle categories for your materials
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleAddCategory} className="flex flex-col sm:flex-row gap-2">
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 grid gap-1.5 sm:gap-2">
-            <Label htmlFor="category-name" className="text-xs sm:text-sm">New Category</Label>
+            <Label htmlFor="category-name" className="text-xs sm:text-sm">
+              {editingCategory ? "Edit Category Name" : "New Category"}
+            </Label>
             <Input
               id="category-name"
               value={newCategory}
@@ -129,10 +163,12 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
               maxLength={50}
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <Button type="submit" disabled={loading || !newCategory.trim()}>
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : editingCategory ? (
+                "Save"
               ) : (
                 <>
                   <Plus className="mr-2 h-4 w-4" />
@@ -140,6 +176,11 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
                 </>
               )}
             </Button>
+            {editingCategory && (
+              <Button type="button" variant="ghost" onClick={handleCancelEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
 
@@ -173,14 +214,24 @@ const ManageCategoriesDialog = ({ onSuccess }: ManageCategoriesDialogProps) => {
                         Active
                       </Label>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeletingCategory(category)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(category)}
+                        className="h-8 w-8"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeletingCategory(category)}
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))

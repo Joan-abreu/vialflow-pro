@@ -20,7 +20,7 @@ interface ICarrier {
     schedulePickup(pickup: any): Promise<any>;
     trackShipment(trackingNumber: string): Promise<any>;
     cancelShipment(trackingNumber: string): Promise<any>;
-    cancelPickup(confirmationNumber: string): Promise<any>;
+    cancelPickup(confirmationNumber: string, scheduledDate?: string, serviceCode?: string): Promise<any>;
 }
 
 // Carrier factory
@@ -182,9 +182,10 @@ const handler = async (req: Request): Promise<Response> => {
                 result = await carrierInstance.cancelShipment(shipmentToCancel.tracking_number);
 
                 if (result.success) {
+                    // Delete the shipment record entirely
                     await supabase
                         .from("order_shipments")
-                        .update({ status: "cancelled" })
+                        .delete()
                         .eq("id", data.shipmentId);
 
                     // Check if there are any other active shipments for this order
@@ -192,12 +193,10 @@ const handler = async (req: Request): Promise<Response> => {
                         const { count, error: countError } = await supabase
                             .from("order_shipments")
                             .select("*", { count: "exact", head: true })
-                            .eq("order_id", shipmentToCancel.order_id)
-                            .neq("status", "cancelled")
-                            .neq("id", data.shipmentId); // Exclude the one we just cancelled
+                            .eq("order_id", shipmentToCancel.order_id);
 
                         if (!countError && count === 0) {
-                            // No other active shipments, revert order status
+                            // No other shipments, revert order status
                             await supabase
                                 .from("orders")
                                 .update({
@@ -213,8 +212,20 @@ const handler = async (req: Request): Promise<Response> => {
                 break;
             }
 
-            case "cancel_pickup":
-                result = await carrierInstance.cancelPickup(data.confirmationNumber, data.date);
+            case "cancel_pickup": {
+                // Fetch shipment to get details for cancellation (like service code)
+                const { data: shipment, error: fetchError } = await supabase
+                    .from("order_shipments")
+                    .select("service_code")
+                    .eq("id", data.shipmentId)
+                    .single();
+
+                if (fetchError) {
+                    // Fallback if shipment not found (shouldn't happen usually)
+                    console.warn("Could not fetch shipment for pickup cancellation:", fetchError);
+                }
+
+                result = await carrierInstance.cancelPickup(data.confirmationNumber, data.date, shipment?.service_code);
 
                 // Clear pickup info
                 if (result.success && data.shipmentId) {
@@ -229,6 +240,7 @@ const handler = async (req: Request): Promise<Response> => {
                         .eq("id", data.shipmentId);
                 }
                 break;
+            }
 
             default:
                 throw new Error(`Unknown action: ${action}`);

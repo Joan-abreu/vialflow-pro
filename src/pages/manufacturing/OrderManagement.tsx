@@ -245,7 +245,12 @@ const OrderManagement = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Order Management</h1>
+                <div>
+                    <h1 className="text-3xl font-bold">Order Management</h1>
+                    <p className="text-muted-foreground mt-2">
+                        Track and manage your customer orders, production status, and shipments.
+                    </p>
+                </div>
             </div>
 
             <Card>

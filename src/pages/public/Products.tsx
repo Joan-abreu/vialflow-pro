@@ -35,14 +35,15 @@ const Products = () => {
                 .from("product_variants")
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, category, is_published, sale_type, default_pack_size),
+                    product:products!inner(id, slug, name, description, image_url, category_id, is_published, sale_type, default_pack_size, product_categories(name)),
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
                 .eq("product.is_published", true);
 
             if (selectedCategory) {
-                query = query.eq("product.category", selectedCategory);
+                // Filter by category name via the relation
+                query = query.eq("product.product_categories.name", selectedCategory);
             }
 
 
@@ -65,7 +66,7 @@ const Products = () => {
                         name: variant.product.name,
                         description: variant.product.description,
                         image_url: variant.product.image_url,
-                        category: variant.product.category,
+                        category: variant.product.product_categories?.name || null,
                         sale_type: variant.product.sale_type || 'individual',
                         default_pack_size: variant.product.default_pack_size,
                         variants: [],
@@ -87,7 +88,7 @@ const Products = () => {
                         name: variant.product.name,
                         image_url: variant.product.image_url,
                         description: variant.product.description,
-                        category: variant.product.category,
+                        category: variant.product.product_categories?.name || null,
                     },
                     vial_type: {
                         name: variant.vial_type.name,
@@ -111,6 +112,19 @@ const Products = () => {
     const getLowestPrice = (variants: ProductVariant[]) => {
         return Math.min(...variants.map(v => v.price));
     };
+
+    // Fetch categories for sidebar
+    const { data: categories } = useQuery({
+        queryKey: ["product-categories"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("product_categories" as any)
+                .select("name")
+                .eq("active", true)
+                .order("name");
+            return (data || []).map((c: any) => c.name);
+        }
+    });
 
     return (
         <div className="container py-12">
@@ -149,28 +163,19 @@ const Products = () => {
                                 />
                                 <label htmlFor="cat-all" className="text-sm cursor-pointer">All Products</label>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    id="cat-peptides"
-                                    name="category"
-                                    className="rounded border-gray-300"
-                                    checked={selectedCategory === "Peptides"}
-                                    onChange={() => setSelectedCategory("Peptides")}
-                                />
-                                <label htmlFor="cat-peptides" className="text-sm cursor-pointer">Peptides</label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    id="cat-water"
-                                    name="category"
-                                    className="rounded border-gray-300"
-                                    checked={selectedCategory === "Water"}
-                                    onChange={() => setSelectedCategory("Water")}
-                                />
-                                <label htmlFor="cat-water" className="text-sm cursor-pointer">Water</label>
-                            </div>
+                            {categories?.map((category: string) => (
+                                <div key={category} className="flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        id={`cat-${category}`}
+                                        name="category"
+                                        className="rounded border-gray-300"
+                                        checked={selectedCategory === category}
+                                        onChange={() => setSelectedCategory(category)}
+                                    />
+                                    <label htmlFor={`cat-${category}`} className="text-sm cursor-pointer">{category}</label>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

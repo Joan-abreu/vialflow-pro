@@ -14,13 +14,13 @@ export class FedExCarrier {
     private async getToken(purpose: 'ship' | 'track' = 'ship'): Promise<string> {
         // FedEx uses OAuth 2.0
         // Check if we have specific tracking credentials and if the purpose is tracking
-        let clientId = this.settings.client_id;
-        let clientSecret = this.settings.client_secret;
+        let clientId = this.settings.client_id?.trim();
+        let clientSecret = this.settings.client_secret?.trim();
 
         if (purpose === 'track' && this.settings.tracking_client_id && this.settings.tracking_client_secret) {
             console.log("Using FedEx Tracking Credentials");
-            clientId = this.settings.tracking_client_id;
-            clientSecret = this.settings.tracking_client_secret;
+            clientId = this.settings.tracking_client_id?.trim();
+            clientSecret = this.settings.tracking_client_secret?.trim();
         }
 
         console.log(`FedEx OAuth Request (${purpose}):`);
@@ -361,20 +361,54 @@ export class FedExCarrier {
         };
     }
 
-    async cancelPickup(confirmationNumber: string, scheduledDate?: string) {
+    async cancelPickup(confirmationNumber: string, scheduledDate?: string, serviceCode?: string) {
         const token = await this.getToken('ship');
+
+        // Formatted date YYYY-MM-DD
+        let formattedDate = scheduledDate;
+        if (scheduledDate && scheduledDate.length === 8 && !scheduledDate.includes("-")) {
+            // Convert YYYYMMDD to YYYY-MM-DD
+            formattedDate = `${scheduledDate.substring(0, 4)}-${scheduledDate.substring(4, 6)}-${scheduledDate.substring(6, 8)}`;
+        }
+
+        // Determine carrier code (FDXE vs FDXG)
+        let carrierCode = "FDXG"; // Default to Ground
+        const codeToCheck = serviceCode || this.settings.default_service_code;
+
+        if (codeToCheck) {
+            const upperCode = codeToCheck.toUpperCase();
+            if (upperCode === "FEDEX_GROUND" ||
+                upperCode === "FDXG" ||
+                upperCode === "FEDEX_HOME_DELIVERY" ||
+                upperCode.includes("GROUND")) {
+                carrierCode = "FDXG";
+            } else {
+                // Assume Express for everything else (Overnight, 2Day, etc.)
+                carrierCode = "FDXE";
+            }
+        }
+
+        console.log(`Cancelling Pickup - Service: ${codeToCheck}, Inferred Carrier: ${carrierCode}`);
 
         const requestBody = {
             associatedAccountNumber: {
                 value: this.settings.account_number
             },
             pickupConfirmationCode: confirmationNumber,
-            scheduledDate: scheduledDate,
-            remarks: "Cancelled by user via VialFlow",
-            carrierCode: this.settings.default_service_code?.startsWith("FEDEX_EXPRESS") ? "FDXE" : "FDXG", // Basic inference, can be improved
+            scheduledDate: formattedDate,
+            // location: "FRONT",
+            // remarks: "Cancelled by user via VialFlow",
+            carrierCode: carrierCode,
+            // accountAddressOfRecord: {
+            //     streetLines: [this.settings.shipper_address?.address_line1 || ""],
+            //     city: this.settings.shipper_address?.city || "",
+            //     stateOrProvinceCode: this.settings.shipper_address?.state_code || "",
+            //     postalCode: this.settings.shipper_address?.postal_code || "",
+            //     countryCode: this.settings.shipper_address?.country_code || "US"
+            // }
         };
-        // FedEx often requires carrier code for pickup cancellation differentiation (Express vs Ground)
-        // Ideally we store which one was used, but for now we try to infer or default.
+
+        console.log("Cancel Pickup Request:", requestBody);
 
         const response = await fetch(`${this.apiUrl}/pickup/v1/pickups/cancel`, {
             method: "PUT",

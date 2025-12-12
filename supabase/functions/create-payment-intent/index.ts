@@ -16,23 +16,35 @@ serve(async (req) => {
     }
 
     try {
-        const { amount, currency = "usd" } = await req.json();
+        const { amount, currency = "usd", paymentIntentId } = await req.json();
 
         if (!amount) {
             throw new Error("Amount is required");
         }
 
-        // Create a PaymentIntent with the order amount and currency
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(amount * 100), // Stripe expects amount in cents
-            currency: currency,
-            automatic_payment_methods: {
-                enabled: true,
-            },
-        });
+        let paymentIntent;
+
+        if (paymentIntentId) {
+            // Update existing PaymentIntent
+            paymentIntent = await stripe.paymentIntents.update(paymentIntentId, {
+                amount: Math.round(amount * 100),
+            });
+        } else {
+            // Create a PaymentIntent with the order amount and currency
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: Math.round(amount * 100), // Stripe expects amount in cents
+                currency: currency,
+                automatic_payment_methods: {
+                    enabled: true,
+                },
+            });
+        }
 
         return new Response(
-            JSON.stringify({ clientSecret: paymentIntent.client_secret }),
+            JSON.stringify({
+                clientSecret: paymentIntent.client_secret,
+                id: paymentIntent.id
+            }),
             {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 status: 200,

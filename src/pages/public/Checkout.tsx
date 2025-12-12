@@ -9,6 +9,7 @@ import { Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 
 // Initialize Stripe
@@ -19,11 +20,13 @@ const Checkout = () => {
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
     const [clientSecret, setClientSecret] = useState("");
+    const [paymentIntentId, setPaymentIntentId] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Real-Time Shipping State
     const [shippingCost, setShippingCost] = useState<number>(0);
-    const [shippingService, setShippingService] = useState<string>("Standard");
+    const [shippingService, setShippingService] = useState<string>("");
+    const [shippingRates, setShippingRates] = useState<any[]>([]);
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
@@ -35,9 +38,18 @@ const Checkout = () => {
 
     // Handle Address Change from StripeCheckout
     const handleAddressChange = async (address: any) => {
-        if (!address?.country || !address?.state) return;
+        console.log("Checkout handleAddressChange called", address);
+        if (!address?.country || !address?.state) {
+            console.log("Missing country or state, skipping calculation");
+            return;
+        }
 
         setIsCalculatingShipping(true);
+        // Reset selected shipping when address changes until we get new rates
+        setShippingCost(0);
+        setShippingService("");
+        setShippingRates([]);
+
         try {
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
                 body: { weight: totalWeight, address }
@@ -46,72 +58,82 @@ const Checkout = () => {
             if (error) throw error;
 
             console.log("Shipping Rates:", data.rates);
+            setShippingRates(data.rates || []);
 
-            // For now, auto-select the first/cheapest option (Ground)
+            // Auto-select the first (cheapest) rate by default
             if (data.rates && data.rates.length > 0) {
-                const selectedRate = data.rates[0];
-                setShippingCost(selectedRate.rate);
-                setShippingService(selectedRate.service);
+                const cheapest = data.rates[0];
+                setShippingCost(cheapest.rate || cheapest.cost);
+                setShippingService(cheapest.serviceName || cheapest.service);
+            } else {
+                // Fallback / No rates found
+                toast.error("No shipping rates found for this address.");
             }
         } catch (error) {
             console.error("Error calculating shipping:", error);
-            // Fallback to flat rate?
-            setShippingCost(calculateShipping(totalWeight));
-            setShippingService(getShippingLabel(totalWeight));
+            toast.error("Error calculating shipping rates.");
         } finally {
             setIsCalculatingShipping(false);
         }
+    };
+
+    const handleShippingSelect = (rate: any) => {
+        setShippingCost(rate.rate || rate.cost);
+        setShippingService(rate.serviceName || rate.service);
+        // Force intent update
+        intentAmountRef.current = 0;
     };
 
     // Track the amount for which we created the current payment intent
     const intentAmountRef = useRef<number>(0);
 
     // Initial Payment Intent Creation (runs once) 
-    // AND Re-creation/Update when Total Amount changes significantly
-    // Note: Creating a new PaymentIntent invalidates the old clientSecret. 
-    // This effectively "updates" the amount for the user.
+    // AND Re-creation/Update when Total Amount changes
     useEffect(() => {
         if (items.length > 0 && session) {
-            // Debounce slightly to avoid rapid updates while typing? 
-            // Actually handleAddressChange is triggered on "complete" or specific events, so it should be fine.
 
             const createOrUpdateIntent = async () => {
                 // If we are calculating shipping or processing, wait.
                 if (isCalculatingShipping || isProcessing) return;
 
+                // If amount hasn't changed from what's on intent, don't update
+                if (intentAmountRef.current === totalAmount && clientSecret) return;
+
                 try {
-                    console.log(`Creating payment intent for $${totalAmount}`);
+                    console.log(`${paymentIntentId ? 'Updating' : 'Creating'} payment intent for $${totalAmount}`);
+
                     const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-                        body: { amount: totalAmount, currency: 'usd' }
+                        body: {
+                            amount: totalAmount,
+                            currency: 'usd',
+                            paymentIntentId: paymentIntentId // Pass ID if we have it to update
+                        }
                     });
 
                     if (error) throw error;
                     if (data?.clientSecret) {
-                        setClientSecret(data.clientSecret);
+                        // Only set if different to avoid re-render
+                        if (data.clientSecret !== clientSecret) {
+                            setClientSecret(data.clientSecret);
+                        }
+                        if (data.id) {
+                            setPaymentIntentId(data.id);
+                        }
                         intentAmountRef.current = totalAmount;
                     }
                 } catch (error) {
-                    console.error("Error creating payment intent:", error);
+                    console.error("Error creating/updating payment intent:", error);
                 }
             };
 
-            // Only update if totalAmount is greater than 0 and we don't have a secret yet OR amount changed significantly
-            // We can add a debounce logic here or just rely on the effect, but we need to stop the loop.
-            // The best way is to not depend on 'clientSecret' inside the effect if we can avoid it, 
-            // but we are setting it.
-            // To stop the loop, we should check if we already have a clientSecret for THIS amount if we could store it.
-            // A simpler approach: create intent only if !clientSecret initially.
-            // UPDATES to amount should ideally update the EXISTING intent, but here we are creating a new one.
+            // Debounce updates slightly
+            const timeoutId = setTimeout(() => {
+                createOrUpdateIntent();
+            }, 500);
 
-            // Only create/update if we don't have a secret yet OR if the amount has changed
-            if (!clientSecret || intentAmountRef.current !== totalAmount) {
-                const timeoutId = setTimeout(() => {
-                    createOrUpdateIntent();
-                }, 300);
-                return () => clearTimeout(timeoutId);
-            }
+            return () => clearTimeout(timeoutId);
         }
-    }, [items, totalAmount, session, isCalculatingShipping, isProcessing, clientSecret]);
+    }, [items, totalAmount, session, isCalculatingShipping, isProcessing, clientSecret, paymentIntentId]);
 
     if (authLoading) {
         return (
@@ -242,6 +264,41 @@ const Checkout = () => {
                                 <div className="text-xs text-muted-foreground text-right -mt-1 mb-2">
                                     Total Weight: {totalWeight > 0 ? `${totalWeight.toFixed(1)} lbs` : 'N/A'}
                                 </div>
+
+                                {/* Shipping Selection */}
+                                <div className="py-2">
+                                    <p className="font-semibold text-sm mb-2">Shipping Method</p>
+                                    {isCalculatingShipping ? (
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating...
+                                        </div>
+                                    ) : shippingRates.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {shippingRates.map((rate, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className={`
+                                                        flex justify-between items-center p-2 rounded border cursor-pointer text-sm
+                                                        ${shippingService === (rate.serviceName || rate.service) ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted'}
+                                                    `}
+                                                    onClick={() => handleShippingSelect(rate)}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium">{rate.serviceName || rate.service}</span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Est. Delivery: {rate.estimatedDays ? `${rate.estimatedDays} days` : 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-semibold">
+                                                        ${(rate.rate || rate.cost).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic">Enter address to see rates</p>
+                                    )}
+                                </div>
                                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                                     <span>Total</span>
                                     <span>${totalAmount.toFixed(2)}</span>
@@ -251,7 +308,7 @@ const Checkout = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

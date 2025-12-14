@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Trash2, GripVertical, ArrowUpDown, Search } from "lucide-react";
+import { AlertTriangle, Trash2, GripVertical, ArrowUpDown, Search, FileText } from "lucide-react";
 import AddMaterialDialog from "@/components/inventory/AddMaterialDialog";
 import AddUnitDialog from "@/components/inventory/AddUnitDialog";
 import ManageCategoriesDialog from "@/components/inventory/ManageCategoriesDialog";
@@ -175,6 +175,10 @@ const Inventory = () => {
           <ManageCategoriesDialog onSuccess={fetchMaterials} />
           <AddUnitDialog onSuccess={fetchMaterials} />
           <AddMaterialDialog onSuccess={fetchMaterials} />
+          <Button variant="outline" onClick={() => window.open("/manufacturing/inventory-report", "_blank")}>
+            <FileText className="w-4 h-4 mr-2" />
+            Report
+          </Button>
         </div>
       </div>
 

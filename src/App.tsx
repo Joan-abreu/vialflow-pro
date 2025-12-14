@@ -11,6 +11,7 @@ import Inventory from "./pages/Inventory";
 import Shipments from "./pages/Shipments";
 import Users from "./pages/Users";
 import BillOfMaterials from "./pages/BillOfMaterials";
+import InventoryReport from "./pages/InventoryReport";
 import ProductManagement from "./pages/manufacturing/ProductManagement";
 import OrderManagement from "./pages/manufacturing/OrderManagement";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
@@ -91,7 +92,6 @@ const AppRoutes = () => {
           <Route path="/account" element={<Account />} />
           <Route path="/terms" element={<ComingSoon />} />
           <Route path="/privacy" element={<ComingSoon />} />
-          <Route path="/privacy" element={<ComingSoon />} />
         </Route>
 
         {/* Manufacturing Routes */}
@@ -107,6 +107,7 @@ const AppRoutes = () => {
           <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
           <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
           <Route path="bom/:batchId" element={<BillOfMaterials />} />
+          <Route path="inventory-report" element={<InventoryReport />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

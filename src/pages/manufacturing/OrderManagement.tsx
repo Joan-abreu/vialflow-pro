@@ -433,6 +433,7 @@ const OrderManagement = () => {
                             currentPage={currentPage}
                             totalPages={Math.ceil(filteredOrders.length / itemsPerPage)}
                             onPageChange={setCurrentPage}
+                            totalItems={filteredOrders.length}
                         />
                     )}
                 </CardContent>

@@ -37,7 +37,8 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText } from "lucide-react";
+import RichTextEditor from "@/components/admin/RichTextEditor";
 import {
     DndContext,
     closestCenter,
@@ -69,6 +70,7 @@ interface Product {
     id: string;
     name: string;
     description: string | null;
+    rich_description?: string | null;
     is_active: boolean;
     is_published: boolean;
     category_id: string | null;
@@ -189,6 +191,9 @@ const ProductManagement = () => {
     const [variantSaleType, setVariantSaleType] = useState<string>("individual");
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
     const [deletingVariant, setDeletingVariant] = useState<ProductVariant | null>(null);
+    const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] = useState(false);
+    const [editingDescriptionProduct, setEditingDescriptionProduct] = useState<Product | null>(null);
+    const [richTextDescription, setRichTextDescription] = useState("");
     const queryClient = useQueryClient();
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
@@ -363,6 +368,27 @@ const ProductManagement = () => {
         },
     });
 
+    const updateProductDescriptionMutation = useMutation({
+        mutationFn: async ({ id, rich_description }: { id: string, rich_description: string }) => {
+            const { data, error } = await supabase
+                .from("products")
+                .update({ rich_description } as any)
+                .eq("id", id)
+                .select();
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
+            toast.success("Product description updated successfully");
+            setIsDescriptionDialogOpen(false);
+            setEditingDescriptionProduct(null);
+        },
+        onError: (error) => {
+            toast.error(`Error updating description: ${error.message}`);
+        },
+    });
+
     // Variant mutations
     const createVariantMutation = useMutation({
         mutationFn: async (newVariant: Omit<ProductVariant, "id" | "vial_type">) => {
@@ -533,6 +559,21 @@ const ProductManagement = () => {
         }
     };
 
+    const handleEditDescription = (product: Product) => {
+        setEditingDescriptionProduct(product);
+        setRichTextDescription(product.rich_description || "");
+        setIsDescriptionDialogOpen(true);
+    };
+
+    const handleSaveDescription = () => {
+        if (editingDescriptionProduct) {
+            updateProductDescriptionMutation.mutate({
+                id: editingDescriptionProduct.id,
+                rich_description: richTextDescription
+            });
+        }
+    };
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -629,7 +670,7 @@ const ProductManagement = () => {
                                     <Plus className="mr-2 h-4 w-4" /> Add Product
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px]">
+                            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
                                     <DialogDescription>
@@ -750,7 +791,7 @@ const ProductManagement = () => {
                         setVariantSaleType("individual");
                     }
                 }}>
-                    <DialogContent className="sm:max-w-[425px]">
+                    <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
                             <DialogDescription>
@@ -943,6 +984,9 @@ const ProductManagement = () => {
                                                             <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
                                                                 <Pencil className="h-4 w-4" />
                                                             </Button>
+                                                            <Button variant="ghost" size="icon" onClick={() => handleEditDescription(product)} title="Edit Description">
+                                                                <FileText className="h-4 w-4" />
+                                                            </Button>
                                                             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -1002,8 +1046,40 @@ const ProductManagement = () => {
                         currentPage={currentPage}
                         totalPages={Math.ceil(products.length / itemsPerPage)}
                         onPageChange={setCurrentPage}
+                        totalItems={products.length}
                     />
                 )}
+
+                {/* Description Editor Dialog */}
+                <Dialog open={isDescriptionDialogOpen} onOpenChange={(open) => {
+                    setIsDescriptionDialogOpen(open);
+                    if (!open) {
+                        setEditingDescriptionProduct(null);
+                    }
+                }}>
+                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                        <DialogHeader>
+                            <DialogTitle>Edit Product Description</DialogTitle>
+                            <DialogDescription>
+                                Add rich text content for "{editingDescriptionProduct?.name}". This will be displayed on the product details page.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                            <RichTextEditor
+                                content={richTextDescription}
+                                onChange={setRichTextDescription}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button variant="outline" onClick={() => setIsDescriptionDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSaveDescription}>
+                                Save Content
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Delete Product Confirmation Dialog */}
                 <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>

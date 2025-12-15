@@ -13,6 +13,7 @@ interface ProductWithVariants {
     id: string;
     name: string;
     description: string | null;
+    rich_description?: string | null;
     image_url: string | null;
     category: string | null;
     sale_type: string;
@@ -34,7 +35,7 @@ const ProductDetails = () => {
             // Check if id is a valid UUID
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-            let query = supabase.from("products").select("*");
+            let query = supabase.from("products").select("*, product_categories(name)");
 
             if (isUuid) {
                 query = query.eq("id", id);
@@ -93,8 +94,9 @@ const ProductDetails = () => {
                 id: productData.id,
                 name: productData.name,
                 description: productData.description,
+                rich_description: (productData as any).rich_description,
                 image_url: productData.image_url,
-                category: productData.category,
+                category: (productData as any).product_categories?.name || null,
                 sale_type: productData.sale_type || 'individual',
                 default_pack_size: productData.default_pack_size,
                 variants,
@@ -175,9 +177,8 @@ const ProductDetails = () => {
                         <p className="text-2xl font-semibold text-primary mb-6">
                             ${selectedVariant?.price.toFixed(2) || '0.00'}
                         </p>
-                        <p className="text-lg text-muted-foreground leading-relaxed">
-                            {product.description || "No description available for this product."}
-                        </p>
+
+
                         {selectedVariant && selectedVariant.pack_size > 1 && (
                             <div className="mt-4 flex items-center gap-2">
                                 <Badge variant="secondary" className="text-sm py-1.5 px-3">
@@ -296,7 +297,22 @@ const ProductDetails = () => {
                     </div>
                 </div>
             </div>
-        </div>
+
+
+            <div className="mt-12 md:mt-16 border-t pt-8 md:pt-12">
+                <h2 className="text-2xl font-bold mb-6">Description</h2>
+                {product.rich_description ? (
+                    <div
+                        className="prose prose-sm md:prose-base text-muted-foreground max-w-none"
+                        dangerouslySetInnerHTML={{ __html: product.rich_description }}
+                    />
+                ) : (
+                    <p className="text-lg text-muted-foreground leading-relaxed">
+                        {product.description || "No description available for this product."}
+                    </p>
+                )}
+            </div>
+        </div >
     );
 };
 

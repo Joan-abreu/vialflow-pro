@@ -357,6 +357,7 @@ const Production = () => {
               currentPage={currentPage}
               totalPages={Math.ceil(filteredBatches.length / itemsPerPage)}
               onPageChange={setCurrentPage}
+              totalItems={filteredBatches.length}
             />
           )}
         </CardContent>

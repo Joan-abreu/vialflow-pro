@@ -44,7 +44,7 @@ const CommunicationLogs = () => {
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
-            return data as EmailLog[];
+            return data as unknown as EmailLog[];
         },
     });
 
@@ -163,6 +163,7 @@ const CommunicationLogs = () => {
                                     currentPage={currentPage}
                                     totalPages={totalPages}
                                     onPageChange={setCurrentPage}
+                                    totalItems={filteredLogs?.length}
                                 />
                             )}
                         </>

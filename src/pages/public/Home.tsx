@@ -15,7 +15,7 @@ const Home = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, category, is_published),
+                    product:products!inner(id, slug, name, description, image_url, is_published, product_categories(name)),
                     vial_type:vial_types!inner(name, size_ml)
                 `)
                 .eq("is_published", true)
@@ -34,7 +34,7 @@ const Home = () => {
                         name: variant.product.name,
                         description: variant.product.description,
                         image_url: variant.product.image_url,
-                        category: variant.product.category,
+                        category: variant.product.product_categories?.name || null,
                         price: variant.price,
                         size_ml: variant.vial_type.size_ml,
                         pack_size: variant.pack_size,

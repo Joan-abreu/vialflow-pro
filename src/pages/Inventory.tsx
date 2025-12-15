@@ -190,7 +190,10 @@ const Inventory = () => {
             <Input
               placeholder="Search by name, category..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full"
             />
           </div>
@@ -316,6 +319,7 @@ const Inventory = () => {
               currentPage={currentPage}
               totalPages={Math.ceil(filteredMaterials.length / itemsPerPage)}
               onPageChange={setCurrentPage}
+              totalItems={filteredMaterials.length}
             />
           )}
         </CardContent>

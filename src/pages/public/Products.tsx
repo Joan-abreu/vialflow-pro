@@ -28,7 +28,7 @@ const Products = () => {
     const { addToCart } = useCart();
 
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
-        queryKey: ["public-product-variants", selectedCategory],
+        queryKey: ["public-product-variants"],
         queryFn: async () => {
             // Fetch all published variants with their product and vial type info
             let query = supabase
@@ -40,12 +40,6 @@ const Products = () => {
                 `)
                 .eq("is_published", true)
                 .eq("product.is_published", true);
-
-            if (selectedCategory) {
-                // Filter by category name via the relation
-                query = query.eq("product.product_categories.name", selectedCategory);
-            }
-
 
             const { data, error } = await query;
             if (error) {
@@ -80,6 +74,7 @@ const Products = () => {
                     sku: variant.sku,
                     price: variant.price,
                     stock_quantity: variant.stock_quantity,
+                    max_online_quantity: variant.max_online_quantity,
                     weight: variant.weight,
                     pack_size: variant.pack_size || 1,
                     image_url: variant.image_url,
@@ -104,9 +99,18 @@ const Products = () => {
         },
     });
 
-    const filteredProducts = productsWithVariants?.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredProducts = productsWithVariants?.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory ? product.category === selectedCategory : true;
+        return matchesSearch && matchesCategory;
+    });
+
+    console.log("Products Page Debug:", {
+        selectedCategory,
+        allFetched: productsWithVariants?.length,
+        filtered: filteredProducts?.length,
+        firstProductCategory: productsWithVariants?.[0]?.category
+    });
 
     // Get the lowest price variant for display
     const getLowestPrice = (variants: ProductVariant[]) => {

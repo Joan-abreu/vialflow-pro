@@ -469,6 +469,7 @@ const Users = () => {
               currentPage={currentPage}
               totalPages={Math.ceil(users.length / itemsPerPage)}
               onPageChange={setCurrentPage}
+              totalItems={users.length}
             />
           )}
         </CardContent>

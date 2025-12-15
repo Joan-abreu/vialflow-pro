@@ -12,12 +12,14 @@ interface DataTablePaginationProps {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
+    totalItems?: number;
 }
 
 export function DataTablePagination({
     currentPage,
     totalPages,
     onPageChange,
+    totalItems,
 }: DataTablePaginationProps) {
     const getPageNumbers = () => {
         const pages = [];
@@ -51,39 +53,47 @@ export function DataTablePagination({
         return pages;
     };
 
-    if (totalPages <= 1) return null;
+    if (totalPages <= 1 && !totalItems) return null;
 
     return (
-        <Pagination className="mt-4">
-            <PaginationContent>
-                <PaginationItem>
-                    <PaginationPrevious
-                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                </PaginationItem>
-                {getPageNumbers().map((page, index) => (
-                    <PaginationItem key={index}>
-                        {page === -1 ? (
-                            <PaginationEllipsis />
-                        ) : (
-                            <PaginationLink
-                                isActive={currentPage === page}
-                                onClick={() => onPageChange(page)}
-                                className="cursor-pointer"
-                            >
-                                {page}
-                            </PaginationLink>
-                        )}
-                    </PaginationItem>
-                ))}
-                <PaginationItem>
-                    <PaginationNext
-                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                </PaginationItem>
-            </PaginationContent>
-        </Pagination>
+        <div className="flex items-center justify-between mt-4 px-2">
+            <div className="text-sm text-muted-foreground text-nowrap">
+                {totalItems !== undefined && `Total: ${totalItems} records`}
+            </div>
+
+            {totalPages > 1 && (
+                <Pagination className="mx-0 w-auto justify-end">
+                    <PaginationContent>
+                        <PaginationItem>
+                            <PaginationPrevious
+                                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+                        {getPageNumbers().map((page, index) => (
+                            <PaginationItem key={index}>
+                                {page === -1 ? (
+                                    <PaginationEllipsis />
+                                ) : (
+                                    <PaginationLink
+                                        isActive={currentPage === page}
+                                        onClick={() => onPageChange(page)}
+                                        className="cursor-pointer"
+                                    >
+                                        {page}
+                                    </PaginationLink>
+                                )}
+                            </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                            <PaginationNext
+                                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+                    </PaginationContent>
+                </Pagination>
+            )}
+        </div>
     );
 }

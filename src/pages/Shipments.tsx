@@ -179,7 +179,10 @@ const Shipments = () => {
             <Input
               placeholder="Search shipments..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full"
             />
           </div>
@@ -356,6 +359,7 @@ const Shipments = () => {
               currentPage={currentPage}
               totalPages={Math.ceil(filteredShipments.length / itemsPerPage)}
               onPageChange={setCurrentPage}
+              totalItems={filteredShipments.length}
             />
           )}
         </CardContent>

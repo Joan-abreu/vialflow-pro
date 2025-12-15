@@ -127,7 +127,8 @@ const Layout = ({ children }: LayoutProps) => {
   const settingsNavigation = isAdmin ? [
     { name: "Users", href: "/manufacturing/users", icon: Shield },
     { name: "Communications", href: "/manufacturing/communications", icon: Mail },
-    { name: "Shipping Settings", href: "/manufacturing/shipping-settings", icon: Settings },
+    { name: "Shipping Settings", href: "/manufacturing/shipping-settings", icon: Truck },
+    { name: "Site Settings", href: "/manufacturing/settings", icon: Settings },
   ] : [];
 
   const navigation = [...mainNavigation, ...settingsNavigation];

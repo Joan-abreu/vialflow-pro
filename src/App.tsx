@@ -38,6 +38,12 @@ import Account from "./pages/public/Account";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
+import { useEffect, useState } from "react";
+import { supabase } from "./integrations/supabase/client";
+import Maintenance from "./pages/public/Maintenance";
+import SiteSettings from "./pages/manufacturing/SiteSettings";
+import { HelmetProvider } from "react-helmet-async";
+import { useLocation } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
@@ -61,13 +67,67 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [checkingMaintenance, setCheckingMaintenance] = useState(true);
 
-  if (loading) {
+  // Check maintenance mode
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const { data } = await supabase
+          .from("app_settings" as any)
+          .select("value")
+          .eq("key", "maintenance_mode")
+          .single();
+
+        setMaintenanceMode((data as any)?.value === "true");
+      } catch (e) {
+        console.error("Error checking maintenance:", e);
+      } finally {
+        setCheckingMaintenance(false);
+      }
+    };
+
+    checkMaintenance();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'app_settings',
+          filter: 'key=eq.maintenance_mode'
+        },
+        (payload) => {
+          setMaintenanceMode((payload.new as any).value === "true");
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    }
+  }, []);
+
+  if (loading || checkingMaintenance) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Define routes that are always accessible
+  const isProtectedPath = location.pathname.startsWith("/manufacturing") ||
+    location.pathname === "/login" ||
+    location.pathname === "/maintenance";
+
+  if (maintenanceMode && !session && !isProtectedPath) {
+    return <Maintenance />;
   }
 
   return (
@@ -94,6 +154,9 @@ const AppRoutes = () => {
           <Route path="/privacy" element={<ComingSoon />} />
         </Route>
 
+        {/* Maintenance Route */}
+        <Route path="/maintenance" element={<Maintenance />} />
+
         {/* Manufacturing Routes */}
         <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
           <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -106,6 +169,7 @@ const AppRoutes = () => {
           <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
           <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
           <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
+          <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />
           <Route path="bom/:batchId" element={<BillOfMaterials />} />
           <Route path="inventory-report" element={<InventoryReport />} />
         </Route>
@@ -118,17 +182,19 @@ const AppRoutes = () => {
 
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AuthProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 };
 

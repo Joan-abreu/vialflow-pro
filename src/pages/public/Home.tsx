@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import SEO from "@/components/SEO";
 
 const Home = () => {
     const { data: featuredProducts, isLoading } = useQuery({
@@ -54,6 +55,10 @@ const Home = () => {
 
     return (
         <div className="flex flex-col min-h-screen">
+            <SEO
+                title="Home"
+                description="Premium Research Peptides and Water for Laboratory Research. High purity, lab-verified products with fast shipping."
+            />
             {/* Hero Section */}
             <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                 <div className="container px-4 md:px-6 relative z-10">

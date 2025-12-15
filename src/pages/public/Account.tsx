@@ -20,6 +20,9 @@ import {
 interface Order {
     id: string;
     total_amount: number;
+    shipping_cost: number;
+    shipping_service: string;
+    tax: number;
     status: string;
     created_at: string;
     order_items: {
@@ -92,6 +95,9 @@ const Account = () => {
             .from("orders" as any)
             .select(`
                 *,
+                shipping_cost,
+                tax,
+                shipping_service,
                 order_items (
                     id,
                     quantity,
@@ -430,6 +436,26 @@ const Account = () => {
                                                     );
                                                 })}
                                             </div>
+
+                                            <div className="mt-4 pt-4 border-t space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Subtotal</span>
+                                                    <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0)).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Shipping ({order.shipping_service || 'Standard'})</span>
+                                                    <span>${(order.shipping_cost || 0).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Tax</span>
+                                                    <span>${(order.tax || 0).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between font-bold pt-2 border-t">
+                                                    <span>Total</span>
+                                                    <span>${order.total_amount.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+
                                             <div className="mt-4 pt-4 border-t">
                                                 <Button
                                                     onClick={() => handleReorder(order)}

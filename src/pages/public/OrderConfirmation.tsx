@@ -129,11 +129,15 @@ const OrderConfirmation = () => {
                         <div className="border-t pt-4 mt-4 space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Subtotal</span>
-                                <span>${(order.total_amount - 10).toFixed(2)}</span>
+                                <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0)).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Shipping</span>
-                                <span>$10.00</span>
+                                <span className="text-muted-foreground">Shipping ({order.shipping_service || 'Standard'})</span>
+                                <span>${(order.shipping_cost || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Tax</span>
+                                <span>${(order.tax || 0).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between font-bold text-lg pt-2 border-t mt-2">
                                 <span>Total</span>
@@ -170,8 +174,8 @@ const OrderConfirmation = () => {
                             Shipping Method
                         </h3>
                         <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Standard Shipping</p>
-                            <p>Estimated delivery: 3-5 business days</p>
+                            <p>{order.shipping_service || 'Standard Shipping'}</p>
+                            <p>Estimated delivery: See carrier details</p>
                         </div>
                     </div>
                 </div>

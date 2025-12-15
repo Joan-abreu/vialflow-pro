@@ -207,6 +207,9 @@ const Checkout = () => {
                             <Elements key={clientSecret} options={options} stripe={stripePromise}>
                                 <StripeCheckout
                                     amount={totalAmount}
+                                    shippingCost={shippingCost}
+                                    shippingService={shippingService}
+                                    tax={0} // Tax calculation not yet implemented, explicitly 0
                                     clientSecret={clientSecret}
                                     onAddressChange={handleAddressChange}
                                 />

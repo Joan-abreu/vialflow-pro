@@ -11,11 +11,14 @@ import { Label } from "@/components/ui/label";
 
 interface StripeCheckoutProps {
     amount: number;
+    shippingCost: number;
+    shippingService: string;
+    tax: number;
     clientSecret: string;
     onAddressChange?: (address: any) => void;
 }
 
-const StripeCheckout = ({ amount, clientSecret, onAddressChange }: StripeCheckoutProps) => {
+const StripeCheckout = ({ amount, shippingCost, shippingService, tax, clientSecret, onAddressChange }: StripeCheckoutProps) => {
     const stripe = useStripe();
     const elements = useElements();
     const { clearCart, items } = useCart();
@@ -112,8 +115,11 @@ const StripeCheckout = ({ amount, clientSecret, onAddressChange }: StripeCheckou
                     user_id: user?.id,
                     customer_email: customerEmail,
                     total_amount: Number(amount.toFixed(2)),
-                    status: "pending_payment", // Initial status
-                    shipping_address: addressState || {}, // Save the address used for this order
+                    status: "pending_payment",
+                    shipping_address: addressState || {},
+                    shipping_cost: shippingCost || 0,
+                    shipping_service: shippingService || "Standard",
+                    tax: tax || 0
                 })
                 .select()
                 .single();

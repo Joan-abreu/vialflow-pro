@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Loader2, Package, Truck, Calendar, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { DEFAULT_SHIPPER } from "@/lib/constants";
 
 interface ShippingDialogProps {
     orderId: string;
@@ -53,6 +54,69 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             fetchAvailableCarriers();
         }
     }, [open, orderId]);
+
+    const [carrierSettings, setCarrierSettings] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchCarrierSettings = async () => {
+            if (!selectedCarrier) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('carrier_settings')
+                    .select('*')
+                    .eq('carrier', selectedCarrier)
+                    .single();
+
+                if (error) {
+                    console.error('Error fetching carrier settings:', error);
+                    return;
+                }
+
+                if (data) {
+                    setCarrierSettings(data);
+                }
+            } catch (error) {
+                console.error('Error fetching carrier settings:', error);
+            }
+        };
+
+        fetchCarrierSettings();
+    }, [selectedCarrier]);
+
+    useEffect(() => {
+        if (open) {
+            calculateTotalWeight();
+        }
+    }, [open, orderId]);
+
+    const calculateTotalWeight = async () => {
+        try {
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .select(`
+                    order_items(
+                        quantity,
+                        variant:product_variants(weight)
+                    )
+                `)
+                .eq("id", orderId)
+                .single();
+
+            if (orderError) throw orderError;
+
+            // Calculate total weight
+            const totalWeight = order.order_items.reduce((sum: number, item: any) => {
+                return sum + ((item.variant?.weight || 0) * item.quantity);
+            }, 0);
+
+            if (totalWeight > 0) {
+                setWeight(totalWeight.toFixed(2));
+            }
+        } catch (error) {
+            console.error("Error calculating weight:", error);
+        }
+    };
 
     const checkExistingShipment = async () => {
         try {
@@ -153,14 +217,15 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             if (orderError) throw orderError;
 
-            // Calculate total weight
-            const totalWeight = order.order_items.reduce((sum: number, item: any) => {
-                return sum + ((item.variant?.weight || 0) * item.quantity);
-            }, 0);
-
-            if (totalWeight > 0) {
-                setWeight(totalWeight.toFixed(2));
-            }
+            // Weight is already calculated and set in state by calculateTotalWeight
+            // But we keep this logic as a fallback or in case it wasn't set yet for some reason, 
+            // though calculateTotalWeight is better as it runs on open.
+            // actually, we can remove the weight calculation here to avoid overwriting user manual input 
+            // if they changed it before clicking "Get Rates", 
+            // BUT the original code was overwriting it every time. 
+            // Let's REMOVE it from here so we don't overwrite user changes.
+            // User asked: "que cargue el peso por defecto... Actualmente se actualiza... cuando le doy Get Shipping Rates solamente"
+            // So we moved it to initial load (above) and remove it from here.
 
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
@@ -168,13 +233,13 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     action: "get_rates",
                     data: {
                         shipper: {
-                            name: "Liv Well Research Labs",
+                            name: carrierSettings?.shipper_name || DEFAULT_SHIPPER.name,
                             address: {
-                                line1: "3839 N Andrews Ave",
-                                city: "Oakland Park",
-                                state: "FL",
-                                zip: "33309",
-                                country: "US",
+                                line1: carrierSettings?.shipper_address?.line1 || DEFAULT_SHIPPER.address.line1,
+                                city: carrierSettings?.shipper_address?.city || DEFAULT_SHIPPER.address.city,
+                                state: carrierSettings?.shipper_address?.state_code || DEFAULT_SHIPPER.address.state,
+                                zip: carrierSettings?.shipper_address?.postal_code || DEFAULT_SHIPPER.address.zip,
+                                country: carrierSettings?.shipper_address?.country_code || "US",
                             },
                         },
                         recipient: {
@@ -193,7 +258,17 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             if (error) throw error;
 
-            setRates(data.data?.rates || []);
+            let fetchedRates = data.data?.rates || [];
+
+            // FILTER FEDEX RATES (Ground & Express only)
+            if (selectedCarrier === 'FEDEX') {
+                fetchedRates = fetchedRates.filter((rate: any) => {
+                    const serviceName = (rate.serviceName || rate.service || "").toUpperCase();
+                    return serviceName.includes('GROUND') || serviceName.includes('EXPRESS');
+                });
+            }
+
+            setRates(fetchedRates);
             setStep('rates');
             toast.success("Rates retrieved successfully");
         } catch (error: any) {
@@ -243,13 +318,13 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         serviceCode: selectedService,
                         description: `Order #${order.id.slice(0, 8)}`,
                         shipper: {
-                            name: "Liv Well Research Labs",
+                            name: carrierSettings?.shipper_name || DEFAULT_SHIPPER.name,
                             address: {
-                                line1: "3839 N Andrews Ave",
-                                city: "Oakland Park",
-                                state: "FL",
-                                zip: "33309",
-                                country: "US",
+                                line1: carrierSettings?.shipper_address?.line1 || DEFAULT_SHIPPER.address.line1,
+                                city: carrierSettings?.shipper_address?.city || DEFAULT_SHIPPER.address.city,
+                                state: carrierSettings?.shipper_address?.state_code || DEFAULT_SHIPPER.address.state,
+                                zip: carrierSettings?.shipper_address?.postal_code || DEFAULT_SHIPPER.address.zip,
+                                country: carrierSettings?.shipper_address?.country_code || DEFAULT_SHIPPER.address.country,
                             },
                         },
                         recipient: {
@@ -493,36 +568,40 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <Label>Weight (lbs)</Label>
+                                                <Label>Weight (lbs) <span className="text-destructive">*</span></Label>
                                                 <Input
                                                     type="number"
                                                     value={weight}
                                                     onChange={(e) => setWeight(e.target.value)}
-                                                    step="0.1"
+                                                    step="0.01"
+                                                    required
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Length (in)</Label>
+                                                <Label>Length (in) <span className="text-destructive">*</span></Label>
                                                 <Input
                                                     type="number"
                                                     value={length}
                                                     onChange={(e) => setLength(e.target.value)}
+                                                    required
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Width (in)</Label>
+                                                <Label>Width (in) <span className="text-destructive">*</span></Label>
                                                 <Input
                                                     type="number"
                                                     value={width}
                                                     onChange={(e) => setWidth(e.target.value)}
+                                                    required
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Height (in)</Label>
+                                                <Label>Height (in) <span className="text-destructive">*</span></Label>
                                                 <Input
                                                     type="number"
                                                     value={height}
                                                     onChange={(e) => setHeight(e.target.value)}
+                                                    required
                                                 />
                                             </div>
                                         </div>
@@ -569,7 +648,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                                             <p className="font-medium">{rate.serviceName}</p>
                                                             {rate.estimatedDays && (
                                                                 <p className="text-sm text-muted-foreground">
-                                                                    {rate.estimatedDays} business days
+                                                                    Est: {rate.estimatedDays}
                                                                 </p>
                                                             )}
                                                         </div>

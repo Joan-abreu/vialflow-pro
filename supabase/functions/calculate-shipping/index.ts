@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { FedExCarrier } from "../_shared/carriers/fedex.ts"
 import { UPSCarrier } from "../_shared/carriers/ups.ts"
+import { DEFAULT_SHIPPER } from "../_shared/config.ts"
 import { ICarrier } from "../_shared/carriers/types.ts"
 
 const corsHeaders = {
@@ -37,22 +38,22 @@ serve(async (req) => {
             throw new Error("Failed to load shipping configurations");
         }
 
-        const carriers: ICarrier[] = [];
+        const activeCarriers: { instance: ICarrier, settings: any }[] = [];
 
         // 2. Initialize Enabled Carriers
         settingsData.forEach((setting: any) => {
             try {
                 if (setting.carrier === 'FEDEX') {
-                    carriers.push(new FedExCarrier(setting));
+                    activeCarriers.push({ instance: new FedExCarrier(setting), settings: setting });
                 } else if (setting.carrier === 'UPS') {
-                    carriers.push(new UPSCarrier(setting));
+                    activeCarriers.push({ instance: new UPSCarrier(setting), settings: setting });
                 }
             } catch (e) {
                 console.error(`Error initializing carrier ${setting.carrier}:`, e);
             }
         });
 
-        if (carriers.length === 0) {
+        if (activeCarriers.length === 0) {
             // Fallback if no carriers configured (or allow mock?)
             console.warn("No active carriers found. Returning empty rates.");
             return new Response(
@@ -62,23 +63,13 @@ serve(async (req) => {
         }
 
         // 3. Prepare Shipment Object
-        // Hardcoded Fallback Shipper Address (Miami Warehouse) for testing if DB setting is missing
-        const defaultShipper = {
-            name: "VialFlow Shipping",
-            phone: "3055550123",
-            address: {
-                line1: "123 Warehouse Blvd",
-                city: "Miami",
-                state: "FL",
-                postal_code: "33172",
-                country: "US"
-            }
-        };
+        // Default Shipper (Fallback)
+        const defaultShipper = DEFAULT_SHIPPER;
 
-        const shipment = {
-            shipper: defaultShipper, // Pass this explicitly so carriers use it if their own settings are empty
+        const baseShipment = {
+            shipper: defaultShipper,
             recipient: {
-                name: address.name || "Valued Customer",
+                name: address.name || "Customer",
                 address: {
                     line1: address.line1,
                     city: address.city,
@@ -98,11 +89,31 @@ serve(async (req) => {
         };
 
         // 4. Fetch Rates in Parallel
-        const ratePromises = carriers.map(c => c.getRates(shipment).catch(e => {
-            console.error("Error getting rates from carrier:", e);
-            const errorMessage = e instanceof Error ? e.message : String(e);
-            return { success: false, rates: [], error: errorMessage };
-        }));
+        const ratePromises = activeCarriers.map(({ instance, settings }) => {
+            // Use configured shipper if available, otherwise default
+            const carrierShipper = settings.shipper_address ? {
+                name: settings.shipper_name || defaultShipper.name,
+                phone: settings.shipper_phone || defaultShipper.phone,
+                address: {
+                    line1: settings.shipper_address.line1 || settings.shipper_address.address_line1,
+                    city: settings.shipper_address.city,
+                    state: settings.shipper_address.state_code || settings.shipper_address.state,
+                    postal_code: settings.shipper_address.postal_code || settings.shipper_address.zip,
+                    country: settings.shipper_address.country_code || settings.shipper_address.country || "US"
+                }
+            } : defaultShipper;
+
+            const shipment = {
+                ...baseShipment,
+                shipper: carrierShipper
+            };
+
+            return instance.getRates(shipment).catch(e => {
+                console.error("Error getting rates from carrier:", e);
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                return { success: false, rates: [], error: errorMessage };
+            });
+        });
 
         const results = await Promise.all(ratePromises);
 

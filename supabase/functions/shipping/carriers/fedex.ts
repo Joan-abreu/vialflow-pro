@@ -58,13 +58,19 @@ export class FedExCarrier {
     }
 
     async getRates(shipment: any) {
-        const token = await this.getToken('ship');
+        const token = await this.getToken("ship");
+
+        const shipDate = new Date().toISOString().split("T")[0];
 
         const requestBody = {
             accountNumber: {
                 value: this.settings.account_number,
             },
+            rateRequestControlParameters: {
+                returnTransitTimes: true,
+            },
             requestedShipment: {
+                shipDatestamp: shipDate,
                 shipper: {
                     address: this.formatAddress(shipment.shipper),
                 },
@@ -87,39 +93,107 @@ export class FedExCarrier {
                 })),
             },
         };
+
         console.log("FedEx Request Body:", requestBody);
 
         const response = await fetch(`${this.apiUrl}/rate/v1/rates/quotes`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
+                Authorization: `Bearer ${token}`,
                 "X-locale": "en_US",
             },
             body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Rating API error:", error);
-            throw new Error(`FedEx Rating API error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Rating API error:", errorMessage);
+            throw new Error(`FedEx Rating API error: ${errorMessage}`);
         }
 
         const data = await response.json();
         const rateReplyDetails = data.output?.rateReplyDetails || [];
 
+        // Helpers
+        const formatDate = (dateStr: string) => {
+            const date = new Date(dateStr);
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+        };
+
+        const calculateDays = (start: string, end: string) => {
+            const startDate = new Date(start.split('T')[0]);
+            const endDate = new Date(end.split('T')[0]);
+            const diff = endDate.getTime() - startDate.getTime();
+            return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+        };
+
         return {
             success: true,
-            rates: rateReplyDetails.map((rate: any) => ({
-                serviceCode: rate.serviceType,
-                serviceName: this.getServiceName(rate.serviceType),
-                cost: parseFloat(rate.ratedShipmentDetails?.[0]?.totalNetCharge || "0"),
-                currency: rate.ratedShipmentDetails?.[0]?.currency || "USD",
-                estimatedDays: rate.commit?.dateDetail?.dayFormat,
-            })),
+            rates: rateReplyDetails.map((rate: any) => {
+                // Try to find the best delivery estimate
+                let estimate = "N/A";
+                let targetDateStr = rate.deliveryTimestamp;
+
+                // Fallback to dayFormat if deliveryTimestamp is missing
+                if (!targetDateStr && rate.commit?.dateDetail?.dayFormat) {
+                    // Check if dayFormat is an ISO string or date-like
+                    if (rate.commit.dateDetail.dayFormat.includes("T") || rate.commit.dateDetail.dayFormat.includes("-")) {
+                        targetDateStr = rate.commit.dateDetail.dayFormat;
+                    } else {
+                        // It might just be "Monday", use it directly if we can't parse it as a date later
+                        estimate = rate.commit.dateDetail.dayFormat;
+                    }
+                }
+
+                if (targetDateStr) {
+                    try {
+                        const days = calculateDays(shipDate, targetDateStr);
+                        const dayLabel = days === 1 ? "day" : "days";
+                        estimate = `${formatDate(targetDateStr)} (${days} ${dayLabel})`;
+                    } catch (e) {
+                        // Fallback if parsing fails
+                        console.error("Date parsing error", e);
+                        if (rate.commit?.dateDetail?.dayFormat) estimate = rate.commit.dateDetail.dayFormat;
+                    }
+                }
+                // 3. Try Transit Time Enum (e.g. TWO_DAYS) -> Convert to human readable
+                else if (estimate === "N/A" && rate.operationalDetail?.transitTime) {
+                    const transit = rate.operationalDetail.transitTime;
+                    switch (transit) {
+                        case 'ONE_DAY': estimate = "1 Day"; break;
+                        case 'TWO_DAYS': estimate = "2 Days"; break;
+                        case 'THREE_DAYS': estimate = "3 Days"; break;
+                        case 'FOUR_DAYS': estimate = "4 Days"; break;
+                        case 'FIVE_DAYS': estimate = "5 Days"; break;
+                        case 'SIX_DAYS': estimate = "6 Days"; break;
+                        case 'SEVEN_DAYS': estimate = "7 Days"; break;
+                        default: estimate = transit.replace('_', ' ').toLowerCase();
+                    }
+                }
+
+                return {
+                    serviceCode: rate.serviceType,
+                    serviceName: this.getServiceName(rate.serviceType),
+                    cost: parseFloat(rate.ratedShipmentDetails?.[0]?.totalNetCharge || "0"),
+                    currency: rate.ratedShipmentDetails?.[0]?.currency || "USD",
+                    estimatedDays: estimate,
+                };
+            }),
             rawResponse: data,
         };
     }
+
 
     async createShipment(shipment: any) {
         const token = await this.getToken('ship');
@@ -185,9 +259,17 @@ export class FedExCarrier {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Shipping API error:", error);
-            throw new Error(`FedEx Shipping API error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Shipping API error:", errorMessage);
+            throw new Error(`FedEx Shipping API error: ${errorMessage}`);
         }
 
         const data = await response.json();
@@ -270,9 +352,17 @@ export class FedExCarrier {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Pickup API error:", error);
-            throw new Error(`FedEx Pickup API error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Pickup API error:", errorMessage);
+            throw new Error(`FedEx Pickup API error: ${errorMessage}`);
         }
 
         const data = await response.json();
@@ -309,9 +399,17 @@ export class FedExCarrier {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Tracking API error:", error);
-            throw new Error(`FedEx Tracking API error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Tracking API error:", errorMessage);
+            throw new Error(`FedEx Tracking API error: ${errorMessage}`);
         }
 
         const data = await response.json();
@@ -348,9 +446,17 @@ export class FedExCarrier {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Cancel Shipment error:", error);
-            throw new Error(`FedEx Cancel Shipment error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Cancel Shipment error:", errorMessage);
+            throw new Error(`FedEx Cancel Shipment error: ${errorMessage}`);
         }
 
         const data = await response.json();
@@ -421,9 +527,17 @@ export class FedExCarrier {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("FedEx Cancel Pickup error:", error);
-            throw new Error(`FedEx Cancel Pickup error: ${error}`);
+            let errorMessage = await response.text();
+            try {
+                const errorJson = JSON.parse(errorMessage);
+                if (errorJson.errors && Array.isArray(errorJson.errors)) {
+                    errorMessage = errorJson.errors.map((e: any) => `${e.code}: ${e.message}`).join("; ");
+                }
+            } catch (e) {
+                // Keep raw text if not JSON
+            }
+            console.error("FedEx Cancel Pickup error:", errorMessage);
+            throw new Error(`FedEx Cancel Pickup error: ${errorMessage}`);
         }
 
         const data = await response.json();

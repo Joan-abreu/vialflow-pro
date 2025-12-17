@@ -58,7 +58,23 @@ const Checkout = () => {
             if (error) throw error;
 
             console.log("Shipping Rates:", data.rates);
-            setShippingRates(data.rates || []);
+
+            let rates = data.rates || [];
+
+            // Filter FedEx rates to only show GROUND and EXPRESS
+            if (rates.length > 0) {
+                rates = rates.filter((rate: any) => {
+                    const provider = (rate.carrier || rate.provider || "").toUpperCase();
+                    const serviceName = (rate.serviceName || rate.service || "").toUpperCase();
+
+                    if (provider.includes('FEDEX') || serviceName.includes('FEDEX')) {
+                        return serviceName.includes('GROUND') || serviceName.includes('EXPRESS');
+                    }
+                    return true;
+                });
+            }
+
+            setShippingRates(rates);
 
             // Auto-select the first (cheapest) rate by default
             if (data.rates && data.rates.length > 0) {
@@ -264,12 +280,12 @@ const Checkout = () => {
                                     <span>Shipping ({shippingService})</span>
                                     <span>${shippingCost.toFixed(2)}</span>
                                 </div>
-                                <div className="text-xs text-muted-foreground text-right -mt-1 mb-2">
-                                    Total Weight: {totalWeight > 0 ? `${totalWeight.toFixed(1)} lbs` : 'N/A'}
+                                <div className="text-xs text-muted-foreground text-right -mt-1 mb-6">
+                                    {/* Total Weight: {totalWeight > 0 ? `${totalWeight.toFixed(1)} lbs` : 'N/A'} */}
                                 </div>
 
                                 {/* Shipping Selection */}
-                                <div className="py-2">
+                                <div className="py-2 mt-6">
                                     <p className="font-semibold text-sm mb-2">Shipping Method</p>
                                     {isCalculatingShipping ? (
                                         <div className="flex items-center text-sm text-muted-foreground">
@@ -289,7 +305,7 @@ const Checkout = () => {
                                                     <div className="flex flex-col">
                                                         <span className="font-medium">{rate.serviceName || rate.service}</span>
                                                         <span className="text-xs text-muted-foreground">
-                                                            Est. Delivery: {rate.estimatedDays ? `${rate.estimatedDays} days` : 'N/A'}
+                                                            Est. Delivery: {rate.estimatedDays || 'N/A'}
                                                         </span>
                                                     </div>
                                                     <span className="font-semibold">

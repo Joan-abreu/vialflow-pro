@@ -9,9 +9,12 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+import { DEFAULT_SHIPPER } from "../_shared/config.ts"
+
 // Import carrier-specific modules
 import { UPSCarrier } from "./carriers/ups.ts";
 import { FedExCarrier } from "./carriers/fedex.ts";
+
 
 // Carrier interface that all carriers must implement
 interface ICarrier {
@@ -97,7 +100,7 @@ const handler = async (req: Request): Promise<Response> => {
                             width: data.packages?.[0]?.width,
                             height: data.packages?.[0]?.height,
                             dimension_unit: "IN",
-                            ship_from: carrierSettings.shipper_address,
+                            ship_from: carrierSettings.shipper_address || DEFAULT_SHIPPER.address,
                             ship_to: data.recipient,
                             shipping_cost: result.shippingCost,
                             total_cost: result.totalCost,

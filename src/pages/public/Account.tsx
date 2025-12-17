@@ -443,8 +443,13 @@ const Account = () => {
                                                     <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0)).toFixed(2)}</span>
                                                 </div>
                                                 <div className="flex justify-between text-sm">
-                                                    <span className="text-muted-foreground">Shipping ({order.shipping_service || 'Standard'})</span>
-                                                    <span>${(order.shipping_cost || 0).toFixed(2)}</span>
+                                                    <span className="text-muted-foreground">Shipping</span>
+                                                    <span className="text-right">
+                                                        <span>${(order.shipping_cost || 0).toFixed(2)}</span>
+                                                        <span className="block text-xs text-muted-foreground">
+                                                            {order.shipping_service || 'Standard'}
+                                                        </span>
+                                                    </span>
                                                 </div>
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-muted-foreground">Tax</span>

@@ -148,8 +148,8 @@ const handler = async (req: Request): Promise<Response> => {
         orderNumber: order.id.slice(0, 8),
         customerName: customerEmail.split('@')[0], // Use email username as fallback
         items,
-        subtotal: order.total_amount, // Adjust if you have separate subtotal
-        shipping: 0, // Add shipping if available
+        subtotal: order.total_amount - (order.shipping_cost || 0),
+        shipping: order.shipping_cost || 0,
         total: order.total_amount,
       });
     }

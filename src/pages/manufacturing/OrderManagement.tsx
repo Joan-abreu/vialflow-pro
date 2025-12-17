@@ -57,6 +57,7 @@ interface OrderItem {
 interface Order {
     id: string;
     total_amount: number;
+    shipping_cost?: number;
     status: string;
     created_at: string;
     user_id: string;
@@ -65,6 +66,9 @@ interface Order {
     sent_to_production: boolean;
     sent_to_production_at: string | null;
     tracking_number?: string | null;
+    shipping_service?: string;
+    shipping_service_code?: string;
+    shipping_carrier?: string;
     order_items?: OrderItem[];
     order_shipments?: {
         carrier: string;
@@ -461,6 +465,19 @@ const OrderManagement = () => {
                                             <p>{selectedOrder.shipping_address.country}</p>
                                         </div>
                                     )}
+                                    <div className="mt-4">
+                                        <h4 className="font-semibold text-sm text-muted-foreground mb-1">Shipping Method</h4>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-sm font-medium">
+                                                {selectedOrder.shipping_service || "Standard"}
+                                            </p>
+                                            {selectedOrder.shipping_carrier && (
+                                                <Badge variant="outline" className="text-xs">
+                                                    {selectedOrder.shipping_carrier}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="text-right">
                                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Order Status</h4>
@@ -525,6 +542,17 @@ const OrderManagement = () => {
 
                             <div className="flex justify-end">
                                 <div className="w-1/3 space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Subtotal</span>
+                                        <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0)).toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">
+                                            Shipping ({selectedOrder.shipping_service || "Standard"})
+                                            {selectedOrder.shipping_carrier && ` via ${selectedOrder.shipping_carrier}`}
+                                        </span>
+                                        <span>${(selectedOrder.shipping_cost || 0).toFixed(2)}</span>
+                                    </div>
                                     <div className="flex justify-between border-t pt-4">
                                         <span className="font-bold text-lg">Total</span>
                                         <span className="font-bold text-lg">${selectedOrder.total_amount.toFixed(2)}</span>

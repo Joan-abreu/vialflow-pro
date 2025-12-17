@@ -26,6 +26,8 @@ const Checkout = () => {
     // Real-Time Shipping State
     const [shippingCost, setShippingCost] = useState<number>(0);
     const [shippingService, setShippingService] = useState<string>("");
+    const [shippingServiceCode, setShippingServiceCode] = useState<string>("");
+    const [shippingCarrier, setShippingCarrier] = useState<string>("");
     const [shippingRates, setShippingRates] = useState<any[]>([]);
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
@@ -96,6 +98,8 @@ const Checkout = () => {
     const handleShippingSelect = (rate: any) => {
         setShippingCost(rate.rate || rate.cost);
         setShippingService(rate.serviceName || rate.service);
+        setShippingServiceCode(rate.serviceCode || rate.service); // Fallback to service name/code if specific code missing
+        setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase()); // Infer carrier
         // Force intent update
         intentAmountRef.current = 0;
     };
@@ -225,6 +229,8 @@ const Checkout = () => {
                                     amount={totalAmount}
                                     shippingCost={shippingCost}
                                     shippingService={shippingService}
+                                    shippingServiceCode={shippingServiceCode}
+                                    shippingCarrier={shippingCarrier}
                                     tax={0} // Tax calculation not yet implemented, explicitly 0
                                     clientSecret={clientSecret}
                                     onAddressChange={handleAddressChange}

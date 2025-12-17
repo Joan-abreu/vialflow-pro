@@ -13,12 +13,14 @@ interface StripeCheckoutProps {
     amount: number;
     shippingCost: number;
     shippingService: string;
+    shippingServiceCode?: string;
+    shippingCarrier?: string;
     tax: number;
     clientSecret: string;
     onAddressChange?: (address: any) => void;
 }
 
-const StripeCheckout = ({ amount, shippingCost, shippingService, tax, clientSecret, onAddressChange }: StripeCheckoutProps) => {
+const StripeCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, tax, clientSecret, onAddressChange }: StripeCheckoutProps) => {
     const stripe = useStripe();
     const elements = useElements();
     const { clearCart, items } = useCart();
@@ -119,6 +121,8 @@ const StripeCheckout = ({ amount, shippingCost, shippingService, tax, clientSecr
                     shipping_address: addressState || {},
                     shipping_cost: shippingCost || 0,
                     shipping_service: shippingService || "Standard",
+                    shipping_service_code: shippingServiceCode || null,
+                    shipping_carrier: shippingCarrier || null,
                     tax: tax || 0
                 })
                 .select()

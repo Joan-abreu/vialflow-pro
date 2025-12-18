@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     // Get the user from the auth token
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
-    
+
     if (userError || !user) {
       console.error('Error getting user:', userError)
       return new Response(
@@ -67,8 +67,8 @@ Deno.serve(async (req) => {
     console.log(`Admin ${user.email} requesting password reset for user ${email}`)
 
     // Generate password reset link using admin API
-    const redirectUrl = `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/auth`
-    
+    const redirectUrl = `${Deno.env.get('SITE_URL') ?? 'http://localhost:8080'}/auth`
+
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: email,
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     console.log('Password reset link generated successfully for:', email)
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         message: 'Password reset email sent successfully',
         // Note: In production, you might want to send this via email

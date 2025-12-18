@@ -76,3 +76,13 @@ DROP TRIGGER IF EXISTS audit_shipments ON shipments;
 CREATE TRIGGER audit_shipments
 AFTER INSERT OR UPDATE OR DELETE ON shipments
 FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS audit_products ON products;
+CREATE TRIGGER audit_products
+AFTER INSERT OR UPDATE OR DELETE ON products
+FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS audit_production_batches ON production_batches;
+CREATE TRIGGER audit_production_batches
+AFTER INSERT OR UPDATE OR DELETE ON production_batches
+FOR EACH ROW EXECUTE FUNCTION process_audit_log();

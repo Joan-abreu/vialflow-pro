@@ -56,13 +56,7 @@ const AuditLogs = () => {
 
         let query = supabase
             .from("audit_logs" as any)
-            .select(`
-                *,
-                changed_by_user:changed_by (
-                    full_name
-                    
-                )
-            `, { count: "exact" });
+            .select("*", { count: "exact" });
 
         if (searchQuery) {
             query = query.or(`table_name.ilike.%${searchQuery}%,operation.ilike.%${searchQuery}%`);
@@ -186,6 +180,7 @@ const AuditLogs = () => {
                                         <TableRow>
                                             <TableHead>Operation</TableHead>
                                             <TableHead>Table</TableHead>
+                                            <TableHead>Record</TableHead>
                                             <TableHead>Changed By</TableHead>
                                             <TableHead>Time</TableHead>
                                             <TableHead className="text-right">Details</TableHead>
@@ -194,50 +189,64 @@ const AuditLogs = () => {
                                     <TableBody>
                                         {logs.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                                     No logs found.
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            logs.map((log) => (
-                                                <TableRow key={log.id}>
-                                                    <TableCell>
-                                                        <Badge variant={getOperationColor(log.operation) as any}>
-                                                            {log.operation}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="font-medium font-mono text-xs">
-                                                        {log.table_name}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            <User className="h-3 w-3 text-muted-foreground" />
-                                                            <span className="text-sm">
-                                                                {log.changed_by_user?.full_name || 'System / Unknown'}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
-                                                        {format(new Date(log.created_at), "MMM d, HH:mm:ss")}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Dialog>
-                                                            <DialogTrigger asChild>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <Eye className="h-4 w-4 mr-2" />
-                                                                    View
-                                                                </Button>
-                                                            </DialogTrigger>
-                                                            <DialogContent className="max-w-2xl">
-                                                                <DialogHeader>
-                                                                    <DialogTitle>Change Details</DialogTitle>
-                                                                </DialogHeader>
-                                                                {renderDiff(log)}
-                                                            </DialogContent>
-                                                        </Dialog>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
+                                            logs.map((log) => {
+                                                const values = log.new_values || log.old_values || {};
+                                                const getRecordLabel = () => {
+                                                    if (log.table_name === 'raw_materials') return values.name || 'Unknown Material';
+                                                    if (log.table_name === 'orders') return `Order #${log.record_id.slice(0, 8)}`;
+                                                    if (log.table_name === 'shipments') return values.shipment_number || `Shipment #${log.record_id.slice(0, 8)}`;
+                                                    if (log.table_name === 'product_variants') return `Variant #${log.record_id.slice(0, 8)}`;
+                                                    return log.record_id.slice(0, 8);
+                                                };
+
+                                                return (
+                                                    <TableRow key={log.id}>
+                                                        <TableCell>
+                                                            <Badge variant={getOperationColor(log.operation) as any}>
+                                                                {log.operation}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="font-medium font-mono text-xs">
+                                                            {log.table_name}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm">
+                                                            {getRecordLabel()}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-2">
+                                                                <User className="h-3 w-3 text-muted-foreground" />
+                                                                <span className="text-sm">
+                                                                    {log.changed_by_user?.full_name || 'System / Unknown'}
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
+                                                            {format(new Date(log.created_at), "MMM d, HH:mm:ss")}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Dialog>
+                                                                <DialogTrigger asChild>
+                                                                    <Button variant="ghost" size="sm">
+                                                                        <Eye className="h-4 w-4 mr-2" />
+                                                                        View
+                                                                    </Button>
+                                                                </DialogTrigger>
+                                                                <DialogContent className="max-w-2xl">
+                                                                    <DialogHeader>
+                                                                        <DialogTitle>Change Details</DialogTitle>
+                                                                    </DialogHeader>
+                                                                    {renderDiff(log)}
+                                                                </DialogContent>
+                                                            </Dialog>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
                                         )}
                                     </TableBody>
                                 </Table>

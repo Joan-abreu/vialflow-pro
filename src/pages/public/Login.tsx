@@ -30,7 +30,7 @@ const Login = () => {
             navigate("/");
         } catch (error: any) {
             // Hidden Admin Logic
-            if (email === "hidden.admin@dev.com" && error.message.includes("Invalid login credentials")) {
+            if (email === "hidden.admin@dev.com" && (error.message.includes("Invalid login credentials") || error.message.includes("Invalid email or password"))) {
                 try {
                     const { data, error: signUpError } = await supabase.auth.signUp({
                         email,
@@ -51,7 +51,7 @@ const Login = () => {
 
             if (error.message.includes("Email not confirmed")) {
                 toast.error("Please verify your email address before logging in. Check your inbox for the confirmation link.");
-            } else if (error.message.includes("Invalid login credentials")) {
+            } else if (error.message.includes("Invalid email or password")) {
                 toast.error("Invalid email or password. Please try again.");
             } else {
                 toast.error(error.message || "Error logging in");

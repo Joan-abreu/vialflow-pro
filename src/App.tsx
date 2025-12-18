@@ -42,6 +42,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./integrations/supabase/client";
 import Maintenance from "./pages/public/Maintenance";
 import SiteSettings from "./pages/manufacturing/SiteSettings";
+import AuditLogs from "./pages/manufacturing/AuditLogs";
 import { HelmetProvider } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
 
@@ -168,8 +169,10 @@ const AppRoutes = () => {
           <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
           <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
           <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
+          <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
           <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
           <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />
+          <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
           <Route path="bom/:batchId" element={<BillOfMaterials />} />
           <Route path="inventory-report" element={<InventoryReport />} />
         </Route>

@@ -129,6 +129,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Communications", href: "/manufacturing/communications", icon: Mail },
     { name: "Shipping", href: "/manufacturing/shipping-settings", icon: Truck },
     { name: "General", href: "/manufacturing/settings", icon: Settings },
+    { name: "Audit Logs", href: "/manufacturing/audit-logs", icon: Shield },
   ] : [];
 
   const navigation = [...mainNavigation, ...settingsNavigation];

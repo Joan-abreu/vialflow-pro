@@ -69,10 +69,24 @@ const EditMaterialDialog = ({ material, onSuccess }: EditMaterialDialogProps) =>
 
   useEffect(() => {
     if (open) {
+      setFormData({
+        name: material.name,
+        category: material.category,
+        unit: material.unit,
+        purchase_unit_id: material.purchase_unit_id || "",
+        usage_unit_id: material.usage_unit_id || "",
+        qty_per_container: material.qty_per_container || 0,
+        current_stock: material.current_stock,
+        min_stock_level: material.min_stock_level,
+        cost_per_unit: material.cost_per_unit || 0,
+        dimension_length_in: (material as any).dimension_length_in || 0,
+        dimension_width_in: (material as any).dimension_width_in || 0,
+        dimension_height_in: (material as any).dimension_height_in || 0,
+      });
       fetchUnits();
       fetchCategories();
     }
-  }, [open]);
+  }, [open, material]);
 
   const fetchUnits = async () => {
     const { data } = await supabase

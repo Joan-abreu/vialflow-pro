@@ -54,6 +54,8 @@ const Inventory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const [editingCell, setEditingCell] = useState<{ id: string; value: string } | null>(null);
+
   const fetchMaterials = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -108,6 +110,8 @@ const Inventory = () => {
     });
 
   const handleDragStart = (index: number) => {
+    // Disable dragging while editing to prevent UI glitch
+    if (editingCell) return;
     setDraggedIndex(index);
   };
 
@@ -158,6 +162,44 @@ const Inventory = () => {
     } else {
       toast.success("Material deleted");
       fetchMaterials();
+    }
+  };
+
+  const handleStockUpdate = async (id: string, newValue: string) => {
+    const numericValue = parseFloat(newValue);
+
+    if (isNaN(numericValue) || numericValue < 0) {
+      toast.error("Please enter a valid non-negative number");
+      setEditingCell(null);
+      return;
+    }
+
+    // Optimistic update
+    const originalMaterials = [...materials];
+    setMaterials(materials.map(m =>
+      m.id === id ? { ...m, current_stock: numericValue } : m
+    ));
+    setEditingCell(null);
+
+    const { error } = await supabase
+      .from("raw_materials")
+      .update({ current_stock: numericValue })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating stock:", error);
+      toast.error("Failed to update stock");
+      setMaterials(originalMaterials); // Revert on error
+    } else {
+      toast.success("Stock updated");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === 'Enter') {
+      if (editingCell) handleStockUpdate(id, editingCell.value);
+    } else if (e.key === 'Escape') {
+      setEditingCell(null);
     }
   };
 
@@ -246,19 +288,38 @@ const Inventory = () => {
                     .map((material, index) => (
                       <TableRow
                         key={material.id}
-                        draggable
+                        draggable={!editingCell} // Disable drag while editing
                         onDragStart={() => handleDragStart(index)}
                         onDragOver={(e) => handleDragOver(e, index)}
                         onDragEnd={handleDragEnd}
-                        className="cursor-move"
+                        className={!editingCell ? "cursor-move" : ""}
                       >
                         <TableCell>
-                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <GripVertical className={`h-4 w-4 text-muted-foreground ${editingCell ? 'opacity-50' : ''}`} />
                         </TableCell>
                         <TableCell className="font-medium">{material.name}</TableCell>
                         <TableCell className="capitalize">{material.category}</TableCell>
-                        <TableCell>
-                          {material.current_stock} {material.unit}
+                        <TableCell
+                          className="cursor-pointer hover:bg-muted/50 transition-colors relative"
+                          onDoubleClick={() => setEditingCell({ id: material.id, value: material.current_stock.toString() })}
+                        >
+                          {editingCell?.id === material.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                value={editingCell.value}
+                                onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                                onBlur={() => handleStockUpdate(material.id, editingCell.value)}
+                                onKeyDown={(e) => handleKeyDown(e, material.id)}
+                                autoFocus
+                                className="h-8 w-24"
+                                step="0.01"
+                              />
+                              <span className="text-sm text-muted-foreground">{material.unit}</span>
+                            </div>
+                          ) : (
+                            <span>{material.current_stock} {material.unit}</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {material.min_stock_level} {material.unit}

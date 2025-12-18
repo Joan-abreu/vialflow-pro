@@ -202,10 +202,18 @@ const handler = async (req: Request): Promise<Response> => {
       emailTo = [customerEmail];
       subject = `Order Update #${order.id.slice(0, 8)}`;
 
+      // Generate Tracking URL
+      let trackingUrl = undefined;
+      if (order.tracking_number) {
+        // Default to FedEx, but could check order.shipping_carrier
+        trackingUrl = `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}`;
+      }
+
       htmlContent = getOrderStatusUpdateEmail({
         orderNumber: order.id.slice(0, 8),
         customerName: customerEmail.split('@')[0],
         status: order.status,
+        trackingUrl,
       });
     }
 

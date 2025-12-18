@@ -63,7 +63,7 @@ const Shipments = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchShipments = async () => {
     setLoading(true);
@@ -360,6 +360,11 @@ const Shipments = () => {
               totalPages={Math.ceil(filteredShipments.length / itemsPerPage)}
               onPageChange={setCurrentPage}
               totalItems={filteredShipments.length}
+              pageSize={itemsPerPage}
+              onPageSizeChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
             />
           )}
         </CardContent>

@@ -49,7 +49,7 @@ const AuditLogs = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const itemsPerPage = 15;
+    const [itemsPerPage, setItemsPerPage] = useState(15);
 
     const fetchLogs = async () => {
         setLoading(true);
@@ -201,6 +201,7 @@ const AuditLogs = () => {
                                                     if (log.table_name === 'orders') return `Order #${log.record_id.slice(0, 8)}`;
                                                     if (log.table_name === 'shipments') return values.shipment_number || `Shipment #${log.record_id.slice(0, 8)}`;
                                                     if (log.table_name === 'product_variants') return `Variant #${log.record_id.slice(0, 8)}`;
+                                                    if (log.table_name === 'production_batches') return values.batch_number || `Batch #${log.record_id.slice(0, 8)}`;
                                                     return log.record_id.slice(0, 8);
                                                 };
 
@@ -257,6 +258,11 @@ const AuditLogs = () => {
                                     totalPages={Math.ceil(totalCount / itemsPerPage)}
                                     onPageChange={setCurrentPage}
                                     totalItems={totalCount}
+                                    pageSize={itemsPerPage}
+                                    onPageSizeChange={(size) => {
+                                        setItemsPerPage(size);
+                                        setCurrentPage(1);
+                                    }}
                                 />
                             </div>
                         </>

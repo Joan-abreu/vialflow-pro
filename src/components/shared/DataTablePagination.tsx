@@ -7,12 +7,21 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface DataTablePaginationProps {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
     totalItems?: number;
+    pageSize?: number;
+    onPageSizeChange?: (size: number) => void;
 }
 
 export function DataTablePagination({
@@ -20,6 +29,8 @@ export function DataTablePagination({
     totalPages,
     onPageChange,
     totalItems,
+    pageSize,
+    onPageSizeChange,
 }: DataTablePaginationProps) {
     const getPageNumbers = () => {
         const pages = [];
@@ -53,16 +64,43 @@ export function DataTablePagination({
         return pages;
     };
 
-    if (totalPages <= 1 && !totalItems) return null;
+    if (totalPages <= 1 && !totalItems && !pageSize) return null;
 
     return (
-        <div className="flex items-center justify-between mt-4 px-2">
-            <div className="text-sm text-muted-foreground text-nowrap">
-                {totalItems !== undefined && `Total: ${totalItems} records`}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 px-2">
+            <div className="flex items-center gap-6 text-sm text-muted-foreground order-2 md:order-1">
+                {totalItems !== undefined && (
+                    <div className="text-nowrap">
+                        Total: {totalItems} records
+                    </div>
+                )}
+
+                {pageSize && onPageSizeChange && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-nowrap">Rows per page</span>
+                        <Select
+                            value={pageSize.toString()}
+                            onValueChange={(value) => {
+                                onPageSizeChange(Number(value));
+                            }}
+                        >
+                            <SelectTrigger className="h-8 w-[70px]">
+                                <SelectValue placeholder={pageSize} />
+                            </SelectTrigger>
+                            <SelectContent side="top">
+                                {[10, 20, 30, 40, 50].map((size) => (
+                                    <SelectItem key={size} value={`${size}`}>
+                                        {size}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
             </div>
 
             {totalPages > 1 && (
-                <Pagination className="mx-0 w-auto justify-end">
+                <Pagination className="mx-0 w-auto justify-end order-1 md:order-2">
                     <PaginationContent>
                         <PaginationItem>
                             <PaginationPrevious

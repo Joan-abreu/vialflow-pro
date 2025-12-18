@@ -33,7 +33,7 @@ const CommunicationLogs = () => {
     const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const { data: logs, isLoading } = useQuery({
         queryKey: ["email_logs"],
@@ -164,6 +164,11 @@ const CommunicationLogs = () => {
                                     totalPages={totalPages}
                                     onPageChange={setCurrentPage}
                                     totalItems={filteredLogs?.length}
+                                    pageSize={itemsPerPage}
+                                    onPageSizeChange={(size) => {
+                                        setItemsPerPage(size);
+                                        setCurrentPage(1);
+                                    }}
                                 />
                             )}
                         </>

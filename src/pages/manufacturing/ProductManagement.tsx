@@ -561,7 +561,7 @@ const ProductManagement = () => {
 
     const handleEditDescription = (product: Product) => {
         setEditingDescriptionProduct(product);
-        setRichTextDescription(product.rich_description || "");
+        setRichTextDescription(product.rich_description || product.description || "");
         setIsDescriptionDialogOpen(true);
     };
 
@@ -1066,6 +1066,7 @@ const ProductManagement = () => {
                         </DialogHeader>
                         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                             <RichTextEditor
+                                key={editingDescriptionProduct?.id}
                                 content={richTextDescription}
                                 onChange={setRichTextDescription}
                             />

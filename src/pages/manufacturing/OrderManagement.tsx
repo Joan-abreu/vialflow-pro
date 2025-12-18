@@ -88,7 +88,7 @@ const OrderManagement = () => {
     const [showProductionDialog, setShowProductionDialog] = useState(false);
     const [showShippingDialog, setShowShippingDialog] = useState(false);
     const queryClient = useQueryClient();
-    const itemsPerPage = 10;
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const { data: orders, isLoading } = useQuery({
         queryKey: ["orders"],
@@ -438,6 +438,11 @@ const OrderManagement = () => {
                             totalPages={Math.ceil(filteredOrders.length / itemsPerPage)}
                             onPageChange={setCurrentPage}
                             totalItems={filteredOrders.length}
+                            pageSize={itemsPerPage}
+                            onPageSizeChange={(size) => {
+                                setItemsPerPage(size);
+                                setCurrentPage(1);
+                            }}
                         />
                     )}
                 </CardContent>

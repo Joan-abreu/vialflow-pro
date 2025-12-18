@@ -44,7 +44,7 @@ const CustomerManagement = () => {
     const [users, setUsers] = useState<UserWithRole[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const [itemsPerPage, setItemsPerPage] = useState(10);
     const [resettingPassword, setResettingPassword] = useState<string | null>(null);
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
     const [selectedUserForReset, setSelectedUserForReset] = useState<UserWithRole | null>(null);
@@ -394,6 +394,11 @@ const CustomerManagement = () => {
                             totalPages={Math.ceil(users.length / itemsPerPage)}
                             onPageChange={setCurrentPage}
                             totalItems={users.length}
+                            pageSize={itemsPerPage}
+                            onPageSizeChange={(size) => {
+                                setItemsPerPage(size);
+                                setCurrentPage(1);
+                            }}
                         />
                     )}
                 </CardContent>

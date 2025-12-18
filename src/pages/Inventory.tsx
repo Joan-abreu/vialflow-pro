@@ -52,7 +52,7 @@ const Inventory = () => {
   const [sortField, setSortField] = useState<"name" | "category" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [editingCell, setEditingCell] = useState<{ id: string; value: string } | null>(null);
 
@@ -381,6 +381,11 @@ const Inventory = () => {
               totalPages={Math.ceil(filteredMaterials.length / itemsPerPage)}
               onPageChange={setCurrentPage}
               totalItems={filteredMaterials.length}
+              pageSize={itemsPerPage}
+              onPageSizeChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
             />
           )}
         </CardContent>

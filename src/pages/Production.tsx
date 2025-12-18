@@ -35,6 +35,7 @@ import StartProductionDialog from "@/components/production/StartProductionDialog
 import { Input } from "@/components/ui/input";
 import { Package, Trash2, FileText, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import CopyCell from "@/components/CopyCell";
 
 interface ProductionBatch {
   id: string;
@@ -68,7 +69,7 @@ const Production = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const filteredBatches = batches.filter((batch) =>
     batch.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,7 +231,12 @@ const Production = () => {
 
                       return (
                         <TableRow key={batch.id}>
-                          <TableCell className="font-medium">{batch.batch_number}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {batch.batch_number}
+                              <CopyCell value={batch.batch_number} size={14} />
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {batch.product_variant_details?.product_id?.name || "-"}
                           </TableCell>
@@ -358,6 +364,11 @@ const Production = () => {
               totalPages={Math.ceil(filteredBatches.length / itemsPerPage)}
               onPageChange={setCurrentPage}
               totalItems={filteredBatches.length}
+              pageSize={itemsPerPage}
+              onPageSizeChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
             />
           )}
         </CardContent>

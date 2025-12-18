@@ -8,6 +8,7 @@ import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 
 interface ProductWithVariants {
     id: string;
@@ -299,15 +300,17 @@ const ProductDetails = () => {
             </div>
 
 
+
+
             <div className="mt-12 md:mt-16 border-t pt-8 md:pt-12">
                 <h2 className="text-2xl font-bold mb-6">Description</h2>
                 {product.rich_description ? (
                     <div
-                        className="prose prose-sm md:prose-base text-muted-foreground max-w-none"
+                        className={RICH_TEXT_STYLES}
                         dangerouslySetInnerHTML={{ __html: product.rich_description }}
                     />
                 ) : (
-                    <p className="text-lg text-muted-foreground leading-relaxed">
+                    <p className="text-lg text-muted-foreground leading-relaxed whitespace-pre-wrap">
                         {product.description || "No description available for this product."}
                     </p>
                 )}

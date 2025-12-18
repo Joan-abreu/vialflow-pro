@@ -138,8 +138,8 @@ const AddShipmentDialog = ({ onSuccess, initialBatchId, trigger }: AddShipmentDi
     }
 
     const count = parseInt(numBoxes);
-    if (!count || count <= 0 || count > 20) {
-      toast.error("Please enter a valid number of boxes (1-20)");
+    if (!count || count <= 0 || count > 100) {
+      toast.error("Please enter a valid number of boxes (1-100)");
       return;
     }
 

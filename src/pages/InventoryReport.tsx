@@ -12,6 +12,7 @@ interface RawMaterial {
     current_stock: number;
     min_stock_level: number;
     cost_per_unit: number | null;
+    order_index: number;
 }
 
 export default function InventoryReport() {
@@ -25,7 +26,7 @@ export default function InventoryReport() {
                 const { data, error } = await supabase
                     .from("raw_materials")
                     .select("*")
-                    .order("category")
+                    .order("order_index")
                     .order("name");
 
                 if (error) throw error;

@@ -39,7 +39,9 @@ interface Order {
             };
             vial_type: {
                 name: string;
-                size_ml: number;
+                capacity_ml: number;
+                color: string | null;
+                shape: string | null;
             };
         };
     }[];
@@ -110,10 +112,7 @@ const Account = () => {
                             name,
                             image_url
                         ),
-                        vial_type:vial_types (
-                            name,
-                            size_ml
-                        )
+                        vial_type:vial_types(name, capacity_ml, color, shape)
                     )
                 )
             `)
@@ -187,7 +186,7 @@ const Account = () => {
                     .select(`
                         *,
                         product:products(*),
-                        vial_type:vial_types(name, size_ml)
+                        vial_type:vial_types(name, capacity_ml, color, shape)
                     `)
                     .eq("id", item.variant_id)
                     .eq("is_published", true)
@@ -234,7 +233,9 @@ const Account = () => {
                     },
                     vial_type: {
                         name: variantData.vial_type.name,
-                        size_ml: variantData.vial_type.size_ml,
+                        capacity_ml: variantData.vial_type.capacity_ml,
+                        color: variantData.vial_type.color,
+                        shape: variantData.vial_type.shape,
                     },
                 };
 
@@ -426,7 +427,7 @@ const Account = () => {
                                                             <div className="flex-1">
                                                                 <p className="font-medium">{product?.name || "Unknown Product"}</p>
                                                                 <p className="text-sm text-muted-foreground">
-                                                                    {variant?.vial_type?.size_ml}ml
+                                                                    {variant?.vial_type?.capacity_ml}ml{variant?.vial_type?.color ? ` - ${variant?.vial_type?.color}` : ''}{variant?.vial_type?.shape ? ` - ${variant?.vial_type?.shape}` : ''}
                                                                     {variant?.pack_size && variant.pack_size > 1 ? ` (${variant.pack_size}x Pack)` : ''}
                                                                 </p>
                                                                 <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>

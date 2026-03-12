@@ -35,7 +35,12 @@ interface ProductVariant {
   sale_type: string;
   pack_size: number;
   products: { name: string };
-  vial_types: { name: string; size_ml: number };
+  vial_types: {
+    name: string;
+    capacity_ml: number;
+    color: string | null;
+    shape: string | null;
+  };
 }
 
 interface EditBatchDialogProps {
@@ -114,7 +119,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
         sale_type,
         pack_size,
         products (name),
-        vial_types (name, size_ml)
+        vial_types(name, capacity_ml, color, shape)
       `)
       .order("created_at", { ascending: false });
 
@@ -276,7 +281,7 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
                       : 'Individual';
                     return (
                       <SelectItem key={variant.id} value={variant.id}>
-                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
+                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.capacity_ml}ml{variant.vial_types.color ? ` - ${variant.vial_types.color}` : ''}{variant.vial_types.shape ? ` - ${variant.vial_types.shape}` : ''}) - {saleTypeText}
                       </SelectItem>
                     );
                   })}

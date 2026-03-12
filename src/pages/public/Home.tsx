@@ -16,7 +16,7 @@ const Home = () => {
                 .select(`
                     *,
                     product:products!inner(id, slug, name, description, image_url, is_published, product_categories(name)),
-                    vial_type:vial_types!inner(name, size_ml)
+                    vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
                 .eq("product.is_published", true) as any);
@@ -36,7 +36,7 @@ const Home = () => {
                         image_url: variant.product.image_url,
                         category: variant.product.product_categories?.name || null,
                         price: variant.price,
-                        size_ml: variant.vial_type.size_ml,
+                        capacity_ml: variant.vial_type.capacity_ml,
                         pack_size: variant.pack_size,
                         variants: [variant],
                     };

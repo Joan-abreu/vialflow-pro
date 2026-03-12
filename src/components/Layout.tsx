@@ -18,7 +18,8 @@ import {
   Users,
   Store,
   Mail,
-  Settings
+  Settings,
+  Calendar
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -114,6 +115,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Production", href: "/manufacturing/production", icon: Package },
     { name: "Shipments", href: "/manufacturing/shipments", icon: Truck },
     { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
+    { name: "Planner", href: "/manufacturing/planner", icon: Calendar },
     { name: "Products", href: "/manufacturing/products", icon: Tag },
   ];
 

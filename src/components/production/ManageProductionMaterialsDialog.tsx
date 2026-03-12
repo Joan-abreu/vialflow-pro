@@ -18,7 +18,12 @@ interface ProductVariant {
   pack_size: number;
   sale_type: string;
   products: { name: string; sale_type: string };
-  vial_types: { name: string; size_ml: number };
+  vial_types: {
+    name: string;
+    capacity_ml: number;
+    color: string | null;
+    shape: string | null;
+  };
 }
 
 interface RawMaterial {
@@ -126,7 +131,7 @@ export function ManageProductionMaterialsDialog() {
         pack_size,
         sale_type,
         products!inner(name, sale_type),
-        vial_types!inner(name, size_ml)
+        vial_types!inner(name, capacity_ml, color, shape)
       `)
       .order("created_at", { ascending: false });
 
@@ -241,7 +246,7 @@ export function ManageProductionMaterialsDialog() {
       // Calculate quantity_per_unit (Total per Pack) for backward compatibility
       const variant = variants.find(v => v.id === selectedVariantId);
       const packSize = variant?.pack_size || 1;
-      const vialSize = variant?.vial_types?.size_ml || 0;
+      const vialSize = variant?.vial_types?.capacity_ml || 0;
       const qtyUsage = parseFloat(newConfiguration.quantity_usage);
 
       let calculatedQtyPerUnit = 0;
@@ -422,7 +427,7 @@ export function ManageProductionMaterialsDialog() {
                     : 'Individual';
                   return (
                     <SelectItem key={variant.id} value={variant.id}>
-                      {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.size_ml}ml) - {saleTypeText}
+                      {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.capacity_ml}ml{variant.vial_types.color ? ` - ${variant.vial_types.color}` : ''}{variant.vial_types.shape ? ` - ${variant.vial_types.shape}` : ''}) - {saleTypeText}
                     </SelectItem>
                   );
                 })}

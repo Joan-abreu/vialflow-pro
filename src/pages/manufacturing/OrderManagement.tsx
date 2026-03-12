@@ -49,7 +49,9 @@ interface OrderItem {
         };
         vial_type: {
             name: string;
-            size_ml: number;
+            capacity_ml: number;
+            color: string | null;
+            shape: string | null;
         };
     };
 }
@@ -527,7 +529,7 @@ const OrderManagement = () => {
                                                         <div>
                                                             <div className="font-medium text-sm">{item.variant?.product?.name}</div>
                                                             <div className="text-xs text-muted-foreground">
-                                                                {item.variant?.vial_type?.name} ({item.variant?.vial_type?.size_ml}ml)
+                                                                {item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})
                                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
                                                             </div>
                                                         </div>
@@ -612,7 +614,7 @@ const OrderManagement = () => {
                                                     {group.variant?.product?.name || "Unknown Product"}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {group.variant?.vial_type?.size_ml}ml
+                                                    {group.variant?.vial_type?.capacity_ml}ml{group.variant?.vial_type?.color ? ` - ${group.variant?.vial_type?.color}` : ''}{group.variant?.vial_type?.shape ? ` - ${group.variant?.vial_type?.shape}` : ''}
                                                     {group.variant?.pack_size && group.variant.pack_size > 1 ? ` (${group.variant.pack_size}x Pack)` : ''}
                                                     {group.variant?.sale_type === 'pack' ? ' - Pack' : ' - Individual'}
                                                 </p>

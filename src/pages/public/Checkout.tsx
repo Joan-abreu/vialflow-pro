@@ -267,7 +267,7 @@ const Checkout = () => {
                                         <div>
                                             <p className="font-medium text-sm">{item.variant.product.name}</p>
                                             <p className="text-xs text-muted-foreground">
-                                                {item.variant.vial_type.size_ml}ml
+                                                {item.variant.vial_type.capacity_ml}ml{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''}
                                                 {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
                                                 {' '}- Qty: {item.quantity}
                                             </p>

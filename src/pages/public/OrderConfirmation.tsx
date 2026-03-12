@@ -25,7 +25,7 @@ const OrderConfirmation = () => {
             variant:product_variants (
               *,
               product:products (name, image_url),
-              vial_type:vial_types (name, size_ml)
+              vial_type:vial_types(name, capacity_ml, color, shape)
             )
           )
         `)
@@ -118,7 +118,7 @@ const OrderConfirmation = () => {
                                     <div>
                                         <p className="font-medium">{item.variant.product.name}</p>
                                         <p className="text-sm text-muted-foreground">
-                                            {item.variant.vial_type.size_ml}ml • Qty: {item.quantity}
+                                            {item.variant.vial_type.capacity_ml}ml{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''} • Qty: {item.quantity}
                                         </p>
                                     </div>
                                 </div>

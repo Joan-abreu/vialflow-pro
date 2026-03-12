@@ -17,6 +17,7 @@ import OrderManagement from "./pages/manufacturing/OrderManagement";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
 import CommunicationLogs from "./pages/manufacturing/CommunicationLogs";
 import ShippingSettings from "./pages/manufacturing/ShippingSettings";
+import ProductionPlanner from "./pages/ProductionPlanner";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
 import { useUserRole } from "./hooks/useUserRole";
@@ -174,6 +175,7 @@ const AppRoutes = () => {
           <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
           <Route path="bom/:batchId" element={<BillOfMaterials />} />
+          <Route path="planner" element={<ProtectedRoute><ProductionPlanner /></ProtectedRoute>} />
           <Route path="inventory-report" element={<InventoryReport />} />
         </Route>
 

@@ -36,7 +36,7 @@ const Products = () => {
                 .select(`
                     *,
                     product:products!inner(id, slug, name, description, image_url, category_id, is_published, sale_type, default_pack_size, product_categories(name)),
-                    vial_type:vial_types!inner(name, size_ml)
+                    vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
                 .eq("product.is_published", true);
@@ -87,7 +87,9 @@ const Products = () => {
                     },
                     vial_type: {
                         name: variant.vial_type.name,
-                        size_ml: variant.vial_type.size_ml,
+                        capacity_ml: variant.vial_type.capacity_ml,
+                        color: variant.vial_type.color,
+                        shape: variant.vial_type.shape,
                     },
                 });
             });

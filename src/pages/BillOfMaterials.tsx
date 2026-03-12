@@ -29,6 +29,8 @@ interface BatchData {
   created_at: string;
   vial_type_name: string;
   vial_type_size: number;
+  vial_type_color: string | null;
+  vial_type_shape: string | null;
 }
 
 export default function BillOfMaterials() {
@@ -58,7 +60,7 @@ export default function BillOfMaterials() {
               product_id,
               vial_type_id,
               products (name),
-              vial_types (name, size_ml)
+              vial_types(name, capacity_ml, color, shape)
             )
           `)
           .eq("id", batchId)
@@ -81,7 +83,9 @@ export default function BillOfMaterials() {
           started_at: batchData.started_at,
           created_at: batchData.created_at,
           vial_type_name: productVariant?.vial_types?.name || '',
-          vial_type_size: productVariant?.vial_types?.size_ml || 0,
+          vial_type_size: productVariant?.vial_types?.capacity_ml || 0,
+          vial_type_color: productVariant?.vial_types?.color || null,
+          vial_type_shape: productVariant?.vial_types?.shape || null,
         });
 
         // Fetch materials for this product variant
@@ -248,7 +252,7 @@ export default function BillOfMaterials() {
           </div>
           <div>
             <p className="text-sm text-gray-600">Vial Type</p>
-            <p className="text-lg font-semibold">{batch.vial_type_name} ({batch.vial_type_size}ml)</p>
+            <p className="text-lg font-semibold">{batch.vial_type_name} ({batch.vial_type_size}ml{batch.vial_type_color ? ` - ${batch.vial_type_color}` : ''}{batch.vial_type_shape ? ` - ${batch.vial_type_shape}` : ''})</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Production Quantity</p>

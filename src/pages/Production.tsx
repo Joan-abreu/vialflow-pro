@@ -54,7 +54,9 @@ interface ProductionBatch {
   product_variant_details: { // New property for expanded details
     vial_type_id: {
       name: string;
-      size_ml: number;
+      capacity_ml: number;
+      color: string | null;
+      shape: string | null;
     };
     product_id: {
       name: string;
@@ -83,7 +85,7 @@ const Production = () => {
     // Alias the relation to product_variant_details to keep product_id as the ID string
     const { data: batchData, error } = await supabase
       .from("production_batches")
-      .select("*, product_variant_details:product_id(vial_type_id(name, size_ml), product_id(name))")
+      .select("*, product_variant_details:product_id(vial_type_id(name, capacity_ml, color, shape), product_id(name))")
       .order("created_at", { ascending: sortDirection === 'asc' });
 
     if (!error && batchData) {
@@ -239,7 +241,7 @@ const Production = () => {
                             {batch.product_variant_details?.product_id?.name || "-"}
                           </TableCell>
                           <TableCell>
-                            {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.size_ml}ml)
+                            {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.capacity_ml}ml{batch.product_variant_details?.vial_type_id?.color ? ` - ${batch.product_variant_details?.vial_type_id?.color}` : ''}{batch.product_variant_details?.vial_type_id?.shape ? ` - ${batch.product_variant_details?.vial_type_id?.shape}` : ''})
                           </TableCell>
                           <TableCell>
                             {batch.sale_type === "pack" && batch.pack_quantity

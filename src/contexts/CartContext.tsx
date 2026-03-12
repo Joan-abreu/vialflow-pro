@@ -31,7 +31,9 @@ export interface ProductVariant {
     };
     vial_type: {
         name: string;
-        size_ml: number;
+        capacity_ml: number;
+        color: string | null;
+        shape: string | null;
     };
 }
 
@@ -89,7 +91,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                         : item
                 );
             }
-            toast.success(`Added ${variant.product.name} (${variant.vial_type.size_ml}ml) to cart`);
+            toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}) to cart`);
             return [...currentItems, { variant, quantity }];
         });
     };

@@ -99,7 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
           variant:product_variants(
             *,
             product:products(name),
-            vial_type:vial_types(name, size_ml)
+            vial_type:vial_types(name, capacity_ml, color, shape)
           )
         )
       `)

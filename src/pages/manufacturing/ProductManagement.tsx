@@ -96,14 +96,18 @@ interface ProductVariant {
     image_url: string | null;
     vial_type: {
         name: string;
-        size_ml: number;
+        capacity_ml: number;
+        color: string | null;
+        shape: string | null;
     };
 }
 
 interface VialType {
     id: string;
     name: string;
-    size_ml: number;
+    capacity_ml: number;
+    color: string | null;
+    shape: string | null;
 }
 
 interface SortableVariantRowProps {
@@ -137,7 +141,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
                 {variant.image_url ? (
                     <img
                         src={variant.image_url}
-                        alt={`${variant.vial_type.size_ml}ml variant`}
+                        alt={`${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''} variant`}
                         className="h-10 w-10 object-cover rounded"
                     />
                 ) : (
@@ -146,7 +150,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
                     </div>
                 )}
             </TableCell>
-            <TableCell>{variant.vial_type.size_ml}ml</TableCell>
+            <TableCell>{variant.vial_type.capacity_ml}ml{variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}{variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}</TableCell>
             <TableCell>
                 <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium capitalize">{variant.pack_size > 1 ? 'Pack' : 'Individual'}</span>
@@ -233,7 +237,7 @@ const ProductManagement = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    vial_type:vial_types(name, size_ml)
+                    vial_type:vial_types(name, capacity_ml, color, shape)
                 `)
                 .order('position', { ascending: true }) as any);
             if (error) throw error;
@@ -271,7 +275,7 @@ const ProductManagement = () => {
                 .from("vial_types")
                 .select("*")
                 .eq("active", true)
-                .order("size_ml");
+                .order("capacity_ml");
             if (error) throw error;
             return data as VialType[];
         },
@@ -768,7 +772,7 @@ const ProductManagement = () => {
                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 This action cannot be undone. This will permanently delete the variant
-                                "{deletingVariant?.vial_type.size_ml}ml - {deletingVariant?.sku || 'No SKU'}" and all its data.
+                                "{deletingVariant?.vial_type.capacity_ml}ml{deletingVariant?.vial_type.color ? ` - ${deletingVariant?.vial_type.color}` : ''}{deletingVariant?.vial_type.shape ? ` - ${deletingVariant?.vial_type.shape}` : ''} - {deletingVariant?.sku || 'No SKU'}" and all its data.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -813,7 +817,7 @@ const ProductManagement = () => {
                                     <option value="" disabled>Select vial type</option>
                                     {vialTypes?.map((vt) => (
                                         <option key={vt.id} value={vt.id}>
-                                            {vt.name} ({vt.size_ml}ml)
+                                            {vt.name} ({vt.capacity_ml}ml{vt.color ? ` - ${vt.color}` : ''}{vt.shape ? ` - ${vt.shape}` : ''})
                                         </option>
                                     ))}
                                 </select>

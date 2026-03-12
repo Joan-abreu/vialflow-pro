@@ -40,7 +40,7 @@ const Cart = () => {
                                                 <h3 className="font-semibold">{item.variant.product.name}</h3>
                                             </Link>
                                             <p className="text-sm text-muted-foreground">
-                                                {item.variant.vial_type.size_ml}ml
+                                                {item.variant.vial_type.capacity_ml}ml{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''}
                                                 {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
                                             </p>
                                         </div>

@@ -25,7 +25,7 @@ interface StartProductionDialogProps {
         product_variant_details: {
             vial_type_id: {
                 name: string;
-                size_ml: number;
+                capacity_ml: number;
             };
             product_id: {
                 name: string;
@@ -98,7 +98,7 @@ const StartProductionDialog = ({ batch, onSuccess }: StartProductionDialogProps)
 
                             <div className="text-muted-foreground">Vial Type:</div>
                             <div className="font-medium">
-                                {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.size_ml}ml)
+                                {batch.product_variant_details?.vial_type_id?.name} ({batch.product_variant_details?.vial_type_id?.capacity_ml}ml{batch.product_variant_details?.vial_type_id?.color ? ` - ${batch.product_variant_details?.vial_type_id?.color}` : ''}{batch.product_variant_details?.vial_type_id?.shape ? ` - ${batch.product_variant_details?.vial_type_id?.shape}` : ''})
                             </div>
 
                             <div className="text-muted-foreground">Quantity:</div>

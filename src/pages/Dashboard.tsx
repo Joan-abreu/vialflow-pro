@@ -177,7 +177,7 @@ const Dashboard = () => {
           variant:product_variants!product_id (
             sale_type,
             pack_size,
-            vial_type:vial_types(name)
+            vial_type:vial_types(name, capacity_ml, color, shape)
           )
         `)
         .order("created_at", { ascending: false })
@@ -192,7 +192,7 @@ const Dashboard = () => {
           recentActivities.push({
             id: batch.id,
             type: "batch",
-            description: `Batch ${batch.batch_number} created - ${vialTypeName} - ${packInfo}`,
+            description: `Batch ${batch.batch_number} created - ${vialTypeName} (${batch.variant?.vial_type?.capacity_ml}ml${batch.variant?.vial_type?.color ? ` - ${batch.variant?.vial_type?.color}` : ''}${batch.variant?.vial_type?.shape ? ` - ${batch.variant?.vial_type?.shape}` : ''}) - ${packInfo}`,
             timestamp: batch.created_at,
             status: batch.status,
           });

@@ -31,7 +31,9 @@ import {
 interface VialType {
   id: string;
   name: string;
-  size_ml: number;
+  capacity_ml: number;
+  color: string | null;
+  shape: string | null;
   description: string | null;
   active: boolean;
 }
@@ -44,7 +46,9 @@ export default function ManageVialTypesDialog() {
 
   const [formData, setFormData] = useState({
     name: "",
-    size_ml: "",
+    capacity_ml: "",
+    color: "",
+    shape: "",
     description: "",
     active: true,
   });
@@ -57,7 +61,7 @@ export default function ManageVialTypesDialog() {
     const { data, error } = await supabase
       .from("vial_types")
       .select("*")
-      .order("size_ml");
+      .order("capacity_ml");
 
     if (error) {
       toast.error("Failed to load vial types");
@@ -71,7 +75,9 @@ export default function ManageVialTypesDialog() {
     setEditing(null);
     setFormData({
       name: "",
-      size_ml: "",
+      capacity_ml: "",
+      color: "",
+      shape: "",
       description: "",
       active: true,
     });
@@ -87,7 +93,9 @@ export default function ManageVialTypesDialog() {
           .from("vial_types")
           .update({
             name: formData.name.trim(),
-            size_ml: parseInt(formData.size_ml),
+            capacity_ml: parseInt(formData.capacity_ml),
+            color: formData.color.trim() || null,
+            shape: formData.shape.trim() || null,
             description: formData.description.trim() || null,
             active: formData.active,
           })
@@ -101,7 +109,9 @@ export default function ManageVialTypesDialog() {
           .from("vial_types")
           .insert({
             name: formData.name.trim(),
-            size_ml: parseInt(formData.size_ml),
+            capacity_ml: parseInt(formData.capacity_ml),
+            color: formData.color.trim() || null,
+            shape: formData.shape.trim() || null,
             description: formData.description.trim() || null,
             active: formData.active,
           });
@@ -124,7 +134,9 @@ export default function ManageVialTypesDialog() {
     setEditing(vial);
     setFormData({
       name: vial.name,
-      size_ml: vial.size_ml.toString(),
+      capacity_ml: vial.capacity_ml.toString(),
+      color: vial.color || "",
+      shape: vial.shape || "",
       description: vial.description || "",
       active: vial.active,
     });
@@ -191,12 +203,30 @@ export default function ManageVialTypesDialog() {
             </div>
 
             <div>
-              <Label>Size (ml) *</Label>
+              <Label>Size/Capacity (ml) *</Label>
               <Input
                 type="number"
-                value={formData.size_ml}
-                onChange={(e) => setFormData({ ...formData, size_ml: e.target.value })}
+                value={formData.capacity_ml}
+                onChange={(e) => setFormData({ ...formData, capacity_ml: e.target.value })}
                 required
+              />
+            </div>
+
+            <div>
+              <Label>Color (Optional)</Label>
+              <Input
+                placeholder="e.g. Amber, Clear"
+                value={formData.color}
+                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label>Shape (Optional)</Label>
+              <Input
+                placeholder="e.g. Tall, Short"
+                value={formData.shape}
+                onChange={(e) => setFormData({ ...formData, shape: e.target.value })}
               />
             </div>
 
@@ -241,7 +271,9 @@ export default function ManageVialTypesDialog() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs sm:text-sm">Name</TableHead>
-                <TableHead className="text-xs sm:text-sm">Size (ml)</TableHead>
+                <TableHead className="text-xs sm:text-sm">Capacity (ml)</TableHead>
+                <TableHead className="text-xs sm:text-sm">Color</TableHead>
+                <TableHead className="text-xs sm:text-sm">Shape</TableHead>
                 <TableHead className="hidden md:table-cell text-xs sm:text-sm">Description</TableHead>
                 <TableHead className="text-xs sm:text-sm">Status</TableHead>
                 <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
@@ -259,7 +291,9 @@ export default function ManageVialTypesDialog() {
                 vialTypes.map((vial) => (
                   <TableRow key={vial.id}>
                     <TableCell>{vial.name}</TableCell>
-                    <TableCell>{vial.size_ml} ml</TableCell>
+                    <TableCell>{vial.capacity_ml} ml</TableCell>
+                    <TableCell>{vial.color || "-"}</TableCell>
+                    <TableCell>{vial.shape || "-"}</TableCell>
                     <TableCell>{vial.description || "-"}</TableCell>
                     <TableCell>
                       <span className={vial.active ? "text-green-600" : "text-gray-400"}>

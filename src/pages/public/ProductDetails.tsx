@@ -54,7 +54,7 @@ const ProductDetails = () => {
                 .from("product_variants")
                 .select(`
                     *,
-                    vial_type:vial_types(name, size_ml)
+                    vial_type:vial_types(name, capacity_ml, color, shape)
                 `)
                 .eq("product_id", productData.id)
                 .eq("is_published", true)
@@ -82,7 +82,9 @@ const ProductDetails = () => {
                 },
                 vial_type: {
                     name: v.vial_type.name,
-                    size_ml: v.vial_type.size_ml,
+                    capacity_ml: v.vial_type.capacity_ml,
+                    color: v.vial_type.color,
+                    shape: v.vial_type.shape,
                 },
             })) || [];
 
@@ -203,7 +205,7 @@ const ProductDetails = () => {
                                             : 'border-border hover:border-primary/50'
                                             }`}
                                     >
-                                        <div className="text-sm font-medium">{variant.vial_type.size_ml}ml {variant.pack_size > 1 ? `(${variant.pack_size}x Pack)` : ''}</div>
+                                        <div className="text-sm font-medium">{variant.vial_type.capacity_ml}ml{variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}{variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''} {variant.pack_size > 1 ? `(${variant.pack_size}x Pack)` : ''}</div>
                                         <div className="text-xs text-muted-foreground">${variant.price.toFixed(2)}</div>
                                     </button>
                                 ))}

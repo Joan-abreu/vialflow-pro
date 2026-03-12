@@ -103,9 +103,9 @@ const Users = () => {
 
       const { users: usersData } = await response.json();
 
-      // Add banned status to users and filter out hidden admin
+      // Add banned status to users and filter out hidden admin and customers
       const usersWithStatus = usersData
-        .filter((user: any) => user.email !== 'hidden.admin@dev.com')
+        .filter((user: any) => user.email !== 'hidden.admin@dev.com' && user.role !== 'customer')
         .map((user: any) => ({
           ...user,
           banned_until: user.banned_until || null

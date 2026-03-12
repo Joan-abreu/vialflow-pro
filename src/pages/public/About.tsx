@@ -5,7 +5,7 @@ const About = () => {
         <div className="container py-12">
             <div className="max-w-4xl mx-auto space-y-12">
                 <div className="text-center space-y-4">
-                    <h1 className="text-4xl font-bold tracking-tight">About Liv Well Research Labs*</h1>
+                    <h1 className="text-4xl font-bold tracking-tight">About Liv Well Research Labs</h1>
                     <p className="text-xl text-muted-foreground">
                         Advancing scientific research through premium quality peptides and supplies.
                     </p>

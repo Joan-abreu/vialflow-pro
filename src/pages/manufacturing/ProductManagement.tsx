@@ -59,6 +59,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import { ManageCategoriesDialog } from "@/components/admin/ManageCategoriesDialog";
+import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 
 interface ProductCategory {
     id: string;
@@ -656,7 +657,8 @@ const ProductManagement = () => {
                             Manage your product catalog, variants, and categories.
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 text-sm sm:text-base">
+                        <ManageVialTypesDialog />
                         <ManageCategoriesDialog />
                         <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
                             setIsProductDialogOpen(open);

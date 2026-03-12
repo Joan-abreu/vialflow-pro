@@ -27,7 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import AddBatchDialog from "@/components/production/AddBatchDialog";
-import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
 import { ManageProductionMaterialsDialog } from "@/components/production/ManageProductionMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
@@ -153,7 +152,6 @@ const Production = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ManageVialTypesDialog />
           <ManageProductionMaterialsDialog />
           <AddBatchDialog onSuccess={fetchBatches} />
         </div>

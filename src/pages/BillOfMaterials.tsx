@@ -13,6 +13,8 @@ interface MaterialItem {
   total_quantity: number;
   cost_per_unit: number | null;
   total_cost: number;
+  current_stock: number;
+  shortfall: number;
 }
 
 interface BatchData {
@@ -102,7 +104,8 @@ export default function BillOfMaterials() {
               id,
               name,
               unit,
-              cost_per_unit
+              cost_per_unit,
+              current_stock
             )
           `)
           .eq("vial_type_id", productVariant.vial_type_id)
@@ -143,6 +146,9 @@ export default function BillOfMaterials() {
           const costPerUnit = item.raw_materials.cost_per_unit || 0;
           const totalCost = totalQty * costPerUnit;
 
+          const currentStock = item.raw_materials.current_stock || 0;
+          const shortfall = Math.max(0, totalQty - currentStock);
+
           return {
             id: item.raw_materials.id,
             name: item.raw_materials.name,
@@ -151,6 +157,8 @@ export default function BillOfMaterials() {
             total_quantity: totalQty,
             cost_per_unit: costPerUnit,
             total_cost: totalCost,
+            current_stock: currentStock,
+            shortfall: shortfall,
           };
         });
 
@@ -268,6 +276,8 @@ export default function BillOfMaterials() {
                 <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Qty/Unit</th>
                 <th className="border border-gray-300 p-2 sm:p-3 text-center text-xs sm:text-sm">Unit</th>
                 <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Total Qty</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Stock</th>
+                <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">To Buy</th>
                 <th className="hidden sm:table-cell border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Unit Cost</th>
                 <th className="border border-gray-300 p-2 sm:p-3 text-right text-xs sm:text-sm">Total</th>
               </tr>
@@ -293,6 +303,12 @@ export default function BillOfMaterials() {
                       <td className="border border-gray-300 p-3 text-right">
                         {totalQtyDisplay}
                       </td>
+                      <td className="border border-gray-300 p-3 text-right font-medium">
+                        {isDiscreteUnit ? material.current_stock.toFixed(0) : material.current_stock.toFixed(2)}
+                      </td>
+                      <td className={`border border-gray-300 p-3 text-right font-bold ${material.shortfall > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {isDiscreteUnit ? material.shortfall.toFixed(0) : material.shortfall.toFixed(2)}
+                      </td>
                       <td className="hidden sm:table-cell border border-gray-300 p-3 text-right">
                         ${material.cost_per_unit?.toFixed(2) || '0.00'}
                       </td>
@@ -304,7 +320,7 @@ export default function BillOfMaterials() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="border border-gray-300 p-4 text-center text-gray-500">
+                  <td colSpan={8} className="border border-gray-300 p-4 text-center text-gray-500">
                     No materials configured for this product variant
                   </td>
                 </tr>
@@ -312,7 +328,7 @@ export default function BillOfMaterials() {
             </tbody>
             <tfoot>
               <tr className="bg-gray-100 font-bold">
-                <td colSpan={5} className="border border-gray-300 p-3 text-right">
+                <td colSpan={7} className="border border-gray-300 p-3 text-right">
                   TOTAL MATERIAL COST:
                 </td>
                 <td className="border border-gray-300 p-3 text-right text-lg">

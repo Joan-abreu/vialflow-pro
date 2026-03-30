@@ -53,7 +53,7 @@ const ShippingSettings = () => {
                 .order("carrier");
 
             if (error) throw error;
-            setCarriers(data || []);
+            setCarriers((data as unknown as CarrierSettings[]) || []);
         } catch (error: any) {
             console.error("Error fetching carriers:", error);
             toast.error("Failed to load carrier settings");
@@ -197,9 +197,11 @@ const ShippingSettings = () => {
                     <CardContent className="space-y-4">
                         <div className="grid gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="client_id">Client ID (Shipping)</Label>
+                                <Label htmlFor={`${carrier.carrier}_client_id`}>Client ID (Shipping)</Label>
                                 <Input
-                                    id="client_id"
+                                    id={`${carrier.carrier}_client_id`}
+                                    name={`${carrier.carrier}_client_id`}
+                                    autoComplete="off"
                                     value={formData.client_id || ""}
                                     onChange={(e) => handleChange('client_id', e.target.value)}
                                     placeholder="Enter client ID"
@@ -207,10 +209,12 @@ const ShippingSettings = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="client_secret">Client Secret (Shipping)</Label>
+                                <Label htmlFor={`${carrier.carrier}_client_secret`}>Client Secret (Shipping)</Label>
                                 <div className="relative">
                                     <Input
-                                        id="client_secret"
+                                        id={`${carrier.carrier}_client_secret`}
+                                        name={`${carrier.carrier}_client_secret`}
+                                        autoComplete="new-password"
                                         type={showSecrets[carrier.carrier] ? "text" : "password"}
                                         value={formData.client_secret || ""}
                                         onChange={(e) => handleChange('client_secret', e.target.value)}
@@ -239,9 +243,11 @@ const ShippingSettings = () => {
                             {carrier.carrier === "FEDEX" && (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="tracking_client_id">Tracking Client ID (Optional)</Label>
+                                        <Label htmlFor={`${carrier.carrier}_tracking_client_id`}>Tracking Client ID (Optional)</Label>
                                         <Input
-                                            id="tracking_client_id"
+                                            id={`${carrier.carrier}_tracking_client_id`}
+                                            name={`${carrier.carrier}_tracking_client_id`}
+                                            autoComplete="off"
                                             value={formData.tracking_client_id || ""}
                                             onChange={(e) => handleChange('tracking_client_id', e.target.value)}
                                             placeholder="Enter tracking-specific client ID"
@@ -252,10 +258,12 @@ const ShippingSettings = () => {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="tracking_client_secret">Tracking Client Secret (Optional)</Label>
+                                        <Label htmlFor={`${carrier.carrier}_tracking_client_secret`}>Tracking Client Secret (Optional)</Label>
                                         <div className="relative">
                                             <Input
-                                                id="tracking_client_secret"
+                                                id={`${carrier.carrier}_tracking_client_secret`}
+                                                name={`${carrier.carrier}_tracking_client_secret`}
+                                                autoComplete="new-password"
                                                 type={showSecrets[`${carrier.carrier}_TRACK`] ? "text" : "password"}
                                                 value={formData.tracking_client_secret || ""}
                                                 onChange={(e) => handleChange('tracking_client_secret', e.target.value)}
@@ -284,9 +292,11 @@ const ShippingSettings = () => {
                             )}
 
                             <div className="space-y-2">
-                                <Label htmlFor="account_number">Account Number</Label>
+                                <Label htmlFor={`${carrier.carrier}_account_number`}>Account Number</Label>
                                 <Input
-                                    id="account_number"
+                                    id={`${carrier.carrier}_account_number`}
+                                    name={`${carrier.carrier}_account_number`}
+                                    autoComplete="off"
                                     value={formData.account_number || ""}
                                     onChange={(e) => handleChange('account_number', e.target.value)}
                                     placeholder="Enter account number"

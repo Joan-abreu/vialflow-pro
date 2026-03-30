@@ -12,8 +12,11 @@ export class UPSCarrier implements ICarrier {
 
     private async getToken(): Promise<string> {
         const credentials = btoa(`${this.settings.client_id}:${this.settings.client_secret}`);
+        
+        // OAuth endpoint does not include /api in the path
+        const baseUrl = this.apiUrl.endsWith('/api') ? this.apiUrl.slice(0, -4) : this.apiUrl;
 
-        const response = await fetch(`${this.apiUrl}/security/v1/oauth/token`, {
+        const response = await fetch(`${baseUrl}/security/v1/oauth/token`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -351,7 +354,7 @@ export class UPSCarrier implements ICarrier {
                 AddressLine: [address.address?.line1 || address.line1],
                 City: address.address?.city || address.city,
                 StateProvinceCode: address.address?.state || address.state,
-                PostalCode: address.address?.zip || address.zip,
+                PostalCode: address.address?.postal_code || address.postal_code || address.address?.zip || address.zip,
                 CountryCode: address.address?.country || address.country || "US",
             },
         };

@@ -28,6 +28,7 @@ const Checkout = () => {
     const [shippingService, setShippingService] = useState<string>("");
     const [shippingServiceCode, setShippingServiceCode] = useState<string>("");
     const [shippingCarrier, setShippingCarrier] = useState<string>("");
+    const [shippingEstimatedDays, setShippingEstimatedDays] = useState<number | undefined>(undefined);
     const [shippingRates, setShippingRates] = useState<any[]>([]);
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
@@ -50,6 +51,7 @@ const Checkout = () => {
         // Reset selected shipping when address changes until we get new rates
         setShippingCost(0);
         setShippingService("");
+        setShippingEstimatedDays(undefined);
         setShippingRates([]);
 
         try {
@@ -76,7 +78,17 @@ const Checkout = () => {
             }
 
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
-                body: { weight: totalWeight, address }
+                body: { 
+                    weight: totalWeight, 
+                    address,
+                    items: items.map(item => ({
+                        quantity: item.quantity,
+                        weight: item.variant.weight,
+                        length: item.variant.dimension_length,
+                        width: item.variant.dimension_width,
+                        height: item.variant.dimension_height
+                    }))
+                }
             });
 
             if (error) throw error;
@@ -100,11 +112,14 @@ const Checkout = () => {
 
             setShippingRates(rates);
 
-            // Auto-select the first (cheapest) rate by default
-            if (data.rates && data.rates.length > 0) {
-                const cheapest = data.rates[0];
+            // Auto-select the first (cheapest) rate by default from the FILTERED list
+            if (rates && rates.length > 0) {
+                const cheapest = rates[0];
                 setShippingCost(cheapest.rate || cheapest.cost);
                 setShippingService(cheapest.serviceName || cheapest.service);
+                setShippingServiceCode(cheapest.serviceCode || cheapest.service_code || cheapest.service);
+                setShippingCarrier((cheapest.carrier || cheapest.provider || "FEDEX").toUpperCase());
+                setShippingEstimatedDays(cheapest.estimated_days || cheapest.estimatedDays);
             } else {
                 // Fallback / No rates found
                 toast.error("No shipping rates found for this address.");
@@ -133,9 +148,10 @@ const Checkout = () => {
 
     const handleShippingSelect = (rate: any) => {
         setShippingCost(rate.rate || rate.cost);
-        setShippingService(rate.serviceName || rate.service);
-        setShippingServiceCode(rate.serviceCode || rate.service); // Fallback to service name/code if specific code missing
-        setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase()); // Infer carrier
+        setShippingService(rate.serviceName || rate.service || rate.service_name);
+        setShippingServiceCode(rate.serviceCode || rate.service_code || rate.service); 
+        setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase());
+        setShippingEstimatedDays(rate.estimated_days || rate.estimatedDays);
         // Force intent update
         intentAmountRef.current = 0;
     };
@@ -267,6 +283,7 @@ const Checkout = () => {
                                     shippingService={shippingService}
                                     shippingServiceCode={shippingServiceCode}
                                     shippingCarrier={shippingCarrier}
+                                    estimatedDays={shippingEstimatedDays}
                                     tax={0} // Tax calculation not yet implemented, explicitly 0
                                     clientSecret={clientSecret}
                                     onAddressChange={handleAddressChange}
@@ -347,7 +364,7 @@ const Checkout = () => {
                                                     <div className="flex flex-col">
                                                         <span className="font-medium">{rate.serviceName || rate.service}</span>
                                                         <span className="text-xs text-muted-foreground">
-                                                            Est. Delivery: {rate.estimatedDays || 'N/A'}
+                                                            Est. Delivery: {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
                                                         </span>
                                                     </div>
                                                     <span className="font-semibold">

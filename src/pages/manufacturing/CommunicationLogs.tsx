@@ -13,10 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Mail, Eye, Search } from "lucide-react";
+import { Loader2, Mail, Eye, Search, RotateCcw, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 type EmailLog = {
     id: string;
@@ -32,8 +40,10 @@ type EmailLog = {
 const CommunicationLogs = () => {
     const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [typeFilter, setTypeFilter] = useState<string>("all");
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [resending, setResending] = useState<string | null>(null);
 
     const { data: logs, isLoading } = useQuery({
         queryKey: ["email_logs"],
@@ -51,7 +61,7 @@ const CommunicationLogs = () => {
     const getStatusColor = (status: string) => {
         switch (status) {
             case "sent":
-                return "default"; // or success variant if available
+                return "outline"; 
             case "failed":
                 return "destructive";
             default:
@@ -59,13 +69,53 @@ const CommunicationLogs = () => {
         }
     };
 
+    const handleResend = async (log: EmailLog) => {
+        try {
+            setResending(log.id);
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            // We use the generic type for manual resends
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-system-notification`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${session?.access_token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: 'generic',
+                        recipient: log.recipient,
+                        data: {
+                            subject: `[RESEND] ${log.subject}`,
+                            message: "See attached content",
+                            // We can't easily resend the exact HTML without a tweak to the engine
+                            // so we'll just send it as a generic message for now or improve the engine later
+                            html: log.content 
+                        }
+                    }),
+                }
+            );
+
+            if (!response.ok) throw new Error("Failed to resend");
+            toast.success("Resend triggered successfully");
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setResending(null);
+        }
+    };
+
     const filteredLogs = logs?.filter((log) => {
         const query = searchQuery.toLowerCase();
-        return (
+        const matchesSearch = 
             log.recipient.toLowerCase().includes(query) ||
             log.subject.toLowerCase().includes(query) ||
-            log.type.toLowerCase().includes(query)
-        );
+            log.type.toLowerCase().includes(query);
+            
+        const matchesType = typeFilter === "all" || log.type === typeFilter;
+        
+        return matchesSearch && matchesType;
     });
 
     const totalPages = Math.ceil((filteredLogs?.length || 0) / itemsPerPage);
@@ -88,17 +138,33 @@ const CommunicationLogs = () => {
             <Card>
                 <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between space-y-0 pb-4">
                     <CardTitle>Email History</CardTitle>
-                    <div className="flex items-center gap-2 w-full md:w-72">
-                        <Search className="w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search logs..."
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="w-full"
-                        />
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-64">
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search logs..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+                        <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setCurrentPage(1); }}>
+                            <SelectTrigger className="w-full sm:w-[150px]">
+                                <Filter className="w-4 h-4 mr-2" />
+                                <SelectValue placeholder="All Types" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Types</SelectItem>
+                                <SelectItem value="order_confirmation">Orders</SelectItem>
+                                <SelectItem value="user_invitation">Auth/Invites</SelectItem>
+                                <SelectItem value="password_reset">Password Resets</SelectItem>
+                                <SelectItem value="generic">Manual/Generic</SelectItem>
+                                <SelectItem value="low_stock_alert">System Alerts</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
@@ -151,6 +217,19 @@ const CommunicationLogs = () => {
                                                     onClick={() => setSelectedLog(log)}
                                                 >
                                                     <Eye className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleResend(log)}
+                                                    disabled={resending === log.id}
+                                                    title="Resend this email"
+                                                >
+                                                    {resending === log.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                                                    )}
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

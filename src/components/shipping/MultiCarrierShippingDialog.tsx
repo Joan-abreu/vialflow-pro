@@ -22,6 +22,7 @@ interface ShippingDialogProps {
 export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSuccess }: ShippingDialogProps) => {
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<'carrier' | 'rates' | 'label' | 'pickup'>('carrier');
+    const [autoFetched, setAutoFetched] = useState(false);
     const [trackingOpen, setTrackingOpen] = useState(false);
 
     // Carrier selection
@@ -31,6 +32,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     // Rates
     const [rates, setRates] = useState<any[]>([]);
     const [selectedService, setSelectedService] = useState<string>("");
+    const [shippingServiceCode, setShippingServiceCode] = useState<string>("");
 
     // Label
     const [labelUrl, setLabelUrl] = useState<string>("");
@@ -92,28 +94,88 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         }
     }, [open, orderId]);
 
+    useEffect(() => {
+        if (open && selectedCarrier && !autoFetched && step === 'carrier' && weight) {
+            getShippingRates();
+            setAutoFetched(true);
+        }
+    }, [open, selectedCarrier, autoFetched, step, weight]);
+
     const calculateTotalWeight = async () => {
         try {
-            const { data: order, error: orderError } = await supabase
+            const { data: orderData, error: orderError } = await supabase
                 .from("orders")
                 .select(`
+                    shipping_carrier,
+                    shipping_service_code,
                     order_items(
                         quantity,
-                        variant:product_variants(weight)
+                        variant:product_variants(*)
                     )
                 `)
                 .eq("id", orderId)
                 .single();
 
             if (orderError) throw orderError;
+            const order = orderData as any;
 
-            // Calculate total weight
-            const totalWeight = order.order_items.reduce((sum: number, item: any) => {
-                return sum + ((item.variant?.weight || 0) * item.quantity);
-            }, 0);
+            // Pre-select carrier if order has one
+            if (order.shipping_carrier) {
+                setSelectedCarrier(order.shipping_carrier.toUpperCase());
+            }
+            if (order.shipping_service_code) {
+                setShippingServiceCode(order.shipping_service_code);
+                if (!selectedService) {
+                    setSelectedService(order.shipping_service_code);
+                }
+            }
+
+            // Calculate total weight and estimate dimensions
+            let totalWeight = 0;
+            let maxL = 0;
+            let maxW = 0;
+            let totalH = 0;
+            let totalVolume = 0;
+
+            order.order_items.forEach((item: any) => {
+                const qty = item.quantity;
+                const v = item.variant;
+                if (v) {
+                    // Use weight or default to 0.1 for small items
+                    totalWeight += (v.weight || 0.1) * qty;
+                    
+                    // Shippo/Carriers fail with 0 dimensions. Use sane minima.
+                    const l = Math.max(v.dimension_length || 0, 1.0);
+                    const w = Math.max(v.dimension_width || 0, 1.0);
+                    const h = Math.max(v.dimension_height || 0, 1.0);
+
+                    if (l > maxL) maxL = l;
+                    if (w > maxW) maxW = w;
+                    totalH += h * qty;
+                    totalVolume += (l * w * h) * qty;
+                }
+            });
 
             if (totalWeight > 0) {
                 setWeight(totalWeight.toFixed(2));
+                
+                // Set default L/W/H from items or fallback to standard box
+                setLength(maxL > 0 ? (maxL * 1.1).toFixed(1) : "12.0");
+                setWidth(maxW > 0 ? (maxW * 1.1).toFixed(1) : "8.0");
+                
+                // Height based on items stacking or volume-based guess
+                if (totalH > 0) {
+                    const suggestedH = Math.max(totalH, Math.pow(totalVolume * 1.2, 1/3));
+                    setHeight(suggestedH.toFixed(1));
+                } else {
+                    setHeight("6.0");
+                }
+            } else {
+                // Total fallback
+                setWeight("1.0");
+                setLength("12.0");
+                setWidth("8.0");
+                setHeight("6.0");
             }
         } catch (error) {
             console.error("Error calculating weight:", error);
@@ -164,11 +226,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setLabelUrl("");
             setTrackingNumber("");
             setShipmentId("");
+            setAutoFetched(false);
 
-            setWeight("5");
-            setLength("12");
-            setWidth("8");
-            setHeight("6");
+            setWeight("");
+            setLength("");
+            setWidth("");
+            setHeight("");
 
             setPickupDate("");
             setPickupReadyTime("09:00");
@@ -188,7 +251,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             if (error) throw error;
             setAvailableCarriers(data || []);
 
-            if (data && data.length === 1) {
+            // If we have a carrier selected by order, we don't overwrite it
+            if (!selectedCarrier && data && data.length === 1) {
                 setSelectedCarrier(data[0].carrier);
             }
         } catch (error: any) {
@@ -274,7 +338,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             fetchedRates.sort((a: any, b: any) => a.cost - b.cost);
 
             setRates(fetchedRates);
-            if (fetchedRates.length > 0) {
+            
+            // Try to match the original shipping service code if it exists
+            const matchingService = fetchedRates.find((r: any) => r.serviceCode === shippingServiceCode);
+            if (matchingService) {
+                setSelectedService(matchingService.serviceCode);
+            } else if (fetchedRates.length > 0) {
                 setSelectedService(fetchedRates[0].serviceCode);
             }
             
@@ -354,7 +423,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             if (data.data?.success) {
                 setTrackingNumber(data.data.trackingNumber);
-                setLabelUrl(`data:application/pdf;base64,${data.data.labelData}`);
+                setLabelUrl(data.data.labelUrl || `data:application/pdf;base64,${data.data.labelData}`);
                 setShipmentId(data.data.shipmentId);
 
                 toast.success("Shipping label created successfully!");

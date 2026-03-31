@@ -600,4 +600,13 @@ export class FedExCarrier implements ICarrier {
             return false;
         }
     }
+
+    async validateAddress(address: any) {
+        // FedEx address validation API implementation if needed
+        return {
+            valid: true,
+            suggestions: [],
+            note: "FedEx validation not implemented, skipping."
+        };
+    }
 }

@@ -47,4 +47,10 @@ export interface ICarrier {
         success: boolean;
         rawResponse: any;
     }>;
+
+    validateAddress(address: any): Promise<{
+        valid: boolean;
+        suggestions: any[];
+        note?: string;
+    }>;
 }

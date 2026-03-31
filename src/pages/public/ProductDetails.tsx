@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router-dom";
+import useEmblaCarousel from 'embla-carousel-react';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus } from "lucide-react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
+import { Image as ImageIcon } from "lucide-react";
 
 interface ProductWithVariants {
     id: string;
@@ -16,6 +18,7 @@ interface ProductWithVariants {
     description: string | null;
     rich_description?: string | null;
     image_url: string | null;
+    images?: string[];
     category: string | null;
     sale_type: string;
     default_pack_size: number | null;
@@ -88,10 +91,6 @@ const ProductDetails = () => {
                 },
             })) || [];
 
-            // Auto-select first variant
-            if (variants.length > 0 && !selectedVariantId) {
-                setSelectedVariantId(variants[0].id);
-            }
 
             return {
                 id: productData.id,
@@ -99,6 +98,7 @@ const ProductDetails = () => {
                 description: productData.description,
                 rich_description: (productData as any).rich_description,
                 image_url: productData.image_url,
+                images: (productData as any).images || [],
                 category: (productData as any).product_categories?.name || null,
                 sale_type: productData.sale_type || 'individual',
                 default_pack_size: productData.default_pack_size,
@@ -109,6 +109,35 @@ const ProductDetails = () => {
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
+    const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+    const [selectedIndex, setSelectedIndex] = useState(0);
+
+    const onSelect = useCallback((api: any) => {
+        setSelectedIndex(api.selectedScrollSnap());
+    }, []);
+
+    useEffect(() => {
+        if (emblaApi) {
+            onSelect(emblaApi);
+            emblaApi.on('select', onSelect);
+            emblaApi.on('reInit', onSelect);
+        }
+    }, [emblaApi, onSelect]);
+
+    // Auto-select first variant when product loads or changes
+    useEffect(() => {
+        if (product?.variants && product.variants.length > 0) {
+            // Verify if current selection is still valid for this product
+            const isValid = product.variants.some(v => v.id === selectedVariantId);
+            if (!selectedVariantId || !isValid) {
+                setSelectedVariantId(product.variants[0].id);
+            }
+        }
+    }, [product, id, selectedVariantId]);
+
+    const scrollTo = (index: number) => {
+        emblaApi?.scrollTo(index);
+    };
 
     const handleAddToCart = () => {
         if (selectedVariant) {
@@ -117,6 +146,11 @@ const ProductDetails = () => {
             setQuantity(1); // Reset quantity after adding
         }
     };
+
+    const images = [
+        ...(selectedVariant?.image_url ? [selectedVariant.image_url] : []),
+        ...(product?.images?.filter(img => img !== selectedVariant?.image_url) || [product?.image_url].filter(Boolean))
+    ];
 
     if (isLoading) {
         return (
@@ -148,22 +182,47 @@ const ProductDetails = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
                 {/* Product Image */}
-                <div className="bg-card rounded-2xl border overflow-hidden aspect-square flex items-center justify-center p-8">
-                    {(() => {
-                        const displayImage = selectedVariant?.image_url || product.image_url;
-                        return displayImage ? (
-                            <img
-                                src={displayImage}
-                                alt={product.name}
-                                className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
-                            />
-                        ) : (
-                            <div className="text-center text-muted-foreground">
-                                <span className="block text-6xl mb-4">📦</span>
-                                <span>No image available</span>
+                {/* Product Images Carousel */}
+                <div className="space-y-4">
+                    <div className="bg-card rounded-2xl border overflow-hidden aspect-square relative">
+                        {images.length > 0 ? (
+                            <div className="overflow-hidden h-full" ref={emblaRef}>
+                                <div className="flex h-full">
+                                    {images.map((img, idx) => (
+                                        <div key={idx} className="flex-[0_0_100%] min-w-0 h-full flex items-center justify-center p-8">
+                                            <img
+                                                src={img}
+                                                alt={`${product.name} - ${idx + 1}`}
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        );
-                    })()}
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                <ImageIcon className="h-12 w-12 opacity-20 mb-2" />
+                                <span>No images available</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Thumbnails */}
+                    {images.length > 1 && (
+                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                            {images.map((img, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => emblaApi?.scrollTo(idx)}
+                                    className={`relative flex-[0_0_80px] aspect-square rounded-lg border-2 overflow-hidden transition-all ${
+                                        selectedIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-primary/50'
+                                    }`}
+                                >
+                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Product Info */}

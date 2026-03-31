@@ -31,17 +31,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
 
         getInitialSession();
+        
+        // Safety timeout to prevent infinite loading if getSession or onAuthStateChange hangs
+        const safetyTimeout = setTimeout(() => {
+            if (loading) {
+                console.warn("AuthContext: Safety timeout reached. Forcing loading to false.");
+                setLoading(false);
+            }
+        }, 5000);
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => {
+            (event, session) => {
+                console.log("AuthContext: onAuthStateChange event:", event);
                 setSession(session);
                 setUser(session?.user ?? null);
                 setLoading(false);
+                clearTimeout(safetyTimeout);
             }
         );
 
-        return () => subscription.unsubscribe();
+        return () => {
+            subscription.unsubscribe();
+            if (safetyTimeout) clearTimeout(safetyTimeout);
+        };
     }, []);
 
     const signOut = async () => {

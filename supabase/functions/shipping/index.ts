@@ -14,6 +14,7 @@ import { DEFAULT_SHIPPER } from "../_shared/config.ts"
 // Import carrier-specific modules
 import { UPSCarrier } from "../_shared/carriers/ups.ts";
 import { FedExCarrier } from "../_shared/carriers/fedex.ts";
+import { ShippoCarrier } from "../_shared/carriers/shippo.ts";
 
 
 // Carrier interface that all carriers must implement
@@ -33,6 +34,8 @@ function getCarrier(carrierName: string, settings: any): ICarrier {
             return new UPSCarrier(settings);
         case "FEDEX":
             return new FedExCarrier(settings);
+        case "SHIPPO":
+            return new ShippoCarrier(settings);
         // Add more carriers here
         // case "USPS":
         //   return new USPSCarrier(settings);

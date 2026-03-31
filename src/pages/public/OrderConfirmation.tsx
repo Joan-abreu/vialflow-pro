@@ -175,7 +175,21 @@ const OrderConfirmation = () => {
                         </h3>
                         <div className="text-sm text-muted-foreground space-y-1">
                             <p>{order.shipping_service || 'Standard Shipping'}</p>
-                            <p>Estimated delivery: See carrier details</p>
+                            {order.estimated_days ? (
+                                <p className="font-medium text-green-700">
+                                    Estimated delivery: {(() => {
+                                        const date = new Date(order.created_at);
+                                        date.setDate(date.getDate() + order.estimated_days);
+                                        return date.toLocaleDateString('en-US', { 
+                                            weekday: 'long', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        });
+                                    })()}
+                                </p>
+                            ) : (
+                                <p>Estimated delivery: See carrier details</p>
+                            )}
                         </div>
                     </div>
                 </div>

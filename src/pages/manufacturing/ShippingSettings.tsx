@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Package, Save, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AddressAutocomplete } from "@/components/shipping/AddressAutocomplete";
 
 interface CarrierSettings {
     id: string;
@@ -90,8 +91,34 @@ const ShippingSettings = () => {
         await updateCarrier(carrier, { is_production: isProduction });
     };
 
-    const handleSaveCarrier = async (carrier: CarrierSettings) => {
-        await updateCarrier(carrier.carrier, carrier);
+    const handleSaveCarrier = async (formData: any) => {
+        const { id, created_at, updated_at, carrier: carrierName, ...updates } = formData;
+        await updateCarrier(carrierName, updates);
+    };
+
+    const initializeShippo = async () => {
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from("carrier_settings")
+                .insert({
+                    carrier: "SHIPPO",
+                    is_active: true,
+                    api_url: "https://api.goshippo.com/",
+                    config: {}
+                });
+
+            if (error) throw error;
+
+            toast.success("Shippo carrier initialized successfully");
+            fetchCarriers();
+            setSelectedCarrier("SHIPPO");
+        } catch (error: any) {
+            console.error("Error initializing Shippo:", error);
+            toast.error("Failed to initialize Shippo");
+        } finally {
+            setSaving(false);
+        }
     };
 
     const CarrierForm = ({ carrier }: { carrier: CarrierSettings }) => {
@@ -105,7 +132,19 @@ const ShippingSettings = () => {
             setFormData(prev => ({ ...prev, [field]: value }));
         };
 
-        const handleAddressChange = (field: string, value: string) => {
+        const handleAddressChange = (field: string | any, value?: string) => {
+            if (typeof field === 'object' && !value) {
+                // Bulk update from autocomplete
+                setFormData(prev => ({
+                    ...prev,
+                    shipper_address: {
+                        ...(prev.shipper_address || {}),
+                        ...field
+                    }
+                }));
+                return;
+            }
+
             setFormData(prev => ({
                 ...prev,
                 shipper_address: {
@@ -196,49 +235,90 @@ const ShippingSettings = () => {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor={`${carrier.carrier}_client_id`}>Client ID (Shipping)</Label>
-                                <Input
-                                    id={`${carrier.carrier}_client_id`}
-                                    name={`${carrier.carrier}_client_id`}
-                                    autoComplete="off"
-                                    value={formData.client_id || ""}
-                                    onChange={(e) => handleChange('client_id', e.target.value)}
-                                    placeholder="Enter client ID"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor={`${carrier.carrier}_client_secret`}>Client Secret (Shipping)</Label>
-                                <div className="relative">
+                            {carrier.carrier !== "SHIPPO" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${carrier.carrier}_client_id`}>Client ID (Shipping)</Label>
                                     <Input
-                                        id={`${carrier.carrier}_client_secret`}
-                                        name={`${carrier.carrier}_client_secret`}
-                                        autoComplete="new-password"
-                                        type={showSecrets[carrier.carrier] ? "text" : "password"}
-                                        value={formData.client_secret || ""}
-                                        onChange={(e) => handleChange('client_secret', e.target.value)}
-                                        placeholder="Enter client secret"
-                                        className="pr-10"
+                                        id={`${carrier.carrier}_client_id`}
+                                        name={`${carrier.carrier}_client_id`}
+                                        autoComplete="off"
+                                        value={formData.client_id || ""}
+                                        onChange={(e) => handleChange('client_id', e.target.value)}
+                                        placeholder="Enter client ID"
                                     />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute right-0 top-0 h-full"
-                                        onClick={() => setShowSecrets(prev => ({
-                                            ...prev,
-                                            [carrier.carrier]: !prev[carrier.carrier]
-                                        }))}
-                                    >
-                                        {showSecrets[carrier.carrier] ? (
-                                            <EyeOff className="h-4 w-4" />
-                                        ) : (
-                                            <Eye className="h-4 w-4" />
-                                        )}
-                                    </Button>
                                 </div>
-                            </div>
+                            )}
+
+                            {carrier.carrier !== "SHIPPO" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${carrier.carrier}_client_secret`}>Client Secret (Shipping)</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id={`${carrier.carrier}_client_secret`}
+                                            name={`${carrier.carrier}_client_secret`}
+                                            autoComplete="new-password"
+                                            type={showSecrets[carrier.carrier] ? "text" : "password"}
+                                            value={formData.client_secret || ""}
+                                            onChange={(e) => handleChange('client_secret', e.target.value)}
+                                            placeholder="Enter client secret"
+                                            className="pr-10"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-0 top-0 h-full"
+                                            onClick={() => setShowSecrets(prev => ({
+                                                ...prev,
+                                                [carrier.carrier]: !prev[carrier.carrier]
+                                            }))}
+                                        >
+                                            {showSecrets[carrier.carrier] ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {carrier.carrier === "SHIPPO" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${carrier.carrier}_api_token`}>Shippo API Token</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id={`${carrier.carrier}_api_token`}
+                                            name={`${carrier.carrier}_api_token`}
+                                            autoComplete="new-password"
+                                            type={showSecrets[carrier.carrier] ? "text" : "password"}
+                                            value={formData.api_key || ""}
+                                            onChange={(e) => handleChange('api_key', e.target.value)}
+                                            placeholder="shippo_test_..."
+                                            className="pr-10"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-0 top-0 h-full"
+                                            onClick={() => setShowSecrets(prev => ({
+                                                ...prev,
+                                                [carrier.carrier]: !prev[carrier.carrier]
+                                            }))}
+                                        >
+                                            {showSecrets[carrier.carrier] ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Use your {formData.is_production ? 'Live' : 'Test'} token from the Shippo dashboard.
+                                    </p>
+                                </div>
+                            )}
 
                             {carrier.carrier === "FEDEX" && (
                                 <>
@@ -291,17 +371,19 @@ const ShippingSettings = () => {
                                 </>
                             )}
 
-                            <div className="space-y-2">
-                                <Label htmlFor={`${carrier.carrier}_account_number`}>Account Number</Label>
-                                <Input
-                                    id={`${carrier.carrier}_account_number`}
-                                    name={`${carrier.carrier}_account_number`}
-                                    autoComplete="off"
-                                    value={formData.account_number || ""}
-                                    onChange={(e) => handleChange('account_number', e.target.value)}
-                                    placeholder="Enter account number"
-                                />
-                            </div>
+                            {carrier.carrier !== "SHIPPO" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${carrier.carrier}_account_number`}>Account Number</Label>
+                                    <Input
+                                        id={`${carrier.carrier}_account_number`}
+                                        name={`${carrier.carrier}_account_number`}
+                                        autoComplete="off"
+                                        value={formData.account_number || ""}
+                                        onChange={(e) => handleChange('account_number', e.target.value)}
+                                        placeholder="Enter account number"
+                                    />
+                                </div>
+                            )}
 
 
                             {carrier.carrier === "FEDEX" && (
@@ -357,11 +439,10 @@ const ShippingSettings = () => {
 
                             <div className="space-y-2">
                                 <Label htmlFor="address_line1">Address Line 1</Label>
-                                <Input
-                                    id="address_line1"
+                                <AddressAutocomplete
                                     value={formData.shipper_address?.line1 || ""}
-                                    onChange={(e) => handleAddressChange('line1', e.target.value)}
-                                    placeholder="123 Main St"
+                                    onSelectAddress={(addr) => handleAddressChange(addr)}
+                                    placeholder="Start typing your address..."
                                 />
                             </div>
 
@@ -506,15 +587,30 @@ const ShippingSettings = () => {
             </div>
 
             <Tabs value={selectedCarrier} onValueChange={setSelectedCarrier}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="w-full flex justify-start overflow-x-auto h-auto p-1 gap-1 bg-muted/50">
                     {carriers.map((carrier) => (
-                        <TabsTrigger key={carrier.carrier} value={carrier.carrier} className="relative">
+                        <TabsTrigger 
+                            key={carrier.carrier} 
+                            value={carrier.carrier} 
+                            className="relative px-6 py-2 flex-shrink-0"
+                        >
                             {carrier.carrier}
                             {carrier.is_active && (
-                                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-green-500" />
+                                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
                             )}
                         </TabsTrigger>
                     ))}
+
+                    {!carriers.some(c => c.carrier === "SHIPPO") && (
+                        <TabsTrigger value="SHIPPO" className="relative opacity-60 px-6 py-2 flex-shrink-0">
+                            SHIPPO (unlinked)
+                        </TabsTrigger>
+                    )}
+
+                    <TabsTrigger value="DIAGNOSTICS" className="relative px-6 py-2 flex-shrink-0 border-l ml-1">
+                        <AlertCircle className="h-4 w-4 mr-2 text-primary" />
+                        Diagnostics
+                    </TabsTrigger>
                 </TabsList>
 
                 {carriers.map((carrier) => (
@@ -522,7 +618,143 @@ const ShippingSettings = () => {
                         <CarrierForm carrier={carrier} />
                     </TabsContent>
                 ))}
+
+                {!carriers.some(c => c.carrier === "SHIPPO") && (
+                    <TabsContent value="SHIPPO">
+                        <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-xl bg-muted/30">
+                            <Package className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                            <h3 className="text-lg font-semibold mb-2">Shippo Not Initialized</h3>
+                            <p className="text-muted-foreground mb-6 text-center max-w-md">
+                                The Shippo integration is ready in the code, but the database configurations haven't been created yet.
+                            </p>
+                            <Button onClick={initializeShippo} disabled={saving}>
+                                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Initialize Shippo Integration
+                            </Button>
+                        </div>
+                    </TabsContent>
+                )}
+
+                <TabsContent value="DIAGNOSTICS">
+                    <ShippingDiagnostics carriers={carriers} onRefresh={fetchCarriers} />
+                </TabsContent>
             </Tabs>
+        </div>
+    );
+};
+
+const ShippingDiagnostics = ({ carriers, onRefresh }: { carriers: CarrierSettings[], onRefresh: () => void }) => {
+    const [testResults, setTestResults] = useState<any>(null);
+    const [testing, setTesting] = useState(false);
+
+    const runTest = async () => {
+        setTesting(true);
+        setTestResults(null);
+        try {
+            const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+                body: {
+                    weight: 1.5,
+                    address: {
+                        line1: "300 Main St",
+                        city: "San Francisco",
+                        state: "CA",
+                        postal_code: "94105",
+                        country: "US"
+                    }
+                }
+            });
+
+            if (error) {
+                // Try to parse the error message if it's a stringified JSON
+                let detailedError = error.message;
+                try {
+                    // Supabase FunctionsHttpError often contains the body in a specific way
+                    // but we'll try a generic approach first
+                    if (error.context && typeof error.context.json === 'function') {
+                        const body = await error.context.json();
+                        detailedError = body.error || JSON.stringify(body);
+                    }
+                } catch (e) {
+                    console.error("Could not parse error body", e);
+                }
+                throw new Error(detailedError);
+            }
+            setTestResults({ success: true, data });
+        } catch (error: any) {
+            console.error("Test failed:", error);
+            setTestResults({ success: false, error: error.message || error });
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Database State</CardTitle>
+                    <CardDescription>
+                        Internal representation of your carrier settings in Supabase
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {carriers.map(c => (
+                            <div key={c.carrier} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                <div>
+                                    <h4 className="font-semibold">{c.carrier}</h4>
+                                    <div className="flex gap-2 mt-1">
+                                        <Badge variant={c.is_active ? "default" : "secondary"}>
+                                            {c.is_active ? "Active" : "Inactive"}
+                                        </Badge>
+                                        <Badge variant={c.api_key ? "outline" : "destructive"}>
+                                            {c.api_key ? `Token Present (${c.api_key.substring(0, 8)}...)` : "Token Missing"}
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={onRefresh}>
+                                    Check DB
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Endpoint Connectivity Test</CardTitle>
+                    <CardDescription>
+                        Directly invokes the 'calculate-shipping' Edge Function to test your credentials.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Button 
+                        onClick={runTest} 
+                        disabled={testing}
+                        className="w-full"
+                    >
+                        {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Package className="h-4 w-4 mr-2" />}
+                        Run Rate Calculation Test
+                    </Button>
+
+                    {testResults && (
+                        <div className={`p-4 rounded-lg border ${testResults.success ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="font-bold">{testResults.success ? 'SUCCESS' : 'FAILURE'}</span>
+                            </div>
+                            <pre className="text-xs overflow-auto max-h-64 p-2 bg-black/20 rounded">
+                                {JSON.stringify(testResults.data || testResults.error, null, 2)}
+                            </pre>
+                            {testResults.error && (
+                                <p className="mt-2 text-sm text-red-500">
+                                    Hint: If you see "Carrier errors: SHIPPO: [Error]", ensure your token is Live/Test matched to your sandbox settings.
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 };

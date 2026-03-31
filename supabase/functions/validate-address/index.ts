@@ -22,21 +22,26 @@ serve(async (req) => {
 
         // Initialize Supabase Client
         const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // Fetch ACTIVE carrier settings (we'll prefer UPS for validation right now)
+        // Fetch ACTIVE carrier settings
         const { data: carriersData, error: carriersError } = await supabase
             .from('carrier_settings')
             .select('*')
             .eq('is_active', true);
 
         if (carriersError) throw carriersError;
+        
         if (!carriersData || carriersData.length === 0) {
-            throw new Error("No active shipping carriers configured.");
+            // No active carriers - return valid: true to bypass blocking checkout
+            return new Response(
+                JSON.stringify({ valid: true, suggestions: [], note: "No active carriers to validate address." }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
         }
 
-        const upsSettings = carriersData.find(c => c.carrier_name === 'UPS');
+        const upsSettings = carriersData.find(c => c.carrier === 'UPS');
         
         if (upsSettings) {
             const ups = new UPSCarrier(upsSettings);
@@ -47,17 +52,21 @@ serve(async (req) => {
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         } else {
-             // Fallback if UPS is not active, maybe FedEx could do it or just return true to skip validation
+             // Fallback if UPS is not active
              return new Response(
-                JSON.stringify({ valid: true, suggestions: [], note: "Skipped validation (UPS not active)" }),
+                JSON.stringify({ valid: true, suggestions: [], note: "Skipped UPS validation (using fallback)" }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }
 
     } catch (error: any) {
-        console.error(error)
+        console.error("DEBUG: Address validation failed:", error.stack || error.message || error);
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ 
+                error: error.message,
+                details: error.stack,
+                hint: "Ensure SUPABASE_SERVICE_ROLE_KEY is set in your Edge Function secrets." 
+            }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }

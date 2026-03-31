@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { FedExCarrier } from "../_shared/carriers/fedex.ts"
 import { UPSCarrier } from "../_shared/carriers/ups.ts"
+import { ShippoCarrier } from "../_shared/carriers/shippo.ts"
 import { DEFAULT_SHIPPER } from "../_shared/config.ts"
 import { ICarrier } from "../_shared/carriers/types.ts"
 
@@ -18,7 +19,7 @@ serve(async (req) => {
     }
 
     try {
-        const { weight, address } = await req.json()
+        const { weight, address, items } = await req.json()
 
         console.log(`Calculating shipping for weight: ${weight}, address: ${JSON.stringify(address)}`);
 
@@ -47,6 +48,8 @@ serve(async (req) => {
                     activeCarriers.push({ instance: new FedExCarrier(setting), settings: setting });
                 } else if (setting.carrier === 'UPS') {
                     activeCarriers.push({ instance: new UPSCarrier(setting), settings: setting });
+                } else if (setting.carrier === 'SHIPPO') {
+                    activeCarriers.push({ instance: new ShippoCarrier(setting), settings: setting });
                 }
             } catch (e) {
                 console.error(`Error initializing carrier ${setting.carrier}:`, e);
@@ -81,9 +84,23 @@ serve(async (req) => {
             packages: [
                 {
                     weight: Math.max(0.1, weight),
-                    length: 6,
-                    width: 4,
-                    height: 4
+                    ...(() => {
+                        // Packing logic: simple bounding box heuristic
+                        // Assuming items are stacked vertically
+                        if (items && items.length > 0) {
+                            const maxLength = Math.max(...items.map((i: any) => i.length || 0), 6);
+                            const maxWidth = Math.max(...items.map((i: any) => i.width || 0), 4);
+                            const totalHeight = items.reduce((sum: number, item: any) => sum + ((item.height || 0.1) * item.quantity), 0);
+                            
+                            // Add 10% buffer for packaging material
+                            return {
+                                length: Math.ceil(maxLength * 1.1),
+                                width: Math.ceil(maxWidth * 1.1),
+                                height: Math.max(4, Math.ceil(totalHeight * 1.1))
+                            }
+                        }
+                        return { length: 6, width: 4, height: 4 };
+                    })()
                 }
             ]
         };
@@ -119,11 +136,19 @@ serve(async (req) => {
 
         // 5. Aggregate Results
         let allRates: any[] = [];
-        results.forEach(result => {
+        const carrierErrors: string[] = [];
+
+        results.forEach((result, idx) => {
+            const carrierSetting = activeCarriers[idx].settings;
             if (result.success && result.rates) {
-                allRates = [...allRates, ...result.rates];
-            } else if (result.error) {
-                console.warn("Carrier error:", result.error);
+                const ratesWithProvider = result.rates.map((r: any) => ({
+                    ...r,
+                    carrier: r.carrier || carrierSetting.carrier
+                }));
+                allRates = [...allRates, ...ratesWithProvider];
+            } else if ((result as any).error) {
+                console.warn(`Carrier error (${carrierSetting.carrier}):`, (result as any).error);
+                carrierErrors.push(`${carrierSetting.carrier}: ${(result as any).error}`);
             }
         });
 
@@ -132,21 +157,18 @@ serve(async (req) => {
 
         console.log(`Found ${allRates.length} shipping rates.`);
 
-        if (allRates.length === 0) {
-            const errors = results.filter(r => !r.success).map(r => (r as any).error);
-            if (errors.length > 0) {
-                return new Response(
-                    JSON.stringify({ error: "Carrier errors: " + errors.join(" | ") }),
-                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-                )
-            }
+        if (allRates.length === 0 && carrierErrors.length > 0) {
+            return new Response(
+                JSON.stringify({ error: "Carrier errors: " + carrierErrors.join(" | ") }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            )
         }
 
         return new Response(
             JSON.stringify({ rates: allRates }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
-    } catch (error) {
+    } catch (error: any) {
         console.error(error)
         return new Response(
             JSON.stringify({ error: error.message }),

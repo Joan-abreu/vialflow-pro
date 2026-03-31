@@ -46,9 +46,9 @@ export const useUserRole = () => {
 
     fetchUserRole();
 
-    // Subscribe to changes in user_roles
+    // Subscribe to changes in user_roles with a more specific channel name
     const channel = supabase
-      .channel("user_role_changes")
+      .channel("user-role-sync")
       .on(
         "postgres_changes",
         {

@@ -50,17 +50,20 @@ serve(async (req) => {
                         console.error(`Error updating order status: ${error.message}`);
                     }
 
-                    // Send Email Notifications
-                    const sendEmail = async (type: "customer_confirmation" | "admin_notification") => {
-                        const response = await fetch(`${supabaseUrl}/functions/v1/send-order-email`, {
+                    // Send Email Notifications using the new Unified Notification Engine
+                    const sendEmail = async (type: "order_confirmation" | "admin_order_notification") => {
+                        const response = await fetch(`${supabaseUrl}/functions/v1/send-system-notification`, {
                             method: "POST",
                             headers: {
                                 "Authorization": `Bearer ${supabaseServiceRoleKey}`,
                                 "Content-Type": "application/json",
                             },
                             body: JSON.stringify({
-                                order_id: orderId,
                                 type: type,
+                                data: {
+                                    order_id: orderId,
+                                },
+                                related_id: orderId
                             }),
                         });
 
@@ -72,7 +75,7 @@ serve(async (req) => {
                     };
 
                     try {
-                        const { error: customerEmailError } = await sendEmail("customer_confirmation");
+                        const { error: customerEmailError } = await sendEmail("order_confirmation");
 
                         if (customerEmailError) {
                             console.error(`Error sending customer email: ${customerEmailError}`);
@@ -80,7 +83,7 @@ serve(async (req) => {
                             console.log(`Customer email triggered for order ${orderId}`);
                         }
 
-                        const { error: adminEmailError } = await sendEmail("admin_notification");
+                        const { error: adminEmailError } = await sendEmail("admin_order_notification");
 
                         if (adminEmailError) {
                             console.error(`Error sending admin email: ${adminEmailError}`);

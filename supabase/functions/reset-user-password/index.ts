@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     // Generate password reset link using admin API
     const redirectUrl = `${Deno.env.get('SITE_URL') ?? 'http://localhost:8080'}/auth`
 
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: email,
       options: {
@@ -77,19 +77,43 @@ Deno.serve(async (req) => {
       }
     })
 
-    if (error) {
-      console.error('Error generating password reset link:', error)
-      throw error
+    if (linkError) {
+      console.error('Error generating password reset link:', linkError)
+      throw linkError
     }
 
     console.log('Password reset link generated successfully for:', email)
 
+    // Call the new notification engine
+    const notificationRes = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-system-notification`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'password_reset',
+          recipient: email,
+          data: {
+            resetUrl: linkData.properties.action_link
+          },
+          related_id: userId
+        })
+      }
+    )
+
+    if (!notificationRes.ok) {
+        const errorText = await notificationRes.text();
+        console.error('Failed to send notification:', errorText);
+        throw new Error('Failed to send reset email');
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Password reset email sent successfully',
-        // Note: In production, you might want to send this via email
-        // For now, we're relying on Supabase's built-in email sending
+        message: 'Password reset email sent and logged successfully',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

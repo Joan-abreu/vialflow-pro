@@ -444,3 +444,84 @@ export const authEmailTemplates = {
     `,
 };
 
+export function getLowStockAlertEmail(data: {
+    productName: string;
+    vialType: string;
+    currentStock: number;
+    threshold: number;
+}): string {
+    const content = `
+        <h1 style="color: #ef4444; margin-top: 0;">⚠️ Low Stock Alert</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            The following product variant has fallen below the minimum stock threshold.
+        </p>
+        
+        <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #6b7280;">Product</p>
+            <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #111827;">${data.productName} (${data.vialType})</p>
+            <div style="margin-top: 15px; display: flex; gap: 20px;">
+                <div>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Current Stock</p>
+                    <p style="margin: 2px 0 0 0; font-size: 20px; font-weight: 700; color: #ef4444;">${data.currentStock}</p>
+                </div>
+                <div>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Threshold</p>
+                    <p style="margin: 2px 0 0 0; font-size: 20px; font-weight: 700; color: #111827;">${data.threshold}</p>
+                </div>
+            </div>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
+            Please restock or update the production plan as soon as possible.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getUserInvitationEmail(data: {
+    inviterName: string;
+    invitationUrl: string;
+    role: string;
+    companyName?: string;
+}): string {
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">You've Been Invited!</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi there,
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            ${data.inviterName} has invited you to join the team as a <strong>${data.role}</strong>.
+        </p>
+        
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Click the button below to accept your invitation and set up your account.
+        </p>
+
+        <a href="${data.invitationUrl}" class="button" style="color: white !important;">Accept Invitation</a>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
+            If you weren't expecting this invitation, you can safely ignore this email.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getGenericNotificationEmail(data: {
+    title: string;
+    message: string;
+    buttonText?: string;
+    buttonUrl?: string;
+}): string {
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">${data.title}</h1>
+        <div style="font-size: 16px; line-height: 1.6; color: #4b5563; white-space: pre-wrap;">
+            ${data.message}
+        </div>
+        
+        ${data.buttonText && data.buttonUrl ? `
+            <a href="${data.buttonUrl}" class="button" style="color: white !important;">${data.buttonText}</a>
+        ` : ''}
+    `;
+    return getEmailTemplate(content);
+}
+

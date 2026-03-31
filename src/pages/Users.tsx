@@ -30,10 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Shield, Loader2, KeyRound, UserX, UserCheck, Trash2 } from "lucide-react";
+import { Shield, Loader2, KeyRound, UserX, UserCheck, Trash2, UserPlus, Send } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface UserWithRole {
   id: string;
@@ -53,6 +57,18 @@ const Users = () => {
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [selectedUserForReset, setSelectedUserForReset] = useState<UserWithRole | null>(null);
+  
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("staff");
+  const [inviting, setInviting] = useState(false);
+
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [selectedUserForMessage, setSelectedUserForMessage] = useState<UserWithRole | null>(null);
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserWithRole | null>(null);
@@ -297,6 +313,66 @@ const Users = () => {
     }
   };
 
+  const handleInviteUser = async () => {
+    if (!inviteEmail) return;
+    try {
+      setInviting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+      toast.success(`Invitation sent to ${inviteEmail}`);
+      setInviteDialogOpen(false);
+      setInviteEmail("");
+      fetchUsers();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to invite user");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedUserForMessage || !messageSubject || !messageBody) return;
+    try {
+      setSendingMessage(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-system-notification`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'generic',
+          recipient: selectedUserForMessage.email,
+          data: {
+            title: messageSubject,
+            message: messageBody,
+          },
+          related_id: selectedUserForMessage.id
+        }),
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+      toast.success("Message sent and logged successfully");
+      setMessageDialogOpen(false);
+      setMessageSubject("");
+      setMessageBody("");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send message");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       admin: "Administrator",
@@ -329,6 +405,10 @@ const Users = () => {
             Manage user roles and access permissions
           </p>
         </div>
+        <Button onClick={() => setInviteDialogOpen(true)} className="gap-2">
+          <UserPlus className="h-4 w-4" />
+          Invite User
+        </Button>
       </div>
 
       <Card>
@@ -459,6 +539,18 @@ const Users = () => {
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               )}
                             </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Send Message"
+                              onClick={() => {
+                                setSelectedUserForMessage(user);
+                                setMessageDialogOpen(true);
+                              }}
+                            >
+                              <Send className="h-4 w-4 text-blue-500" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -525,6 +617,90 @@ const Users = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invite User Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite New User</DialogTitle>
+            <DialogDescription>
+              This will create a new account and send a branded invitation email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="user@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Initial Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger id="role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleInviteUser} disabled={inviting || !inviteEmail}>
+              {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send Message to {selectedUserForMessage?.email}</DialogTitle>
+            <DialogDescription>
+              This message will be sent via email and logged in Communications.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                placeholder="Message Subject"
+                value={messageSubject}
+                onChange={(e) => setMessageSubject(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="body">Message Body</Label>
+              <Textarea
+                id="body"
+                placeholder="Type your message here..."
+                className="min-h-[150px]"
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendMessage} disabled={sendingMessage || !messageSubject || !messageBody}>
+              {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Send Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
 
   );

@@ -30,6 +30,7 @@ const Products = () => {
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants"],
         queryFn: async () => {
+            console.log("Products: Fetching product variants...");
             // Fetch all published variants with their product and vial type info
             let query = supabase
                 .from("product_variants")
@@ -46,6 +47,7 @@ const Products = () => {
                 console.error("Error fetching products:", error);
                 throw error;
             }
+            console.log("Products: Fetch successful, items:", data?.length);
 
             // Group variants by product
             const grouped: Record<string, ProductWithVariants> = {};
@@ -94,10 +96,15 @@ const Products = () => {
                 });
             });
 
-            return Object.values(grouped).map(product => ({
-                ...product,
-                variants: product.variants.sort((a, b) => (a.position || 0) - (b.position || 0))
-            }));
+            return Object.values(grouped)
+                .filter(product =>
+                    !product.name.toLowerCase().includes('peptide') &&
+                    !(product.category?.toLowerCase().includes('peptide'))
+                )
+                .map(product => ({
+                    ...product,
+                    variants: product.variants.sort((a, b) => (a.position || 0) - (b.position || 0))
+                }));
         },
     });
 
@@ -128,7 +135,9 @@ const Products = () => {
                 .select("name")
                 .eq("active", true)
                 .order("name");
-            return (data || []).map((c: any) => c.name);
+            return (data || [])
+                .map((c: any) => c.name)
+                .filter((name: string) => !name.toLowerCase().includes('peptide'));
         }
     });
 

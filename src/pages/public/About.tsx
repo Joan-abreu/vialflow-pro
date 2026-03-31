@@ -7,7 +7,7 @@ const About = () => {
                 <div className="text-center space-y-4">
                     <h1 className="text-4xl font-bold tracking-tight">About Liv Well Research Labs</h1>
                     <p className="text-xl text-muted-foreground">
-                        Advancing scientific research through premium quality peptides and supplies.
+                        Advancing scientific research through premium quality research materials and supplies.
                     </p>
                 </div>
 
@@ -15,7 +15,7 @@ const About = () => {
                     <div className="space-y-4">
                         <h2 className="text-2xl font-semibold">Our Mission</h2>
                         <p className="text-muted-foreground leading-relaxed">
-                            At Liv Well Research Labs, we are dedicated to providing researchers and institutions with the highest purity peptides and laboratory water. We understand that the integrity of your research depends on the quality of your materials.
+                            At Liv Well Research Labs, we are dedicated to providing researchers and institutions with the highest purity research materials and laboratory water. We understand that the integrity of your research depends on the quality of your materials.
                         </p>
                         <p className="text-muted-foreground leading-relaxed">
                             Our commitment to excellence ensures that every product meets rigorous standards for purity and consistency, supporting the advancement of scientific discovery.

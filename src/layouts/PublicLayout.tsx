@@ -216,13 +216,13 @@ const PublicLayoutContent = () => {
                         <div className="space-y-4">
                             <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
                             <p className="text-sm text-muted-foreground">
-                                Premium peptides and research materials for scientific advancement.
+                                Premium research materials for scientific advancement.
                             </p>
                         </div>
                         <div>
                             <h4 className="font-semibold mb-4">Shop</h4>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-                                <li><Link to="/products?category=peptides">Peptides</Link></li>
+
                                 <li><Link to="/products?category=water">Water</Link></li>
                                 <li><Link to="/products">All Products</Link></li>
                             </ul>

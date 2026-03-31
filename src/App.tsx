@@ -47,7 +47,16 @@ import AuditLogs from "./pages/manufacturing/AuditLogs";
 import { HelmetProvider } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes cache
+      refetchOnWindowFocus: false, // Prevents request storms on tab switch
+      retry: 1, // Minimize dev retries
+      gcTime: 1000 * 60 * 30, // 30 minutes
+    },
+  },
+});
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { hasAccess, loading } = useUserRole();
@@ -76,16 +85,24 @@ const AppRoutes = () => {
   // Check maintenance mode
   useEffect(() => {
     const checkMaintenance = async () => {
+      // Use a timeout to prevent hanging the whole app if Supabase is slow
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Maintenance check timed out")), 2000)
+      );
+
       try {
-        const { data } = await supabase
+        const fetchPromise = supabase
           .from("app_settings" as any)
           .select("value")
           .eq("key", "maintenance_mode")
           .single();
 
-        setMaintenanceMode((data as any)?.value === "true");
+        const result: any = await Promise.race([fetchPromise, timeoutPromise]);
+        setMaintenanceMode(result.data?.value === "true");
       } catch (e) {
-        console.error("Error checking maintenance:", e);
+        console.error("Maintenance check error or timeout:", e);
+        // Default to false on error/timeout to keep the site accessible
+        setMaintenanceMode(false);
       } finally {
         setCheckingMaintenance(false);
       }
@@ -94,8 +111,9 @@ const AppRoutes = () => {
     checkMaintenance();
 
     // Subscribe to changes
+    // Subscribe to changes with a unique channel name to avoid cross-tab contention
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('maintenance-mode-sync')
       .on(
         'postgres_changes',
         {

@@ -15,12 +15,13 @@ interface StripeCheckoutProps {
     shippingService: string;
     shippingServiceCode?: string;
     shippingCarrier?: string;
+    estimatedDays?: number;
     tax: number;
     clientSecret: string;
     onAddressChange?: (address: any) => void;
 }
 
-const StripeCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, tax, clientSecret, onAddressChange }: StripeCheckoutProps) => {
+const StripeCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, clientSecret, onAddressChange }: StripeCheckoutProps) => {
     const stripe = useStripe();
     const elements = useElements();
     const { clearCart, items } = useCart();
@@ -123,6 +124,7 @@ const StripeCheckout = ({ amount, shippingCost, shippingService, shippingService
                     shipping_service: shippingService || "Standard",
                     shipping_service_code: shippingServiceCode || null,
                     shipping_carrier: shippingCarrier || null,
+                    estimated_days: estimatedDays ? parseInt(String(estimatedDays)) : null,
                     tax: tax || 0
                 })
                 .select()

@@ -19,6 +19,9 @@ export interface ProductVariant {
     stock_quantity: number;
     max_online_quantity: number | null;
     weight: number | null;
+    dimension_length?: number | null;
+    dimension_width?: number | null;
+    dimension_height?: number | null;
     image_url: string | null;
     pack_size: number;
     position?: number;

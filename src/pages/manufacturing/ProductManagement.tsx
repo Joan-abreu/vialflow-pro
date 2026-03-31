@@ -57,6 +57,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ImageUpload } from "@/components/admin/ImageUpload";
+import { MultiImageUpload } from "@/components/admin/MultiImageUpload";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import { ManageCategoriesDialog } from "@/components/admin/ManageCategoriesDialog";
 import ManageVialTypesDialog from "@/components/production/ManageVialTypesDialog";
@@ -77,6 +78,7 @@ interface Product {
     category_id: string | null;
     product_categories?: ProductCategory | null;
     image_url: string | null;
+    images?: string[];
     sale_type: string;
     default_pack_size: number | null;
     slug?: string;
@@ -93,6 +95,10 @@ interface ProductVariant {
     is_published: boolean;
     pack_size: number;
     weight: number | null;
+    dimension_length: number | null;
+    dimension_width: number | null;
+    dimension_height: number | null;
+    low_stock_threshold: number;
     image_url: string | null;
     vial_type: {
         name: string;
@@ -163,7 +169,14 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
             </TableCell>
             <TableCell className="font-mono text-xs">{variant.sku || '-'}</TableCell>
             <TableCell>${variant.price.toFixed(2)}</TableCell>
-            <TableCell>{variant.stock_quantity}</TableCell>
+            <TableCell>
+                <div className="flex flex-col">
+                    <span className={variant.stock_quantity < variant.low_stock_threshold ? "text-destructive font-bold" : ""}>
+                        {variant.stock_quantity}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Limit: {variant.low_stock_threshold}</span>
+                </div>
+            </TableCell>
             <TableCell>{variant.max_online_quantity ?? 'Unlimited'}</TableCell>
             <TableCell>
                 <span className={`px-2 py-1 rounded-full text-xs ${variant.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
@@ -192,6 +205,7 @@ const ProductManagement = () => {
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
     const [productImageUrl, setProductImageUrl] = useState<string>("");
+    const [productImages, setProductImages] = useState<string[]>([]);
     const [variantImageUrl, setVariantImageUrl] = useState<string>("");
     const [variantSaleType, setVariantSaleType] = useState<string>("individual");
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -259,6 +273,10 @@ const ProductManagement = () => {
                     is_published: v.is_published,
                     pack_size: v.pack_size || 1,
                     weight: v.weight,
+                    dimension_length: v.dimension_length,
+                    dimension_width: v.dimension_width,
+                    dimension_height: v.dimension_height,
+                    low_stock_threshold: v.low_stock_threshold || 10,
                     image_url: v.image_url,
                     vial_type: v.vial_type,
                 });
@@ -477,7 +495,9 @@ const ProductManagement = () => {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
             category_id: formData.get("category_id") as string || null,
-            image_url: productImageUrl || formData.get("image_url") as string,
+            image_url: productImages[0] || productImageUrl || formData.get("image_url") as string,
+            images: productImages,
+            rich_description: richTextDescription,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
             sale_type: 'individual',
@@ -505,6 +525,10 @@ const ProductManagement = () => {
             sale_type: variantSaleType,
             pack_size: variantSaleType === 'pack' ? (parseInt(formData.get("pack_size") as string) || 1) : 1,
             weight: parseFloat(formData.get("weight") as string),
+            dimension_length: parseFloat(formData.get("dimension_length") as string) || 0,
+            dimension_width: parseFloat(formData.get("dimension_width") as string) || 0,
+            dimension_height: parseFloat(formData.get("dimension_height") as string) || 0,
+            low_stock_threshold: parseInt(formData.get("low_stock_threshold") as string) || 10,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
         };
@@ -524,6 +548,8 @@ const ProductManagement = () => {
     const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
         setProductImageUrl(product.image_url || "");
+        setProductImages(product.images || []);
+        setRichTextDescription(product.rich_description || product.description || "");
         setIsProductDialogOpen(true);
     };
 
@@ -669,6 +695,8 @@ const ProductManagement = () => {
                             if (!open) {
                                 setEditingProduct(null);
                                 setProductImageUrl("");
+                                setProductImages([]);
+                                setRichTextDescription("");
                             }
                         }}>
                             <DialogTrigger asChild>
@@ -709,14 +737,21 @@ const ProductManagement = () => {
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="image_url">Product Image</Label>
-                                        <ImageUpload
-                                            existingUrl={productImageUrl}
-                                            onUpload={setProductImageUrl}
+                                        <Label htmlFor="rich_description">Detailed Description (Rich Text)</Label>
+                                        <RichTextEditor
+                                            content={richTextDescription}
+                                            onChange={setRichTextDescription}
                                         />
                                     </div>
 
-                                    <div className="flex items-center space-x-2">
+                                    <div className="space-y-4 pt-4 border-t">
+                                        <MultiImageUpload
+                                            urls={productImages}
+                                            onUpload={setProductImages}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center space-x-2 pt-4">
                                         <input
                                             type="checkbox"
                                             id="is_active"
@@ -835,6 +870,10 @@ const ProductManagement = () => {
                                     <Label htmlFor="stock_quantity">Stock</Label>
                                     <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="low_stock_threshold">Alert Threshold</Label>
+                                    <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={editingVariant?.low_stock_threshold ?? 10} required />
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="max_online_quantity">Max Quantity for Online Sales</Label>
@@ -861,6 +900,20 @@ const ProductManagement = () => {
                                     required
                                 />
                                 <p className="text-xs text-muted-foreground">Must be greater than 0 (e.g., 0.50)</p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="dimension_length">Length (in)</Label>
+                                    <Input id="dimension_length" name="dimension_length" type="number" step="0.1" defaultValue={editingVariant?.dimension_length || ""} placeholder="0" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="dimension_width">Width (in)</Label>
+                                    <Input id="dimension_width" name="dimension_width" type="number" step="0.1" defaultValue={editingVariant?.dimension_width || ""} placeholder="0" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="dimension_height">Height (in)</Label>
+                                    <Input id="dimension_height" name="dimension_height" type="number" step="0.1" defaultValue={editingVariant?.dimension_height || ""} placeholder="0" />
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="variant_sale_type">Sale Type</Label>

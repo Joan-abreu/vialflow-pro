@@ -57,7 +57,7 @@ const Home = () => {
         <div className="flex flex-col min-h-screen">
             <SEO
                 title="Home"
-                description="Premium Research Peptides and Water for Laboratory Research. High purity, lab-verified products with fast shipping."
+                description="Premium Research Materials and Water for Laboratory Research. High purity, lab-verified products with fast shipping."
             />
             {/* Hero Section */}
             <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
@@ -67,7 +67,7 @@ const Home = () => {
                             Premium Research Materials for <span className="text-primary">Scientific Excellence</span>
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                            Liv Well Research Labs provides high-purity peptides and sterile water for laboratory research.
+                            Liv Well Research Labs provides high-purity research materials and sterile water for laboratory research.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to="/products">

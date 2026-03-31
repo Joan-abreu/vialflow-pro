@@ -53,6 +53,28 @@ const Checkout = () => {
         setShippingRates([]);
 
         try {
+            // Validate address first to give user feedback
+            const { data: valData, error: valErr } = await supabase.functions.invoke('validate-address', {
+                body: { address }
+            });
+
+            if (valErr) {
+               console.warn("Address validation error:", valErr);
+            } else if (valData && !valData.valid) {
+               if (valData.suggestions && valData.suggestions.length > 0) {
+                   const sugg = valData.suggestions[0].AddressKeyFormat;
+                   let line = "";
+                   if (Array.isArray(sugg?.AddressLine)) line = sugg.AddressLine.join(', ');
+                   else if (typeof sugg?.AddressLine === 'string') line = sugg.AddressLine;
+                   
+                   const city = sugg?.PoliticalDivision2 || '';
+                   const zip = sugg?.PostcodePrimaryLow || '';
+                   toast.warning(`UPS suggests a correction. Did you mean: ${line}, ${city} ${zip}?`, { duration: 8000 });
+               } else {
+                   toast.warning("UPS does not recognize this specific address. Please double-check for typos or missing apartment numbers.");
+               }
+            }
+
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
                 body: { weight: totalWeight, address }
             });
@@ -87,9 +109,23 @@ const Checkout = () => {
                 // Fallback / No rates found
                 toast.error("No shipping rates found for this address.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error calculating shipping:", error);
-            toast.error("Error calculating shipping rates.");
+            // Attempt to extract the error payload from the edge function response
+            let errorMsg = "Error calculating shipping rates.";
+            
+            try {
+                if (error.context && typeof error.context.json === 'function') {
+                    const errorData = await error.context.json();
+                    if (errorData.error) errorMsg = errorData.error;
+                } else if (error.message && error.message.includes("Carrier errors")) {
+                    errorMsg = error.message;
+                }
+            } catch (e) {
+                console.error("Failed to parse edge function error", e);
+            }
+            
+            toast.error(errorMsg);
         } finally {
             setIsCalculatingShipping(false);
         }

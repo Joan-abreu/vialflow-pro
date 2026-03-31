@@ -36,7 +36,9 @@ export class UPSCarrier implements ICarrier {
     async getRates(shipment: any) {
         const token = await this.getToken();
 
-        const response = await fetch(`${this.apiUrl}/rating/v1/rate`, {
+        // Use 'Shop' endpoint to get all available rates for the route
+        const baseUrl = this. apiUrl.endsWith('/api') ? this.apiUrl.slice(0, -4) : this.apiUrl;
+        const response = await fetch(`${baseUrl}/api/rating/v1/Shop?additionalinfo=timeintransit`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -47,11 +49,19 @@ export class UPSCarrier implements ICarrier {
             body: JSON.stringify({
                 RateRequest: {
                     Request: {
+                        RequestOption: "Shop",
                         TransactionReference: {
                             CustomerContext: "Rating Request",
                         },
                     },
                     Shipment: {
+                        DeliveryTimeInformation: {
+                            PackageBillType: "03",
+                            Pickup: {
+                                Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+                                Time: "090000"
+                            }
+                        },
                         Shipper: this.formatAddress(shipment.shipper, this.settings.account_number),
                         ShipTo: this.formatAddress(shipment.recipient),
                         ShipFrom: this.formatAddress(shipment.shipper),
@@ -82,7 +92,16 @@ export class UPSCarrier implements ICarrier {
         }
 
         const data = await response.json();
-        const rates = data.RateResponse?.RatedShipment || [];
+        
+        if (data.response?.errors || data.Fault) {
+            const errorMsg = JSON.stringify(data.response?.errors || data.Fault);
+            throw new Error(`UPS Rating API returned error: ${errorMsg}`);
+        }
+
+        const rates = data.RateResponse?.RatedShipment;
+        if (!rates) {
+             throw new Error(`UPS Rating API returned no rates. Response: ${JSON.stringify(data)}`);
+        }
 
         return {
             success: true,
@@ -91,13 +110,74 @@ export class UPSCarrier implements ICarrier {
                 serviceName: this.getServiceName(rate.Service.Code),
                 cost: parseFloat(rate.TotalCharges.MonetaryValue),
                 currency: rate.TotalCharges.CurrencyCode,
-                estimatedDays: rate.TimeInTransit?.ServiceSummary?.EstimatedArrival?.BusinessDaysInTransit
-                    ? `${rate.TimeInTransit.ServiceSummary.EstimatedArrival.BusinessDaysInTransit} Days`
-                    : rate.GuaranteedDelivery?.BusinessDaysInTransit
-                        ? `${rate.GuaranteedDelivery.BusinessDaysInTransit} Days`
-                        : "N/A",
+                estimatedDays: (() => {
+                    const arrivalDateStr = rate.TimeInTransit?.ServiceSummary?.EstimatedArrival?.Arrival?.Date;
+                    if (arrivalDateStr && arrivalDateStr.length === 8) {
+                        try {
+                            const year = parseInt(arrivalDateStr.substring(0, 4));
+                            const month = parseInt(arrivalDateStr.substring(4, 6)) - 1;
+                            const day = parseInt(arrivalDateStr.substring(6, 8));
+                            // Add 12 hours to avoid timezone issues when displaying the month/date
+                            const arrivalDate = new Date(year, month, day, 12, 0, 0);
+                            return arrivalDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                        } catch (e) {
+                             // Fallback if parsing fails
+                        }
+                    }
+                    
+                    const days = rate.TimeInTransit?.ServiceSummary?.EstimatedArrival?.BusinessDaysInTransit || 
+                                 rate.GuaranteedDelivery?.BusinessDaysInTransit;
+                                 
+                    if (days) return `${days} Business Days`;
+                    return "N/A";
+                })(),
             })),
             rawResponse: data,
+        };
+    }
+
+    async validateAddress(address: any) {
+        const token = await this.getToken();
+        const baseUrl = this.apiUrl.endsWith('/api') ? this.apiUrl.slice(0, -4) : this.apiUrl;
+        
+        const response = await fetch(`${baseUrl}/api/addressvalidation/v2/1`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "transId": crypto.randomUUID(),
+                "transactionSrc": "VialFlow"
+            },
+            body: JSON.stringify({
+                XAVRequest: {
+                    AddressKeyFormat: {
+                        ConsigneeName: address.name || "Customer",
+                        AddressLine: [address.address?.line1 || address.line1, address.address?.line2 || address.line2].filter(Boolean),
+                        PoliticalDivision2: address.address?.city || address.city,
+                        PoliticalDivision1: address.address?.state || address.state,
+                        PostcodePrimaryLow: address.address?.postal_code || address.postal_code,
+                        CountryCode: address.address?.country || address.country || "US"
+                    }
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`UPS Address Validation API error: ${err}`);
+        }
+
+        const data = await response.json();
+        
+        // UPS XAV typically returns Validation response
+        // It has ValidAddressIndicator if perfect, or Candidate[s] if suggestions exist
+        const isMatch = !!data.XAVResponse?.ValidAddressIndicator;
+        const candidates = data.XAVResponse?.Candidate || [];
+        
+        return {
+            valid: isMatch,
+            suggestions: Array.isArray(candidates) ? candidates : [candidates],
+            rawResponse: data
         };
     }
 
@@ -176,13 +256,18 @@ export class UPSCarrier implements ICarrier {
             throw new Error("No shipment results returned");
         }
 
-        const trackingNumber = results.PackageResults.TrackingNumber;
+        const packageResult = Array.isArray(results.PackageResults) 
+            ? results.PackageResults[0] 
+            : results.PackageResults;
+
+        const trackingNumber = packageResult.TrackingNumber;
+        const labelData = packageResult.ShippingLabel?.GraphicImage || packageResult.LabelImage?.GraphicImage;
 
         return {
             success: true,
             trackingNumber,
             trackingUrl: `https://www.ups.com/track?tracknum=${trackingNumber}`,
-            labelData: results.PackageResults.ShippingLabel.GraphicImage,
+            labelData: labelData,
             labelFormat: "PDF",
             serviceName: this.getServiceName(shipment.serviceCode || "03"),
             cost: parseFloat(results.ShipmentCharges?.TotalCharges?.MonetaryValue || "0"),

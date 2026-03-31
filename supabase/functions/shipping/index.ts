@@ -12,8 +12,8 @@ const corsHeaders = {
 import { DEFAULT_SHIPPER } from "../_shared/config.ts"
 
 // Import carrier-specific modules
-import { UPSCarrier } from "./carriers/ups.ts";
-import { FedExCarrier } from "./carriers/fedex.ts";
+import { UPSCarrier } from "../_shared/carriers/ups.ts";
+import { FedExCarrier } from "../_shared/carriers/fedex.ts";
 
 
 // Carrier interface that all carriers must implement

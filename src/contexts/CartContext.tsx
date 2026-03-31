@@ -81,19 +81,21 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAnimating(true);
         setTimeout(() => setIsAnimating(false), 300);
 
-        setItems((currentItems) => {
-            const existingItem = currentItems.find((item) => item.variant.id === variant.id);
-            if (existingItem) {
-                toast.success("Updated quantity in cart");
-                return currentItems.map((item) =>
+        const existingItem = items.find((item) => item.variant.id === variant.id);
+        
+        if (existingItem) {
+            toast.success("Updated quantity in cart");
+            setItems((currentItems) => 
+                currentItems.map((item) =>
                     item.variant.id === variant.id
                         ? { ...item, quantity: item.quantity + quantity }
                         : item
-                );
-            }
+                )
+            );
+        } else {
             toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}) to cart`);
-            return [...currentItems, { variant, quantity }];
-        });
+            setItems((currentItems) => [...currentItems, { variant, quantity }]);
+        }
     };
 
     const removeFromCart = (variantId: string) => {

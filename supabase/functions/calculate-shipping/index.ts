@@ -132,6 +132,16 @@ serve(async (req) => {
 
         console.log(`Found ${allRates.length} shipping rates.`);
 
+        if (allRates.length === 0) {
+            const errors = results.filter(r => !r.success).map(r => (r as any).error);
+            if (errors.length > 0) {
+                return new Response(
+                    JSON.stringify({ error: "Carrier errors: " + errors.join(" | ") }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+                )
+            }
+        }
+
         return new Response(
             JSON.stringify({ rates: allRates }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

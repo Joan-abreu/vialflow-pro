@@ -16,6 +16,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TrackingDialog } from "@/components/shipping/TrackingDialog";
 
 interface Order {
     id: string;
@@ -25,6 +26,8 @@ interface Order {
     tax: number;
     status: string;
     created_at: string;
+    tracking_number?: string;
+    order_shipments?: any[];
     order_items: {
         id: string;
         quantity: number;
@@ -59,6 +62,8 @@ const Account = () => {
     const [updating, setUpdating] = useState(false);
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [reordering, setReordering] = useState<string | null>(null);
+    const [trackingOpen, setTrackingOpen] = useState(false);
+    const [trackingInfo, setTrackingInfo] = useState<{trackingNumber: string, carrier?: string, shipmentId?: string} | null>(null);
 
     useEffect(() => {
         checkUser();
@@ -100,6 +105,8 @@ const Account = () => {
                 shipping_cost,
                 tax,
                 shipping_service,
+                tracking_number,
+                order_shipments(id, carrier, tracking_number),
                 order_items (
                     id,
                     quantity,
@@ -382,6 +389,19 @@ const Account = () => {
                                                 <Badge variant="secondary" className={getStatusColor(order.status)}>
                                                     {order.status}
                                                 </Badge>
+                                                {order.tracking_number && (
+                                                    <Button variant="outline" size="sm" onClick={() => {
+                                                        const shipment = order.order_shipments?.[0];
+                                                        setTrackingInfo({
+                                                            trackingNumber: order.tracking_number as string,
+                                                            carrier: shipment?.carrier || 'UPS',
+                                                            shipmentId: shipment?.id
+                                                        });
+                                                        setTrackingOpen(true);
+                                                    }}>
+                                                        Track Package
+                                                    </Button>
+                                                )}
                                                 <div className="text-right">
                                                     <p className="text-sm text-muted-foreground">Total</p>
                                                     <p className="text-lg font-bold">${order.total_amount.toFixed(2)}</p>
@@ -481,6 +501,14 @@ const Account = () => {
                     </div>
                 )}
             </div>
+
+            <TrackingDialog 
+                open={trackingOpen}
+                onOpenChange={setTrackingOpen}
+                trackingNumber={trackingInfo?.trackingNumber}
+                carrier={trackingInfo?.carrier}
+                shipmentId={trackingInfo?.shipmentId}
+            />
         </div>
     );
 };

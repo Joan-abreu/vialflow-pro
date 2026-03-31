@@ -10,6 +10,7 @@ import { Loader2, Package, Truck, Calendar, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { DEFAULT_SHIPPER } from "@/lib/constants";
+import { TrackingDialog } from "./TrackingDialog";
 
 interface ShippingDialogProps {
     orderId: string;
@@ -21,6 +22,7 @@ interface ShippingDialogProps {
 export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSuccess }: ShippingDialogProps) => {
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<'carrier' | 'rates' | 'label' | 'pickup'>('carrier');
+    const [trackingOpen, setTrackingOpen] = useState(false);
 
     // Carrier selection
     const [availableCarriers, setAvailableCarriers] = useState<any[]>([]);
@@ -268,7 +270,14 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 });
             }
 
+            // Sort rates from lowest to highest cost
+            fetchedRates.sort((a: any, b: any) => a.cost - b.cost);
+
             setRates(fetchedRates);
+            if (fetchedRates.length > 0) {
+                setSelectedService(fetchedRates[0].serviceCode);
+            }
+            
             setStep('rates');
             toast.success("Rates retrieved successfully");
         } catch (error: any) {
@@ -482,37 +491,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         }
     };
 
-    const trackShipment = async () => {
-        if (!trackingNumber || !shipmentId) return;
-
-        setLoading(true);
-        try {
-            const { data, error } = await supabase.functions.invoke("shipping", {
-                body: {
-                    carrier: selectedCarrier,
-                    action: "track_shipment",
-                    data: {
-                        shipmentId: shipmentId,
-                        trackingNumber: trackingNumber,
-                    },
-                },
-            });
-
-            if (error) throw error;
-
-            if (data.data?.success) {
-                const events = data.data.events || [];
-                const latestStatus = data.data.status;
-
-                // Simple alert for now, can be improved with a custom dialog
-                alert(`Status: ${latestStatus}\nLatest Event: ${events[0]?.eventDescription || events[0]?.description || "No details available"}`);
-            }
-        } catch (error: any) {
-            console.error("Error tracking shipment:", error);
-            toast.error(error.message || "Failed to track shipment");
-        } finally {
-            setLoading(false);
+    const trackShipment = () => {
+        if (!trackingNumber) {
+            toast.error("No tracking number available");
+            return;
         }
+        setTrackingOpen(true);
     };
 
     const downloadLabel = () => {
@@ -525,6 +509,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     };
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
@@ -821,5 +806,13 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 )}
             </DialogContent>
         </Dialog>
+        <TrackingDialog
+            open={trackingOpen}
+            onOpenChange={setTrackingOpen}
+            trackingNumber={trackingNumber}
+            carrier={selectedCarrier}
+            shipmentId={shipmentId}
+        />
+        </>
     );
 };

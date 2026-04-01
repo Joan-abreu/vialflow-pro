@@ -1,4 +1,4 @@
-const url = "https://gtmpqjbbcobjxwfeyqzz.supabase.co/functions/v1/calculate-shipping";
+const url = "https://gtmpqjbbcobjxwfeyqzz.supabase.co/functions/v1/shipping";
 const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bXBxamJiY29ianh3ZmV5cXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NDAxNTgsImV4cCI6MjA3OTMxNjE1OH0.H6kFgf8qS6fSU5oFvlbn83FXhWPwQFZfDmOi_dPkkBk";
 
 async function test() {
@@ -10,15 +10,9 @@ async function test() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                weight: 10,
-                address: {
-                    name: "Joan",
-                    line1: "5192 Northeast 6th Avenue",
-                    city: "Oakland Park",
-                    state: "FL",
-                    postal_code: "33334",
-                    country: "US"
-                }
+                carrier: "SHIPPO",
+                action: "get_rates",
+                data: {}
             })
         });
 

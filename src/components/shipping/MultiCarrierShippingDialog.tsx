@@ -24,6 +24,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [step, setStep] = useState<'carrier' | 'rates' | 'label' | 'pickup'>('carrier');
     const [autoFetched, setAutoFetched] = useState(false);
     const [trackingOpen, setTrackingOpen] = useState(false);
+    const [isCheckingShipment, setIsCheckingShipment] = useState(true);
 
     // Carrier selection
     const [availableCarriers, setAvailableCarriers] = useState<any[]>([]);
@@ -95,11 +96,11 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     }, [open, orderId]);
 
     useEffect(() => {
-        if (open && selectedCarrier && !autoFetched && step === 'carrier' && weight) {
+        if (open && selectedCarrier && !autoFetched && step === 'carrier' && weight && !isCheckingShipment && !shipmentId) {
             getShippingRates();
             setAutoFetched(true);
         }
-    }, [open, selectedCarrier, autoFetched, step, weight]);
+    }, [open, selectedCarrier, autoFetched, step, weight, isCheckingShipment, shipmentId]);
 
     const calculateTotalWeight = async () => {
         try {
@@ -183,6 +184,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     };
 
     const checkExistingShipment = async () => {
+        setIsCheckingShipment(true);
         try {
             const { data, error } = await supabase
                 .from("order_shipments")
@@ -212,6 +214,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             }
         } catch (error) {
             console.error("Error checking existing shipment:", error);
+        } finally {
+            setIsCheckingShipment(false);
         }
     };
 
@@ -227,6 +231,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setTrackingNumber("");
             setShipmentId("");
             setAutoFetched(false);
+            setIsCheckingShipment(true);
 
             setWeight("");
             setLength("");
@@ -435,6 +440,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     .from("orders")
                     .update({ status: "label_created" })
                     .eq("id", orderId);
+            } else if (data.error) {
+                throw new Error(data.error);
+            } else {
+                throw new Error("Failed to create shipping label.");
             }
         } catch (error: any) {
             console.error("Error creating label:", error);
@@ -454,7 +463,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         try {
             // FedEx prefers YYYY-MM-DDTHH:mm:ss format, implied local time of pickup address
             const readyISO = `${pickupDate}T${pickupReadyTime}:00`;
-            const closeISO = `${pickupCloseTime}:00`;
+            const closeISO = `${pickupDate}T${pickupCloseTime}:00`;
 
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
@@ -473,6 +482,15 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             });
 
             if (error) throw error;
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            if (!data.data?.success) {
+                const errMsg = data.data?.rawResponse?.error || "Failed to schedule pickup with this carrier.";
+                throw new Error(errMsg);
+            }
 
             toast.success("Pickup scheduled successfully!");
 
@@ -513,13 +531,20 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             if (error) throw error;
 
-            if (data.data?.success) {
-                setPickupConfirmation("");
-                setPickupDate("");
-                setPickupReadyTime("09:00");
-                setPickupCloseTime("17:00");
-                toast.success("Pickup cancelled successfully");
+            if (data.error) {
+                throw new Error(data.error);
             }
+
+            if (!data.data?.success) {
+                const errMsg = data.data?.rawResponse?.error || "Failed to cancel pickup for this carrier.";
+                throw new Error(errMsg);
+            }
+
+            setPickupConfirmation("");
+            setPickupDate("");
+            setPickupReadyTime("09:00");
+            setPickupCloseTime("17:00");
+            toast.success("Pickup cancelled successfully");
         } catch (error: any) {
             console.error("Error cancelling pickup:", error);
             toast.error(error.message || "Failed to cancel pickup");
@@ -547,11 +572,18 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             if (error) throw error;
 
-            if (data.data?.success) {
-                toast.success("Shipment cancelled successfully");
-                onSuccess?.();
-                onOpenChange(false);
+            if (data.error) {
+                throw new Error(data.error);
             }
+
+            if (!data.data?.success) {
+                const errMsg = data.data?.rawResponse?.error || "Failed to cancel shipment for this carrier.";
+                throw new Error(errMsg);
+            }
+
+            toast.success("Shipment cancelled successfully");
+            onSuccess?.();
+            onOpenChange(false);
         } catch (error: any) {
             console.error("Error cancelling shipment:", error);
             toast.error(error.message || "Failed to cancel shipment");
@@ -571,10 +603,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const downloadLabel = () => {
         if (!labelUrl) return;
 
-        const link = document.createElement('a');
-        link.href = labelUrl;
-        link.download = `${selectedCarrier}-label-${trackingNumber}.pdf`;
-        link.click();
+        window.open(labelUrl, '_blank', 'noopener,noreferrer');
     };
 
     return (
@@ -588,7 +617,14 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     </DialogDescription>
                 </DialogHeader>
 
-                {step === 'carrier' && (
+                {isCheckingShipment ? (
+                    <div className="flex flex-col items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                        <p className="text-sm text-muted-foreground">Checking existing shipments...</p>
+                    </div>
+                ) : (
+                    <>
+                        {step === 'carrier' && (
                     <div className="space-y-4">
                         <Card>
                             <CardHeader>
@@ -872,6 +908,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             </Card>
                         )}
                     </div>
+                )}
+                </>
                 )}
             </DialogContent>
         </Dialog>

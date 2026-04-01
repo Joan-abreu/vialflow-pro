@@ -35,6 +35,8 @@ export class ShippoCarrier implements ICarrier {
                     state: shipment.shipper.address?.state || shipment.shipper.state,
                     zip: shipment.shipper.address?.postal_code || shipment.shipper.address?.zip || shipment.shipper.zip || shipment.shipper.postal_code,
                     country: shipment.shipper.address?.country || shipment.shipper.country || "US",
+                    phone: shipment.shipper.phone || "5555555555",
+                    email: shipment.shipper.email || "shipper@example.com",
                 },
                 address_to: {
                     name: shipment.recipient.name || shipment.recipient.company || "Recipient",
@@ -45,6 +47,8 @@ export class ShippoCarrier implements ICarrier {
                     state: shipment.recipient.address?.state || shipment.recipient.state,
                     zip: shipment.recipient.address?.postal_code || shipment.recipient.address?.zip || shipment.recipient.zip || shipment.recipient.postal_code,
                     country: shipment.recipient.address?.country || shipment.recipient.country || "US",
+                    phone: shipment.recipient.phone || "5555555555",
+                    email: shipment.recipient.email || "recipient@example.com",
                 },
                 parcels: shipment.packages.map((pkg: any) => ({
                     length: Math.max(parseFloat(pkg.length || "1"), 1.0).toString(),
@@ -130,12 +134,117 @@ export class ShippoCarrier implements ICarrier {
     }
 
     async schedulePickup(pickup: any) {
-        // Shippo pickup API implementation if needed
-        return {
-            success: false,
-            confirmationNumber: "",
-            rawResponse: { error: "Pickup scheduling not implemented for Shippo carrier yet" },
-        };
+        if (!this.settings.api_key) {
+            return { success: false, confirmationNumber: "", rawResponse: { error: "Shippo API Token is missing." } };
+        }
+
+        try {
+            const rawResponse = pickup.shipmentData?.carrier_response;
+            if (!rawResponse || !rawResponse.object_id) {
+                return { success: false, confirmationNumber: "", rawResponse: { error: "Missing Shippo transaction details from the original shipment." } };
+            }
+
+            const transactionId = rawResponse.object_id;
+            let carrierAccountId = "";
+
+            // Attempt to get the carrier_account from the rate
+            const rateId = rawResponse.rate;
+            if (rateId && typeof rateId === "string") {
+                const rateRes = await fetch(`${this.apiUrl}rates/${rateId}/`, { headers: this.getHeaders() });
+                if (rateRes.ok) {
+                    const rateData = await rateRes.json();
+                    carrierAccountId = rateData.carrier_account;
+                }
+            }
+
+            if (!carrierAccountId) {
+                // Fallback: fetch carrier accounts
+                const accRes = await fetch(`${this.apiUrl}carrier_accounts/`, { headers: this.getHeaders() });
+                if (accRes.ok) {
+                    const accData = await accRes.json();
+                    const account = accData.results?.find((a: any) => a.carrier === "usps" || a.carrier === "dhl_express");
+                    if (account) carrierAccountId = account.object_id;
+                }
+            }
+
+            if (!carrierAccountId) {
+                return { success: false, confirmationNumber: "", rawResponse: { error: "Could not determine Shippo carrier account for pickup. Make sure USPS is enabled." } };
+            }
+
+            const address = pickup.shipmentData?.ship_from || {};
+
+            const mapState = (s: string) => {
+                const map: Record<string, string> = {
+                    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA",
+                    "colorado": "CO", "connecticut": "CT", "delaware": "DE", "florida": "FL", "georgia": "GA",
+                    "hawaii": "HI", "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA",
+                    "kansas": "KS", "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+                    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS", "missouri": "MO",
+                    "montana": "MT", "nebraska": "NE", "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
+                    "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", "ohio": "OH",
+                    "oklahoma": "OK", "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+                    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT",
+                    "virginia": "VA", "washington": "WA", "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY"
+                };
+                if (!s) return "FL";
+                if (s.length === 2) return s.toUpperCase();
+                return map[s.toLowerCase()] || s.substring(0, 2).toUpperCase();
+            };
+
+            const payload = {
+                carrier_account: carrierAccountId,
+                location: {
+                    building_location_type: "Front Door",
+                    building_type: "building",
+                    instructions: pickup.instructions || "Please pick up from the main entrance.",
+                    address: {
+                        name: address.name || "Shipper",
+                        company: address.company || address.name || "Company",
+                        street1: address.line1 || address.street1 || "Street",
+                        city: address.city || "City",
+                        state: mapState(address.state_code || address.state),
+                        zip: address.postal_code || address.zip || "00000",
+                        country: address.country_code || address.country || "US",
+                        phone: address.phone || this.settings.shipper_phone || "5555555555",
+                        email: address.email || this.settings.shipper_email || "shipper@example.com"
+                    }
+                },
+                transactions: [transactionId],
+                requested_start_time: pickup.readyTime.endsWith("Z") ? pickup.readyTime : pickup.readyTime + "Z",
+                requested_end_time: pickup.closeTime.endsWith("Z") ? pickup.closeTime : pickup.closeTime + "Z",
+                is_batch: false
+            };
+
+            const response = await fetch(`${this.apiUrl}pickups/`, {
+                method: "POST",
+                headers: this.getHeaders(),
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                return { success: false, confirmationNumber: "", rawResponse: { error: `Shippo Pickup Error: ${errorText}` } };
+            }
+
+            const data = await response.json();
+
+            // Shippo responds with "SUCCESS", "PENDING", or "ERROR" on the status prop
+            if (data.status === "ERROR") {
+                return { success: false, confirmationNumber: "", rawResponse: { error: `Shippo Pickup Failed: ${JSON.stringify(data.messages)}` } };
+            }
+
+            return {
+                success: true,
+                confirmationNumber: data.object_id || data.confirmation_code,
+                rawResponse: data,
+            };
+        } catch (e: any) {
+            return {
+                success: false,
+                confirmationNumber: "",
+                rawResponse: { error: e.message || "Unknown error creating Shippo pickup." }
+            };
+        }
     }
 
     async trackShipment(trackingNumber: string) {

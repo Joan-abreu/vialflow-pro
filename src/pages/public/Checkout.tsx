@@ -5,6 +5,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import StripeCheckout from "@/components/checkout/StripeCheckout";
+import SquareCheckout from "@/components/checkout/SquareCheckout";
 import { Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
+const USE_SQUARE = true;
 
 const Checkout = () => {
     const { items, cartTotal } = useCart();
@@ -170,6 +172,9 @@ const Checkout = () => {
 
                 // If amount hasn't changed from what's on intent, don't update
                 if (intentAmountRef.current === totalAmount && clientSecret) return;
+                
+                // If using Square, we skip creating a Stripe payment intent.
+                if (USE_SQUARE) return;
 
                 try {
                     console.log(`${paymentIntentId ? 'Updating' : 'Creating'} payment intent for $${totalAmount}`);
@@ -275,7 +280,18 @@ const Checkout = () => {
                     {/* Payment & Shipping Section */}
                     <div className="bg-card border rounded-lg p-6">
                         <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
-                        {clientSecret ? (
+                        {USE_SQUARE ? (
+                            <SquareCheckout
+                                amount={totalAmount}
+                                shippingCost={shippingCost}
+                                shippingService={shippingService}
+                                shippingServiceCode={shippingServiceCode}
+                                shippingCarrier={shippingCarrier}
+                                estimatedDays={shippingEstimatedDays}
+                                tax={0}
+                                onAddressChange={handleAddressChange}
+                            />
+                        ) : clientSecret ? (
                             <Elements key={clientSecret} options={options} stripe={stripePromise}>
                                 <StripeCheckout
                                     amount={totalAmount}
@@ -284,7 +300,7 @@ const Checkout = () => {
                                     shippingServiceCode={shippingServiceCode}
                                     shippingCarrier={shippingCarrier}
                                     estimatedDays={shippingEstimatedDays}
-                                    tax={0} // Tax calculation not yet implemented, explicitly 0
+                                    tax={0}
                                     clientSecret={clientSecret}
                                     onAddressChange={handleAddressChange}
                                 />

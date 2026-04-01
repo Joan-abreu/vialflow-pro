@@ -141,7 +141,20 @@ const handler = async (req: Request): Promise<Response> => {
                 break;
             }
 
-            case "schedule_pickup":
+            case "schedule_pickup": {
+                // Fetch the shipment details needed to schedule a pickup
+                const { data: dbShipment, error: dbError } = await supabase
+                    .from("order_shipments")
+                    .select("*")
+                    .eq("id", data.shipmentId)
+                    .single();
+
+                if (dbError || !dbShipment) {
+                    throw new Error("Shipment not found for pickup scheduling");
+                }
+
+                data.shipmentData = dbShipment;
+
                 result = await carrierInstance.schedulePickup(data);
 
                 // Update shipment with pickup info
@@ -157,6 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
                         .eq("id", data.shipmentId);
                 }
                 break;
+            }
 
             case "track_shipment":
                 result = await carrierInstance.trackShipment(data.trackingNumber);
@@ -258,8 +272,8 @@ const handler = async (req: Request): Promise<Response> => {
         });
     } catch (error: any) {
         console.error("Shipping API Error:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
+        return new Response(JSON.stringify({ success: false, error: error.message }), {
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }

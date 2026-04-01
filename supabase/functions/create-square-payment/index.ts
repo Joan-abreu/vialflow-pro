@@ -26,7 +26,7 @@ serve(async (req) => {
     }
 
     try {
-        const { sourceId, amount, currency = "USD", orderId, customerEmail } = await req.json();
+        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, items, shippingAddress, shippingCost, tax } = await req.json();
 
         if (!sourceId || !amount) {
             throw new Error("Missing sourceId or amount");
@@ -40,10 +40,55 @@ serve(async (req) => {
         const idempotencyKey = crypto.randomUUID();
 
         // Convert decimal amount to smallest denomination (e.g., cents)
-        // Ensure no floating point precision issues
         const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
 
-        // Process the payment
+        let squareOrderId = undefined;
+
+        // 1. Create a Square Order if items are provided
+        if (items && items.length > 0 && locationId) {
+            try {
+                const orderResponse = await square.ordersApi.createOrder({
+                    order: {
+                        locationId: locationId,
+                        referenceId: orderId,
+                        lineItems: items.map((item: any) => ({
+                            name: item.name,
+                            quantity: item.quantity.toString(),
+                            basePriceMoney: {
+                                amount: BigInt(Math.round(Number(item.basePriceMoney.amount))),
+                                currency: item.basePriceMoney.currency
+                            }
+                        })),
+                        // Square uses 'service_charges' for things like shipping
+                        serviceCharges: shippingCost > 0 ? [{
+                            name: "Shipping",
+                            amountMoney: {
+                                amount: BigInt(Math.round(Number(shippingCost) * 100)),
+                                currency: currency
+                            },
+                            calculationPhase: "TOTAL_PHASE"
+                        }] : undefined,
+                        // Square uses 'taxes' for sales tax
+                        taxes: tax > 0 ? [{
+                            name: "Tax",
+                            type: "ADDITIVE",
+                            appliedMoney: {
+                                amount: BigInt(Math.round(Number(tax) * 100)),
+                                currency: currency
+                            },
+                            scope: "ORDER"
+                        }] : undefined,
+                    }
+                });
+                squareOrderId = orderResponse.result.order?.id;
+                console.log(`Created Square Order: ${squareOrderId}`);
+            } catch (orderError: any) {
+                console.error("Error creating Square Order:", orderError);
+                // We continue even if order creation fails, to at least process the payment
+            }
+        }
+
+        // 2. Process the payment
         const paymentResponse = await square.paymentsApi.createPayment({
             sourceId: sourceId,
             idempotencyKey: idempotencyKey,
@@ -51,8 +96,12 @@ serve(async (req) => {
                 amount: BigInt(amountInCents),
                 currency: currency,
             },
+            orderId: squareOrderId,
+            locationId: locationId,
             referenceId: orderId,
             buyerEmailAddress: customerEmail,
+            note: `Order ID: ${orderId}`,
+            shippingAddress: shippingAddress,
         });
 
         // The response contains the payment details
@@ -69,10 +118,11 @@ serve(async (req) => {
             });
         } else {
              return new Response(JSON.stringify({
+                success: false,
                 error: `Payment failed with status: ${payment?.status}`
             }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
-                status: 400,
+                status: 200,
             });
         }
 
@@ -86,9 +136,12 @@ serve(async (req) => {
             errorMessage = error.errors[0].detail || error.errors[0].code;
         }
 
-        return new Response(JSON.stringify({ error: errorMessage || "Payment processing failed" }), {
+        return new Response(JSON.stringify({ 
+            success: false, 
+            error: errorMessage || "Payment processing failed" 
+        }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 400,
+            status: 200,
         });
     }
 });

@@ -83,7 +83,7 @@ serve(async (req) => {
             },
             packages: [
                 {
-                    weight: Math.max(0.1, weight),
+                    weight: parseFloat(Math.max(0.1, Number(weight)).toFixed(2)),
                     ...(() => {
                         // Packing logic: simple bounding box heuristic
                         // Assuming items are stacked vertically

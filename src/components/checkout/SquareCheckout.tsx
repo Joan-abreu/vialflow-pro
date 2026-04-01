@@ -79,6 +79,33 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         setAddressState(prev => ({ ...prev, [name]: value }));
     };
 
+    // Helper to translate Square technical errors to friendly messages
+    const translateSquareError = (errorMsg: string) => {
+        const upperError = errorMsg.toUpperCase();
+        if (upperError.includes('GENERIC_DECLINE')) {
+            return "Tu tarjeta fue declinada. Por favor, intenta con otra tarjeta o contacta a tu banco.";
+        }
+        if (upperError.includes('INSUFFICIENT_FUNDS')) {
+            return "Fondos insuficientes. Por favor, usa otra tarjeta.";
+        }
+        if (upperError.includes('CVV_FAILURE')) {
+            return "El código de seguridad (CVV) es incorrecto. Por favor, verifícalo.";
+        }
+        if (upperError.includes('EXPIRATION_FAILURE')) {
+            return "La tarjeta ha expirado. Por favor, usa una tarjeta válida.";
+        }
+        if (upperError.includes('INVALID_CARD')) {
+            return "Número de tarjeta inválido. Por favor, verifícalo.";
+        }
+        if (upperError.includes('AMOUNT_TOO_HIGH')) {
+            return "El monto es demasiado alto para esta tarjeta.";
+        }
+        if (upperError.includes('ADDRESS_VERIFICATION_FAILURE')) {
+            return "La verificación de la dirección falló. Revisa tu código postal.";
+        }
+        return "Hubo un problema al procesar el pago. Por favor, inténtalo de nuevo.";
+    };
+
     // Delay validating address and triggering parent callback until typing stops
     useEffect(() => {
         if (!addressState.line1 || !addressState.city || !addressState.state || !addressState.postal_code || !addressState.country) return;
@@ -156,12 +183,33 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     sourceId: token,
                     amount: amount,
                     orderId: order.id,
-                    customerEmail: customerEmail
+                    customerEmail: customerEmail,
+                    locationId: locationId,
+                    shippingCost: shippingCost,
+                    tax: tax,
+                    items: items.map(item => ({
+                        name: item.variant.product.name,
+                        quantity: item.quantity.toString(),
+                        basePriceMoney: {
+                            amount: Math.round(item.variant.price * 100),
+                            currency: "USD"
+                        }
+                    })),
+                    shippingAddress: {
+                        addressLine1: addressState.line1,
+                        addressLine2: addressState.line2,
+                        locality: addressState.city,
+                        administrativeDistrictLevel1: addressState.state,
+                        postalCode: addressState.postal_code,
+                        country: addressState.country
+                    }
                 }
             });
 
-            if (paymentError || paymentResult.error) {
-                throw new Error(paymentResult?.error || paymentError?.message || "Payment declined");
+            if (paymentError || !paymentResult || paymentResult.success === false) {
+                console.error("Square Detailed Error:", paymentError || paymentResult?.error);
+                const errorMessage = paymentResult?.error || paymentError?.message || "Payment declined";
+                throw new Error(translateSquareError(errorMessage));
             }
 
             // Update order to processing implicitly if payment success since the webhook handles it 

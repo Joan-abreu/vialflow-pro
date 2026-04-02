@@ -83,27 +83,27 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     const translateSquareError = (errorMsg: string) => {
         const upperError = errorMsg.toUpperCase();
         if (upperError.includes('GENERIC_DECLINE')) {
-            return "Tu tarjeta fue declinada. Por favor, intenta con otra tarjeta o contacta a tu banco.";
+            return "Your card was declined. Please try another card or contact your bank.";
         }
         if (upperError.includes('INSUFFICIENT_FUNDS')) {
-            return "Fondos insuficientes. Por favor, usa otra tarjeta.";
+            return "Insufficient funds. Please use another card.";
         }
         if (upperError.includes('CVV_FAILURE')) {
-            return "El código de seguridad (CVV) es incorrecto. Por favor, verifícalo.";
+            return "The security code (CVV) is incorrect. Please verify it.";
         }
         if (upperError.includes('EXPIRATION_FAILURE')) {
-            return "La tarjeta ha expirado. Por favor, usa una tarjeta válida.";
+            return "The card has expired. Please use a valid card.";
         }
         if (upperError.includes('INVALID_CARD')) {
-            return "Número de tarjeta inválido. Por favor, verifícalo.";
+            return "Invalid card number. Please verify it.";
         }
         if (upperError.includes('AMOUNT_TOO_HIGH')) {
-            return "El monto es demasiado alto para esta tarjeta.";
+            return "The amount is too high for this card.";
         }
         if (upperError.includes('ADDRESS_VERIFICATION_FAILURE')) {
-            return "La verificación de la dirección falló. Revisa tu código postal.";
+            return "Address verification failed. Check your zip code.";
         }
-        return "Hubo un problema al procesar el pago. Por favor, inténtalo de nuevo.";
+        return "There was a problem processing the payment. Please try again.";
     };
 
     // Delay validating address and triggering parent callback until typing stops

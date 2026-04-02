@@ -153,12 +153,48 @@ const OrderManagement = () => {
 
     const deleteOrderMutation = useMutation({
         mutationFn: async (orderId: string) => {
-            // Delete related records first to avoid foreign key constraints (if not cascaded)
-            await supabase.from("order_items").delete().eq("order_id", orderId);
-            await supabase.from("production_batches").delete().eq("order_id", orderId);
+            console.log("Starting deep delete for order:", orderId);
             
-            const { error } = await supabase.from("orders").delete().eq("id", orderId);
+            // 1. Delete shipments
+            const { count: shipCount, error: shipmentError } = await supabase
+                .from("order_shipments")
+                .delete({ count: 'exact' })
+                .eq("order_id", orderId);
+            
+            console.log(`Deleted ${shipCount || 0} shipments`);
+            if (shipmentError) console.error("Shipment delete error:", shipmentError);
+
+            // 2. Delete related production batches
+            const { count: batchCount, error: batchError } = await supabase
+                .from("production_batches")
+                .delete({ count: 'exact' })
+                .eq("order_id", orderId);
+            
+            console.log(`Deleted ${batchCount || 0} batches`);
+            if (batchError) console.error("Batch delete error:", batchError);
+
+            // 3. Delete order items
+            const { count: itemCount, error: itemsError } = await supabase
+                .from("order_items")
+                .delete({ count: 'exact' })
+                .eq("order_id", orderId);
+            
+            console.log(`Deleted ${itemCount || 0} items`);
+            if (itemsError) throw itemsError;
+            
+            // 4. Finally delete the order itself
+            const { count: orderCount, error } = await supabase
+                .from("orders")
+                .delete({ count: 'exact' })
+                .eq("id", orderId);
+            
+            console.log(`Final order delete count: ${orderCount}`);
+
             if (error) throw error;
+            
+            if (orderCount === 0) {
+                throw new Error("The order was not found or you don't have permission to delete it. (Rows affected: 0)");
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["orders"] });

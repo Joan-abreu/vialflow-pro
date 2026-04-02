@@ -82,127 +82,132 @@ const AppRoutes = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(true);
 
-  // Check maintenance mode
-  useEffect(() => {
-    const checkMaintenance = async () => {
-      // Use a timeout to prevent hanging the whole app if Supabase is slow
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Maintenance check timed out")), 5000)
-      );
+    // Check maintenance mode
+    useEffect(() => {
+        let isMounted = true;
+        const checkMaintenance = async () => {
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Maintenance check timed out")), 5000)
+            );
 
-      try {
-        const fetchPromise = supabase
-          .from("app_settings" as any)
-          .select("value")
-          .eq("key", "maintenance_mode")
-          .single();
+            try {
+                const fetchPromise = supabase
+                    .from("app_settings" as any)
+                    .select("value")
+                    .eq("key", "maintenance_mode")
+                    .single();
 
-        const result: any = await Promise.race([fetchPromise, timeoutPromise]);
-        setMaintenanceMode(result.data?.value === "true");
-      } catch (e: any) {
-        if (e.message !== "Maintenance check timed out") {
-          console.error("Maintenance check error or timeout:", e);
+                const result: any = await Promise.race([fetchPromise, timeoutPromise]);
+                if (isMounted) {
+                    setMaintenanceMode(result.data?.value === "true");
+                }
+            } catch (e: any) {
+                if (isMounted) {
+                    console.error("Maintenance check error or timeout:", e);
+                    setMaintenanceMode(false);
+                }
+            } finally {
+                if (isMounted) {
+                    setCheckingMaintenance(false);
+                }
+            }
+        };
+
+        checkMaintenance();
+
+        // Unique channel name per tab to avoid issues
+        const channelId = `maintenance-sync-${Math.random().toString(36).substr(2, 9)}`;
+        const channel = supabase
+            .channel(channelId)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'app_settings',
+                    filter: 'key=eq.maintenance_mode'
+                },
+                (payload) => {
+                    if (isMounted) {
+                        setMaintenanceMode((payload.new as any).value === "true");
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
         }
-        // Default to false on error/timeout to keep the site accessible
-        setMaintenanceMode(false);
-      } finally {
-        setCheckingMaintenance(false);
-      }
-    };
+    }, []);
 
-    checkMaintenance();
-
-    // Subscribe to changes
-    // Subscribe to changes with a unique channel name to avoid cross-tab contention
-    const channel = supabase
-      .channel('maintenance-mode-sync')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'app_settings',
-          filter: 'key=eq.maintenance_mode'
-        },
-        (payload) => {
-          setMaintenanceMode((payload.new as any).value === "true");
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+    if (loading || checkingMaintenance) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
     }
-  }, []);
 
-  if (loading || checkingMaintenance) {
+    // Define routes that are always accessible
+    const isProtectedPath = location.pathname.startsWith("/manufacturing") ||
+        location.pathname === "/login" ||
+        location.pathname === "/maintenance";
+
+    if (maintenanceMode && !session && !isProtectedPath) {
+        return <Maintenance />;
+    }
+
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+        <>
+            <ScrollToTop />
+            <Routes>
+                {/* Public E-commerce Routes */}
+                <Route element={<PublicLayout />}>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/products" element={<Products />} />
+                    <Route path="/products/:id" element={<ProductDetails />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route path="/auth/confirm" element={<EmailConfirmation />} />
+                    <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/account" element={<Account />} />
+                    <Route path="/terms" element={<ComingSoon />} />
+                    <Route path="/privacy" element={<ComingSoon />} />
+                </Route>
+
+                {/* Maintenance Route */}
+                <Route path="/maintenance" element={<Maintenance />} />
+
+                {/* Manufacturing Routes */}
+                <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
+                    <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
+                    <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+                    <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
+                    <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+                    <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+                    <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
+                    <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
+                    <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
+                    <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
+                    <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />
+                    <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
+                    <Route path="bom/:batchId" element={<BillOfMaterials />} />
+                    <Route path="planner" element={<ProtectedRoute><ProductionPlanner /></ProtectedRoute>} />
+                    <Route path="inventory-report" element={<InventoryReport />} />
+                </Route>
+
+                <Route path="*" element={<NotFound />} />
+            </Routes>
+        </>
     );
-  }
-
-  // Define routes that are always accessible
-  const isProtectedPath = location.pathname.startsWith("/manufacturing") ||
-    location.pathname === "/login" ||
-    location.pathname === "/maintenance";
-
-  if (maintenanceMode && !session && !isProtectedPath) {
-    return <Maintenance />;
-  }
-
-  return (
-    <>
-      <ScrollToTop />
-      <Routes>
-        {/* Public E-commerce Routes */}
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/products/:id" element={<ProductDetails />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/auth/confirm" element={<EmailConfirmation />} />
-          <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/account" element={<Account />} />
-          <Route path="/terms" element={<ComingSoon />} />
-          <Route path="/privacy" element={<ComingSoon />} />
-        </Route>
-
-        {/* Maintenance Route */}
-        <Route path="/maintenance" element={<Maintenance />} />
-
-        {/* Manufacturing Routes */}
-        <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
-          <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
-          <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-          <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
-          <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
-          <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
-          <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
-          <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
-          <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
-          <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
-          <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
-          <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />
-          <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
-          <Route path="bom/:batchId" element={<BillOfMaterials />} />
-          <Route path="planner" element={<ProtectedRoute><ProductionPlanner /></ProtectedRoute>} />
-          <Route path="inventory-report" element={<InventoryReport />} />
-        </Route>
-
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
-  );
 };
 
 const App = () => {

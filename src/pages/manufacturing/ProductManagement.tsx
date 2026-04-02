@@ -82,6 +82,7 @@ interface Product {
     sale_type: string;
     default_pack_size: number | null;
     slug?: string;
+    position?: number;
 }
 
 interface ProductVariant {
@@ -520,11 +521,12 @@ const ProductManagement = () => {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
             category_id: formData.get("category_id") as string || null,
-            image_url: productImages[0] || productImageUrl || formData.get("image_url") as string,
+            image_url: productImages[0] || productImageUrl || null,
             images: productImages,
             rich_description: richTextDescription,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
+            position: parseInt(formData.get("position") as string) || 0,
             sale_type: 'individual',
             default_pack_size: null,
         };
@@ -729,7 +731,7 @@ const ProductManagement = () => {
                                     <Plus className="mr-2 h-4 w-4" /> Add Product
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+                            <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
                                     <DialogDescription>
@@ -737,29 +739,44 @@ const ProductManagement = () => {
                                     </DialogDescription>
                                 </DialogHeader>
                                 <form key={editingProduct ? editingProduct.id : "new"} onSubmit={handleProductSubmit} className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="name">Name</Label>
-                                        <Input id="name" name="name" defaultValue={editingProduct?.name} required />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Name</Label>
+                                            <Input id="name" name="name" defaultValue={editingProduct?.name} required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="category_id">Category</Label>
+                                            <select
+                                                id="category_id"
+                                                name="category_id"
+                                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                                defaultValue={editingProduct?.category_id || ""}
+                                            >
+                                                <option value="">No category</option>
+                                                {categories?.map((cat) => (
+                                                    <option key={cat.id} value={cat.id}>
+                                                        {cat.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="description">Description</Label>
-                                        <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="category_id">Category</Label>
-                                        <select
-                                            id="category_id"
-                                            name="category_id"
-                                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                            defaultValue={editingProduct?.category_id || ""}
-                                        >
-                                            <option value="">No category</option>
-                                            {categories?.map((cat) => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="description">Short Description</Label>
+                                            <Textarea id="description" name="description" defaultValue={editingProduct?.description || ""} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="position" className="text-primary font-semibold">Display Order (E-commerce)</Label>
+                                            <Input
+                                                id="position"
+                                                name="position"
+                                                type="number"
+                                                defaultValue={editingProduct?.position ?? 0}
+                                                placeholder="e.g. 1"
+                                            />
+                                            <p className="text-xs text-muted-foreground">Lower numbers appear first in the store.</p>
+                                        </div>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="rich_description">Detailed Description (Rich Text)</Label>
@@ -1141,7 +1158,7 @@ const ProductManagement = () => {
                         setEditingDescriptionProduct(null);
                     }
                 }}>
-                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                    <DialogContent className="max-w-5xl h-[85vh] flex flex-col">
                         <DialogHeader>
                             <DialogTitle>Edit Product Description</DialogTitle>
                             <DialogDescription>

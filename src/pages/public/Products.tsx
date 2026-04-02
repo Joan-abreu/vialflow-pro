@@ -32,79 +32,64 @@ const Products = () => {
         queryFn: async () => {
             console.log("Products: Fetching product variants...");
             // Fetch all published variants with their product and vial type info
-            let query = supabase
-                .from("product_variants")
+            const { data, error } = await supabase
+                .from("products")
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, category_id, is_published, sale_type, default_pack_size, product_categories(name)),
-                    vial_type:vial_types!inner(name, capacity_ml, color, shape)
+                    product_categories(name),
+                    variants:product_variants(
+                        *,
+                        vial_type:vial_types(name, capacity_ml, color, shape)
+                    )
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true);
+                .order('position', { ascending: true })
+                .order('position', { foreignTable: 'product_variants', ascending: true });
 
-            const { data, error } = await query;
             if (error) {
                 console.error("Error fetching products:", error);
                 throw error;
             }
-            console.log("Products: Fetch successful, items:", data?.length);
 
-            // Group variants by product
-            const grouped: Record<string, ProductWithVariants> = {};
-
-            (data as any[])?.forEach((variant: any) => {
-                const productId = variant.product.id;
-
-                if (!grouped[productId]) {
-                    grouped[productId] = {
-                        id: productId,
-                        slug: variant.product.slug,
-                        name: variant.product.name,
-                        description: variant.product.description,
-                        image_url: variant.product.image_url,
-                        category: variant.product.product_categories?.name || null,
-                        sale_type: variant.product.sale_type || 'individual',
-                        default_pack_size: variant.product.default_pack_size,
-                        variants: [],
-                    };
-                }
-
-                grouped[productId].variants.push({
-                    id: variant.id,
-                    product_id: variant.product_id,
-                    vial_type_id: variant.vial_type_id,
-                    sku: variant.sku,
-                    price: variant.price,
-                    stock_quantity: variant.stock_quantity,
-                    max_online_quantity: variant.max_online_quantity,
-                    weight: variant.weight,
-                    pack_size: variant.pack_size || 1,
-                    image_url: variant.image_url,
-                    position: variant.position || 0,
+            // Map products to the expected format
+            return (data as any[]).map(product => ({
+                id: product.id,
+                slug: product.slug,
+                name: product.name,
+                description: product.description,
+                image_url: product.image_url,
+                category: product.product_categories?.name || null,
+                sale_type: product.sale_type || 'individual',
+                default_pack_size: product.default_pack_size,
+                variants: product.variants.map((v: any) => ({
+                    id: v.id,
+                    product_id: v.product_id,
+                    vial_type_id: v.vial_type_id,
+                    sku: v.sku,
+                    price: v.price,
+                    stock_quantity: v.stock_quantity,
+                    max_online_quantity: v.max_online_quantity,
+                    weight: v.weight,
+                    pack_size: v.pack_size || 1,
+                    image_url: v.image_url,
+                    position: v.position || 0,
                     product: {
-                        name: variant.product.name,
-                        image_url: variant.product.image_url,
-                        description: variant.product.description,
-                        category: variant.product.product_categories?.name || null,
+                        name: product.name,
+                        image_url: product.image_url,
+                        description: product.description,
+                        category: product.product_categories?.name || null,
                     },
                     vial_type: {
-                        name: variant.vial_type.name,
-                        capacity_ml: variant.vial_type.capacity_ml,
-                        color: variant.vial_type.color,
-                        shape: variant.vial_type.shape,
+                        name: v.vial_type.name,
+                        capacity_ml: v.vial_type.capacity_ml,
+                        color: v.vial_type.color,
+                        shape: v.vial_type.shape,
                     },
-                });
-            });
-
-            return Object.values(grouped)
-                .filter(product =>
-                    !product.name.toLowerCase().includes('peptide') &&
-                    !(product.category?.toLowerCase().includes('peptide'))
-                )
-                .map(product => ({
-                    ...product,
-                    variants: product.variants.sort((a, b) => (a.position || 0) - (b.position || 0))
-                }));
+                })).sort((a: any, b: any) => a.position - b.position)
+            })).filter(product =>
+                !product.name.toLowerCase().includes('peptide') &&
+                !(product.category?.toLowerCase().includes('peptide'))
+            );
         },
     });
 
@@ -213,20 +198,46 @@ const Products = () => {
                                 className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-lg transition-all cursor-pointer"
                                 onClick={() => navigate(`/products/${product.slug || product.id}`)}
                             >
-                                <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                                <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                                     {(() => {
                                         // Use product image or fallback to first variant with image
                                         const displayImage = product.image_url || product.variants.find(v => v.image_url)?.image_url;
+                                        
+                                        // Detect pack size: check product level or if all variants share the same pack size
+                                        const packSize = product.default_pack_size || 
+                                                       (product.variants.length > 0 && product.variants.every(v => v.pack_size === product.variants[0].pack_size) 
+                                                        ? product.variants[0].pack_size 
+                                                        : null);
 
-                                        return displayImage ? (
-                                            <img src={displayImage} alt={product.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="text-muted-foreground">No image</div>
+                                        return (
+                                            <>
+                                                {displayImage ? (
+                                                    <img src={displayImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                ) : (
+                                                    <div className="text-muted-foreground">No image</div>
+                                                )}
+                                                
+                                                {packSize && packSize > 1 && (
+                                                    <div className="absolute top-2 right-2">
+                                                        <Badge className="bg-[#f59e0b] hover:bg-[#d97706] text-white font-bold border-none shadow-md py-1 px-2">
+                                                            Pack {packSize}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </>
                                         );
                                     })()}
                                 </div>
                                 <div className="p-4">
-                                    <h3 className="font-semibold text-lg mb-1">{product.name}</h3>
+                                    <h3 className={`font-semibold mb-1 transition-all duration-300 ${
+                                        product.name.length > 70 
+                                            ? 'text-sm' 
+                                            : product.name.length > 40 
+                                                ? 'text-base' 
+                                                : 'text-lg'
+                                    }`}>
+                                        {product.name}
+                                    </h3>
                                     {product.description && (
                                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                                             {product.description}
@@ -243,11 +254,6 @@ const Products = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    {product.sale_type === 'pack' && product.default_pack_size && (
-                                        <Badge variant="secondary" className="text-xs">
-                                            Pack of {product.default_pack_size} units
-                                        </Badge>
-                                    )}
                                 </div>
                             </div>
                         ))

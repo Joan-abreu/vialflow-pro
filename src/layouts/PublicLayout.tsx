@@ -4,6 +4,7 @@ import { ShoppingCart, User, Menu, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
     DropdownMenu,
@@ -37,16 +38,14 @@ const CartIcon = () => {
 };
 
 const PublicLayoutContent = () => {
+    const { session } = useAuth();
+    const user = session?.user ?? null;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [user, setUser] = useState<any>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-
+        const checkAdmin = async () => {
             if (user) {
                 const { data } = await supabase
                     .from("user_roles")
@@ -54,35 +53,14 @@ const PublicLayoutContent = () => {
                     .eq("user_id", user.id)
                     .single();
 
-                if (data && data.role === "admin") {
-                    setIsAdmin(true);
-                }
-            }
-        };
-
-        checkUser();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                const { data } = await supabase
-                    .from("user_roles")
-                    .select("role")
-                    .eq("user_id", session.user.id)
-                    .single();
-
-                if (data && data.role === "admin") {
-                    setIsAdmin(true);
-                } else {
-                    setIsAdmin(false);
-                }
+                setIsAdmin(data?.role === "admin");
             } else {
                 setIsAdmin(false);
             }
-        });
+        };
 
-        return () => subscription.unsubscribe();
-    }, []);
+        checkAdmin();
+    }, [user]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

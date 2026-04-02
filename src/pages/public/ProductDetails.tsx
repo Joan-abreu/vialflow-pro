@@ -233,7 +233,15 @@ const ProductDetails = () => {
                                 {product.category}
                             </div>
                         )}
-                        <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">{product.name}</h1>
+                        <h1 className={`${
+                            product.name.length > 70 
+                                ? 'text-2xl md:text-3xl' 
+                                : product.name.length > 40 
+                                    ? 'text-3xl md:text-4xl' 
+                                    : 'text-4xl md:text-5xl'
+                        } font-bold text-foreground mb-4 transition-all duration-300`}>
+                            {product.name}
+                        </h1>
                         <p className="text-2xl font-semibold text-primary mb-6">
                             ${selectedVariant?.price.toFixed(2) || '0.00'}
                         </p>
@@ -329,7 +337,7 @@ const ProductDetails = () => {
                                 <div>
                                     <div className="font-medium">In Stock</div>
                                     <div className="text-sm text-muted-foreground">
-                                        {selectedVariant?.stock_quantity || 0} units available
+                                        Available and ready to ship
                                     </div>
                                 </div>
                             </div>
@@ -339,7 +347,7 @@ const ProductDetails = () => {
                                 </div>
                                 <div>
                                     <div className="font-medium">Fast Shipping</div>
-                                    <div className="text-sm text-muted-foreground">2-3 business days</div>
+                                    <div className="text-sm text-muted-foreground">Fast and reliable delivery</div>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3 sm:col-span-2">

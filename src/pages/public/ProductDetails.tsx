@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";
+import { getBaseSalesCount } from "@/utils/salesCount";
 
 interface ProductWithVariants {
     id: string;
@@ -23,6 +24,7 @@ interface ProductWithVariants {
     sale_type: string;
     default_pack_size: number | null;
     variants: ProductVariant[];
+    sales_count?: number;
 }
 
 const ProductDetails = () => {
@@ -65,6 +67,15 @@ const ProductDetails = () => {
 
             if (variantsError) throw variantsError;
 
+            // Fetch real sales count for this product
+            const { data: orderItems } = await supabase
+                .from("order_items")
+                .select("quantity")
+                .eq("product_id", productData.id);
+
+            const realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+            const salesCount = realSales + getBaseSalesCount(productData.id);
+
             const variants: ProductVariant[] = (variantsData as any[])?.map((v: any) => ({
                 id: v.id,
                 product_id: v.product_id,
@@ -103,6 +114,7 @@ const ProductDetails = () => {
                 sale_type: productData.sale_type || 'individual',
                 default_pack_size: productData.default_pack_size,
                 variants,
+                sales_count: salesCount,
             } as ProductWithVariants;
         },
         enabled: !!id,
@@ -239,9 +251,10 @@ const ProductDetails = () => {
                                 : product.name.length > 40 
                                     ? 'text-3xl md:text-4xl' 
                                     : 'text-4xl md:text-5xl'
-                        } font-bold text-foreground mb-4 transition-all duration-300`}>
+                        } font-bold text-foreground mb-2 transition-all duration-300`}>
                             {product.name}
                         </h1>
+                        <p className="text-sm font-medium text-muted-foreground mb-4">{product.sales_count}+ bought in past month</p>
                         <p className="text-2xl font-semibold text-primary mb-6">
                             ${selectedVariant?.price.toFixed(2) || '0.00'}
                         </p>
@@ -257,25 +270,7 @@ const ProductDetails = () => {
                     </div>
 
                     <div className="space-y-6 pt-6 border-t">
-                        {/* Size Selector */}
-                        <div>
-                            <label className="block text-sm font-medium mb-3">Select Size</label>
-                            <div className="flex flex-wrap gap-3">
-                                {product.variants.map((variant) => (
-                                    <button
-                                        key={variant.id}
-                                        onClick={() => setSelectedVariantId(variant.id)}
-                                        className={`px-6 py-3 rounded-lg border-2 transition-all ${selectedVariantId === variant.id
-                                            ? 'border-primary bg-primary/10 text-primary font-semibold'
-                                            : 'border-border hover:border-primary/50'
-                                            }`}
-                                    >
-                                        <div className="text-sm font-medium">{variant.vial_type.capacity_ml}ml{variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}{variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''} {variant.pack_size > 1 ? `(${variant.pack_size}x Pack)` : ''}</div>
-                                        <div className="text-xs text-muted-foreground">${variant.price.toFixed(2)}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+
 
                         {/* Quantity Selector */}
                         <div>

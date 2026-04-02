@@ -33,14 +33,14 @@ const Contact = () => {
                                     <Mail className="w-6 h-6 text-primary mt-1" />
                                     <div>
                                         <h3 className="font-medium">Email</h3>
-                                        <p className="text-muted-foreground">support@livwellresearch.com</p>
+                                        <p className="text-muted-foreground">sales@livwellresearchlabs.com</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start space-x-4">
                                     <Phone className="w-6 h-6 text-primary mt-1" />
                                     <div>
                                         <h3 className="font-medium">Phone</h3>
-                                        <p className="text-muted-foreground">+1 (555) 123-4567</p>
+                                        <p className="text-muted-foreground">754-326-8679</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start space-x-4">
@@ -48,8 +48,8 @@ const Contact = () => {
                                     <div>
                                         <h3 className="font-medium">Location</h3>
                                         <p className="text-muted-foreground">
-                                            123 Research Blvd<br />
-                                            Science Park, CA 90210
+                                            3839 N Andrews Ave<br />
+                                            Oakland Park, FL 33309
                                         </p>
                                     </div>
                                 </div>

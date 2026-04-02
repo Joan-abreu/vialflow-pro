@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
+import { getBaseSalesCount } from "@/utils/salesCount";
 
 const Home = () => {
     const { data: featuredProducts, isLoading } = useQuery({
@@ -15,13 +16,25 @@ const Home = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, is_published, product_categories(name)),
+                    product:products!inner(id, slug, name, description, image_url, is_published, position, product_categories(name)),
                     vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
                 .eq("product.is_published", true) as any);
 
             if (error) throw error;
+            
+            // Fetch order items to calculate actual sales real-time
+            const { data: orderItems } = await supabase.from('order_items').select('product_id, quantity');
+            const salesMap: Record<string, number> = {};
+            if (orderItems) {
+                orderItems.forEach(item => {
+                    const pid = item.product_id;
+                    if (pid) {
+                        salesMap[pid] = (salesMap[pid] || 0) + (item.quantity || 1);
+                    }
+                });
+            }
 
             // Group by product and collect all variants
             const grouped: Record<string, any> = {};
@@ -38,6 +51,8 @@ const Home = () => {
                         price: variant.price,
                         capacity_ml: variant.vial_type.capacity_ml,
                         pack_size: variant.pack_size,
+                        position: variant.product.position || 0,
+                        sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId),
                         variants: [variant],
                     };
                 } else {
@@ -49,7 +64,9 @@ const Home = () => {
                 }
             });
 
-            return Object.values(grouped).slice(0, 4);
+            return Object.values(grouped)
+                .sort((a, b) => a.position - b.position)
+                .slice(0, 4);
         },
     });
 
@@ -148,16 +165,12 @@ const Home = () => {
                                     </div>
                                     <div className="p-4">
                                         <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{product.name}</h3>
+                                        <p className="text-xs font-medium text-muted-foreground mb-2">{product.sales_count}+ bought in past month</p>
                                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-bold text-lg">${product.price}+</span>
+                                            <span className="font-bold text-lg">${Number(product.price).toFixed(2)}</span>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            {product.variants?.length > 1 && (
-                                                <span className="text-xs text-muted-foreground">
-                                                    {product.variants.length} sizes available
-                                                </span>
-                                            )}
                                             {product.pack_size > 1 && (
                                                 <Badge variant="secondary" className="text-xs">
                                                     Pack of {product.pack_size} units

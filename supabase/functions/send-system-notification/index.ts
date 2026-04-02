@@ -84,16 +84,21 @@ const handler = async (req: Request): Promise<Response> => {
         }));
 
         if (type === "order_confirmation") {
+          if (!customerEmail) {
+            console.error(`[Notification Error] No customer email found for order ${orderId}`);
+            throw new Error("No customer email available to send confirmation");
+          }
+
           subject = `Order Confirmation #${orderNumber}`;
           htmlContent = getOrderConfirmationEmail({
             orderNumber,
-            customerName: customerEmail?.split('@')[0] || "Customer",
+            customerName: customerEmail.split('@')[0] || "Customer",
             items,
             subtotal: order.total_amount - (order.shipping_cost || 0),
             shipping: order.shipping_cost || 0,
             total: order.total_amount,
           });
-          finalRecipients = [customerEmail!];
+          finalRecipients = [customerEmail];
         } else if (type === "order_status_update") {
           subject = `Order Update #${orderNumber} - ${order.status.toUpperCase()}`;
           const trackingUrl = order.tracking_number ? `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}` : undefined;
@@ -166,6 +171,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const resData = await res.json();
     const status = res.ok ? "sent" : "failed";
+
+    console.log(`[Notification Engine] Type: ${type}, Status: ${status}, Recipients: ${finalRecipients.join(", ")}`);
+    if (!res.ok) {
+      console.error(`[Resend Error] Payload:`, JSON.stringify(resData));
+    }
 
     // Log to email_logs
     await supabase.from("email_logs").insert({

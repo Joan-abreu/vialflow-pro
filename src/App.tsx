@@ -35,6 +35,8 @@ import EmailConfirmation from "./pages/auth/EmailConfirmation";
 import OrderConfirmation from "./pages/public/OrderConfirmation";
 import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
+import Terms from "./pages/public/Terms";
+import Privacy from "./pages/public/Privacy";
 import Account from "./pages/public/Account";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
@@ -178,8 +180,8 @@ const AppRoutes = () => {
                     <Route path="/about" element={<About />} />
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/account" element={<Account />} />
-                    <Route path="/terms" element={<ComingSoon />} />
-                    <Route path="/privacy" element={<ComingSoon />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
                 </Route>
 
                 {/* Maintenance Route */}

@@ -236,6 +236,11 @@ const handler = async (req: Request): Promise<Response> => {
     const data = await res.json();
     const status = res.ok ? "sent" : "failed";
 
+    console.log(`[Order Email] Type: ${type}, Status: ${status}, Recipients: ${emailTo.join(", ")}`);
+    if (!res.ok) {
+      console.error(`[Resend Error] Payload:`, JSON.stringify(data));
+    }
+
     // Log to email_logs table
     const { error: logError } = await supabase
       .from("email_logs")

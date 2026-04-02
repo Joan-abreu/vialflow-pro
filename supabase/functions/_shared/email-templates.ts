@@ -12,8 +12,8 @@ interface EmailConfig {
 const defaultConfig: EmailConfig = {
     companyName: "Liv Well Research Labs",
     primaryColor: "#3B82F6",
-    supportEmail: "support@livwellresearch.com",
-    websiteUrl: "https://livwellresearch.com",
+    supportEmail: "sales@livwellresearchlabs.com",
+    websiteUrl: "https://livwellresearchlabs.com",
 };
 
 export function getEmailTemplate(

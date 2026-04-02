@@ -475,15 +475,37 @@ const ProductManagement = () => {
 
     const deleteVariantMutation = useMutation({
         mutationFn: async (id: string) => {
+            // Check if variant has been sold (exists in order_items)
+            const { data: orderItems, error: orderItemsError } = await supabase
+                .from("order_items")
+                .select("id")
+                .eq("variant_id", id)
+                .limit(1);
+            
+            if (orderItemsError) throw orderItemsError;
+
+            if (orderItems && orderItems.length > 0) {
+                throw new Error("has_sales");
+            }
+
             const { error } = await (supabase.from("product_variants" as any).delete().eq("id", id) as any);
-            if (error) throw error;
+            if (error) {
+                if (error.code === '23503' || error.message.includes('order_items_variant_id_fkey')) {
+                    throw new Error("has_sales");
+                }
+                throw error;
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["product-variants-all"] });
             toast.success("Variant deleted successfully");
         },
         onError: (error: any) => {
-            toast.error(`Error deleting variant: ${error.message}`);
+            if (error.message === "has_sales") {
+                toast.error("Este producto ya tiene ventas registradas y no puede ser eliminado. Por favor, desmárcalo como 'Published' o edítalo en lugar de borrarlo para no afectar el historial de órdenes.");
+            } else {
+                toast.error(`Error deleting variant: ${error.message}`);
+            }
         },
     });
 

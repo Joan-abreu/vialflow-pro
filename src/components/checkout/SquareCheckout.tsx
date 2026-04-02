@@ -185,6 +185,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     orderId: order.id,
                     customerEmail: customerEmail,
                     locationId: locationId,
+                    isProduction: appId.startsWith("sq0idp"),
                     shippingCost: shippingCost,
                     tax: tax,
                     items: items.map(item => ({

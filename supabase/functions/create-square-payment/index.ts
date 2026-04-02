@@ -12,18 +12,8 @@ const corsHeaders = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Initialize Square Client
-// Use VITE_SQUARE_APP_ID environment to determine sandbox vs production.
-// Usually, we just use SQUARE_ACCESS_TOKEN and SQUARE_ENVIRONMENT secrets.
+// Get the access token from edge function environment
 const squareAccessToken = Deno.env.get("SQUARE_ACCESS_TOKEN") || "";
-const isProduction = Deno.env.get("VITE_SQUARE_APP_ID")?.startsWith("sq0idp") || false;
-const squareEnvironment = isProduction ? Environment.Production : Environment.Sandbox;
-
-const square = new Client({
-    accessToken: squareAccessToken,
-    environment: squareEnvironment,
-});
-
 serve(async (req) => {
     // Handle CORS
     if (req.method === "OPTIONS") {
@@ -31,7 +21,14 @@ serve(async (req) => {
     }
 
     try {
-        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, items, shippingAddress, shippingCost, tax } = await req.json();
+        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax } = await req.json();
+
+        // Dynamically instantiate the Square Client based on the frontend's environment explicit request
+        const squareEnvironment = isProduction ? Environment.Production : Environment.Sandbox;
+        const square = new Client({
+            accessToken: squareAccessToken,
+            environment: squareEnvironment,
+        });
 
         if (!sourceId || !amount) {
             throw new Error("Missing sourceId or amount");

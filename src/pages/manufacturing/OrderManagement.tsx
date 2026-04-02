@@ -25,7 +25,17 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2 } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 
 interface OrderItem {
@@ -86,6 +96,7 @@ const OrderManagement = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showProductionDialog, setShowProductionDialog] = useState(false);
     const [showShippingDialog, setShowShippingDialog] = useState(false);
@@ -137,6 +148,25 @@ const OrderManagement = () => {
         },
         onError: (error) => {
             toast.error("Failed to update status: " + error.message);
+        },
+    });
+
+    const deleteOrderMutation = useMutation({
+        mutationFn: async (orderId: string) => {
+            // Delete related records first to avoid foreign key constraints (if not cascaded)
+            await supabase.from("order_items").delete().eq("order_id", orderId);
+            await supabase.from("production_batches").delete().eq("order_id", orderId);
+            
+            const { error } = await supabase.from("orders").delete().eq("id", orderId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["orders"] });
+            toast.success("Order deleted successfully");
+            setDeletingOrder(null);
+        },
+        onError: (error) => {
+            toast.error("Failed to delete order: " + error.message);
         },
     });
 
@@ -323,7 +353,7 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell className="text-right">${order.total_amount.toFixed(2)}</TableCell>
                                             <TableCell>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1">
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -336,7 +366,7 @@ const OrderManagement = () => {
                                                         value={order.status}
                                                         onValueChange={(value) => handleStatusChange(order.id, value)}
                                                     >
-                                                        <SelectTrigger className="w-[170px] h-8">
+                                                        <SelectTrigger className="w-[140px] h-8 text-xs">
                                                             <SelectValue placeholder="Status" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -351,6 +381,15 @@ const OrderManagement = () => {
                                                             <SelectItem value="cancelled">Cancelled</SelectItem>
                                                         </SelectContent>
                                                     </Select>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive h-8 w-8 ml-1"
+                                                        onClick={() => setDeletingOrder(order)}
+                                                        title="Delete Order"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -649,6 +688,27 @@ const OrderManagement = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={!!deletingOrder} onOpenChange={(open) => !open && setDeletingOrder(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Order?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete order #{deletingOrder?.id.slice(0, 8)}? This action cannot be undone and will delete all associated data (cart items, batches, etc).
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deletingOrder && deleteOrderMutation.mutate(deletingOrder.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            disabled={deleteOrderMutation.isPending}
+                        >
+                            {deleteOrderMutation.isPending ? "Deleting..." : "Delete Order"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <MultiCarrierShippingDialog
                 orderId={selectedOrder?.id || ""}

@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Client, Environment } from "https://esm.sh/square@38.1.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -108,6 +113,34 @@ serve(async (req) => {
         const payment = paymentResponse.result.payment;
 
         if (payment?.status === "COMPLETED" || payment?.status === "APPROVED") {
+             // Update order status to 'processing'
+             await supabase.from("orders").update({ status: "processing" }).eq("id", orderId);
+
+             // Send Email Notifications
+             const sendEmail = async (type: string) => {
+                 const response = await fetch(`${supabaseUrl}/functions/v1/send-system-notification`, {
+                     method: "POST",
+                     headers: {
+                         "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                         "Content-Type": "application/json",
+                     },
+                     body: JSON.stringify({
+                         type: type,
+                         data: { order_id: orderId },
+                         related_id: orderId
+                     }),
+                 });
+                 if (!response.ok) {
+                     console.error(`Error triggering ${type}:`, await response.text());
+                 }
+             };
+
+             // Wait for emails to be sent so the Deno context is not destroyed prematurely
+             await Promise.allSettled([
+                 sendEmail("order_confirmation"),
+                 sendEmail("admin_order_notification")
+             ]);
+
              return new Response(JSON.stringify({
                 success: true,
                 paymentId: payment.id,

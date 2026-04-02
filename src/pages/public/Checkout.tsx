@@ -1,10 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
 import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import StripeCheckout from "@/components/checkout/StripeCheckout";
 import SquareCheckout from "@/components/checkout/SquareCheckout";
 import { Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,16 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
-const USE_SQUARE = true;
-
 const Checkout = () => {
     const { items, cartTotal } = useCart();
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
-    const [clientSecret, setClientSecret] = useState("");
-    const [paymentIntentId, setPaymentIntentId] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Real-Time Shipping State
@@ -158,59 +149,8 @@ const Checkout = () => {
         intentAmountRef.current = 0;
     };
 
-    // Track the amount for which we created the current payment intent
+    // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
-
-    // Initial Payment Intent Creation (runs once) 
-    // AND Re-creation/Update when Total Amount changes
-    useEffect(() => {
-        if (items.length > 0 && session) {
-
-            const createOrUpdateIntent = async () => {
-                // If we are calculating shipping or processing, wait.
-                if (isCalculatingShipping || isProcessing) return;
-
-                // If amount hasn't changed from what's on intent, don't update
-                if (intentAmountRef.current === totalAmount && clientSecret) return;
-                
-                // If using Square, we skip creating a Stripe payment intent.
-                if (USE_SQUARE) return;
-
-                try {
-                    console.log(`${paymentIntentId ? 'Updating' : 'Creating'} payment intent for $${totalAmount}`);
-
-                    const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-                        body: {
-                            amount: totalAmount,
-                            currency: 'usd',
-                            paymentIntentId: paymentIntentId // Pass ID if we have it to update
-                        }
-                    });
-
-                    if (error) throw error;
-                    if (data?.clientSecret) {
-                        // Only set if different to avoid re-render
-                        if (data.clientSecret !== clientSecret) {
-                            setClientSecret(data.clientSecret);
-                        }
-                        if (data.id) {
-                            setPaymentIntentId(data.id);
-                        }
-                        intentAmountRef.current = totalAmount;
-                    }
-                } catch (error) {
-                    console.error("Error creating/updating payment intent:", error);
-                }
-            };
-
-            // Debounce updates slightly
-            const timeoutId = setTimeout(() => {
-                createOrUpdateIntent();
-            }, 500);
-
-            return () => clearTimeout(timeoutId);
-        }
-    }, [items, totalAmount, session, isCalculatingShipping, isProcessing, clientSecret, paymentIntentId]);
 
     if (authLoading) {
         return (
@@ -263,14 +203,6 @@ const Checkout = () => {
         );
     }
 
-    const appearance = {
-        theme: 'stripe' as const,
-    };
-    const options = {
-        clientSecret,
-        appearance,
-    };
-
     return (
         <div className="container py-12">
             <h1 className="text-3xl font-bold mb-8">Checkout</h1>
@@ -280,36 +212,16 @@ const Checkout = () => {
                     {/* Payment & Shipping Section */}
                     <div className="bg-card border rounded-lg p-6">
                         <h2 className="text-xl font-semibold mb-4">Shipping & Payment</h2>
-                        {USE_SQUARE ? (
-                            <SquareCheckout
-                                amount={totalAmount}
-                                shippingCost={shippingCost}
-                                shippingService={shippingService}
-                                shippingServiceCode={shippingServiceCode}
-                                shippingCarrier={shippingCarrier}
-                                estimatedDays={shippingEstimatedDays}
-                                tax={0}
-                                onAddressChange={handleAddressChange}
-                            />
-                        ) : clientSecret ? (
-                            <Elements key={clientSecret} options={options} stripe={stripePromise}>
-                                <StripeCheckout
-                                    amount={totalAmount}
-                                    shippingCost={shippingCost}
-                                    shippingService={shippingService}
-                                    shippingServiceCode={shippingServiceCode}
-                                    shippingCarrier={shippingCarrier}
-                                    estimatedDays={shippingEstimatedDays}
-                                    tax={0}
-                                    clientSecret={clientSecret}
-                                    onAddressChange={handleAddressChange}
-                                />
-                            </Elements>
-                        ) : (
-                            <div className="flex justify-center py-12">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        )}
+                        <SquareCheckout
+                            amount={totalAmount}
+                            shippingCost={shippingCost}
+                            shippingService={shippingService}
+                            shippingServiceCode={shippingServiceCode}
+                            shippingCarrier={shippingCarrier}
+                            estimatedDays={shippingEstimatedDays}
+                            tax={0}
+                            onAddressChange={handleAddressChange}
+                        />
                         {isCalculatingShipping && (
                             <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

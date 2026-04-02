@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { X, Image as ImageIcon, GripVertical, Star } from "lucide-react";
+import { UploadCloud, X, Image as ImageIcon, GripVertical, Star } from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -90,6 +90,7 @@ const SortableImage = ({ url, onRemove, isPrimary, onMakePrimary }: SortableImag
 export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps) => {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -98,8 +99,7 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
         })
     );
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
+    const uploadFiles = async (files: FileList | File[]) => {
         if (!files || files.length === 0) return;
 
         setUploading(true);
@@ -138,7 +138,40 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
         } finally {
             setUploading(false);
             setProgress(0);
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            uploadFiles(e.target.files);
             e.target.value = ''; // Reset input
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const imageFiles = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith("image/"));
+            if (imageFiles.length > 0) {
+                uploadFiles(imageFiles);
+            } else {
+                toast.error("Please drop valid image files only.");
+            }
         }
     };
 
@@ -166,7 +199,14 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
     };
 
     return (
-        <div className="space-y-4">
+        <div 
+            className={`space-y-4 rounded-lg transition-colors ${
+                isDragging ? "bg-primary/5 outline-dashed outline-2 outline-primary/50 p-4 -m-4" : ""
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Product Gallery</span>
                 <label className={`
@@ -220,8 +260,8 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
                 </DndContext>
             ) : (
                 <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-                    <ImageIcon className="h-8 w-8 mb-2 opacity-50" />
-                    <p className="text-sm">No images uploaded yet</p>
+                    <UploadCloud className="h-10 w-10 mb-3 opacity-50" />
+                    <p className="text-sm font-medium mb-1">Drag and drop images here, or click Add Images</p>
                     <p className="text-xs">Upload up to 10 images. First image will be primary.</p>
                 </div>
             )}

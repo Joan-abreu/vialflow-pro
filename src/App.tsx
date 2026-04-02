@@ -87,7 +87,7 @@ const AppRoutes = () => {
     const checkMaintenance = async () => {
       // Use a timeout to prevent hanging the whole app if Supabase is slow
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Maintenance check timed out")), 2000)
+        setTimeout(() => reject(new Error("Maintenance check timed out")), 5000)
       );
 
       try {
@@ -99,8 +99,10 @@ const AppRoutes = () => {
 
         const result: any = await Promise.race([fetchPromise, timeoutPromise]);
         setMaintenanceMode(result.data?.value === "true");
-      } catch (e) {
-        console.error("Maintenance check error or timeout:", e);
+      } catch (e: any) {
+        if (e.message !== "Maintenance check timed out") {
+          console.error("Maintenance check error or timeout:", e);
+        }
         // Default to false on error/timeout to keep the site accessible
         setMaintenanceMode(false);
       } finally {
@@ -211,7 +213,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <AuthProvider>
-            <BrowserRouter>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <AppRoutes />
             </BrowserRouter>
           </AuthProvider>

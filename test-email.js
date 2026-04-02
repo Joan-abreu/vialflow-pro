@@ -14,29 +14,27 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 async function testEmail() {
-  console.log("Probando envío de correo a través de send-system-notification...");
+  console.log("Probando envío de correo...");
   
-  // Vamos a usar el tipo 'generic' que envía desde info@livwellresearchlabs.com
-  const { data, error } = await supabase.functions.invoke('send-system-notification', {
-    body: {
-      type: "generic",
-      recipient: "joan.abreu2007@gmail.com", // Puedes cambiar esto al correo a donde quieres que llegue la prueba
-      data: {
-        subject: "🎉 Prueba Exitosa: Notificaciones Liv Well Research",
-        title: "El sistema de correos está funcionando",
-        message: "¡Hola! Este es un correo de prueba generado usando tu nuevo dominio configurado y verificado en Namecheap con Resend.",
-        buttonText: "Visitar la App",
-        buttonUrl: "https://livwellresearchlabs.com"
-      }
-    }
+  const { data: orderData } = await supabase.from('orders').select('id').limit(1).single();
+  const orderId = orderData ? orderData.id : "missing-order-id";
+  
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/send-system-notification`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      type: "order_confirmation",
+      data: { order_id: orderId },
+      related_id: orderId
+    })
   });
 
-  if (error) {
-    console.error("❌ Error al invocar la función:", error);
-  } else {
-    console.log("✅ Función ejecutada con éxito. Respuesta:", data);
-    console.log("Revisa la bandeja de entrada del correo receptor.");
-  }
+  const text = await response.text();
+  console.log(`STATUS: ${response.status}`);
+  console.log(`BODY: ${text}`);
 }
 
 testEmail();

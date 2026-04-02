@@ -71,7 +71,8 @@ const handler = async (req: Request): Promise<Response> => {
           .eq("id", orderId)
           .single();
 
-        if (orderError || !order) throw new Error(`Order ${orderId} not found`);
+        if (orderError) throw new Error(`Error fetching order ${orderId}: ${JSON.stringify(orderError)}`);
+        if (!order) throw new Error(`Order ${orderId} not found`);
 
         const orderNumber = order.id.slice(0, 8);
         const customerEmail = order.customer_email || (order.user_id ? (await supabase.auth.admin.getUserById(order.user_id)).data.user?.email : null);

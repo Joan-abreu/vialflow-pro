@@ -35,7 +35,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Safety timeout to prevent infinite loading if getSession or onAuthStateChange hangs
         const safetyTimeout = setTimeout(() => {
             if (loading) {
-                console.warn("AuthContext: Safety timeout reached. Forcing loading to false.");
                 setLoading(false);
             }
         }, 5000);

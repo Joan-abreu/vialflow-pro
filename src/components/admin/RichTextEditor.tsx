@@ -23,17 +23,19 @@ interface RichTextEditorProps {
     editable?: boolean;
 }
 
+const defaultExtensions = [
+    StarterKit,
+    Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+            class: 'text-primary underline',
+        },
+    }),
+];
+
 const RichTextEditor = ({ content, onChange, editable = true }: RichTextEditorProps) => {
     const editor = useEditor({
-        extensions: [
-            StarterKit,
-            Link.configure({
-                openOnClick: false,
-                HTMLAttributes: {
-                    class: 'text-primary underline',
-                },
-            }),
-        ],
+        extensions: defaultExtensions,
         content,
         editable,
         onUpdate: ({ editor }) => {

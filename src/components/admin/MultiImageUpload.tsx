@@ -91,6 +91,7 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -218,6 +219,7 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
                     <ImageIcon className="mr-2 h-4 w-4" />
                     {uploading ? 'Uploading...' : 'Add Images'}
                     <input
+                        ref={fileInputRef}
                         type="file"
                         accept="image/*"
                         multiple
@@ -259,9 +261,12 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
                     </SortableContext>
                 </DndContext>
             ) : (
-                <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
+                <div 
+                    className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-muted-foreground bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                >
                     <UploadCloud className="h-10 w-10 mb-3 opacity-50" />
-                    <p className="text-sm font-medium mb-1">Drag and drop images here, or click Add Images</p>
+                    <p className="text-sm font-medium mb-1">Click here or drag and drop images</p>
                     <p className="text-xs">Upload up to 10 images. First image will be primary.</p>
                 </div>
             )}

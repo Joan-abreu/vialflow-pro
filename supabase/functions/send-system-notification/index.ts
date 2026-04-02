@@ -12,7 +12,8 @@ import {
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "Liv Well Research Labs <onboarding@resend.dev>";
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "Liv Well Research Labs <info@livwellresearchlabs.com>";
+const FROM_SALES_EMAIL = Deno.env.get("FROM_SALES_EMAIL") || "Liv Well Research Labs <sales@livwellresearchlabs.com>";
 
 const ADMIN_EMAILS = Deno.env.get("ADMIN_EMAILS")
   ?.split(",")
@@ -142,6 +143,11 @@ const handler = async (req: Request): Promise<Response> => {
         throw new Error(`Invalid notification type: ${type}`);
     }
 
+    let fromEmail = FROM_EMAIL;
+    if (["order_confirmation", "order_status_update", "admin_order_notification"].includes(type)) {
+      fromEmail = FROM_SALES_EMAIL;
+    }
+
     // Send using Resend
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -150,7 +156,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: FROM_EMAIL,
+        from: fromEmail,
         to: finalRecipients,
         subject,
         html: htmlContent,

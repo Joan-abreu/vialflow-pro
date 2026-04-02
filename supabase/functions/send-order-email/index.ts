@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { getOrderConfirmationEmail, getAdminNotificationEmail, getOrderStatusUpdateEmail } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const FROM_SALES_EMAIL = Deno.env.get("FROM_SALES_EMAIL") || "Liv Well Research Labs <sales@livwellresearchlabs.com>";
 
 // Multiple admins supported (comma-separated list in .env)
 const ADMIN_EMAILS = Deno.env.get("ADMIN_EMAILS")
@@ -225,7 +226,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Liv Well Research Labs <onboarding@resend.dev>",
+        from: FROM_SALES_EMAIL,
         to: emailTo,
         subject,
         html: htmlContent,

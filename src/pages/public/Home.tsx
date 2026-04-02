@@ -143,7 +143,7 @@ const Home = () => {
                                         {product.image_url ? (
                                             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                         ) : (
-                                            <span className="text-muted-foreground">No Image</span>
+                                            <span className="text-muted-foreground">No Image.</span>
                                         )}
                                     </div>
                                     <div className="p-4">

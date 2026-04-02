@@ -490,8 +490,11 @@ const ProductManagement = () => {
 
             const { error } = await (supabase.from("product_variants" as any).delete().eq("id", id) as any);
             if (error) {
-                if (error.code === '23503' || error.message.includes('order_items_variant_id_fkey')) {
+                if (error.message?.includes('order_items_variant_id_fkey')) {
                     throw new Error("has_sales");
+                }
+                if (error.code === '23503') {
+                    throw new Error(`This variant cannot be deleted because it is still referenced in other records (like Production Batches).`);
                 }
                 throw error;
             }
@@ -502,9 +505,9 @@ const ProductManagement = () => {
         },
         onError: (error: any) => {
             if (error.message === "has_sales") {
-                toast.error("Este producto ya tiene ventas registradas y no puede ser eliminado. Por favor, desmárcalo como 'Published' o edítalo en lugar de borrarlo para no afectar el historial de órdenes.");
+                toast.error("This product already has registered sales and cannot be deleted. Please uncheck 'Published' or edit it instead to protect order history.");
             } else {
-                toast.error(`Error deleting variant: ${error.message}`);
+                toast.error(`${error.message}`);
             }
         },
     });

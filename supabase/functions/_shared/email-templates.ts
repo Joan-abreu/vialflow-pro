@@ -211,6 +211,9 @@ export function getAdminNotificationEmail(orderData: {
     items: Array<{ name: string; quantity: number; price: number }>;
     total: number;
     shippingAddress?: string;
+    shippingCost?: number;
+    shippingCarrier?: string;
+    shippingService?: string;
 }): string {
     const itemsHtml = orderData.items.map(item => `
         <tr>
@@ -235,7 +238,9 @@ export function getAdminNotificationEmail(orderData: {
         <p style="font-size: 15px; line-height: 1.6; color: #4b5563;">
             <strong>Name:</strong> ${orderData.customerName}<br>
             <strong>Email:</strong> ${orderData.customerEmail}
-            ${orderData.shippingAddress ? `<br><strong>Shipping:</strong> ${orderData.shippingAddress}` : ''}
+            ${orderData.shippingAddress ? `<br><strong>Shipping Address:</strong><br>${orderData.shippingAddress}` : ''}
+            ${orderData.shippingService ? `<br><strong>Shipping Service:</strong> ${orderData.shippingCarrier || ''} ${orderData.shippingService}` : ''}
+            ${orderData.shippingCost !== undefined ? `<br><strong>Shipping Paid:</strong> $${orderData.shippingCost.toFixed(2)}` : ''}
         </p>
 
         <h2 style="color: #111827; font-size: 18px; margin-top: 30px;">Order Items</h2>

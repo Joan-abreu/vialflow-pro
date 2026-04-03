@@ -47,17 +47,40 @@ const handler = async (req: Request): Promise<Response> => {
     let htmlContent = "";
     let finalRecipients = Array.isArray(recipient) ? recipient : [recipient];
 
-    switch (type) {
-      case "order_confirmation":
-      case "order_status_update":
-      case "admin_order_notification": {
-        const orderId = data.order_id;
-        if (!orderId) throw new Error("Missing order_id in data");
+    const formatAddress = (address: any) => {
+        if (!address) return "N/A";
+        if (typeof address === 'string') return address;
+        
+        // Handle common address object structures (Stripe/Square/Internal)
+        const addr = address.address || address; // Handle nested 'address' property if exists
+        const line1 = addr.line1 || addr.addressLine1 || addr.street_address || "";
+        const line2 = addr.line2 || addr.addressLine2 || "";
+        const city = addr.city || addr.locality || "";
+        const state = addr.state || addr.administrative_area || addr.region || "";
+        const zip = addr.postal_code || addr.postalCode || addr.zip || "";
+        const country = addr.country || "";
 
-        // Fetch full order details
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .select(`
+        const parts = [
+            line1,
+            line2,
+            `${city}${city && state ? ', ' : ''}${state} ${zip}`,
+            country
+        ].filter(p => p && p.trim() !== "");
+        
+        return parts.length > 0 ? parts.join('<br>') : JSON.stringify(address);
+    };
+
+    switch (type) {
+        case "order_confirmation":
+        case "order_status_update":
+        case "admin_order_notification": {
+            const orderId = data.order_id;
+            if (!orderId) throw new Error("Missing order_id in data");
+
+            // Fetch full order details
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .select(`
             *,
             order_items(
               *,
@@ -68,61 +91,64 @@ const handler = async (req: Request): Promise<Response> => {
               )
             )
           `)
-          .eq("id", orderId)
-          .single();
+                .eq("id", orderId)
+                .single();
 
-        if (orderError) throw new Error(`Error fetching order ${orderId}: ${JSON.stringify(orderError)}`);
-        if (!order) throw new Error(`Order ${orderId} not found`);
+            if (orderError) throw new Error(`Error fetching order ${orderId}: ${JSON.stringify(orderError)}`);
+            if (!order) throw new Error(`Order ${orderId} not found`);
 
-        const orderNumber = order.id.slice(0, 8);
-        const customerEmail = order.customer_email || (order.user_id ? (await supabase.auth.admin.getUserById(order.user_id)).data.user?.email : null);
-        
-        const items = order.order_items.map((item: any) => ({
-          name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
-          quantity: item.quantity,
-          price: item.quantity * item.price_at_time
-        }));
+            const orderNumber = order.id.slice(0, 8);
+            const customerEmail = order.customer_email || (order.user_id ? (await supabase.auth.admin.getUserById(order.user_id)).data.user?.email : null);
 
-        if (type === "order_confirmation") {
-          if (!customerEmail) {
-            console.error(`[Notification Error] No customer email found for order ${orderId}`);
-            throw new Error("No customer email available to send confirmation");
-          }
+            const items = order.order_items.map((item: any) => ({
+                name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+                quantity: item.quantity,
+                price: item.quantity * item.price_at_time
+            }));
 
-          subject = `Order Confirmation #${orderNumber}`;
-          htmlContent = getOrderConfirmationEmail({
-            orderNumber,
-            customerName: customerEmail.split('@')[0] || "Customer",
-            items,
-            subtotal: order.total_amount - (order.shipping_cost || 0),
-            shipping: order.shipping_cost || 0,
-            total: order.total_amount,
-          });
-          finalRecipients = [customerEmail];
-        } else if (type === "order_status_update") {
-          subject = `Order Update #${orderNumber} - ${order.status.toUpperCase()}`;
-          const trackingUrl = order.tracking_number ? `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}` : undefined;
-          htmlContent = getOrderStatusUpdateEmail({
-            orderNumber,
-            customerName: customerEmail?.split('@')[0] || "Customer",
-            status: order.status,
-            trackingUrl,
-          });
-          finalRecipients = [customerEmail!];
-        } else if (type === "admin_order_notification") {
-          subject = `🎉 New Order Received #${orderNumber}`;
-          htmlContent = getAdminNotificationEmail({
-            orderNumber,
-            customerName: customerEmail?.split('@')[0] || "Customer",
-            customerEmail: customerEmail || "N/A",
-            items,
-            total: order.total_amount,
-            shippingAddress: order.shipping_address
-          });
-          finalRecipients = ADMIN_EMAILS;
+            if (type === "order_confirmation") {
+                if (!customerEmail) {
+                    console.error(`[Notification Error] No customer email found for order ${orderId}`);
+                    throw new Error("No customer email available to send confirmation");
+                }
+
+                subject = `Order Confirmation #${orderNumber}`;
+                htmlContent = getOrderConfirmationEmail({
+                    orderNumber,
+                    customerName: customerEmail.split('@')[0] || "Customer",
+                    items,
+                    subtotal: order.total_amount - (order.shipping_cost || 0),
+                    shipping: order.shipping_cost || 0,
+                    total: order.total_amount,
+                });
+                finalRecipients = [customerEmail];
+            } else if (type === "order_status_update") {
+                subject = `Order Update #${orderNumber} - ${order.status.toUpperCase()}`;
+                const trackingUrl = order.tracking_number ? `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}` : undefined;
+                htmlContent = getOrderStatusUpdateEmail({
+                    orderNumber,
+                    customerName: customerEmail?.split('@')[0] || "Customer",
+                    status: order.status,
+                    trackingUrl,
+                });
+                finalRecipients = [customerEmail!];
+            } else if (type === "admin_order_notification") {
+                subject = `🎉 New Order Received #${orderNumber}`;
+                htmlContent = getAdminNotificationEmail({
+                    orderNumber,
+                    customerName: customerEmail?.split('@')[0] || "Customer",
+                    customerEmail: customerEmail || "N/A",
+                    items,
+                    total: order.total_amount,
+                    shippingAddress: formatAddress(order.shipping_address),
+                    shippingCost: order.shipping_cost,
+                    shippingCarrier: order.shipping_carrier,
+                    shippingService: order.shipping_service
+                });
+                finalRecipients = ADMIN_EMAILS;
+            }
+            break;
         }
-        break;
-      }
       case "low_stock_alert":
         subject = `⚠️ Low Stock Alert: ${data.productName}`;
         htmlContent = getLowStockAlertEmail(data);
@@ -132,15 +158,24 @@ const handler = async (req: Request): Promise<Response> => {
         subject = `You've been invited to join the team`;
         htmlContent = getUserInvitationEmail(data);
         break;
-      case "password_reset":
+      case "password_reset": {
+        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+          type: 'recovery',
+          email: finalRecipients[0],
+          options: { redirectTo: data.redirectTo || `${SUPABASE_URL}/auth/v1/verify` }
+        });
+        
+        if (linkError) throw linkError;
+        
         subject = `Reset Your Password`;
         htmlContent = getGenericNotificationEmail({
             title: "Reset Your Password",
-            message: "We received a request to reset your password. Click the button below to continue.",
+            message: "We received a request to reset your password for your account at Liv Well Research Labs.\n\nClick the button below to choose a new password. This link will expire in 60 minutes.",
             buttonText: "Reset Password",
-            buttonUrl: data.resetUrl
+            buttonUrl: linkData.properties.action_link
         });
         break;
+      }
       case "generic":
         subject = data.subject || "System Notification";
         htmlContent = getGenericNotificationEmail(data);

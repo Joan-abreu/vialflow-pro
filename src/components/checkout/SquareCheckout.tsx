@@ -19,19 +19,30 @@ interface SquareCheckoutProps {
     estimatedDays?: number;
     tax: number;
     onAddressChange?: (address: any) => void;
+    externalAddress?: any; // To allow parent to inject/correct address
 }
 
 const appId = import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
 
-const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange }: SquareCheckoutProps) => {
+const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress }: SquareCheckoutProps) => {
     const { items } = useCart();
     
     const [loading, setLoading] = useState(false);
     const [saveAddress, setSaveAddress] = useState(false);
     const [user, setUser] = useState<any>(null);
 
-    // Custom Address Collection State for Square since it lacks Stripe's AddressElement
+    // Sync externalAddress if provided (e.g. after a UPS correction)
+    useEffect(() => {
+        if (externalAddress) {
+            setAddressState(prev => ({
+                ...prev,
+                ...externalAddress
+            }));
+        }
+    }, [externalAddress]);
+
+    // Custom Address Collection State for Square
     const [addressState, setAddressState] = useState({
         line1: "",
         line2: "",
@@ -60,7 +71,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                         city: profile.city,
                         state: profile.state,
                         postal_code: profile.postal_code,
-                        country: profile.country || 'US',
+                        country: normalizeCountry(profile.country || 'US'),
                     };
                     setAddressState(savedAddress);
 
@@ -77,6 +88,16 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     const handleAddressInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setAddressState(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Helper to normalize country to ISO code since Square requires US instead of United States
+    const normalizeCountry = (country: string) => {
+        if (!country) return "US";
+        const val = country.trim().toUpperCase();
+        if (val === "UNITED STATES" || val === "USA" || val === "UNITED STATES OF AMERICA" || val === "ESTADOS UNIDOS") {
+            return "US";
+        }
+        return country; // Fallback to raw if not matched
     };
 
     // Helper to translate Square technical errors to friendly messages
@@ -103,7 +124,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         if (upperError.includes('ADDRESS_VERIFICATION_FAILURE')) {
             return "Address verification failed. Check your zip code.";
         }
-        return "There was a problem processing the payment. Please try again.";
+        return errorMsg; // Show the raw error message if no friendly translation exists
     };
 
     // Delay validating address and triggering parent callback until typing stops
@@ -202,15 +223,15 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                         locality: addressState.city,
                         administrativeDistrictLevel1: addressState.state,
                         postalCode: addressState.postal_code,
-                        country: addressState.country
+                        country: normalizeCountry(addressState.country)
                     }
                 }
             });
 
             if (paymentError || !paymentResult || paymentResult.success === false) {
-                console.error("Square Detailed Error:", paymentError || paymentResult?.error);
-                const errorMessage = paymentResult?.error || paymentError?.message || "Payment declined";
-                throw new Error(translateSquareError(errorMessage));
+                const rawError = paymentResult?.error || paymentError?.message || "Payment declined";
+                console.error("Square Detailed Error (Raw):", rawError);
+                throw new Error(translateSquareError(rawError));
             }
 
             // Update order to processing implicitly if payment success since the webhook handles it 
@@ -235,17 +256,31 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             <CardContent className="space-y-6 px-0">
                 {/* Custom Address Collection */}
                 <div className="space-y-4">
-                    <h3 className="text-sm font-medium">Shipping Address</h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        <Input placeholder="Address Line 1" name="line1" value={addressState.line1} onChange={handleAddressInputChange} required />
-                        <Input placeholder="Apt, Suite, Unit (optional)" name="line2" value={addressState.line2} onChange={handleAddressInputChange} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input placeholder="City" name="city" value={addressState.city} onChange={handleAddressInputChange} required />
-                            <Input placeholder="State (e.g., CA)" name="state" value={addressState.state} onChange={handleAddressInputChange} required />
+                    <h3 className="text-sm font-semibold text-foreground/80">Shipping Address</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2 space-y-1.5">
+                            <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1</Label>
+                            <Input id="line1" placeholder="123 Main St" name="line1" value={addressState.line1} onChange={handleAddressInputChange} required autoComplete="address-line1" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input placeholder="ZIP Code" name="postal_code" value={addressState.postal_code} onChange={handleAddressInputChange} required />
-                            <Input placeholder="Country (e.g., US)" name="country" value={addressState.country} onChange={handleAddressInputChange} required />
+                        <div className="md:col-span-2 space-y-1.5">
+                            <Label htmlFor="line2" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Suite / Apt (Optional)</Label>
+                            <Input id="line2" placeholder="Suite 400" name="line2" value={addressState.line2} onChange={handleAddressInputChange} autoComplete="address-line2" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="city" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">City</Label>
+                            <Input id="city" placeholder="San Francisco" name="city" value={addressState.city} onChange={handleAddressInputChange} required autoComplete="address-level2" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="state" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">State</Label>
+                            <Input id="state" placeholder="CA" name="state" value={addressState.state} onChange={handleAddressInputChange} required autoComplete="address-level1" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="postal_code" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ZIP Code</Label>
+                            <Input id="postal_code" placeholder="94103" name="postal_code" value={addressState.postal_code} onChange={handleAddressInputChange} required autoComplete="postal-code" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</Label>
+                            <Input id="country" placeholder="US" name="country" value={addressState.country} onChange={handleAddressInputChange} required autoComplete="country-name" />
                         </div>
                     </div>
                     {user && (

@@ -25,6 +25,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [autoFetched, setAutoFetched] = useState(false);
     const [trackingOpen, setTrackingOpen] = useState(false);
     const [isCheckingShipment, setIsCheckingShipment] = useState(true);
+    const [order, setOrder] = useState<any>(null);
 
     // Carrier selection
     const [availableCarriers, setAvailableCarriers] = useState<any[]>([]);
@@ -96,8 +97,9 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     }, [open, orderId]);
 
     useEffect(() => {
-        if (open && selectedCarrier && !autoFetched && step === 'carrier' && weight && !isCheckingShipment && !shipmentId) {
-            getShippingRates();
+        if (open && selectedCarrier && !autoFetched && !isCheckingShipment && !shipmentId) {
+            // Auto-fetch disabled by user request. 
+            // The step now stays on 'carrier' until manual click.
             setAutoFetched(true);
         }
     }, [open, selectedCarrier, autoFetched, step, weight, isCheckingShipment, shipmentId]);
@@ -109,6 +111,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .select(`
                     shipping_carrier,
                     shipping_service_code,
+                    shipping_address,
                     order_items(
                         quantity,
                         variant:product_variants(*)
@@ -118,16 +121,17 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .single();
 
             if (orderError) throw orderError;
-            const order = orderData as any;
+            const order_obj = orderData as any;
+            setOrder(order_obj);
 
             // Pre-select carrier if order has one
-            if (order.shipping_carrier) {
-                setSelectedCarrier(order.shipping_carrier.toUpperCase());
+            if (order_obj.shipping_carrier) {
+                setSelectedCarrier(order_obj.shipping_carrier.toUpperCase());
             }
-            if (order.shipping_service_code) {
-                setShippingServiceCode(order.shipping_service_code);
+            if (order_obj.shipping_service_code) {
+                setShippingServiceCode(order_obj.shipping_service_code);
                 if (!selectedService) {
-                    setSelectedService(order.shipping_service_code);
+                    setSelectedService(order_obj.shipping_service_code);
                 }
             }
 
@@ -138,7 +142,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             let totalH = 0;
             let totalVolume = 0;
 
-            order.order_items.forEach((item: any) => {
+            order_obj.order_items.forEach((item: any) => {
                 const qty = item.quantity;
                 const v = item.variant;
                 if (v) {
@@ -160,17 +164,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             if (totalWeight > 0) {
                 setWeight(totalWeight.toFixed(2));
                 
-                // Set default L/W/H from items or fallback to standard box
-                setLength(maxL > 0 ? (maxL * 1.1).toFixed(1) : "12.0");
-                setWidth(maxW > 0 ? (maxW * 1.1).toFixed(1) : "8.0");
-                
-                // Height based on items stacking or volume-based guess
-                if (totalH > 0) {
-                    const suggestedH = Math.max(totalH, Math.pow(totalVolume * 1.2, 1/3));
-                    setHeight(suggestedH.toFixed(1));
-                } else {
-                    setHeight("6.0");
-                }
+                // Use EXACT max L/W and sum of H for stacking
+                setLength(maxL > 0 ? maxL.toFixed(1) : "12.0");
+                setWidth(maxW > 0 ? maxW.toFixed(1) : "8.0");
+                setHeight(totalH > 0 ? totalH.toFixed(1) : "6.0");
             } else {
                 // Total fallback
                 setWeight("1.0");
@@ -606,6 +603,47 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         window.open(labelUrl, '_blank', 'noopener,noreferrer');
     };
 
+    const renderShipmentSummary = () => {
+        if (!order) return null;
+
+        const recipient = order.shipping_address as any;
+        const shipperName = carrierSettings?.shipper_name || DEFAULT_SHIPPER.name;
+        const shipperAddr = carrierSettings?.shipper_address || DEFAULT_SHIPPER.address;
+
+        return (
+            <Card className="bg-muted/30 border-dashed mb-4">
+                <CardHeader className="py-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-primary" />
+                        Shipment Details Pre-verification
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 py-3 text-xs">
+                    <div className="space-y-1">
+                        <p className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">From (Origin)</p>
+                        <p className="font-medium">{shipperName}</p>
+                        <p>{shipperAddr.line1}</p>
+                        <p>{shipperAddr.city}, {shipperAddr.state_code || shipperAddr.state} {shipperAddr.postal_code || shipperAddr.zip}</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">To (Destination)</p>
+                        <p className="font-medium">{recipient?.name || "Customer"}</p>
+                        <p>{recipient?.line1}</p>
+                        <p>{recipient?.city}, {recipient?.state} {recipient?.postal_code || recipient?.zip}</p>
+                    </div>
+                    <div className="col-span-1 md:col-span-2 pt-2 border-t flex justify-between items-center mt-1">
+                         <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1 font-medium text-primary"><Package className="h-3 w-3" /> {weight || "0"} lbs</span>
+                            <span className="text-muted-foreground">|</span>
+                            <span className="font-medium">{length || "0"} x {width || "0"} x {height || "0"} in</span>
+                         </div>
+                         {selectedCarrier && <Badge variant="secondary">{selectedCarrier}</Badge>}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
+
     return (
         <>
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -624,6 +662,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     </div>
                 ) : (
                     <>
+                        {(step === 'carrier' || step === 'rates') && renderShipmentSummary()}
                         {step === 'carrier' && (
                     <div className="space-y-4">
                         <Card>
@@ -909,7 +948,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         )}
                     </div>
                 )}
-                </>
+                    </>
                 )}
             </DialogContent>
         </Dialog>

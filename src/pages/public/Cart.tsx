@@ -108,7 +108,7 @@ const Cart = () => {
                                 </Button>
                             </Link>
                             <p className="text-xs text-muted-foreground text-center mt-4">
-                                Secure checkout powered by Stripe
+                                Secure checkout powered by Square
                             </p>
                         </div>
                     </div>

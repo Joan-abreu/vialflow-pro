@@ -24,6 +24,9 @@ const Checkout = () => {
     const [shippingEstimatedDays, setShippingEstimatedDays] = useState<number | undefined>(undefined);
     const [shippingRates, setShippingRates] = useState<any[]>([]);
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+    const [addressSuggestion, setAddressSuggestion] = useState<any>(null);
+    const [lastValidatedAddress, setLastValidatedAddress] = useState<string>("");
+    const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
@@ -32,20 +35,29 @@ const Checkout = () => {
 
     const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
 
-    // Handle Address Change from StripeCheckout
+    // Handle Address Change
     const handleAddressChange = async (address: any) => {
-        console.log("Checkout handleAddressChange called", address);
-        if (!address?.country || !address?.state) {
-            console.log("Missing country or state, skipping calculation");
-            return;
-        }
-
-        setIsCalculatingShipping(true);
-        // Reset selected shipping when address changes until we get new rates
+        // Reset selected shipping immediately when address starts changing
         setShippingCost(0);
         setShippingService("");
         setShippingEstimatedDays(undefined);
         setShippingRates([]);
+        setAddressSuggestion(null);
+
+        // Guard: Only proceed if address is "complete enough" to avoid jitter while typing
+        const isComplete = (address.line1?.length > 3) && 
+                          (address.city?.length > 1) && 
+                          (address.state?.length >= 2) && 
+                          (address.postal_code?.length >= 5);
+
+        // Skip if not complete or if it's the same as last validated to avoid loops
+        const currentAddrStr = `${address.line1}-${address.city}-${address.state}-${address.postal_code}`;
+        if (!isComplete || currentAddrStr === lastValidatedAddress) {
+            return;
+        }
+
+        setLastValidatedAddress(currentAddrStr);
+        setIsCalculatingShipping(true);
 
         try {
             // Validate address first to give user feedback
@@ -53,20 +65,27 @@ const Checkout = () => {
                 body: { address }
             });
 
+            console.log("Address Validation Result:", valData);
+
             if (valErr) {
                console.warn("Address validation error:", valErr);
             } else if (valData && !valData.valid) {
+               console.log("Address is invalid, checking suggestions:", valData.suggestions);
                if (valData.suggestions && valData.suggestions.length > 0) {
                    const sugg = valData.suggestions[0].AddressKeyFormat;
-                   let line = "";
-                   if (Array.isArray(sugg?.AddressLine)) line = sugg.AddressLine.join(', ');
-                   else if (typeof sugg?.AddressLine === 'string') line = sugg.AddressLine;
                    
-                   const city = sugg?.PoliticalDivision2 || '';
-                   const zip = sugg?.PostcodePrimaryLow || '';
-                   toast.warning(`UPS suggests a correction. Did you mean: ${line}, ${city} ${zip}?`, { duration: 8000 });
-               } else {
-                   toast.warning("UPS does not recognize this specific address. Please double-check for typos or missing apartment numbers.");
+                   // Prepare normalized suggestion for easy application
+                   const line = Array.isArray(sugg?.AddressLine) ? sugg.AddressLine.join(', ') : (sugg?.AddressLine || "");
+                   const suggestionObj = {
+                       line1: line,
+                       city: sugg?.PoliticalDivision2 || '',
+                       state: sugg?.PoliticalDivision1 || '',
+                       postal_code: sugg?.PostcodePrimaryLow || '',
+                       country: sugg?.CountryCode || 'US'
+                   };
+                   
+                   setAddressSuggestion(suggestionObj);
+                   toast.info("UPS found a more accurate version of your address.");
                }
             }
 
@@ -149,6 +168,14 @@ const Checkout = () => {
         intentAmountRef.current = 0;
     };
 
+    const applySuggestion = () => {
+        if (!addressSuggestion) return;
+        setExternalAddressUpdate(addressSuggestion);
+        handleAddressChange(addressSuggestion);
+        setAddressSuggestion(null);
+        toast.success("Address updated with UPS suggestion");
+    };
+
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
 
@@ -221,11 +248,41 @@ const Checkout = () => {
                             estimatedDays={shippingEstimatedDays}
                             tax={0}
                             onAddressChange={handleAddressChange}
+                            externalAddress={externalAddressUpdate}
                         />
+                        
+                        {addressSuggestion && (
+                            <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-white">!</span>
+                                        UPS Address Suggestion
+                                    </div>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                        We found a more accurate format: <br />
+                                        <span className="font-medium text-foreground">
+                                            {addressSuggestion.line1}, {addressSuggestion.city}, {addressSuggestion.state} {addressSuggestion.postal_code}
+                                        </span>
+                                    </p>
+                                    <Button 
+                                        size="sm" 
+                                        variant="default" 
+                                        className="mt-2 w-fit h-8 px-4 text-xs"
+                                        onClick={applySuggestion}
+                                    >
+                                        Use Suggested Address
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
                         {isCalculatingShipping && (
-                            <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Updating shipping rates...
+                            <div className="mt-8 pt-8 border-t flex flex-col items-center justify-center text-center space-y-3">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium">Calculating Shipping Rates</p>
+                                    <p className="text-xs text-muted-foreground">Contacting carriers for the best prices...</p>
+                                </div>
                             </div>
                         )}
                     </div>

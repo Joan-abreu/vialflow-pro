@@ -163,6 +163,8 @@ const CommunicationLogs = () => {
                                 <SelectItem value="password_reset">Password Resets</SelectItem>
                                 <SelectItem value="generic">Manual/Generic</SelectItem>
                                 <SelectItem value="low_stock_alert">System Alerts</SelectItem>
+                                <SelectItem value="contact_form">Contact Form</SelectItem>
+                                <SelectItem value="signup_confirmation">New Signups</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

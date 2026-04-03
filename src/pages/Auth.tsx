@@ -32,26 +32,29 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          phone: phone
-        },
-        emailRedirectTo: `${window.location.origin}/auth/confirm`
+    // Custom registration flow via Edge Function to bypass SMTP limits
+    try {
+      const { data, error: funcError } = await supabase.functions.invoke('register-user', {
+        body: {
+          email,
+          password,
+          fullName,
+          phone,
+          redirectTo: `${window.location.origin}/auth/confirm`
+        }
+      });
+
+      if (funcError || data?.error) {
+        throw new Error(funcError?.message || data?.error || "Error creating account");
       }
-    });
+
+      toast.success("Account created! Please check your email to confirm your account.");
+    } catch (err: any) {
+      console.error("Error creating account:", err);
+      toast.error(err.message || "Failed to create account. Please try again.");
+    }
 
     setLoading(false);
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Account created! Please check your email to confirm your account.");
-      // Don't navigate - let them confirm email first
-    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {

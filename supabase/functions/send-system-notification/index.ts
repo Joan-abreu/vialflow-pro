@@ -7,7 +7,8 @@ import {
     getLowStockAlertEmail,
     getUserInvitationEmail,
     getGenericNotificationEmail,
-    getContactFormEmail
+    getContactFormEmail,
+    getSignupConfirmationEmail
 } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -27,7 +28,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form";
+  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form" | "signup_confirmation";
   recipient: string | string[];
   data: any;
   related_id?: string;
@@ -182,6 +183,25 @@ const handler = async (req: Request): Promise<Response> => {
             message: "We received a request to reset your password for your account at Liv Well Research Labs.\n\nClick the button below to choose a new password. This link will expire in 60 minutes.",
             buttonText: "Reset Password",
             buttonUrl: linkData.properties.action_link
+        });
+        break;
+      }
+      case "signup_confirmation": {
+        const targetRedirect = data.redirectTo || `${SUPABASE_URL}/auth/v1/verify?type=signup`;
+        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+          type: 'signup',
+          email: finalRecipients[0],
+          options: { redirectTo: targetRedirect }
+        });
+        
+        if (linkError) {
+          console.error(`[Signup Link Error]`, linkError);
+          throw linkError;
+        }
+
+        subject = `Confirm Your Email - Liv Well Research Labs`;
+        htmlContent = getSignupConfirmationEmail({
+          confirmationUrl: linkData.properties.action_link
         });
         break;
       }

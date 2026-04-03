@@ -60,35 +60,25 @@ const Register = () => {
                 return;
             }
 
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        full_name: fullName,
-                        phone: phone,
-                    },
-                    emailRedirectTo: `${window.location.origin}/auth/confirm`,
-                },
+            // Custom registration flow via Edge Function to bypass SMTP limits
+            const { data, error: funcError } = await supabase.functions.invoke('register-user', {
+                body: {
+                    email,
+                    password,
+                    fullName,
+                    phone,
+                    redirectTo: `${window.location.origin}/auth/confirm`
+                }
             });
 
-            if (error) throw error;
-
-            // Update profile with phone number
-            if (data.user) {
-                const { error: profileError } = await supabase
-                    .from("profiles")
-                    .update({ phone: phone })
-                    .eq("user_id", data.user.id);
-
-                if (profileError) {
-                    console.error("Error updating phone:", profileError);
-                }
+            if (funcError || data?.error) {
+                throw new Error(funcError?.message || data?.error || "Error during registration");
             }
 
             toast.success("Registration successful! Please check your email to verify your account.");
             navigate("/login");
         } catch (error: any) {
+            console.error("Registration error:", error);
             toast.error(error.message || "Error registering");
         } finally {
             setLoading(false);

@@ -575,3 +575,26 @@ export function getContactFormEmail(data: {
     return getEmailTemplate(content);
 }
 
+export function getSignupConfirmationEmail(data: {
+    confirmationUrl: string;
+    companyName?: string;
+}): string {
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Welcome to Liv Well Research Labs!</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Thank you for creating an account. Before you can start using the system, you need to confirm your email address.
+        </p>
+        
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Click the button below to verify your email and complete your registration:
+        </p>
+
+        <a href="${data.confirmationUrl}" class="button" style="color: white !important;">Confirm Email Address</a>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
+            If you didn't create an account, you can safely ignore this email. This link will expire in 24 hours.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+

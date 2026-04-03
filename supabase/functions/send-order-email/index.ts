@@ -237,8 +237,28 @@ const handler = async (req: Request): Promise<Response> => {
     const status = res.ok ? "sent" : "failed";
 
     console.log(`[Order Email] Type: ${type}, Status: ${status}, Recipients: ${emailTo.join(", ")}`);
+    console.log(`[Auth Profile] Using RESEND_API_KEY starting with: ${RESEND_API_KEY.substring(0, 7)}...`);
+
     if (!res.ok) {
       console.error(`[Resend Error] Payload:`, JSON.stringify(data));
+      
+      // Sandbox Fallback: If we can't send to customer, try to alert admin
+      if (data.message?.includes("testing emails to your own email address") && !emailTo.every(r => ADMIN_EMAILS.includes(r))) {
+          console.log("[Fallback] Detected Sandbox restriction. Attempting to send copy to Administrator instead.");
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: FROM_SALES_EMAIL,
+              to: ADMIN_EMAILS,
+              subject: `[FALLBACK] ${subject}`,
+              html: `<strong>SANDBOX ALERT:</strong> Resend rejected the email to ${emailTo.join(", ")} because your domain is not fully verified or in Sandbox mode.<br/><br/>${htmlContent}`,
+            }),
+          });
+      }
     }
 
     // Log to email_logs table

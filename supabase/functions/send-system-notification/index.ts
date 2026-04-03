@@ -12,8 +12,8 @@ import {
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "Liv Well Research Labs <info@livwellresearchlabs.com>";
-const FROM_SALES_EMAIL = Deno.env.get("FROM_SALES_EMAIL") || "Liv Well Research Labs <sales@livwellresearchlabs.com>";
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "info@livwellresearchlabs.com";
+const FROM_SALES_EMAIL = Deno.env.get("FROM_SALES_EMAIL") || "sales@livwellresearchlabs.com";
 
 const ADMIN_EMAILS = Deno.env.get("ADMIN_EMAILS")
   ?.split(",")
@@ -173,8 +173,28 @@ const handler = async (req: Request): Promise<Response> => {
     const status = res.ok ? "sent" : "failed";
 
     console.log(`[Notification Engine] Type: ${type}, Status: ${status}, Recipients: ${finalRecipients.join(", ")}`);
+    console.log(`[Auth Profile] Using RESEND_API_KEY starting with: ${RESEND_API_KEY.substring(0, 7)}...`);
+    
     if (!res.ok) {
       console.error(`[Resend Error] Payload:`, JSON.stringify(resData));
+      
+      // Sandbox Fallback: If we can't send to customer, try to alert admin
+      if (resData.message?.includes("testing emails to your own email address") && !finalRecipients.every(r => ADMIN_EMAILS.includes(r))) {
+          console.log("[Fallback] Detected Sandbox restriction. Attempting to send copy to Administrator instead.");
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: fromEmail,
+              to: ADMIN_EMAILS,
+              subject: `[FALLBACK] ${subject}`,
+              html: `<strong>SANDBOX ALERT:</strong> Resend rejected the email to ${finalRecipients.join(", ")} because your domain is not fully verified or in Sandbox mode.<br/><br/>${htmlContent}`,
+            }),
+          });
+      }
     }
 
     // Log to email_logs

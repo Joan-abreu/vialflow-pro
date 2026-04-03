@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
+import { AddressAutocomplete } from "@/components/shipping/AddressAutocomplete";
 
 interface SquareCheckoutProps {
     amount: number;
@@ -87,7 +88,31 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
     const handleAddressInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setAddressState(prev => ({ ...prev, [name]: value }));
+        const newState = { ...addressState, [name]: value };
+        setAddressState(newState);
+        
+        // Notify parent of changes to trigger rate calculation
+        if (onAddressChange) {
+            onAddressChange(newState);
+        }
+    };
+
+    const handleAddressAutocompleteSelect = (addr: any) => {
+        const selectedAddress = {
+            ...addressState,
+            line1: addr.line1,
+            city: addr.city,
+            state: addr.state,
+            postal_code: addr.zip, // Map zip -> postal_code
+            country: normalizeCountry(addr.country || 'US')
+        };
+        
+        setAddressState(selectedAddress);
+        
+        // Notify parent immediately to refresh rates
+        if (onAddressChange) {
+            onAddressChange(selectedAddress);
+        }
     };
 
     // Helper to normalize country to ISO code since Square requires US instead of United States
@@ -260,7 +285,12 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2 space-y-1.5">
                             <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1</Label>
-                            <Input id="line1" placeholder="123 Main St" name="line1" value={addressState.line1} onChange={handleAddressInputChange} required autoComplete="address-line1" />
+                            <AddressAutocomplete
+                                value={addressState.line1}
+                                onSelectAddress={handleAddressAutocompleteSelect}
+                                placeholder="Search for an address (UPS / Google Maps style)..."
+                                className="w-full"
+                            />
                         </div>
                         <div className="md:col-span-2 space-y-1.5">
                             <Label htmlFor="line2" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Suite / Apt (Optional)</Label>

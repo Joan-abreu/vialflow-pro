@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -5,11 +6,49 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Contact = () => {
-    const handleSubmit = (e: React.FormEvent) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        firstName: "",
+        lastName: "",
+        email: "",
+        subject: "",
+        message: ""
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        toast.success("Message sent! We'll get back to you soon.");
+        setIsSubmitting(true);
+
+        try {
+            const { data, error } = await supabase.functions.invoke('send-system-notification', {
+                body: {
+                    type: 'contact_form',
+                    data: {
+                        ...formData
+                    },
+                    recipient: [] // Handle multiple recipients on the function side
+                }
+            });
+
+            if (error) throw error;
+
+            toast.success("Message sent! We'll get back to you soon.");
+            setFormData({
+                firstName: "",
+                lastName: "",
+                email: "",
+                subject: "",
+                message: ""
+            });
+        } catch (error: any) {
+            console.error("Error sending message:", error);
+            toast.error(error.message || "Failed to send message. Please try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -66,26 +105,55 @@ const Contact = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="firstName">First Name</Label>
-                                        <Input id="firstName" required />
+                                        <Input 
+                                            id="firstName" 
+                                            value={formData.firstName}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                                            required 
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="lastName">Last Name</Label>
-                                        <Input id="lastName" required />
+                                        <Input 
+                                            id="lastName" 
+                                            value={formData.lastName}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                                            required 
+                                        />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email">Email</Label>
-                                    <Input id="email" type="email" required />
+                                    <Input 
+                                        id="email" 
+                                        type="email" 
+                                        value={formData.email}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                                        required 
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="subject">Subject</Label>
-                                    <Input id="subject" required />
+                                    <Input 
+                                        id="subject" 
+                                        value={formData.subject}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+                                        required 
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="message">Message</Label>
-                                    <Textarea id="message" className="min-h-[150px]" required />
+                                    <Textarea 
+                                        id="message" 
+                                        className="min-h-[150px]" 
+                                        value={formData.message}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
+                                        required 
+                                    />
                                 </div>
-                                <Button type="submit" className="w-full">Send Message</Button>
+                                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                    {isSubmitting ? "Sending..." : "Send Message"}
+                                </Button>
                             </form>
                         </CardContent>
                     </Card>

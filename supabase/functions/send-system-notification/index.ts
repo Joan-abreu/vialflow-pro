@@ -6,7 +6,8 @@ import {
     getOrderStatusUpdateEmail,
     getLowStockAlertEmail,
     getUserInvitationEmail,
-    getGenericNotificationEmail
+    getGenericNotificationEmail,
+    getContactFormEmail
 } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -26,7 +27,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic";
+  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form";
   recipient: string | string[];
   data: any;
   related_id?: string;
@@ -187,6 +188,12 @@ const handler = async (req: Request): Promise<Response> => {
       case "generic":
         subject = data.subject || "System Notification";
         htmlContent = getGenericNotificationEmail(data);
+        break;
+      case "contact_form":
+        subject = `New Web Inquiry: ${data.subject}`;
+        htmlContent = getContactFormEmail(data);
+        // Send to sales and admins
+        finalRecipients = ["sales@livwellresearchlabs.com", ...ADMIN_EMAILS];
         break;
       default:
         throw new Error(`Invalid notification type: ${type}`);

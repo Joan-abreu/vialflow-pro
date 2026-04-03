@@ -530,3 +530,48 @@ export function getGenericNotificationEmail(data: {
     return getEmailTemplate(content);
 }
 
+export function getContactFormEmail(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    subject: string;
+    message: string;
+}): string {
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">New Contact Form Inquiry</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            You have received a new message from the website contact form.
+        </p>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Contact Details</p>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; width: 100px; color: #6b7280;">Name:</td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${data.firstName} ${data.lastName}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Email:</td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600;"><a href="mailto:${data.email}" style="color: #3B82F6; text-decoration: none;">${data.email}</a></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Subject:</td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${data.subject}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Message</p>
+            <div style="font-size: 16px; line-height: 1.6; color: #111827; white-space: pre-wrap;">
+                ${data.message}
+            </div>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
+            This email was sent automatically from the Liv Well Research Labs contact form.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+

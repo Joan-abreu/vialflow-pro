@@ -119,6 +119,7 @@ serve(async (req) => {
                      method: "POST",
                      headers: {
                          "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                         "apikey": supabaseServiceRoleKey,
                          "Content-Type": "application/json",
                      },
                      body: JSON.stringify({

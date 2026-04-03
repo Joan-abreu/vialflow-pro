@@ -159,13 +159,21 @@ const handler = async (req: Request): Promise<Response> => {
         htmlContent = getUserInvitationEmail(data);
         break;
       case "password_reset": {
+        const targetRedirect = data.redirectTo || `${SUPABASE_URL}/auth/v1/verify?type=recovery`;
         const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
           type: 'recovery',
           email: finalRecipients[0],
-          options: { redirectTo: data.redirectTo || `${SUPABASE_URL}/auth/v1/verify` }
+          options: { redirectTo: targetRedirect }
         });
         
-        if (linkError) throw linkError;
+        if (linkError) {
+            console.error(`[Link Generation Error] Redirecting to: ${targetRedirect}`, linkError);
+            throw linkError;
+        }
+
+        console.log(`[Notification Engine] Generated Recovery Link for ${finalRecipients[0]}`);
+        console.log(`[Notification Engine] Redirect URL requested: ${targetRedirect}`);
+        console.log(`[Notification Engine] Action Link delivered to user: ${linkData.properties.action_link}`);
         
         subject = `Reset Your Password`;
         htmlContent = getGenericNotificationEmail({

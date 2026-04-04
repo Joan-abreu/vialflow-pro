@@ -84,21 +84,22 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAnimating(true);
         setTimeout(() => setIsAnimating(false), 300);
 
-        const existingItem = items.find((item) => item.variant.id === variant.id);
-        
-        if (existingItem) {
-            toast.success("Updated quantity in cart");
-            setItems((currentItems) => 
-                currentItems.map((item) =>
-                    item.variant.id === variant.id
-                        ? { ...item, quantity: item.quantity + quantity }
-                        : item
-                )
-            );
-        } else {
-            toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}) to cart`);
-            setItems((currentItems) => [...currentItems, { variant, quantity }]);
-        }
+        setItems((currentItems) => {
+            const existingItemIndex = currentItems.findIndex((item) => item.variant.id === variant.id);
+            
+            if (existingItemIndex > -1) {
+                toast.success("Updated quantity in cart");
+                const newItems = [...currentItems];
+                newItems[existingItemIndex] = {
+                    ...newItems[existingItemIndex],
+                    quantity: newItems[existingItemIndex].quantity + quantity
+                };
+                return newItems;
+            } else {
+                toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}) to cart`);
+                return [...currentItems, { variant, quantity }];
+            }
+        });
     };
 
     const removeFromCart = (variantId: string) => {

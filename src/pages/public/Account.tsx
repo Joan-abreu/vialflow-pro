@@ -246,9 +246,7 @@ const Account = () => {
                     },
                 };
 
-                for (let i = 0; i < item.quantity; i++) {
-                    addToCart(variantForCart);
-                }
+                addToCart(variantForCart, item.quantity);
                 addedCount++;
             }
 

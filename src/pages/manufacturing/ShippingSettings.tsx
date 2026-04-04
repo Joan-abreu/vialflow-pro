@@ -480,14 +480,13 @@ const ShippingSettings = () => {
                                     />
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="space-y-2 opacity-70">
                                     <Label htmlFor="country">Country</Label>
                                     <Input
                                         id="country"
-                                        value={formData.shipper_address?.country || "US"}
-                                        onChange={(e) => handleAddressChange('country', e.target.value)}
-                                        placeholder="US"
-                                        maxLength={2}
+                                        value="US"
+                                        readOnly
+                                        className="bg-muted cursor-not-allowed"
                                     />
                                 </div>
                             </div>

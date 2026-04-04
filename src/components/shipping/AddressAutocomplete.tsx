@@ -57,9 +57,9 @@ export const AddressAutocomplete = ({
 
         setLoading(true);
         try {
-            // Use Nominatim search API
+            // Use Nominatim search API - Restricted to US as per user request
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`,
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=us`,
                 {
                     headers: {
                         "Accept-Language": "en-US,en;q=0.5",
@@ -100,7 +100,7 @@ export const AddressAutocomplete = ({
         const city = addr.city || addr.town || addr.village || "";
         const state = addr.state || "";
         const zip = addr.postcode || "";
-        const country = (addr.country_code || "US").toUpperCase();
+        const country = "US"; // Force US since results are restricted to US anyway
 
         onSelectAddress({
             line1,

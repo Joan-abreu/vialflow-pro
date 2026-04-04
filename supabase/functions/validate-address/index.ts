@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { UPSCarrier } from '../_shared/carriers/ups.ts'
+import { ShippoCarrier } from '../_shared/carriers/shippo.ts'
 
 export const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -42,22 +43,57 @@ serve(async (req) => {
         }
 
         const upsSettings = carriersData.find(c => c.carrier === 'UPS');
+        const shippoSettings = carriersData.find(c => c.carrier === 'SHIPPO');
         
-        if (upsSettings) {
-            const ups = new UPSCarrier(upsSettings);
-            const result = await ups.validateAddress(address);
-            
-            return new Response(
-                JSON.stringify(result),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-        } else {
-             // Fallback if UPS is not active
-             return new Response(
-                JSON.stringify({ valid: true, suggestions: [], note: "Skipped UPS validation (using fallback)" }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
+        let result: any = { valid: true, suggestions: [], note: "Validation skipped (no suitable carrier found)" };
+
+        // 1. Try UPS first (usually more detailed validation)
+        if (upsSettings && upsSettings.client_id && upsSettings.client_secret) {
+            try {
+                const ups = new UPSCarrier(upsSettings);
+                const upsResult = await ups.validateAddress(address);
+                const normalizedUps = {
+                    valid: upsResult.valid,
+                    suggestions: upsResult.suggestions || [],
+                    note: upsResult.valid ? "Address verified by UPS" : "UPS: Address not found or invalid."
+                };
+
+                if (normalizedUps.valid === false) {
+                    return new Response(
+                        JSON.stringify(normalizedUps),
+                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+                result = normalizedUps;
+            } catch (e: any) {
+                console.warn("UPS validation failed, trying fallback:", e.message);
+            }
         }
+
+        // 2. Try Shippo if UPS found it invalid or skipped
+        if (shippoSettings && shippoSettings.api_key) {
+            try {
+                const shippo = new ShippoCarrier(shippoSettings);
+                const shippoResult = await shippo.validateAddress(address);
+                
+                // If Shippo says it's invalid, return that immediately
+                if (shippoResult.valid === false) {
+                    return new Response(
+                        JSON.stringify(shippoResult),
+                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+                // If UPS was skipped but Shippo succeeded, use Shippo's result
+                result = shippoResult;
+            } catch (e: any) {
+                console.warn("Shippo validation failed:", e.message);
+            }
+        }
+
+        return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
 
     } catch (error: any) {
         console.error("DEBUG: Address validation failed:", error.stack || error.message || error);

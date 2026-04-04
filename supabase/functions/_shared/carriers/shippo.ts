@@ -58,6 +58,10 @@ export class ShippoCarrier implements ICarrier {
                     weight: Math.max(parseFloat(pkg.weight || "0.1"), 0.1).toString(),
                     mass_unit: "lb",
                 })),
+                metadata: shipment.orderId ? `Order #${shipment.orderId.slice(0, 8)}` : "",
+                extra: shipment.orderId ? {
+                    reference_1: shipment.orderId.slice(0, 8)
+                } : {},
                 async: false,
             }),
         });
@@ -104,6 +108,7 @@ export class ShippoCarrier implements ICarrier {
             body: JSON.stringify({
                 rate: shipment.serviceCode,
                 label_file_type: "PDF",
+                metadata: shipment.orderId ? `Order #${shipment.orderId.slice(0, 8)}` : shipment.description || "",
                 async: false,
             }),
         });
@@ -145,30 +150,37 @@ export class ShippoCarrier implements ICarrier {
             }
 
             const transactionId = rawResponse.object_id;
-            let carrierAccountId = "";
+            let carrierAccountId = rawResponse.carrier_account;
 
-            // Attempt to get the carrier_account from the rate
-            const rateId = rawResponse.rate;
-            if (rateId && typeof rateId === "string") {
-                const rateRes = await fetch(`${this.apiUrl}rates/${rateId}/`, { headers: this.getHeaders() });
-                if (rateRes.ok) {
-                    const rateData = await rateRes.json();
-                    carrierAccountId = rateData.carrier_account;
+            // If not directly in base response, attempt to get it from the rate
+            if (!carrierAccountId) {
+                const rateId = typeof rawResponse.rate === "string" ? rawResponse.rate : rawResponse.rate?.object_id;
+                if (rateId) {
+                    const rateRes = await fetch(`${this.apiUrl}rates/${rateId}/`, { headers: this.getHeaders() });
+                    if (rateRes.ok) {
+                        const rateData = await rateRes.json();
+                        carrierAccountId = rateData.carrier_account;
+                    }
                 }
             }
 
+            // Still no account? Fallback to searching by provider
             if (!carrierAccountId) {
-                // Fallback: fetch carrier accounts
                 const accRes = await fetch(`${this.apiUrl}carrier_accounts/`, { headers: this.getHeaders() });
                 if (accRes.ok) {
                     const accData = await accRes.json();
-                    const account = accData.results?.find((a: any) => a.carrier === "usps" || a.carrier === "dhl_express");
+                    const provider = rawResponse.provider?.toLowerCase();
+                    // Match by provider if we know it, otherwise fallback to USPS or DHL
+                    const account = accData.results?.find((a: any) => 
+                        (provider && a.carrier === provider) || 
+                        (!provider && (a.carrier === "usps" || a.carrier === "dhl_express"))
+                    );
                     if (account) carrierAccountId = account.object_id;
                 }
             }
 
             if (!carrierAccountId) {
-                return { success: false, confirmationNumber: "", rawResponse: { error: "Could not determine Shippo carrier account for pickup. Make sure USPS is enabled." } };
+                return { success: false, confirmationNumber: "", rawResponse: { error: "Could not determine Shippo carrier account for pickup. Make sure the carrier used for the label is enabled in Shippo." } };
             }
 
             const address = pickup.shipmentData?.ship_from || {};
@@ -194,7 +206,7 @@ export class ShippoCarrier implements ICarrier {
             const payload = {
                 carrier_account: carrierAccountId,
                 location: {
-                    building_location_type: "Front Door",
+                    building_location_type: "Front door", // Shippo is case sensitive: lowercase 'd'
                     building_type: "building",
                     instructions: pickup.instructions || "Please pick up from the main entrance.",
                     address: {
@@ -221,16 +233,25 @@ export class ShippoCarrier implements ICarrier {
                 body: JSON.stringify(payload),
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                return { success: false, confirmationNumber: "", rawResponse: { error: `Shippo Pickup Error: ${errorText}` } };
-            }
-
             const data = await response.json();
+            
+            if (!response.ok) {
+                return { success: false, confirmationNumber: "", rawResponse: { ...data, error: `Shippo HTTP Error: ${response.status} ${response.statusText}` } };
+            }
 
             // Shippo responds with "SUCCESS", "PENDING", or "ERROR" on the status prop
             if (data.status === "ERROR") {
-                return { success: false, confirmationNumber: "", rawResponse: { error: `Shippo Pickup Failed: ${JSON.stringify(data.messages)}` } };
+                const msgs = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
+                             (typeof data.messages === 'string' ? data.messages : "No detailed error messages provided by Shippo.");
+                
+                return { 
+                    success: false, 
+                    confirmationNumber: "", 
+                    rawResponse: { 
+                        ...data, 
+                        error: `Shippo Pickup Failed: ${msgs}. Check if the ready time is too close or if the carrier supports pickups at this time.` 
+                    } 
+                };
             }
 
             return {
@@ -274,43 +295,46 @@ export class ShippoCarrier implements ICarrier {
     }
 
     async validateAddress(address: any) {
+        if (!this.settings.api_key) return { valid: true, suggestions: [], note: "Shippo API key not set" };
+        
         try {
             const response = await fetch(`${this.apiUrl}addresses/`, {
                 method: "POST",
                 headers: this.getHeaders(),
                 body: JSON.stringify({
                     name: address.name || "Recipient",
-                    street1: address.line1 || address.street1,
-                    city: address.city,
-                    state: address.state,
-                    zip: address.postal_code || address.zip,
-                    country: address.country || "US",
+                    street1: address.line1 || address.street1 || (address.address?.line1),
+                    street2: address.line2 || address.street2 || (address.address?.line2),
+                    city: address.city || address.address?.city,
+                    state: address.state || address.address?.state,
+                    zip: address.postal_code || address.zip || address.address?.postal_code || address.address?.zip,
+                    country: address.country || address.address?.country || "US",
                     validate: true,
                 }),
             });
 
             if (!response.ok) {
-                const error = await response.text();
-                throw new Error(`Shippo validation error: ${error}`);
+                const errorText = await response.text();
+                // If it's a 4xx error, it might be Shippo's way of saying it's VERY invalid, but usually Shippo returns 201 with validation_results
+                throw new Error(`Shippo validation request failed: ${errorText}`);
             }
 
             const data = await response.json();
-            
-            // Shippo returns validation results in the 'validation_results' field
             const isValid = data.validation_results?.is_valid;
             const messages = data.validation_results?.messages || [];
+            const resultMsg = messages.map((m: any) => m.text).join(", ");
 
             return {
-                valid: isValid,
-                suggestions: [], // Shippo usually provides messages rather than a list of suggested objects like UPS
-                note: messages.map((m: any) => m.text).join(", ")
+                valid: !!isValid,
+                suggestions: [], 
+                note: resultMsg || (isValid ? "Address is valid according to Shippo/USPS" : "Address not found or invalid.")
             };
         } catch (error: any) {
             console.error("Shippo address validation error:", error);
             return {
-                valid: true, // Fallback to avoid blocking
+                valid: true, // Fallback to avoid blocking entire checkout if API is down, but with a warning note
                 suggestions: [],
-                note: `Validation error: ${error.message}`
+                note: `Validation skipped due to error: ${error.message}`
             };
         }
     }

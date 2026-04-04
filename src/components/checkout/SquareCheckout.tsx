@@ -308,9 +308,9 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                             <Label htmlFor="postal_code" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ZIP Code</Label>
                             <Input id="postal_code" placeholder="94103" name="postal_code" value={addressState.postal_code} onChange={handleAddressInputChange} required autoComplete="postal-code" />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 opacity-70">
                             <Label htmlFor="country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</Label>
-                            <Input id="country" placeholder="US" name="country" value={addressState.country} onChange={handleAddressInputChange} required autoComplete="country-name" />
+                            <Input id="country" value="US" readOnly className="bg-muted cursor-not-allowed" />
                         </div>
                     </div>
                     {user && (

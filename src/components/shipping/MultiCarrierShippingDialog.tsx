@@ -314,6 +314,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             name: (order.shipping_address as any)?.name || "Customer",
                             address: order.shipping_address || {},
                         },
+                        orderId: orderId,
                         packages: [{
                             weight: parseFloat(weight),
                             length: parseFloat(length),
@@ -374,6 +375,29 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .single();
 
             if (orderError) throw orderError;
+ 
+            // --- ADDED: Address Validation Step ---
+            // Validate address with Edge Function before attempting purchase
+            try {
+                const { data: validationData, error: validationError } = await supabase.functions.invoke("validate-address", {
+                    body: { address: order.shipping_address }
+                });
+
+                if (!validationError && validationData && validationData.valid === false) {
+                    const confirmProceed = confirm(
+                        `Address Validation Warning: ${validationData.note || "The address might be invalid."}\n\n` +
+                        `Most carriers (like USPS) will fail to create a label if the address is not found.\n\n` +
+                        `Do you want to try anyway?`
+                    );
+                    if (!confirmProceed) {
+                        setLoading(false);
+                        return;
+                    }
+                }
+            } catch (vErr) {
+                console.warn("Address validation service unavailable, proceeding with caution:", vErr);
+            }
+            // ---------------------------------------
 
             let customerName = "Customer";
 

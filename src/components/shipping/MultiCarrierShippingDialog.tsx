@@ -110,7 +110,9 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 .from("orders")
                 .select(`
                     shipping_carrier,
+                    shipping_service,
                     shipping_service_code,
+                    shipping_cost,
                     shipping_address,
                     order_items(
                         quantity,
@@ -655,13 +657,25 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         <p>{recipient?.line1}</p>
                         <p>{recipient?.city}, {recipient?.state} {recipient?.postal_code || recipient?.zip}</p>
                     </div>
-                    <div className="col-span-1 md:col-span-2 pt-2 border-t flex justify-between items-center mt-1">
-                         <div className="flex items-center gap-3">
-                            <span className="flex items-center gap-1 font-medium text-primary"><Package className="h-3 w-3" /> {weight || "0"} lbs</span>
-                            <span className="text-muted-foreground">|</span>
-                            <span className="font-medium">{length || "0"} x {width || "0"} x {height || "0"} in</span>
-                         </div>
-                         {selectedCarrier && <Badge variant="secondary">{selectedCarrier}</Badge>}
+                    <div className="col-span-1 md:col-span-2 pt-2 border-t mt-1 space-y-2">
+                        <div className="flex justify-between items-center text-[10px] bg-primary/5 p-2 rounded border border-primary/10">
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold text-muted-foreground uppercase">Customer Chosen:</span>
+                                <span className="font-bold text-primary">{order.shipping_service || "Standard"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold text-muted-foreground uppercase">Paid:</span>
+                                <span className="font-bold text-primary">${(order.shipping_cost || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center px-1">
+                             <div className="flex items-center gap-3">
+                                <span className="flex items-center gap-1 font-medium text-primary"><Package className="h-3 w-3" /> {weight || "0"} lbs</span>
+                                <span className="text-muted-foreground">|</span>
+                                <span className="font-medium">{length || "0"} x {width || "0"} x {height || "0"} in</span>
+                             </div>
+                             {selectedCarrier && <Badge variant="secondary">{selectedCarrier}</Badge>}
+                        </div>
                     </div>
                 </CardContent>
             </Card>

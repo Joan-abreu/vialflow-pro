@@ -20,13 +20,14 @@ interface SquareCheckoutProps {
     estimatedDays?: number;
     tax: number;
     onAddressChange?: (address: any) => void;
-    externalAddress?: any; // To allow parent to inject/correct address
+    externalAddress?: any; 
+    isCalculating?: boolean;
 }
 
 const appId = import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
 
-const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress }: SquareCheckoutProps) => {
+const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating }: SquareCheckoutProps) => {
     const { items } = useCart();
     
     const [loading, setLoading] = useState(false);
@@ -163,6 +164,16 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     }, [addressState]);
 
     const handleSquarePayment = async (token: string) => {
+        if (isCalculating) {
+            toast.error("Still calculating shipping rates. Please wait.");
+            return;
+        }
+
+        if (!shippingService) {
+            toast.error("Please select a shipping method before paying.");
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -197,7 +208,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     status: "pending_payment",
                     shipping_address: addressState,
                     shipping_cost: shippingCost || 0,
-                    shipping_service: shippingService || "Standard",
+                    shipping_service: shippingService,
                     shipping_service_code: shippingServiceCode || null,
                     shipping_carrier: shippingCarrier || null,
                     estimated_days: estimatedDays ? parseInt(String(estimatedDays)) : null,
@@ -347,16 +358,18 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                 <CreditCard 
                                     buttonProps={{
                                         css: {
-                                            backgroundColor: 'hsl(var(--primary))',
+                                            backgroundColor: (isCalculating || !shippingService) ? '#cccccc' : 'hsl(var(--primary))',
                                             color: '#fff',
+                                            cursor: (isCalculating || !shippingService) ? 'not-allowed' : 'pointer',
+                                            pointerEvents: (isCalculating || !shippingService) ? 'none' : 'auto',
                                             fontFamily: 'Inter, sans-serif',
                                             '&:hover': {
-                                                backgroundColor: 'hsl(var(--primary) / 0.9)',
+                                                backgroundColor: (isCalculating || !shippingService) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
                                             }
                                         }
                                     }}
                                 >
-                                    Pay ${(amount).toFixed(2)}
+                                    {isCalculating ? "Calculating Shipping..." : !shippingService ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
                                 </CreditCard>
                             </PaymentForm>
                         )}

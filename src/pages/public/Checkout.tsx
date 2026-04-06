@@ -249,6 +249,7 @@ const Checkout = () => {
                             tax={0}
                             onAddressChange={handleAddressChange}
                             externalAddress={externalAddressUpdate}
+                            isCalculating={isCalculatingShipping}
                         />
                         
                         {addressSuggestion && (

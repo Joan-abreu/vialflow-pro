@@ -49,6 +49,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
     // Custom Address Collection State for Square
     const [addressState, setAddressState] = useState({
+        full_name: "",
         line1: "",
         line2: "",
         city: "",
@@ -71,6 +72,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
                 if (profile && profile.address_line1) {
                     const savedAddress = {
+                        full_name: profile.full_name || "",
                         line1: profile.address_line1,
                         line2: profile.address_line2 || "",
                         city: profile.city,
@@ -179,7 +181,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         }
 
         // --- STRICT VALIDATION ---
-        const isAddressComplete = addressState.line1.length > 5 && 
+        const isAddressComplete = addressState.full_name.length > 2 &&
+                                 addressState.line1.length > 5 && 
                                  addressState.city.length > 2 && 
                                  addressState.state.length >= 2 && 
                                  addressState.postal_code.length >= 5;
@@ -208,6 +211,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                 const { error: profileError } = await supabase
                     .from('profiles')
                     .update({
+                        full_name: addressState.full_name,
                         address_line1: addressState.line1,
                         address_line2: addressState.line2,
                         city: addressState.city,
@@ -322,7 +326,11 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     <h3 className="text-sm font-semibold text-foreground/80">Shipping Address</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2 space-y-1.5">
-                            <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1</Label>
+                            <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full Name <span className="text-destructive">*</span></Label>
+                            <Input id="full_name" placeholder="John Doe" name="full_name" value={addressState.full_name} onChange={handleAddressInputChange} required autoComplete="name" />
+                        </div>
+                        <div className="md:col-span-2 space-y-1.5">
+                            <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1 <span className="text-destructive">*</span></Label>
                             <AddressAutocomplete
                                 value={addressState.line1}
                                 onSelectAddress={handleAddressAutocompleteSelect}

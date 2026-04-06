@@ -72,7 +72,7 @@ serve(async (req) => {
         const baseShipment = {
             shipper: defaultShipper,
             recipient: {
-                name: address.name || "Customer",
+                name: address.full_name || address.name || "Customer",
                 address: {
                     line1: address.line1,
                     city: address.city,

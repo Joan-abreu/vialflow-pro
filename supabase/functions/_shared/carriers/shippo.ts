@@ -27,8 +27,8 @@ export class ShippoCarrier implements ICarrier {
             headers: this.getHeaders(),
             body: JSON.stringify({
                 address_from: {
-                    name: shipment.shipper.name || shipment.shipper.company || "Shipper",
-                    company: shipment.shipper.company || shipment.shipper.name || "Shipper",
+                    name: shipment.shipper.name || "Shipper",
+                    company: shipment.shipper.company || "",
                     street1: shipment.shipper.address?.line1 || shipment.shipper.line1,
                     street2: shipment.shipper.address?.line2 || shipment.shipper.line2,
                     city: shipment.shipper.address?.city || shipment.shipper.city,
@@ -39,8 +39,8 @@ export class ShippoCarrier implements ICarrier {
                     email: shipment.shipper.email || "shipper@example.com",
                 },
                 address_to: {
-                    name: shipment.recipient.name || shipment.recipient.company || "Recipient",
-                    company: shipment.recipient.company || shipment.recipient.name || "Recipient",
+                    name: shipment.recipient.name || "Recipient",
+                    company: shipment.recipient.company || "",
                     street1: shipment.recipient.address?.line1 || shipment.recipient.line1,
                     street2: shipment.recipient.address?.line2 || shipment.recipient.line2,
                     city: shipment.recipient.address?.city || shipment.recipient.city,

@@ -314,7 +314,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             },
                         },
                         recipient: {
-                            name: (order.shipping_address as any)?.name || "Customer",
+                            name: (order.shipping_address as any)?.full_name || (order.shipping_address as any)?.name || "Customer",
                             address: order.shipping_address || {},
                         },
                         orderId: orderId,
@@ -402,17 +402,19 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             }
             // ---------------------------------------
 
-            let customerName = "Customer";
+            let customerName = (order.shipping_address as any)?.full_name || (order.shipping_address as any)?.name || "Customer";
 
-            if (order.user_id) {
-                const { data: profile, error: profileError } = await supabase
-                    .from("profiles")
-                    .select("full_name")
-                    .eq("user_id", order.user_id)
-                    .single();
+            if (!customerName || customerName === "Customer") {
+                if (order.user_id) {
+                    const { data: profile, error: profileError } = await supabase
+                        .from("profiles")
+                        .select("full_name")
+                        .eq("user_id", order.user_id)
+                        .single();
 
-                if (!profileError && profile?.full_name) {
-                    customerName = profile.full_name;
+                    if (!profileError && profile?.full_name) {
+                        customerName = profile.full_name;
+                    }
                 }
             }
 
@@ -654,7 +656,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     </div>
                     <div className="space-y-1">
                         <p className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">To (Destination)</p>
-                        <p className="font-medium">{recipient?.name || "Customer"}</p>
+                        <p className="font-medium">{recipient?.full_name || recipient?.name || "Customer"}</p>
                         <p>{recipient?.line1}</p>
                         <p>{recipient?.city}, {recipient?.state} {recipient?.postal_code || recipient?.zip}</p>
                         <div className="pt-1">

@@ -17,6 +17,7 @@ interface AddressAutocompleteProps {
     }) => void;
     placeholder?: string;
     className?: string;
+    onChange?: (value: string) => void;
 }
 
 interface NominatimResult {
@@ -37,7 +38,8 @@ export const AddressAutocomplete = ({
     value = "",
     onSelectAddress,
     placeholder = "Search for an address...",
-    className
+    className,
+    onChange
 }: AddressAutocompleteProps) => {
     const [open, setOpen] = useState(false);
     const [inputValue, setInputValue] = useState(value);
@@ -82,6 +84,7 @@ export const AddressAutocomplete = ({
     const handleInputChange = (val: string) => {
         setInputValue(val);
         setOpen(true);
+        if (onChange) onChange(val);
 
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);

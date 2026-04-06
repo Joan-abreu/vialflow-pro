@@ -27,6 +27,7 @@ const Checkout = () => {
     const [addressSuggestion, setAddressSuggestion] = useState<any>(null);
     const [lastValidatedAddress, setLastValidatedAddress] = useState<string>("");
     const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
+    const latestCallRef = useRef<number>(0);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
@@ -45,17 +46,25 @@ const Checkout = () => {
         setAddressSuggestion(null);
 
         // Guard: Only proceed if address is "complete enough" to avoid jitter while typing
-        const isComplete = (address.line1?.length > 3) && 
-                          (address.city?.length > 1) && 
+        const isComplete = (address.line1?.length > 5) && 
+                          (address.city?.length > 2) && 
                           (address.state?.length >= 2) && 
                           (address.postal_code?.length >= 5);
-
-        // Skip if not complete or if it's the same as last validated to avoid loops
+ 
+        // Skip if same as last validated to avoid loops
         const currentAddrStr = `${address.line1}-${address.city}-${address.state}-${address.postal_code}`;
-        if (!isComplete || currentAddrStr === lastValidatedAddress) {
+        
+        if (!isComplete) {
+            setIsCalculatingShipping(false);
+            setLastValidatedAddress(""); // Reset so it can be re-validated if fixed
             return;
         }
 
+        if (currentAddrStr === lastValidatedAddress) {
+            return;
+        }
+
+        const callId = ++latestCallRef.current;
         setLastValidatedAddress(currentAddrStr);
         setIsCalculatingShipping(true);
 
@@ -123,6 +132,9 @@ const Checkout = () => {
             }
 
             setShippingRates(rates);
+ 
+            // If this is not the latest call, ignore the results to avoid race conditions
+            if (callId !== latestCallRef.current) return;
 
             // Auto-select the first (cheapest) rate by default from the FILTERED list
             if (rates && rates.length > 0) {

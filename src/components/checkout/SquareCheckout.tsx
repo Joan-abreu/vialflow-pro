@@ -98,6 +98,12 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         }
     };
 
+    const handleStreetManualChange = (val: string) => {
+        const newState = { ...addressState, line1: val };
+        setAddressState(newState);
+        if (onAddressChange) onAddressChange(newState);
+    };
+
     const handleAddressAutocompleteSelect = (addr: any) => {
         const selectedAddress = {
             ...addressState,
@@ -169,10 +175,27 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             return;
         }
 
+        // --- STRICT VALIDATION ---
+        const isAddressComplete = addressState.line1.length > 5 && 
+                                 addressState.city.length > 2 && 
+                                 addressState.state.length >= 2 && 
+                                 addressState.postal_code.length >= 5;
+
+        if (!isAddressComplete) {
+            toast.error("Please provide a complete shipping address (Street, City, State, ZIP).");
+            return;
+        }
+
         if (!shippingService) {
             toast.error("Please select a shipping method before paying.");
             return;
         }
+
+        if (!shippingCost || shippingCost <= 0) {
+            toast.error("Shipping cost must be calculated and greater than $0.00.");
+            return;
+        }
+        // -------------------------
 
         setLoading(true);
 
@@ -299,6 +322,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                             <AddressAutocomplete
                                 value={addressState.line1}
                                 onSelectAddress={handleAddressAutocompleteSelect}
+                                onChange={handleStreetManualChange}
                                 placeholder="Search for an address (UPS / Google Maps style)..."
                                 className="w-full"
                             />
@@ -358,18 +382,18 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                 <CreditCard 
                                     buttonProps={{
                                         css: {
-                                            backgroundColor: (isCalculating || !shippingService) ? '#cccccc' : 'hsl(var(--primary))',
+                                            backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary))',
                                             color: '#fff',
-                                            cursor: (isCalculating || !shippingService) ? 'not-allowed' : 'pointer',
-                                            pointerEvents: (isCalculating || !shippingService) ? 'none' : 'auto',
+                                            cursor: (isCalculating || !shippingService || shippingCost <= 0) ? 'not-allowed' : 'pointer',
+                                            pointerEvents: (isCalculating || !shippingService || shippingCost <= 0) ? 'none' : 'auto',
                                             fontFamily: 'Inter, sans-serif',
                                             '&:hover': {
-                                                backgroundColor: (isCalculating || !shippingService) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
+                                                backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
                                             }
                                         }
                                     }}
                                 >
-                                    {isCalculating ? "Calculating Shipping..." : !shippingService ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
+                                    {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost <= 0 ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
                                 </CreditCard>
                             </PaymentForm>
                         )}

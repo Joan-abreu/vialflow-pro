@@ -150,7 +150,7 @@ export class ShippoCarrier implements ICarrier {
             }
 
             const transactionId = rawResponse.object_id;
-            let carrierAccountId = rawResponse.carrier_account;
+            let carrierAccountId = typeof rawResponse.carrier_account === 'object' ? rawResponse.carrier_account?.object_id : rawResponse.carrier_account;
 
             // If not directly in base response, attempt to get it from the rate
             if (!carrierAccountId) {
@@ -159,7 +159,7 @@ export class ShippoCarrier implements ICarrier {
                     const rateRes = await fetch(`${this.apiUrl}rates/${rateId}/`, { headers: this.getHeaders() });
                     if (rateRes.ok) {
                         const rateData = await rateRes.json();
-                        carrierAccountId = rateData.carrier_account;
+                        carrierAccountId = typeof rateData.carrier_account === 'object' ? rateData.carrier_account?.object_id : rateData.carrier_account;
                     }
                 }
             }
@@ -210,8 +210,8 @@ export class ShippoCarrier implements ICarrier {
                     building_type: "building",
                     instructions: pickup.instructions || "Please pick up from the main entrance.",
                     address: {
-                        name: address.name || "Shipper",
-                        company: address.company || address.name || "Company",
+                        name: address.name || this.settings.shipper_name || "Liv Well Research Labs",
+                        company: address.company || address.name || this.settings.shipper_name || "Liv Well Research Labs",
                         street1: address.line1 || address.street1 || "Street",
                         city: address.city || "City",
                         state: mapState(address.state_code || address.state),
@@ -222,8 +222,8 @@ export class ShippoCarrier implements ICarrier {
                     }
                 },
                 transactions: [transactionId],
-                requested_start_time: pickup.readyTime.endsWith("Z") ? pickup.readyTime : pickup.readyTime + "Z",
-                requested_end_time: pickup.closeTime.endsWith("Z") ? pickup.closeTime : pickup.closeTime + "Z",
+                requested_start_time: pickup.readyTime,
+                requested_end_time: pickup.closeTime,
                 is_batch: false
             };
 
@@ -236,7 +236,17 @@ export class ShippoCarrier implements ICarrier {
             const data = await response.json();
             
             if (!response.ok) {
-                return { success: false, confirmationNumber: "", rawResponse: { ...data, error: `Shippo HTTP Error: ${response.status} ${response.statusText}` } };
+                const shippoError = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
+                                   (typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
+                
+                return { 
+                    success: false, 
+                    confirmationNumber: "", 
+                    rawResponse: { 
+                        ...data, 
+                        error: `Shippo Error (${response.status}): ${shippoError}` 
+                    } 
+                };
             }
 
             // Shippo responds with "SUCCESS", "PENDING", or "ERROR" on the status prop

@@ -103,7 +103,12 @@ const handler = async (req: Request): Promise<Response> => {
                             width: data.packages?.[0]?.width,
                             height: data.packages?.[0]?.height,
                             dimension_unit: "IN",
-                            ship_from: carrierSettings.shipper_address || DEFAULT_SHIPPER.address,
+                            ship_from: {
+                                ...(carrierSettings.shipper_address || DEFAULT_SHIPPER.address),
+                                name: carrierSettings.shipper_name || DEFAULT_SHIPPER.name,
+                                phone: carrierSettings.shipper_phone || DEFAULT_SHIPPER.phone,
+                                email: carrierSettings.shipper_email || "sales@livwellresearchlabs.com"
+                            },
                             ship_to: data.recipient,
                             shipping_cost: result.shippingCost,
                             total_cost: result.totalCost,

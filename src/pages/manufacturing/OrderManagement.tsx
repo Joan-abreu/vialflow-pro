@@ -309,11 +309,21 @@ const OrderManagement = () => {
     const filteredOrders = orders?.filter((order) => {
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
-        return (
+        
+        // Search in order fields
+        const matchesOrder = (
             order.id.toLowerCase().includes(query) ||
-            order.customer_email.toLowerCase().includes(query) ||
-            order.status.toLowerCase().includes(query)
+            order.customer_email?.toLowerCase().includes(query) ||
+            order.status.toLowerCase().includes(query) ||
+            (order.tracking_number && order.tracking_number.toLowerCase().includes(query))
         );
+
+        // Search in shipment tracking numbers
+        const matchesShipments = order.order_shipments?.some(shipment => 
+            shipment.tracking_number?.toLowerCase().includes(query)
+        );
+
+        return matchesOrder || matchesShipments;
     });
 
     return (
@@ -334,7 +344,7 @@ const OrderManagement = () => {
                         <div className="flex items-center gap-2 w-full md:w-72">
                             <Search className="w-4 h-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search orders..."
+                                placeholder="Search by ID, email, or tracking #"
                                 value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);

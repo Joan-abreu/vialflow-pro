@@ -52,7 +52,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [pickupDate, setPickupDate] = useState<string>("");
     const [pickupReadyTime, setPickupReadyTime] = useState<string>("09:00");
     const [pickupCloseTime, setPickupCloseTime] = useState<string>("17:00");
-    const [pickupInstructions, setPickupInstructions] = useState<string>("");
+    const [pickupInstructions, setPickupInstructions] = useState<string>("Open door from street");
     const [pickupConfirmation, setPickupConfirmation] = useState<string>("");
 
     useEffect(() => {
@@ -241,7 +241,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setPickupDate("");
             setPickupReadyTime("09:00");
             setPickupCloseTime("17:00");
-            setPickupInstructions("");
+            setPickupInstructions("Open door from street");
             setPickupConfirmation("");
         }
     }, [open]);
@@ -487,9 +487,11 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
         setLoading(true);
         try {
-            // FedEx prefers YYYY-MM-DDTHH:mm:ss format, implied local time of pickup address
-            const readyISO = `${pickupDate}T${pickupReadyTime}:00`;
-            const closeISO = `${pickupDate}T${pickupCloseTime}:00`;
+            const readyDate = new Date(`${pickupDate}T${pickupReadyTime}:00`);
+            const closeDate = new Date(`${pickupDate}T${pickupCloseTime}:00`);
+            
+            const readyISO = readyDate.toISOString();
+            const closeISO = closeDate.toISOString();
 
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
@@ -514,7 +516,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             }
 
             if (!data.data?.success) {
-                const errMsg = data.data?.rawResponse?.error || "Failed to schedule pickup with this carrier.";
+                const errMsg = data.data?.rawResponse?.error || data.error || "Failed to schedule pickup with this carrier.";
                 throw new Error(errMsg);
             }
 

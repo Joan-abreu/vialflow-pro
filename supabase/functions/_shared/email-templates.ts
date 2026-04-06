@@ -135,6 +135,69 @@ export function getEmailTemplate(
     `.trim();
 }
 
+export function getSimpleEmailTemplate(data: {
+    title: string;
+    message: string;
+    buttonText?: string;
+    buttonUrl?: string;
+}): string {
+    const cfg = defaultConfig;
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background-color: #ffffff;
+        }
+        .content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            font-size: 13px;
+            color: #6b7280;
+            border-top: 1px solid #f3f4f6;
+        }
+        .footer a {
+            color: ${cfg.primaryColor};
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1 style="color: #111827; margin-top: 0; font-size: 20px;">${data.title}</h1>
+        <div style="white-space: pre-wrap;">
+            ${data.message}
+        </div>
+        
+        ${data.buttonText && data.buttonUrl ? `
+            <a href="${data.buttonUrl}" style="display: inline-block; padding: 10px 20px; background-color: #3B82F6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0;">${data.buttonText}</a>
+        ` : ''}
+
+        <div class="footer">
+            <p>
+                <strong>Liv Well Research Labs</strong><br>
+                <a href="mailto:sales@livwellresearchlabs.com">sales@livwellresearchlabs.com</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `.trim();
+}
+
 export function getOrderConfirmationEmail(orderData: {
     orderNumber: string;
     customerName: string;

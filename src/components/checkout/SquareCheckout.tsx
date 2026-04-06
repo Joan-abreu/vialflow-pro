@@ -20,14 +20,17 @@ interface SquareCheckoutProps {
     estimatedDays?: number;
     tax: number;
     onAddressChange?: (address: any) => void;
-    externalAddress?: any; 
+    externalAddress?: any;
     isCalculating?: boolean;
+    hideAddress?: boolean;
+    hideShipping?: boolean;
+    hidePayment?: boolean;
 }
 
 const appId = import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
 
-const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating }: SquareCheckoutProps) => {
+const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment }: SquareCheckoutProps) => {
     const { items } = useCart();
     
     const [loading, setLoading] = useState(false);
@@ -85,7 +88,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             }
         };
         fetchUserAndProfile();
-    }, []);
+    }, [onAddressChange]);
 
     const handleAddressInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -167,7 +170,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             if (onAddressChange) onAddressChange(addressState);
         }, 1000);
         return () => clearTimeout(timeout);
-    }, [addressState]);
+    }, [addressState, onAddressChange]);
 
     const handleSquarePayment = async (token: string) => {
         if (isCalculating) {
@@ -313,7 +316,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     return (
         <div className="space-y-6">
             <CardContent className="space-y-6 px-0">
-                {/* Custom Address Collection */}
+                {!hideAddress && (
+                /* Custom Address Collection */
                 <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-foreground/80">Shipping Address</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -357,48 +361,51 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                         </div>
                     )}
                 </div>
+)}
 
-                {/* Square Web SDK */}
-                <div className="space-y-4">
-                    <h3 className="text-sm font-medium">Payment Details</h3>
-                    <div className="bg-white p-4 rounded-md border min-h-[120px]">
-                        {appId.includes("your-app-id") || locationId.includes("location-id") ? (
-                            <div className="flex flex-col items-center justify-center text-center p-4 text-orange-600 bg-orange-50 rounded">
-                                <p className="font-semibold">Square API Keys Missing</p>
-                                <p className="text-sm">Please set VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID in your .env file to view the payment form.</p>
-                            </div>
-                        ) : (
-                            <PaymentForm
-                                applicationId={appId}
-                                locationId={locationId}
-                                cardTokenizeResponseReceived={((token: any) => {
-                                    if (token.status === "OK") {
-                                        handleSquarePayment(token.token);
-                                    } else {
-                                        toast.error(token.errors?.[0]?.message || "Could not validate card");
-                                    }
-                                }) as any}
-                            >
-                                <CreditCard 
-                                    buttonProps={{
-                                        css: {
-                                            backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary))',
-                                            color: '#fff',
-                                            cursor: (isCalculating || !shippingService || shippingCost <= 0) ? 'not-allowed' : 'pointer',
-                                            pointerEvents: (isCalculating || !shippingService || shippingCost <= 0) ? 'none' : 'auto',
-                                            fontFamily: 'Inter, sans-serif',
-                                            '&:hover': {
-                                                backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
-                                            }
+                {!hidePayment && (
+                    /* Square Web SDK */
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium">Payment Details</h3>
+                        <div className="bg-white p-4 rounded-md border min-h-[120px]">
+                            {appId.includes("your-app-id") || locationId.includes("location-id") ? (
+                                <div className="flex flex-col items-center justify-center text-center p-4 text-orange-600 bg-orange-50 rounded">
+                                    <p className="font-semibold">Square API Keys Missing</p>
+                                    <p className="text-sm">Please set VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID in your .env file to view the payment form.</p>
+                                </div>
+                            ) : (
+                                <PaymentForm
+                                    applicationId={appId}
+                                    locationId={locationId}
+                                    cardTokenizeResponseReceived={((token: any) => {
+                                        if (token.status === "OK") {
+                                            handleSquarePayment(token.token);
+                                        } else {
+                                            toast.error(token.errors?.[0]?.message || "Could not validate card");
                                         }
-                                    }}
+                                    }) as any}
                                 >
-                                    {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost <= 0 ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
-                                </CreditCard>
-                            </PaymentForm>
-                        )}
+                                    <CreditCard 
+                                        buttonProps={{
+                                            css: {
+                                                backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary))',
+                                                color: '#fff',
+                                                cursor: (isCalculating || !shippingService || shippingCost <= 0) ? 'not-allowed' : 'pointer',
+                                                pointerEvents: (isCalculating || !shippingService || shippingCost <= 0) ? 'none' : 'auto',
+                                                fontFamily: 'Inter, sans-serif',
+                                                '&:hover': {
+                                                    backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost <= 0 ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
+                                    </CreditCard>
+                                </PaymentForm>
+                            )}
+                        </div>
                     </div>
-                </div>
+)}
             </CardContent>
             {loading && (
                 <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10 rounded-lg">

@@ -323,10 +323,48 @@ export class ShippoCarrier implements ICarrier {
             const isValid = data.validation_results?.is_valid;
             const messages = data.validation_results?.messages || [];
             const resultMsg = messages.map((m: any) => m.text).join(", ");
+            
+            const suggestions = [];
+            // If the address was corrected, add the corrected one as a suggestion
+            const inputL1 = (address.line1 || "").toLowerCase().trim();
+            const inputL2 = (address.line2 || "").toLowerCase().trim();
+            const outL1 = (data.street1 || "").toLowerCase().trim();
+            const outL2 = (data.street2 || "").toLowerCase().trim();
+
+            const isMismatch = outL1 !== inputL1 || outL2 !== inputL2 || 
+                             data.city?.toLowerCase() !== address.city?.toLowerCase() ||
+                             data.state?.toLowerCase() !== address.state?.toLowerCase() ||
+                             data.zip?.toLowerCase() !== address.postal_code?.toLowerCase();
+
+            if (isValid && isMismatch) {
+                let s1 = data.street1;
+                let s2 = data.street2 || "";
+
+                // If street2 is empty but street1 seems to contain a suite/apt/unit, 
+                // try to split it to keep the form clean if the user originally had a 2-line format.
+                if (!s2 && inputL2) {
+                    const suiteRegex = /(?:\s+)(APT|STE|SUITE|UNIT|#|FL|ROOM|RM|BLDG|BUILDING|LOT|PO BOX)(\s+.*)$/i;
+                    const match = s1.match(suiteRegex);
+                    if (match) {
+                        s2 = match[0].trim();
+                        s1 = s1.replace(match[0], "").trim();
+                    }
+                }
+
+                suggestions.push({
+                    line1: s1,
+                    line2: s2,
+                    city: data.city,
+                    state: data.state,
+                    postal_code: data.zip,
+                    country: data.country || "US",
+                    source: "Shippo"
+                });
+            }
 
             return {
-                valid: !!isValid,
-                suggestions: [], 
+                valid: !!isValid && suggestions.length === 0,
+                suggestions: suggestions, 
                 note: resultMsg || (isValid ? "Address is valid according to Shippo/USPS" : "Address not found or invalid.")
             };
         } catch (error: any) {

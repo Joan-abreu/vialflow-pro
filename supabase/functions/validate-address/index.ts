@@ -47,46 +47,56 @@ serve(async (req) => {
         
         let result: any = { valid: true, suggestions: [], note: "Validation skipped (no suitable carrier found)" };
 
-        // 1. Try UPS first (usually more detailed validation)
-        if (upsSettings && upsSettings.client_id && upsSettings.client_secret) {
-            try {
-                const ups = new UPSCarrier(upsSettings);
-                const upsResult = await ups.validateAddress(address);
-                const normalizedUps = {
-                    valid: upsResult.valid,
-                    suggestions: upsResult.suggestions || [],
-                    note: upsResult.valid ? "Address verified by UPS" : "UPS: Address not found or invalid."
-                };
-
-                if (normalizedUps.valid === false) {
-                    return new Response(
-                        JSON.stringify(normalizedUps),
-                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                    )
-                }
-                result = normalizedUps;
-            } catch (e: any) {
-                console.warn("UPS validation failed, trying fallback:", e.message);
-            }
-        }
-
-        // 2. Try Shippo if UPS found it invalid or skipped
+        // 1. Try Shippo first (requested by user for stability)
         if (shippoSettings && shippoSettings.api_key) {
             try {
                 const shippo = new ShippoCarrier(shippoSettings);
                 const shippoResult = await shippo.validateAddress(address);
                 
-                // If Shippo says it's invalid, return that immediately
-                if (shippoResult.valid === false) {
-                    return new Response(
-                        JSON.stringify(shippoResult),
-                        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                    )
-                }
-                // If UPS was skipped but Shippo succeeded, use Shippo's result
-                result = shippoResult;
+                result = {
+                    valid: shippoResult.valid,
+                    suggestions: shippoResult.suggestions || [],
+                    note: shippoResult.note || "Validation by Shippo"
+                };
+
+                // If Shippo says it's perfectly valid, we might still want UPS to double-check if available
             } catch (e: any) {
                 console.warn("Shippo validation failed:", e.message);
+            }
+        }
+
+        // 2. Try UPS as second source or correction
+        if (upsSettings && upsSettings.client_id && upsSettings.client_secret) {
+            try {
+                const ups = new UPSCarrier(upsSettings);
+                const upsResult = await ups.validateAddress(address);
+                
+                // If result was already valid but UPS has MORE suggestions, merge them
+                // Or if Shippo failed, use UPS
+                if (result.valid === false || result.suggestions.length === 0) {
+                   const normalizedUpsSugg = (upsResult.suggestions || []).map((s: any) => {
+                       const sugg = s.AddressKeyFormat;
+                       const line = Array.isArray(sugg?.AddressLine) ? sugg.AddressLine.join(', ') : (sugg?.AddressLine || "");
+                       return {
+                            line1: line,
+                            city: sugg?.PoliticalDivision2 || '',
+                            state: sugg?.PoliticalDivision1 || '',
+                            postal_code: sugg?.PostcodePrimaryLow || '',
+                            country: sugg?.CountryCode || 'US',
+                            source: "UPS"
+                       };
+                   });
+
+                   result.suggestions = [...result.suggestions, ...normalizedUpsSugg];
+                   
+                   // If UPS says it's invalid but Shippo didn't have a verdict yet, or UPS found a hard error
+                   if (upsResult.valid === false) {
+                       result.valid = false;
+                       result.note = (upsResult as any).note || result.note || "UPS could not verify this address.";
+                   }
+                }
+            } catch (e: any) {
+                console.warn("UPS validation failed:", e.message);
             }
         }
 

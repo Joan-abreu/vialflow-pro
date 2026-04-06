@@ -7,6 +7,7 @@ import {
     getLowStockAlertEmail,
     getUserInvitationEmail,
     getGenericNotificationEmail,
+    getSimpleEmailTemplate,
     getContactFormEmail,
     getSignupConfirmationEmail
 } from "../_shared/email-templates.ts";
@@ -28,7 +29,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form" | "signup_confirmation";
+  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form" | "signup_confirmation" | "manual";
   recipient: string | string[];
   data: any;
   related_id?: string;
@@ -209,6 +210,15 @@ const handler = async (req: Request): Promise<Response> => {
         subject = data.subject || "System Notification";
         htmlContent = getGenericNotificationEmail(data);
         break;
+      case "manual":
+        subject = data.subject || "Important Update From Liv Well Research Labs";
+        htmlContent = getGenericNotificationEmail({
+            title: data.title || subject,
+            message: data.message || "",
+            buttonText: data.buttonText,
+            buttonUrl: data.buttonUrl
+        });
+        break;
       case "contact_form":
         subject = `New Web Inquiry: ${data.subject}`;
         htmlContent = getContactFormEmail(data);
@@ -220,7 +230,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let fromEmail = FROM_EMAIL;
-    if (["order_confirmation", "order_status_update", "admin_order_notification"].includes(type)) {
+    if (["order_confirmation", "order_status_update", "admin_order_notification", "manual"].includes(type)) {
       fromEmail = FROM_SALES_EMAIL;
     }
 
@@ -235,7 +245,13 @@ const handler = async (req: Request): Promise<Response> => {
         from: fromEmail,
         to: finalRecipients,
         subject,
-        html: htmlContent,
+        html: htmlContent || undefined,
+        text: (data as any).textContent || undefined,
+        headers: {
+            "Importance": "high",
+            "X-Priority": "1",
+            "X-MSMail-Priority": "High"
+        }
       }),
     });
 

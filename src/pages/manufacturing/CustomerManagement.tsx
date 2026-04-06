@@ -27,6 +27,8 @@ import { Loader2, UserX, UserCheck, Trash2, User } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
+import { Mail } from "lucide-react";
 
 interface UserWithRole {
     id: string;
@@ -348,8 +350,22 @@ const CustomerManagement = () => {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-1">
+                                                        <SendEmailDialog 
+                                                            recipientEmail={user.email} 
+                                                            recipientName={user.full_name || user.display_name}
+                                                            trigger={
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="sm" 
+                                                                    title="Send Email"
+                                                                    className="h-8 w-8 text-primary"
+                                                                >
+                                                                    <Mail className="h-4 w-4" />
+                                                                </Button>
+                                                            }
+                                                        />
                                                         <Button
-                                                            variant="ghost"
+                                                            variant="ghost" 
                                                             size="sm"
                                                             onClick={() => handleToggleUserStatus(user)}
                                                             disabled={togglingStatus === user.id}

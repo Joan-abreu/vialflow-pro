@@ -35,8 +35,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2 } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
+import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
+import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 
 interface OrderItem {
     id: string;
@@ -398,6 +400,21 @@ const OrderManagement = () => {
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
+                                                    <SendEmailDialog 
+                                                        recipientEmail={order.customer_email} 
+                                                        recipientName={order.customer_email?.split('@')[0]}
+                                                        relatedId={order.id}
+                                                        trigger={
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="icon" 
+                                                                title="Send Email"
+                                                                className="h-8 w-8 text-primary"
+                                                            >
+                                                                <Mail className="h-4 w-4" />
+                                                            </Button>
+                                                        }
+                                                    />
                                                     <Select
                                                         value={order.status}
                                                         onValueChange={(value) => handleStatusChange(order.id, value)}
@@ -538,13 +555,32 @@ const OrderManagement = () => {
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <h4 className="font-semibold text-sm text-muted-foreground mb-1">Customer Info</h4>
+                                    <h4 className="font-semibold text-sm text-muted-foreground mb-1 flex items-center gap-2">
+                                        Customer Info
+                                        <SendEmailDialog 
+                                            recipientEmail={selectedOrder.customer_email} 
+                                            recipientName={selectedOrder.customer_email?.split('@')[0]}
+                                            relatedId={selectedOrder.id}
+                                            trigger={
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                    <Mail className="h-3 w-3 text-primary" />
+                                                </Button>
+                                            }
+                                        />
+                                    </h4>
                                     <p className="text-sm">{selectedOrder.customer_email}</p>
                                     {selectedOrder.shipping_address && (
                                         <div className="mt-2 text-sm text-muted-foreground">
                                             <p>{selectedOrder.shipping_address.line1}</p>
                                             <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} {selectedOrder.shipping_address.postal_code}</p>
                                             <p>{selectedOrder.shipping_address.country}</p>
+                                            <div className="mt-2">
+                                                <EditAddressDialog 
+                                                    orderId={selectedOrder.id} 
+                                                    currentAddress={selectedOrder.shipping_address} 
+                                                    onSuccess={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                     <div className="mt-4">

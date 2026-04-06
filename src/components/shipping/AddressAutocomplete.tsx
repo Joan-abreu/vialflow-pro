@@ -153,18 +153,39 @@ export const AddressAutocomplete = ({
                             </div>
                         )}
                         <CommandGroup>
-                            {suggestions.map((suggestion, index) => (
-                                <CommandItem
-                                    key={index}
-                                    onSelect={() => handleSelect(suggestion)}
-                                    className="cursor-pointer flex items-start gap-2 py-3"
-                                >
-                                    <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-                                    <span className="text-sm line-clamp-2 leading-relaxed">
-                                        {suggestion.display_name}
-                                    </span>
-                                </CommandItem>
-                            ))}
+                            {suggestions.map((suggestion, index) => {
+                                const addr = suggestion.address;
+                                const main = [addr.house_number, addr.road].filter(Boolean).join(" ") || 
+                                             suggestion.display_name.split(',')[0];
+                                const details = suggestion.display_name
+                                    .replace(main, "")
+                                    .replace(/^,\s*/, "")
+                                    .split(",")
+                                    .filter(s => {
+                                        const val = s.trim();
+                                        // Skip duplicates of main or redundant county info if possible, but keep it clean
+                                        return val && val !== main;
+                                    })
+                                    .join(", ");
+
+                                return (
+                                    <CommandItem
+                                        key={index}
+                                        onSelect={() => handleSelect(suggestion)}
+                                        className="cursor-pointer flex items-start gap-2 py-3 px-4 hover:bg-accent"
+                                    >
+                                        <MapPin className="h-4 w-4 mt-1 shrink-0 text-primary/60" />
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-sm font-semibold text-foreground">
+                                                {main}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground line-clamp-1">
+                                                {details}
+                                            </span>
+                                        </div>
+                                    </CommandItem>
+                                );
+                            })}
                         </CommandGroup>
                     </CommandList>
                 </Command>

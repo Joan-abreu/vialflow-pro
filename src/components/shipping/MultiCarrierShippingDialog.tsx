@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Package, Truck, Calendar, Download } from "lucide-react";
+import { Loader2, Package, Truck, Calendar, Download, Edit2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { DEFAULT_SHIPPER } from "@/lib/constants";
 import { TrackingDialog } from "./TrackingDialog";
+import { EditAddressDialog } from "./EditAddressDialog";
 
 interface ShippingDialogProps {
     orderId: string;
@@ -656,6 +657,22 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         <p className="font-medium">{recipient?.name || "Customer"}</p>
                         <p>{recipient?.line1}</p>
                         <p>{recipient?.city}, {recipient?.state} {recipient?.postal_code || recipient?.zip}</p>
+                        <div className="pt-1">
+                             <EditAddressDialog 
+                                orderId={orderId} 
+                                currentAddress={recipient} 
+                                onSuccess={() => {
+                                    calculateTotalWeight(); // This refreshes the 'order' state and recalculates weights
+                                    onSuccess?.(); // Refresh parent view if needed
+                                }}
+                                trigger={
+                                    <Button variant="link" size="sm" className="h-4 p-0 text-[10px] text-primary hover:text-primary/80">
+                                        <Edit2 className="h-2.5 w-2.5 mr-1" />
+                                        Correct Address
+                                    </Button>
+                                }
+                            />
+                        </div>
                     </div>
                     <div className="col-span-1 md:col-span-2 pt-2 border-t mt-1 space-y-2">
                         <div className="flex justify-between items-center text-[10px] bg-primary/5 p-2 rounded border border-primary/10">

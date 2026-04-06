@@ -27,6 +27,8 @@ const Checkout = () => {
     const [addressSuggestion, setAddressSuggestion] = useState<any>(null);
     const [lastValidatedAddress, setLastValidatedAddress] = useState<string>("");
     const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
+    const [isValidatingAddress, setIsValidatingAddress] = useState(false);
+    const [isValidAddress, setIsValidAddress] = useState(false);
     const latestCallRef = useRef<number>(0);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
@@ -44,6 +46,8 @@ const Checkout = () => {
         setShippingEstimatedDays(undefined);
         setShippingRates([]);
         setAddressSuggestion(null);
+        setIsValidAddress(false);
+        setIsValidatingAddress(false);
 
         // Guard: Only proceed if address is "complete enough" to avoid jitter while typing
         const isComplete = (address.line1?.length > 5) && 
@@ -66,24 +70,23 @@ const Checkout = () => {
 
         const callId = ++latestCallRef.current;
         setLastValidatedAddress(currentAddrStr);
-        setIsCalculatingShipping(true);
+        setIsValidatingAddress(true);
 
         try {
-            // Validate address first to give user feedback
+            // STEP 1: Strict Address Validation
             const { data: valData, error: valErr } = await supabase.functions.invoke('validate-address', {
                 body: { address }
             });
 
-            console.log("Address Validation Result:", valData);
-
-            if (valErr) {
-               console.warn("Address validation error:", valErr);
-            } else if (valData && !valData.valid) {
-               console.log("Address is invalid, checking suggestions:", valData.suggestions);
-               if (valData.suggestions && valData.suggestions.length > 0) {
+            if (callId !== latestCallRef.current) return;
+            
+            if (valErr || !valData?.valid) {
+               setIsValidAddress(false);
+               setIsValidatingAddress(false);
+               
+               if (valData?.suggestions && valData.suggestions.length > 0) {
                    const sugg = valData.suggestions[0].AddressKeyFormat;
-                   
-                   // Prepare normalized suggestion for easy application
+                   // Prepare normalized suggestion
                    const line = Array.isArray(sugg?.AddressLine) ? sugg.AddressLine.join(', ') : (sugg?.AddressLine || "");
                    const suggestionObj = {
                        line1: line,
@@ -92,12 +95,17 @@ const Checkout = () => {
                        postal_code: sugg?.PostcodePrimaryLow || '',
                        country: sugg?.CountryCode || 'US'
                    };
-                   
                    setAddressSuggestion(suggestionObj);
-                   toast.info("UPS found a more accurate version of your address.");
-               }
+                }
+                return;
             }
 
+            // At this point, address is valid
+            setIsValidAddress(true);
+            setIsValidatingAddress(false);
+            setIsCalculatingShipping(true);
+
+            // STEP 2: Calculate Shipping only if valid
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
                 body: { 
                     weight: totalWeight, 
@@ -112,6 +120,7 @@ const Checkout = () => {
                 }
             });
 
+            if (callId !== latestCallRef.current) return;
             if (error) throw error;
 
             console.log("Shipping Rates:", data.rates);
@@ -150,23 +159,16 @@ const Checkout = () => {
             }
         } catch (error: any) {
             console.error("Error calculating shipping:", error);
-            // Attempt to extract the error payload from the edge function response
+            if (callId !== latestCallRef.current) return;
+            
             let errorMsg = "Error calculating shipping rates.";
-            
-            try {
-                if (error.context && typeof error.context.json === 'function') {
-                    const errorData = await error.context.json();
-                    if (errorData.error) errorMsg = errorData.error;
-                } else if (error.message && error.message.includes("Carrier errors")) {
-                    errorMsg = error.message;
-                }
-            } catch (e) {
-                console.error("Failed to parse edge function error", e);
-            }
-            
+            if (error.message) errorMsg = error.message;
             toast.error(errorMsg);
         } finally {
-            setIsCalculatingShipping(false);
+            if (callId === latestCallRef.current) {
+                setIsCalculatingShipping(false);
+                setIsValidatingAddress(false);
+            }
         }
     };
 
@@ -261,7 +263,7 @@ const Checkout = () => {
                             tax={0}
                             onAddressChange={handleAddressChange}
                             externalAddress={externalAddressUpdate}
-                            isCalculating={isCalculatingShipping}
+                            isCalculating={isCalculatingShipping || isValidatingAddress}
                         />
                         
                         {addressSuggestion && (
@@ -289,12 +291,22 @@ const Checkout = () => {
                             </div>
                         )}
 
+                        {isValidatingAddress && (
+                            <div className="mt-8 pt-8 border-t flex flex-col items-center justify-center text-center space-y-3">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium">Verifying Address...</p>
+                                    <p className="text-xs text-muted-foreground">Ensuring your destination exists in carrier networks.</p>
+                                </div>
+                            </div>
+                        )}
+
                         {isCalculatingShipping && (
                             <div className="mt-8 pt-8 border-t flex flex-col items-center justify-center text-center space-y-3">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
                                 <div className="space-y-1">
-                                    <p className="text-sm font-medium">Calculating Shipping Rates</p>
-                                    <p className="text-xs text-muted-foreground">Contacting carriers for the best prices...</p>
+                                    <p className="text-sm font-medium">Calculating Shipping Rates...</p>
+                                    <p className="text-xs text-muted-foreground">Getting the best prices for your valid address.</p>
                                 </div>
                             </div>
                         )}
@@ -344,11 +356,15 @@ const Checkout = () => {
                                 {/* Shipping Selection */}
                                 <div className="py-2 mt-6">
                                     <p className="font-semibold text-sm mb-2">Shipping Method</p>
-                                    {isCalculatingShipping ? (
-                                        <div className="flex items-center text-sm text-muted-foreground">
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating...
+                                    {isValidatingAddress ? (
+                                        <div className="flex items-center text-sm text-muted-foreground italic">
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying address components...
                                         </div>
-                                    ) : shippingRates.length > 0 ? (
+                                    ) : isCalculatingShipping ? (
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching real-time rates...
+                                        </div>
+                                    ) : isValidAddress && shippingRates.length > 0 ? (
                                         <div className="space-y-2">
                                             {shippingRates.map((rate, idx) => (
                                                 <div
@@ -372,7 +388,9 @@ const Checkout = () => {
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-muted-foreground italic">Enter address to see rates</p>
+                                        <p className="text-sm text-muted-foreground italic">
+                                            {lastValidatedAddress ? "Enter a perfect address to see shipping rates." : "Enter address details to see shipping options."}
+                                        </p>
                                     )}
                                 </div>
                                 <div className="flex justify-between font-bold text-lg pt-2 border-t">

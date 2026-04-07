@@ -355,10 +355,17 @@ const Checkout = () => {
                             {step !== 'payment' && (
                                 <Button 
                                     onClick={nextStep} 
-                                    disabled={!canGoNext()}
+                                    disabled={!canGoNext() || isValidating}
                                     className="px-8 font-semibold shadow-lg hover:scale-105 active:scale-95 transition-all"
                                 >
-                                    {step === 'address' ? 'Select Shipping' : 'Continue to Payment'}
+                                    {step === 'address' ? (
+                                        isValidating ? (
+                                            <div className="flex items-center gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Verifying...</span>
+                                            </div>
+                                        ) : 'Select Shipping'
+                                    ) : 'Continue to Payment'}
                                 </Button>
                             )}
                         </div>

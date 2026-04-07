@@ -42,61 +42,20 @@ serve(async (req) => {
             )
         }
 
-        const upsSettings = carriersData.find(c => c.carrier === 'UPS');
         const shippoSettings = carriersData.find(c => c.carrier === 'SHIPPO');
         
-        let result: any = { valid: true, suggestions: [], note: "Validation skipped (no suitable carrier found)" };
+        let result: any = { valid: true, suggestions: [], note: "Validation skipped (no Shippo carrier found)" };
 
-        // 1. Try Shippo first (requested by user for stability)
+        // USE SHIPPO V2 EXCLUSIVELY
         if (shippoSettings && shippoSettings.api_key) {
             try {
                 const shippo = new ShippoCarrier(shippoSettings);
                 const shippoResult = await shippo.validateAddress(address);
                 
-                result = {
-                    valid: shippoResult.valid,
-                    suggestions: shippoResult.suggestions || [],
-                    note: shippoResult.note || "Validation by Shippo"
-                };
-
-                // If Shippo says it's perfectly valid, we might still want UPS to double-check if available
+                result = shippoResult;
             } catch (e: any) {
                 console.warn("Shippo validation failed:", e.message);
-            }
-        }
-
-        // 2. Try UPS as second source or correction
-        if (upsSettings && upsSettings.client_id && upsSettings.client_secret) {
-            try {
-                const ups = new UPSCarrier(upsSettings);
-                const upsResult = await ups.validateAddress(address);
-                
-                // If result was already valid but UPS has MORE suggestions, merge them
-                // Or if Shippo failed, use UPS
-                if (result.valid === false || result.suggestions.length === 0) {
-                   const normalizedUpsSugg = (upsResult.suggestions || []).map((s: any) => {
-                       const sugg = s.AddressKeyFormat;
-                       const line = Array.isArray(sugg?.AddressLine) ? sugg.AddressLine.join(', ') : (sugg?.AddressLine || "");
-                       return {
-                            line1: line,
-                            city: sugg?.PoliticalDivision2 || '',
-                            state: sugg?.PoliticalDivision1 || '',
-                            postal_code: sugg?.PostcodePrimaryLow || '',
-                            country: sugg?.CountryCode || 'US',
-                            source: "UPS"
-                       };
-                   });
-
-                   result.suggestions = [...result.suggestions, ...normalizedUpsSugg];
-                   
-                   // If UPS says it's invalid but Shippo didn't have a verdict yet, or UPS found a hard error
-                   if (upsResult.valid === false) {
-                       result.valid = false;
-                       result.note = (upsResult as any).note || result.note || "UPS could not verify this address.";
-                   }
-                }
-            } catch (e: any) {
-                console.warn("UPS validation failed:", e.message);
+                result.note = `Shippo validation error: ${e.message}`;
             }
         }
 

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
-import { AddressAutocomplete } from "@/components/shipping/AddressAutocomplete";
+
 
 interface SquareCheckoutProps {
     amount: number;
@@ -59,8 +59,10 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     });
 
     useEffect(() => {
+        let isMounted = true;
         const fetchUserAndProfile = async () => {
             const { data: { user } } = await supabase.auth.getUser();
+            if (!isMounted) return;
             setUser(user);
 
             if (user) {
@@ -70,7 +72,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .eq('user_id', user.id)
                     .single();
 
-                if (profile && profile.address_line1) {
+                if (profile && profile.address_line1 && isMounted) {
                     const savedAddress = {
                         full_name: profile.full_name || "",
                         line1: profile.address_line1,
@@ -90,42 +92,30 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             }
         };
         fetchUserAndProfile();
-    }, [onAddressChange]);
+        return () => { isMounted = false; };
+    }, []); // Only run once on mount to avoid resetting address while user is typing
+
+    // Manual update of parent state without triggering heavy validation
+    const notifyParent = (state: any) => {
+        if (onAddressChange) {
+            onAddressChange(state);
+        }
+    };
 
     const handleAddressInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         const newState = { ...addressState, [name]: value };
         setAddressState(newState);
-        
-        // Notify parent of changes to trigger rate calculation
-        if (onAddressChange) {
-            onAddressChange(newState);
-        }
+        notifyParent(newState);
     };
 
     const handleStreetManualChange = (val: string) => {
         const newState = { ...addressState, line1: val };
         setAddressState(newState);
-        if (onAddressChange) onAddressChange(newState);
+        notifyParent(newState);
     };
 
-    const handleAddressAutocompleteSelect = (addr: any) => {
-        const selectedAddress = {
-            ...addressState,
-            line1: addr.line1,
-            city: addr.city,
-            state: addr.state,
-            postal_code: addr.zip, // Map zip -> postal_code
-            country: normalizeCountry(addr.country || 'US')
-        };
-        
-        setAddressState(selectedAddress);
-        
-        // Notify parent immediately to refresh rates
-        if (onAddressChange) {
-            onAddressChange(selectedAddress);
-        }
-    };
+
 
     // Helper to normalize country to ISO code since Square requires US instead of United States
     const normalizeCountry = (country: string) => {
@@ -163,16 +153,6 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         }
         return errorMsg; // Show the raw error message if no friendly translation exists
     };
-
-    // Delay validating address and triggering parent callback until typing stops
-    useEffect(() => {
-        if (!addressState.line1 || !addressState.city || !addressState.state || !addressState.postal_code || !addressState.country) return;
-
-        const timeout = setTimeout(() => {
-            if (onAddressChange) onAddressChange(addressState);
-        }, 1000);
-        return () => clearTimeout(timeout);
-    }, [addressState, onAddressChange]);
 
     const handleSquarePayment = async (token: string) => {
         if (isCalculating) {
@@ -331,12 +311,13 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                         </div>
                         <div className="md:col-span-2 space-y-1.5">
                             <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1 <span className="text-destructive">*</span></Label>
-                            <AddressAutocomplete
+                            <Input 
+                                id="line1" 
+                                name="line1"
                                 value={addressState.line1}
-                                onSelectAddress={handleAddressAutocompleteSelect}
-                                onChange={handleStreetManualChange}
-                                placeholder="Search for an address (UPS / Google Maps style)..."
-                                className="w-full"
+                                onChange={(e) => handleStreetManualChange(e.target.value)}
+                                required 
+                                autoComplete="address-line1" 
                             />
                         </div>
                         <div className="md:col-span-2 space-y-1.5">

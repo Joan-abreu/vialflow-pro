@@ -37,7 +37,7 @@ interface NominatimResult {
 export const AddressAutocomplete = ({
     value = "",
     onSelectAddress,
-    placeholder = "Search for an address...",
+    placeholder = "",
     className,
     onChange
 }: AddressAutocompleteProps) => {
@@ -52,7 +52,7 @@ export const AddressAutocomplete = ({
     }, [value]);
 
     const fetchSuggestions = async (query: string) => {
-        if (!query || query.length < 3) {
+        if (!query || query.length < 1) {
             setSuggestions([]);
             return;
         }
@@ -126,15 +126,13 @@ export const AddressAutocomplete = ({
                         onChange={(e) => handleInputChange(e.target.value)}
                         placeholder={placeholder}
                         onFocus={() => setOpen(true)}
-                        className="pr-10"
+                        className="w-full text-sm placeholder:opacity-0"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
-                        {loading ? (
+                    {loading && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : (
-                            <Search className="h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </PopoverTrigger>
             <PopoverContent 
@@ -144,14 +142,10 @@ export const AddressAutocomplete = ({
             >
                 <Command shouldFilter={false}>
                     <CommandList className="max-h-[300px]">
-                        {!loading && suggestions.length === 0 && inputValue.length >= 3 && (
+                        {!loading && suggestions.length === 0 && inputValue.length >= 1 && (
                             <CommandEmpty>No addresses found.</CommandEmpty>
                         )}
-                        {!loading && suggestions.length === 0 && inputValue.length < 3 && (
-                            <div className="p-4 text-sm text-center text-muted-foreground">
-                                Type at least 3 characters...
-                            </div>
-                        )}
+
                         <CommandGroup>
                             {suggestions.map((suggestion, index) => {
                                 const addr = suggestion.address;

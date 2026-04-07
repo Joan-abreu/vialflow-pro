@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
+import { AddressValidationModal } from "@/components/checkout/AddressValidationModal";
 
 const Checkout = () => {
     const { items, cartTotal } = useCart();
@@ -24,19 +25,8 @@ const Checkout = () => {
     const [shippingEstimatedDays, setShippingEstimatedDays] = useState<number | undefined>(undefined);
     const [shippingRates, setShippingRates] = useState<any[]>([]);
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
-    const [addressSuggestion, setAddressSuggestion] = useState<any>(null);
-    const [lastValidatedAddress, setLastValidatedAddress] = useState<string>("");
-    const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
-    const [isValidatingAddress, setIsValidatingAddress] = useState(false);
-    const [isValidAddress, setIsValidAddress] = useState(false);
     const [step, setStep] = useState<'address' | 'shipping' | 'payment'>('address');
-    
-    // Refs for stable logic tracking without re-triggering useCallback
-    const latestCallRef = useRef<number>(0);
-    const lastValidatedAddressRef = useRef<string>("");
-    const isValidatingAddressRef = useRef<boolean>(false);
-    const isValidAddressRef = useRef<boolean>(false);
-    const isValidatedRef = useRef<boolean>(false);
+    const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
@@ -45,87 +35,77 @@ const Checkout = () => {
 
     const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
 
-    // Handle Address Change
-    const handleAddressChange = useCallback(async (address: any) => {
-        // Reset selected shipping immediately when address starts changing
-        setShippingCost(0);
-        setShippingService("");
-        setShippingServiceCode("");
-        setShippingEstimatedDays(undefined);
-        setShippingRates([]);
-        setAddressSuggestion(null);
-        setIsValidAddress(false);
-        setIsValidatingAddress(false);
-        isValidAddressRef.current = false;
-        isValidatingAddressRef.current = false;
-        isValidatedRef.current = false;
+    const [currentAddress, setCurrentAddress] = useState<any>(null);
+    const [validationResult, setValidationResult] = useState<any>(null);
+    const [showValidationModal, setShowValidationModal] = useState(false);
+    const [isValidating, setIsValidating] = useState(false);
 
-        // Guard: Only proceed if address is "complete enough" to avoid jitter while typing
-        const isComplete = (address.line1?.length > 5) && 
-                          (address.city?.length > 2) && 
-                          (address.state?.length >= 2) && 
-                          (address.postal_code?.length >= 5);
- 
-        // Skip if same as last validated AND (currently validating OR already has a result/verdict)
-        const currentAddrStr = `${address.line1}-${address.city}-${address.state}-${address.postal_code}`;
+    // Track the amount for which we calculated
+    const intentAmountRef = useRef<number>(0);
+
+    // Handle Address change from Square Form (Silent update)
+    const handleAddressChange = useCallback((address: any) => {
+        setCurrentAddress(address);
+        // Reset shipping if address changes
+        if (shippingService) {
+           setShippingCost(0);
+           setShippingService("");
+           setShippingRates([]);
+        }
+    }, [shippingService]);
+
+    const validateAndProceed = async () => {
+        if (!currentAddress) return;
         
+        // Strict Full Name check
+        if (!currentAddress.full_name || currentAddress.full_name.trim().length < 3) {
+            toast.error("Please enter your full name.");
+            return;
+        }
+
+        const isComplete = (currentAddress.line1?.length > 5) && 
+                          (currentAddress.city?.length > 2) && 
+                          (currentAddress.state?.length >= 2) && 
+                          (currentAddress.postal_code?.length >= 5);
+
         if (!isComplete) {
-            setIsCalculatingShipping(false);
-            lastValidatedAddressRef.current = "";
+            toast.error("Please provide a complete shipping address.");
             return;
         }
 
-        // Use refs here for stable guard check that won't re-trigger SquareCheckout effects
-        if (currentAddrStr === lastValidatedAddressRef.current && (isValidatingAddressRef.current || isValidatedRef.current)) {
-            return;
-        }
-
-        const callId = ++latestCallRef.current;
-        lastValidatedAddressRef.current = currentAddrStr;
-        
-        setIsValidatingAddress(true);
-        isValidatingAddressRef.current = true;
-
+        setIsValidating(true);
         try {
-            // STEP 1: Strict Address Validation
-            const { data: valData, error: valErr } = await supabase.functions.invoke('validate-address', {
-                body: { address }
+            const { data, error } = await supabase.functions.invoke('validate-address', {
+                body: { address: currentAddress }
             });
 
-            if (callId !== latestCallRef.current) return;
+            if (error) throw error; 
             
-            // Validation finished for this call ID
-            isValidatedRef.current = true;
+            setValidationResult(data);
             
-            if (valErr || !valData?.valid) {
-               setIsValidAddress(false);
-               setIsValidatingAddress(false);
-               isValidAddressRef.current = false;
-               isValidatingAddressRef.current = false;
-               
-               if (valData?.suggestions && valData.suggestions.length > 0) {
-                   const s = valData.suggestions[0];
-                   const suggestionObj = {
-                       line1: s.line1 || '',
-                       line2: s.line2 || '',
-                       city: s.city || '',
-                       state: s.state || '',
-                       postal_code: s.postal_code || '',
-                       country: s.country || 'US'
-                   };
-                   setAddressSuggestion(suggestionObj);
-                }
-                return;
+            const hasChanges = (data.changed_attributes || []).length > 0;
+            const isInvalid = data.validation_value === 'invalid';
+            const isPartiallyValid = data.validation_value === 'partially_valid';
+
+            // Show modal if invalid OR if it has suggested changes/partially valid (as requested by user)
+            if (isInvalid || isPartiallyValid || hasChanges) {
+                setShowValidationModal(true);
+            } else {
+                // Perfectly valid
+                await calculateRates(currentAddress);
+                setStep('shipping');
             }
+        } catch (error: any) {
+            console.error("Validation error:", error);
+            toast.error("Could not verify address. Please try again.");
+        } finally {
+            setIsValidating(false);
+        }
+    };
 
-            // At this point, address is valid
-            setIsValidAddress(true);
-            isValidAddressRef.current = true;
-            setIsValidatingAddress(false);
-            isValidatingAddressRef.current = false;
-            setIsCalculatingShipping(true);
-
-            // STEP 2: Calculate Shipping only if valid
+    const calculateRates = async (address: any) => {
+        setIsCalculatingShipping(true);
+        try {
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
                 body: { 
                     weight: totalWeight, 
@@ -140,12 +120,9 @@ const Checkout = () => {
                 }
             });
 
-            if (callId !== latestCallRef.current) return;
             if (error) throw error;
-
+            
             let rates = data.rates || [];
-
-            // Filter FedEx rates to only show GROUND and EXPRESS
             if (rates.length > 0) {
                 rates = rates.filter((rate: any) => {
                     const provider = (rate.carrier || rate.provider || "").toUpperCase();
@@ -156,27 +133,26 @@ const Checkout = () => {
                     return true;
                 });
             }
-
             setShippingRates(rates);
- 
-            if (callId !== latestCallRef.current) return;
-
-            if (rates.length === 0) {
-                toast.error("No shipping rates found for this address.");
-            }
+            if (rates.length === 0) toast.error("No shipping rates found.");
         } catch (error: any) {
-            console.error("Error calculating shipping:", error);
-            if (callId !== latestCallRef.current) return;
-            let errorMsg = error.message || "Error calculating shipping rates.";
-            toast.error(errorMsg);
+            toast.error("Error calculating shipping rates.");
         } finally {
-            if (callId === latestCallRef.current) {
-                setIsCalculatingShipping(false);
-                setIsValidatingAddress(false);
-                isValidatingAddressRef.current = false;
-            }
+            setIsCalculatingShipping(false);
         }
-    }, [items, totalWeight, cartTotal]);
+    };
+
+    const handleConfirmSuggestion = async (suggestedAddress: any) => {
+        const fullSuggested = {
+            ...currentAddress,
+            ...suggestedAddress
+        };
+        setCurrentAddress(fullSuggested);
+        setExternalAddressUpdate(fullSuggested);
+        setShowValidationModal(false);
+        await calculateRates(fullSuggested);
+        setStep('shipping');
+    };
 
     const handleShippingSelect = (rate: any) => {
         setShippingCost(rate.rate || rate.cost);
@@ -184,20 +160,11 @@ const Checkout = () => {
         setShippingServiceCode(rate.serviceCode || rate.service_code || rate.service); 
         setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase());
         setShippingEstimatedDays(rate.estimated_days || rate.estimatedDays);
-        // Force intent update
         intentAmountRef.current = 0;
     };
 
-    const applySuggestion = () => {
-        if (!addressSuggestion) return;
-        setExternalAddressUpdate(addressSuggestion);
-        handleAddressChange(addressSuggestion);
-        setAddressSuggestion(null);
-        toast.success("Address updated with UPS suggestion");
-    };
-
     const nextStep = () => {
-        if (step === 'address' && isValidAddress) setStep('shipping');
+        if (step === 'address') validateAndProceed();
         else if (step === 'shipping' && shippingService) setStep('payment');
     };
 
@@ -207,13 +174,10 @@ const Checkout = () => {
     };
 
     const canGoNext = () => {
-        if (step === 'address') return isValidAddress && !isValidatingAddress;
+        if (step === 'address') return true; // Always active as requested
         if (step === 'shipping') return !!shippingService && !isCalculatingShipping;
         return false;
     };
-
-    // Track the amount for which we calculated
-    const intentAmountRef = useRef<number>(0);
 
     if (authLoading) {
         return (
@@ -312,39 +276,25 @@ const Checkout = () => {
                             tax={0}
                             onAddressChange={handleAddressChange}
                             externalAddress={externalAddressUpdate}
-                            isCalculating={isCalculatingShipping || isValidatingAddress}
+                            isCalculating={isCalculatingShipping || isValidating}
                             hideAddress={step !== 'address'}
                             hidePayment={step !== 'payment'}
                         />
                         
-                        {step === 'address' && addressSuggestion && (
-                            <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-white">!</span>
-                                        UPS Address Suggestion
-                                    </div>
-                                    <p className="text-sm text-muted-foreground leading-relaxed">
-                                        We found a more accurate format: <br />
-                                        <span className="font-medium text-foreground">
-                                            {addressSuggestion.line1}, {addressSuggestion.city}, {addressSuggestion.state} {addressSuggestion.postal_code}
-                                        </span>
-                                    </p>
-                                    <Button 
-                                        size="sm" 
-                                        variant="default" 
-                                        className="mt-2 w-fit h-8 px-4 text-xs"
-                                        onClick={applySuggestion}
-                                    >
-                                        Use Suggested Address
-                                    </Button>
-                                </div>
-                            </div>
+                        {step === 'address' && validationResult && (
+                            <AddressValidationModal
+                                isOpen={showValidationModal}
+                                onClose={() => setShowValidationModal(false)}
+                                originalAddress={currentAddress}
+                                recommendedAddress={validationResult.suggestions?.[0]}
+                                validationResult={validationResult}
+                                onConfirm={handleConfirmSuggestion}
+                            />
                         )}
 
                         {step === 'shipping' && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                {isValidatingAddress ? (
+                                {isValidating ? (
                                     <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
                                         <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
                                         <p className="text-sm font-medium">Verifying Address...</p>
@@ -354,7 +304,7 @@ const Checkout = () => {
                                         <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
                                         <p className="text-sm font-medium">Fetching real-time rates...</p>
                                     </div>
-                                ) : isValidAddress && shippingRates.length > 0 ? (
+                                ) : shippingRates.length > 0 ? (
                                     <div className="space-y-3">
                                         {shippingRates.map((rate, idx) => (
                                             <div
@@ -382,7 +332,7 @@ const Checkout = () => {
                                 ) : (
                                     <div className="p-8 text-center border-2 border-dashed rounded-lg">
                                         <p className="text-muted-foreground">
-                                            {lastValidatedAddress 
+                                            {currentAddress?.line1 
                                                 ? "No shipping rates found for this address. Please go back and verify your address." 
                                                 : "Please go back and enter your address details."}
                                         </p>

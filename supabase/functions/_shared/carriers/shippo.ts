@@ -306,81 +306,74 @@ export class ShippoCarrier implements ICarrier {
 
     async validateAddress(address: any) {
         if (!this.settings.api_key) return { valid: true, suggestions: [], note: "Shippo API key not set" };
-        
+
         try {
-            const response = await fetch(`${this.apiUrl}addresses/`, {
-                method: "POST",
+            const queryParams = new URLSearchParams({
+                address_line_1: address.line1 || address.street1 || (address.address?.line1) || "",
+                address_line_2: address.line2 || address.street2 || (address.address?.line2) || "",
+                city_locality: address.city || address.address?.city || "",
+                state_province: address.state || address.address?.state || "",
+                postal_code: address.postal_code || address.zip || address.address?.postal_code || address.address?.zip || "",
+                country_code: address.country || address.address?.country || "US",
+                organization: address.company || address.organization || ""
+            });
+
+            // Add name if present
+            const name = address.name || address.full_name || "Recipient";
+            queryParams.append("name", name);
+
+            const response = await fetch(`${this.apiUrl}v2/addresses/validate?${queryParams.toString()}`, {
+                method: "GET",
                 headers: this.getHeaders(),
-                body: JSON.stringify({
-                    name: address.name || "Recipient",
-                    street1: address.line1 || address.street1 || (address.address?.line1),
-                    street2: address.line2 || address.street2 || (address.address?.line2),
-                    city: address.city || address.address?.city,
-                    state: address.state || address.address?.state,
-                    zip: address.postal_code || address.zip || address.address?.postal_code || address.address?.zip,
-                    country: address.country || address.address?.country || "US",
-                    validate: true,
-                }),
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                // If it's a 4xx error, it might be Shippo's way of saying it's VERY invalid, but usually Shippo returns 201 with validation_results
-                throw new Error(`Shippo validation request failed: ${errorText}`);
+                throw new Error(`Shippo V2 validation request failed: ${errorText}`);
             }
 
             const data = await response.json();
-            const isValid = data.validation_results?.is_valid;
-            const messages = data.validation_results?.messages || [];
-            const resultMsg = messages.map((m: any) => m.text).join(", ");
+            
+            // Map V2 response to our internal format
+            const validationValue = data.analysis?.validation_result?.value; // valid, partially_valid, invalid
+            const isValid = validationValue === "valid";
+            const reasons = data.analysis?.validation_result?.reasons || [];
+            const changedAttributes = data.analysis?.changed_attributes || [];
+            
+            const resultMsg = reasons.map((r: any) => r.description).join(", ");
             
             const suggestions = [];
-            // If the address was corrected, add the corrected one as a suggestion
-            const inputL1 = (address.line1 || "").toLowerCase().trim();
-            const inputL2 = (address.line2 || "").toLowerCase().trim();
-            const outL1 = (data.street1 || "").toLowerCase().trim();
-            const outL2 = (data.street2 || "").toLowerCase().trim();
-
-            const isMismatch = outL1 !== inputL1 || outL2 !== inputL2 || 
-                             data.city?.toLowerCase() !== address.city?.toLowerCase() ||
-                             data.state?.toLowerCase() !== address.state?.toLowerCase() ||
-                             data.zip?.toLowerCase() !== address.postal_code?.toLowerCase();
-
-            if (isValid && isMismatch) {
-                let s1 = data.street1;
-                let s2 = data.street2 || "";
-
-                // If street2 is empty but street1 seems to contain a suite/apt/unit, 
-                // try to split it to keep the form clean if the user originally had a 2-line format.
-                if (!s2 && inputL2) {
-                    const suiteRegex = /(?:\s+)(APT|STE|SUITE|UNIT|#|FL|ROOM|RM|BLDG|BUILDING|LOT|PO BOX)(\s+.*)$/i;
-                    const match = s1.match(suiteRegex);
-                    if (match) {
-                        s2 = match[0].trim();
-                        s1 = s1.replace(match[0], "").trim();
-                    }
-                }
-
+            if (data.recommended_address) {
+                const rec = data.recommended_address;
                 suggestions.push({
-                    line1: s1,
-                    line2: s2,
-                    city: data.city,
-                    state: data.state,
-                    postal_code: data.zip,
-                    country: data.country || "US",
-                    source: "Shippo"
+                    line1: rec.address_line_1,
+                    line2: rec.address_line_2 || "",
+                    city: rec.city_locality,
+                    state: rec.state_province,
+                    postal_code: rec.postal_code,
+                    country: rec.country_code || "US",
+                    source: "Shippo V2",
+                    confidence: rec.confidence_result,
+                    complete_address: rec.complete_address
                 });
             }
 
             return {
-                valid: !!isValid && suggestions.length === 0,
-                suggestions: suggestions, 
-                note: resultMsg || (isValid ? "Address is valid according to Shippo/USPS" : "Address not found or invalid.")
+                valid: isValid,
+                validation_value: validationValue,
+                reasons: reasons,
+                changed_attributes: changedAttributes,
+                suggestions: suggestions,
+                note: resultMsg || (isValid ? "Address is valid according to Shippo V2" : "Address could not be fully verified."),
+                raw: data // Keep raw for detailed modal display
             };
         } catch (error: any) {
-            console.error("Shippo address validation error:", error);
+            console.error("Shippo V2 address validation error:", error);
             return {
-                valid: true, // Fallback to avoid blocking entire checkout if API is down, but with a warning note
+                valid: true, // Fallback to avoid blocking if API is down
+                validation_value: "unknown",
+                reasons: [],
+                changed_attributes: [],
                 suggestions: [],
                 note: `Validation skipped due to error: ${error.message}`
             };

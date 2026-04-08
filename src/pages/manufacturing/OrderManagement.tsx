@@ -115,7 +115,7 @@ const OrderManagement = () => {
     const { data: orders, isLoading } = useQuery({
         queryKey: ["orders"],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data: ordersData, error } = await supabase
                 .from("orders")
                 .select(`
                     *,
@@ -127,13 +127,35 @@ const OrderManagement = () => {
                             vial_type:vial_types (*)
                         )
                     ),
-                    order_shipments (*),
-                    customer_profile:profiles!orders_user_id_fkey(full_name)
+                    order_shipments (*)
                 `)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
-            return data as any as Order[];
+            if (!ordersData) return [];
+
+            // Get unique user_ids to fetch profiles across tables
+            const userIds = [...new Set(ordersData.map(o => o.user_id).filter(id => !!id))];
+            
+            if (userIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from("profiles")
+                    .select("user_id, full_name")
+                    .in("user_id", userIds);
+                
+                // Map profiles back to orders
+                const profileMap = (profiles || []).reduce((acc, p) => {
+                    acc[p.user_id] = { full_name: p.full_name };
+                    return acc;
+                }, {} as Record<string, { full_name: string }>);
+
+                return ordersData.map(order => ({
+                    ...order,
+                    customer_profile: order.user_id ? profileMap[order.user_id] : null
+                })) as any as Order[];
+            }
+
+            return ordersData as any as Order[];
         },
     });
 

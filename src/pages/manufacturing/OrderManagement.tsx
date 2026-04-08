@@ -374,8 +374,8 @@ const OrderManagement = () => {
     const TABS = [
         { id: 'all', label: 'All', statuses: [] },
         { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
-        { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production'] },
-        { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['ready_to_ship', 'label_created', 'pickup_scheduled'] },
+        { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production', 'ready_to_ship'] },
+        { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['label_created', 'pickup_scheduled'] },
         { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },

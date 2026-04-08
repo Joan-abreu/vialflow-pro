@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { DEFAULT_SHIPPER } from "@/lib/constants";
 import { TrackingDialog } from "./TrackingDialog";
 import { EditAddressDialog } from "./EditAddressDialog";
+import { format } from "date-fns";
 
 interface ShippingDialogProps {
     orderId: string;
@@ -21,6 +22,30 @@ interface ShippingDialogProps {
 }
 
 export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSuccess }: ShippingDialogProps) => {
+    const formatDisplayTime = (timeStr: string) => {
+        if (!timeStr) return "N/A";
+        // If it's an ISO string (contains T and Z or offset)
+        if (timeStr.includes('T')) {
+            try {
+                return format(new Date(timeStr), 'p'); // e.g., 9:00 AM
+            } catch (e) {
+                return timeStr;
+            }
+        }
+        return timeStr; // Fallback for "HH:mm"
+    };
+
+    const formatDisplayDate = (dateStr: string) => {
+        if (!dateStr) return "N/A";
+        try {
+            // Handle YYYY-MM-DD or ISO
+            const date = dateStr.includes('T') ? new Date(dateStr) : new Date(`${dateStr}T12:00:00`);
+            return format(date, 'PPP'); // e.g., Apr 8, 2026
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<'carrier' | 'rates' | 'label' | 'pickup'>('carrier');
     const [autoFetched, setAutoFetched] = useState(false);
@@ -907,9 +932,9 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                         </div>
                                         <div className="grid grid-cols-2 gap-2 text-sm text-green-700">
                                             <div><span className="font-semibold">Confirmation:</span> {pickupConfirmation}</div>
-                                            <div><span className="font-semibold">Date:</span> {pickupDate}</div>
-                                            <div><span className="font-semibold">Ready Time:</span> {pickupReadyTime}</div>
-                                            <div><span className="font-semibold">Close Time:</span> {pickupCloseTime}</div>
+                                            <div><span className="font-semibold">Date:</span> {formatDisplayDate(pickupDate)}</div>
+                                            <div><span className="font-semibold">Ready Time:</span> {formatDisplayTime(pickupReadyTime)}</div>
+                                            <div><span className="font-semibold">Close Time:</span> {formatDisplayTime(pickupCloseTime)}</div>
                                         </div>
                                         <div className="pt-2 flex flex-col gap-2">
                                             <Button

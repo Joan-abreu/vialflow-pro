@@ -280,15 +280,60 @@ export class ShippoCarrier implements ICarrier {
         }
     }
 
-    async trackShipment(trackingNumber: string) {
-        // Shippo tracking requires carrier name. We might need to store it or guess it.
-        // For now, return a generic success as tracking is usually done via URL.
-        return {
-            success: false,
-            status: "tracking_via_url",
-            events: [],
-            rawResponse: { message: "Use trackingUrl for real-time updates" },
-        };
+    async trackShipment(trackingNumber: string, carrierSlug?: string) {
+        if (!this.settings.api_key) {
+            return { 
+                success: false, 
+                status: "unknown", 
+                events: [], 
+                rawResponse: { error: "Shippo API Token is missing." } 
+            };
+        }
+
+        try {
+            // Default to ups if unknown, but we should really have this from the order_shipment record
+            const carrier = carrierSlug?.toLowerCase() || "usps";
+
+            const response = await fetch(`${this.apiUrl}tracks/${carrier}/${trackingNumber}/`, {
+                method: "GET",
+                headers: this.getHeaders(),
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                return { 
+                    success: false, 
+                    status: "unknown", 
+                    events: [], 
+                    rawResponse: { error: `Shippo track error: ${error}` } 
+                };
+            }
+
+            const data = await response.json();
+            
+            // Map Shippo status to our internal statuses
+            let status = data.tracking_status?.status?.toLowerCase() || "unknown";
+            
+            // Check for Out for Delivery in substatus if available
+            if (data.tracking_status?.substatus?.code === "out_for_delivery") {
+                status = "out_for_delivery";
+            }
+
+            return {
+                success: true,
+                status: status,
+                deliveredAt: data.tracking_status?.status === "DELIVERED" ? data.tracking_status.status_date : undefined,
+                events: data.tracking_history || [],
+                rawResponse: data,
+            };
+        } catch (e: any) {
+            return { 
+                success: false, 
+                status: "error", 
+                events: [], 
+                rawResponse: { error: e.message } 
+            };
+        }
     }
 
     async cancelShipment(trackingNumber: string) {

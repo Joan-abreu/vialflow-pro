@@ -30,7 +30,7 @@ export interface ICarrier {
         rawResponse: any;
     }>;
 
-    trackShipment(trackingNumber: string): Promise<{
+    trackShipment(trackingNumber: string, carrierSlug?: string): Promise<{
         success: boolean;
         status: string;
         deliveredAt?: string;

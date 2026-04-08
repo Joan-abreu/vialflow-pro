@@ -23,7 +23,7 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   order_id: string;
-  type: "customer_confirmation" | "admin_notification" | "status_update";
+  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "out_for_delivery" | "delivered";
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -112,26 +112,34 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Order not found");
     }
 
+    // Resolve Customer Name
+    let customerName = "Customer";
+    let customerEmail = order.customer_email || "";
+
+    if (order.user_id) {
+        // Fetch full_name from profiles
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", order.user_id)
+            .single();
+        
+        if (profile?.full_name) {
+            customerName = profile.full_name;
+        } else if (customerEmail) {
+            customerName = customerEmail.split('@')[0];
+        }
+    } else if (customerEmail) {
+        customerName = customerEmail.split('@')[0];
+    }
+
     let emailTo: string[] = [];
     let subject = "";
     let htmlContent = "";
 
     // CUSTOMER CONFIRMATION
     if (type === "customer_confirmation") {
-      let customerEmail = "";
-
-      if (order.customer_email) {
-        customerEmail = order.customer_email;
-      } else if (order.user_id) {
-        const { data: { user }, error: userError } =
-          await supabase.auth.admin.getUserById(order.user_id);
-
-        if (userError || !user?.email) {
-          console.error("User fetch error:", userError);
-          throw new Error("Customer email not found");
-        }
-        customerEmail = user.email;
-      } else {
+      if (!customerEmail) {
         throw new Error("No customer email available");
       }
 
@@ -147,7 +155,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       htmlContent = getOrderConfirmationEmail({
         orderNumber: order.id.slice(0, 8),
-        customerName: customerEmail.split('@')[0], // Use email username as fallback
+        customerName: customerName,
         items,
         subtotal: order.total_amount - (order.shipping_cost || 0),
         shipping: order.shipping_cost || 0,
@@ -174,46 +182,53 @@ const handler = async (req: Request): Promise<Response> => {
 
       htmlContent = getAdminNotificationEmail({
         orderNumber: order.id.slice(0, 8),
-        customerName: order.customer_email?.split('@')[0] || "Customer",
-        customerEmail: order.customer_email || "N/A",
+        customerName: customerName,
+        customerEmail: customerEmail || "N/A",
         items,
         total: order.total_amount,
       });
     }
 
-    // STATUS UPDATE
-    else if (type === "status_update") {
-      let customerEmail = "";
-
-      if (order.customer_email) {
-        customerEmail = order.customer_email;
-      } else if (order.user_id) {
-        const { data: { user }, error: userError } =
-          await supabase.auth.admin.getUserById(order.user_id);
-
-        if (userError || !user?.email) {
-          console.error("User fetch error:", userError);
-          throw new Error("Customer email not found");
-        }
-        customerEmail = user.email;
-      } else {
+    // STATUS UPDATE (GENERIC OR SPECIFIC SHIPMENT STAGES)
+    else if (type === "status_update" || type === "shipped" || type === "out_for_delivery" || type === "delivered") {
+      if (!customerEmail) {
         throw new Error("No customer email available");
       }
 
       emailTo = [customerEmail];
-      subject = `Order Update #${order.id.slice(0, 8)}`;
+      
+      // Map internal type to status wording
+      const displayStatus = 
+        type === "shipped" ? "Shipped" : 
+        type === "out_for_delivery" ? "Out for Delivery" : 
+        type === "delivered" ? "Delivered" : 
+        order.status;
+
+      subject = `Order Update #${order.id.slice(0, 8)} - ${displayStatus}`;
 
       // Generate Tracking URL
       let trackingUrl = undefined;
       if (order.tracking_number) {
-        // Default to FedEx, but could check order.shipping_carrier
-        trackingUrl = `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}`;
+        // We can try to be smart about the carrier
+        const carrier = order.shipping_carrier?.toLowerCase();
+        if (carrier === "fedex") {
+          trackingUrl = `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}`;
+        } else if (carrier === "ups") {
+          trackingUrl = `https://www.ups.com/track?tracknum=${order.tracking_number}`;
+        } else if (carrier === "usps") {
+          trackingUrl = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${order.tracking_number}`;
+        } else if (carrier === "dhl") {
+          trackingUrl = `https://www.dhl.com/en/express/tracking.html?AWB=${order.tracking_number}`;
+        } else {
+          // Fallback to a generic tracking aggregator or just show the number
+          trackingUrl = `https://www.google.com/search?q=track+${order.tracking_number}`;
+        }
       }
 
       htmlContent = getOrderStatusUpdateEmail({
         orderNumber: order.id.slice(0, 8),
-        customerName: customerEmail.split('@')[0],
-        status: order.status,
+        customerName: customerName,
+        status: displayStatus,
         trackingUrl,
       });
     }

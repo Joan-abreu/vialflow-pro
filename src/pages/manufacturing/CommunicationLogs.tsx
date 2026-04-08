@@ -158,7 +158,11 @@ const CommunicationLogs = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Types</SelectItem>
-                                <SelectItem value="order_confirmation">Orders</SelectItem>
+                                <SelectItem value="order_confirmation">Order Confirmed</SelectItem>
+                                <SelectItem value="shipped">Order Shipped</SelectItem>
+                                <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                <SelectItem value="delivered">Order Delivered</SelectItem>
+                                <SelectItem value="status_update">Status Updates</SelectItem>
                                 <SelectItem value="user_invitation">Auth/Invites</SelectItem>
                                 <SelectItem value="password_reset">Password Resets</SelectItem>
                                 <SelectItem value="generic">Manual/Generic</SelectItem>

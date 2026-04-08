@@ -22,7 +22,7 @@ interface ICarrier {
     getRates(shipment: any): Promise<any>;
     createShipment(shipment: any): Promise<any>;
     schedulePickup(pickup: any): Promise<any>;
-    trackShipment(trackingNumber: string): Promise<any>;
+    trackShipment(trackingNumber: string, carrierSlug?: string): Promise<any>;
     cancelShipment(trackingNumber: string): Promise<any>;
     cancelPickup(confirmationNumber: string, scheduledDate?: string, serviceCode?: string): Promise<any>;
 }
@@ -177,20 +177,74 @@ const handler = async (req: Request): Promise<Response> => {
                 break;
             }
 
-            case "track_shipment":
-                result = await carrierInstance.trackShipment(data.trackingNumber);
+            case "track_shipment": {
+                // Fetch shipment to get tracking number and carrier response
+                const { data: trackShipment, error: trackFetchError } = await supabase
+                    .from("order_shipments")
+                    .select("*, orders(*)")
+                    .eq("id", data.shipmentId)
+                    .single();
+
+                if (trackFetchError || !trackShipment) {
+                    throw new Error("Shipment not found for tracking");
+                }
+
+                // Extract carrier provider slug if available (Shippo specific)
+                let carrierSlug;
+                if (trackShipment.carrier === "SHIPPO") {
+                    // Try to get provider from raw response
+                    carrierSlug = trackShipment.carrier_response?.provider || 
+                                 trackShipment.carrier_response?.tracking_status?.carrier;
+                }
+
+                result = await carrierInstance.trackShipment(trackShipment.tracking_number, carrierSlug);
 
                 // Update shipment status
-                if (result.success && data.shipmentId) {
+                if (result.success) {
                     await supabase
                         .from("order_shipments")
                         .update({
                             status: result.status,
                             actual_delivery_date: result.deliveredAt,
+                            last_status_update: new Date().toISOString(),
+                            carrier_response: {
+                                ...trackShipment.carrier_response,
+                                tracking_update: result.rawResponse
+                            }
                         })
                         .eq("id", data.shipmentId);
+
+                    // If status is delivered or shipped, update the order as well
+                    if (result.status === "delivered" || result.status === "shipped") {
+                        await supabase
+                            .from("orders")
+                            .update({
+                                status: result.status,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq("id", trackShipment.order_id);
+                        
+                        // Send status update email if it was a significant change
+                        if (result.status !== trackShipment.orders?.status) {
+                             await fetch(
+                                `${SUPABASE_URL}/functions/v1/send-order-email`,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                    },
+                                    body: JSON.stringify({
+                                        order_id: trackShipment.order_id,
+                                        type: result.status === "delivered" ? "delivered" : "shipped",
+                                    }),
+                                }
+                            );
+                        }
+                    }
                 }
                 break;
+            }
 
             case "cancel_shipment": {
                 // Fetch shipment to get tracking number

@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import {
     Dialog,
@@ -35,7 +36,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
@@ -84,7 +85,11 @@ interface Order {
     shipping_service_code?: string;
     shipping_carrier?: string;
     order_items?: OrderItem[];
+    customer_profile?: {
+        full_name: string;
+    };
     order_shipments?: {
+        id: string;
         carrier: string;
         tracking_number: string;
         tracking_url: string;
@@ -102,6 +107,8 @@ const OrderManagement = () => {
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showProductionDialog, setShowProductionDialog] = useState(false);
     const [showShippingDialog, setShowShippingDialog] = useState(false);
+    const [activeTab, setActiveTab] = useState("all");
+    const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -120,7 +127,8 @@ const OrderManagement = () => {
                             vial_type:vial_types (*)
                         )
                     ),
-                    order_shipments (*)
+                    order_shipments (*),
+                    customer_profile:profiles!orders_user_id_fkey(full_name)
                 `)
                 .order("created_at", { ascending: false });
 
@@ -290,6 +298,41 @@ const OrderManagement = () => {
         }
     };
 
+    const handleRefreshTracking = async (shipmentId: string, carrier: string) => {
+        try {
+            setRefreshingTracking(shipmentId);
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shipping`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${session?.access_token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        carrier: carrier,
+                        action: 'track_shipment',
+                        data: {
+                            shipmentId: shipmentId
+                        }
+                    }),
+                }
+            );
+
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+
+            toast.success(`Tracking status updated for ${carrier}`);
+            queryClient.invalidateQueries({ queryKey: ["orders"] });
+        } catch (e: any) {
+            toast.error(`Error refreshing: ${e.message}`);
+        } finally {
+            setRefreshingTracking(null);
+        }
+    };
+
     const getVariantGroups = (order: Order | null) => {
         if (!order || !order.order_items) return [];
         const groups: Record<string, { variant: any, totalQuantity: number }> = {};
@@ -306,11 +349,37 @@ const OrderManagement = () => {
         return Object.values(groups);
     };
 
+    const TABS = [
+        { id: 'all', label: 'All', statuses: [] },
+        { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
+        { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production'] },
+        { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['ready_to_ship', 'label_created', 'pickup_scheduled'] },
+        { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
+        { id: 'completed', label: 'Completed', statuses: ['delivered'] },
+        { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
+    ];
+
+    const tabCounts = useMemo(() => {
+        const counts: Record<string, number> = { all: orders?.length || 0 };
+        TABS.slice(1).forEach(tab => {
+            counts[tab.id] = orders?.filter(o => tab.statuses.includes(o.status)).length || 0;
+        });
+        return counts;
+    }, [orders]);
+
     const filteredOrders = orders?.filter((order) => {
+        // First filter by tab
+        if (activeTab !== 'all') {
+            const currentTab = TABS.find(t => t.id === activeTab);
+            if (currentTab && !currentTab.statuses.includes(order.status)) {
+                return false;
+            }
+        }
+
+        // Then filter by search query
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         
-        // Search in order fields
         const matchesOrder = (
             order.id.toLowerCase().includes(query) ||
             order.customer_email?.toLowerCase().includes(query) ||
@@ -318,7 +387,6 @@ const OrderManagement = () => {
             (order.tracking_number && order.tracking_number.toLowerCase().includes(query))
         );
 
-        // Search in shipment tracking numbers
         const matchesShipments = order.order_shipments?.some(shipment => 
             shipment.tracking_number?.toLowerCase().includes(query)
         );
@@ -337,23 +405,48 @@ const OrderManagement = () => {
                 </div>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <CardTitle>Recent Orders</CardTitle>
-                        <div className="flex items-center gap-2 w-full md:w-72">
-                            <Search className="w-4 h-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search by ID, email, or tracking #"
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    setCurrentPage(1); // Reset to first page on search
-                                }}
-                                className="w-full"
-                            />
-                        </div>
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-2 w-full md:w-96">
+                        <Search className="w-4 h-4 text-muted-foreground mr-2" />
+                        <Input
+                            placeholder="Search by ID, email, or tracking #"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="w-full"
+                        />
                     </div>
+                </div>
+
+                <Tabs value={activeTab} onValueChange={(val) => {
+                    setActiveTab(val);
+                    setCurrentPage(1);
+                }} className="w-full">
+                    <TabsList className="w-full justify-start overflow-x-auto h-auto p-1 bg-muted/50 gap-1">
+                        {TABS.map((tab) => (
+                            <TabsTrigger 
+                                key={tab.id} 
+                                value={tab.id}
+                                className="px-4 py-2 text-sm whitespace-nowrap"
+                            >
+                                {tab.label}
+                                {tabCounts[tab.id] > 0 && (
+                                    <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center">
+                                        {tabCounts[tab.id]}
+                                    </Badge>
+                                )}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+            </div>
+
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-xl">Orders ({filteredOrders?.length || 0})</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
                     <Table>
@@ -412,7 +505,7 @@ const OrderManagement = () => {
                                                     </Button>
                                                     <SendEmailDialog 
                                                         recipientEmail={order.customer_email} 
-                                                        recipientName={order.customer_email?.split('@')[0]}
+                                                        recipientName={order.customer_profile?.full_name || order.customer_email?.split('@')[0]}
                                                         relatedId={order.id}
                                                         trigger={
                                                             <Button 
@@ -505,17 +598,39 @@ const OrderManagement = () => {
                                                                         <div className="flex items-center gap-1">
                                                                             <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{shipment.carrier}</Badge>
                                                                             {shipment.tracking_url ? (
-                                                                                <a
-                                                                                    href={shipment.tracking_url}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="text-blue-600 hover:underline flex items-center gap-1"
-                                                                                >
-                                                                                    {shipment.tracking_number}
-                                                                                    <Eye className="h-3 w-3" />
-                                                                                </a>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <a
+                                                                                        href={shipment.tracking_url}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="text-blue-600 hover:underline flex items-center gap-1"
+                                                                                    >
+                                                                                        {shipment.tracking_number}
+                                                                                        <Eye className="h-3 w-3" />
+                                                                                    </a>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="h-6 w-6"
+                                                                                        onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
+                                                                                        disabled={refreshingTracking === shipment.id}
+                                                                                    >
+                                                                                        <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
+                                                                                    </Button>
+                                                                                </div>
                                                                             ) : (
-                                                                                <span className="text-muted-foreground">{shipment.tracking_number}</span>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <span className="text-muted-foreground">{shipment.tracking_number}</span>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="h-6 w-6"
+                                                                                        onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
+                                                                                        disabled={refreshingTracking === shipment.id}
+                                                                                    >
+                                                                                        <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
+                                                                                    </Button>
+                                                                                </div>
                                                                             )}
                                                                         </div>
                                                                         {shipment.pickup_confirmation && (
@@ -569,7 +684,7 @@ const OrderManagement = () => {
                                         Customer Info
                                         <SendEmailDialog 
                                             recipientEmail={selectedOrder.customer_email} 
-                                            recipientName={selectedOrder.customer_email?.split('@')[0]}
+                                            recipientName={selectedOrder.customer_profile?.full_name || selectedOrder.customer_email?.split('@')[0]}
                                             relatedId={selectedOrder.id}
                                             trigger={
                                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">

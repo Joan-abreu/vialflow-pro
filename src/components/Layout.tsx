@@ -72,9 +72,9 @@ const Layout = ({ children }: LayoutProps) => {
     const fetchPendingOrdersCount = async () => {
       if (isAdmin) {
         const { count } = await supabase
-          .from("orders" as any)
+          .from("orders")
           .select("*", { count: "exact", head: true })
-          .in("status", ["pending_payment", "pending", "processing"]);
+          .in("status", ["processing", "in_production", "ready_to_ship"]);
 
         setPendingOrdersCount(count || 0);
       }

@@ -87,6 +87,7 @@ Deno.serve(async (req: Request) => {
         role: userRole?.role || 'pending',
         role_id: userRole?.id || '',
         banned_until: authUserData.banned_until || null,
+        last_sign_in_at: authUser.last_sign_in_at || null,
       }
     })
 

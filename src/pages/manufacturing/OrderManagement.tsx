@@ -405,6 +405,7 @@ const OrderManagement = () => {
         const matchesOrder = (
             order.id.toLowerCase().includes(query) ||
             order.customer_email?.toLowerCase().includes(query) ||
+            order.customer_profile?.full_name?.toLowerCase().includes(query) ||
             order.status.toLowerCase().includes(query) ||
             (order.tracking_number && order.tracking_number.toLowerCase().includes(query))
         );
@@ -432,7 +433,7 @@ const OrderManagement = () => {
                     <div className="flex items-center gap-2 w-full md:w-96">
                         <Search className="w-4 h-4 text-muted-foreground mr-2" />
                         <Input
-                            placeholder="Search by ID, email, or tracking #"
+                            placeholder="Search by ID, Customer Name, email, or tracking #"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);

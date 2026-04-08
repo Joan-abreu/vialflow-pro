@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,12 +24,13 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, UserX, UserCheck, Trash2, User } from "lucide-react";
+import { Loader2, UserX, UserCheck, Trash2, User, Search } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import { Mail } from "lucide-react";
+import { format } from "date-fns";
 
 interface UserWithRole {
     id: string;
@@ -40,6 +42,7 @@ interface UserWithRole {
     role_id: string;
     banned_until?: string;
     phone?: string;
+    last_sign_in_at?: string;
 }
 
 const CustomerManagement = () => {
@@ -54,6 +57,7 @@ const CustomerManagement = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserWithRole | null>(null);
     const [deletingUser, setDeletingUser] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
     const { isAdmin, loading: roleLoading } = useUserRole();
     const navigate = useNavigate();
 
@@ -276,6 +280,18 @@ const CustomerManagement = () => {
         return labels[role] || role;
     };
 
+    const filteredUsers = useMemo(() => {
+        return users.filter(user => {
+            const query = searchQuery.toLowerCase();
+            return (
+                user.full_name?.toLowerCase().includes(query) ||
+                user.display_name?.toLowerCase().includes(query) ||
+                user.email?.toLowerCase().includes(query) ||
+                user.phone?.toLowerCase().includes(query)
+            );
+        });
+    }, [users, searchQuery]);
+
     if (roleLoading || !isAdmin) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -301,6 +317,18 @@ const CustomerManagement = () => {
                     <CardDescription>
                         Manage registered customer
                     </CardDescription>
+                    <div className="mt-4 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by name, email, or phone..."
+                            className="pl-9"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                        />
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -320,12 +348,13 @@ const CustomerManagement = () => {
                                         <TableHead>Email</TableHead>
                                         <TableHead>Phone</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead>Last Sign In</TableHead>
                                         <TableHead>Registration Date</TableHead>
                                         <TableHead>Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {users
+                                    {filteredUsers
                                         .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                         .map((user) => (
                                             <TableRow key={user.id}>
@@ -335,10 +364,21 @@ const CustomerManagement = () => {
                                                 <TableCell className="text-xs sm:text-sm">
                                                     {user.banned_until ? (
                                                         <Badge variant="destructive">Disabled</Badge>
+                                                    ) : !user.last_sign_in_at ? (
+                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                                            Waiting for verification
+                                                        </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                                                             Active
                                                         </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-xs sm:text-sm">
+                                                    {user.last_sign_in_at ? (
+                                                        format(new Date(user.last_sign_in_at), "MMM d, yyyy HH:mm")
+                                                    ) : (
+                                                        <span className="text-muted-foreground italic">Never signed in</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
@@ -404,12 +444,12 @@ const CustomerManagement = () => {
                             </Table>
                         </div>
                     )}
-                    {!loading && users.length > 0 && (
+                    {!loading && filteredUsers.length > 0 && (
                         <DataTablePagination
                             currentPage={currentPage}
-                            totalPages={Math.ceil(users.length / itemsPerPage)}
+                            totalPages={Math.ceil(filteredUsers.length / itemsPerPage)}
                             onPageChange={setCurrentPage}
-                            totalItems={users.length}
+                            totalItems={filteredUsers.length}
                             pageSize={itemsPerPage}
                             onPageSizeChange={(size) => {
                                 setItemsPerPage(size);

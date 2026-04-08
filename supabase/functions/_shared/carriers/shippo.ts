@@ -102,12 +102,14 @@ export class ShippoCarrier implements ICarrier {
     async createShipment(shipment: any) {
         // In Shippo, createShipment corresponds to purchasing a transaction from a rate
         // The serviceCode we passed in getRates is the Shippo Rate object_id
+        const labelFileType = this.settings.config?.label_file_type || "PDF";
+
         const response = await fetch(`${this.apiUrl}transactions/`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({
                 rate: shipment.serviceCode,
-                label_file_type: "PDF",
+                label_file_type: labelFileType,
                 metadata: shipment.orderId ? `Order #${shipment.orderId.slice(0, 8)}` : shipment.description || "",
                 async: false,
             }),
@@ -130,7 +132,7 @@ export class ShippoCarrier implements ICarrier {
             trackingUrl: data.tracking_url_provider,
             labelData: "", // Shippo provides a URL, generally we don't need to return base64 if labelUrl exists
             labelUrl: data.label_url,
-            labelFormat: "PDF",
+            labelFormat: labelFileType,
             serviceName: shipment.serviceName || "Shippo Shipment",
             cost: parseFloat(data.amount || "0"),
             totalCost: parseFloat(data.amount || "0"),

@@ -8,6 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, Package, Save, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -105,7 +112,7 @@ const ShippingSettings = () => {
                     carrier: "SHIPPO",
                     is_active: true,
                     api_url: "https://api.goshippo.com/",
-                    config: {}
+                    config: { label_file_type: "PDF" }
                 });
 
             if (error) throw error;
@@ -549,6 +556,37 @@ const ShippingSettings = () => {
                                 />
                             </div>
                         </div>
+
+                        {carrier.carrier === "SHIPPO" && (
+                            <>
+                                <Separator className="my-4" />
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-medium">Shippo Specific Settings</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="label_format">Default Label Format</Label>
+                                            <Select 
+                                                value={formData.config?.label_file_type || "PDF"} 
+                                                onValueChange={(val) => handleChange('config', { ...formData.config, label_file_type: val })}
+                                            >
+                                                <SelectTrigger id="label_format">
+                                                    <SelectValue placeholder="Select label format" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="PDF">PDF (Letter Size)</SelectItem>
+                                                    <SelectItem value="PDF_4x6">PDF (Thermal 4x6)</SelectItem>
+                                                    <SelectItem value="ZPLII">ZPL (Thermal)</SelectItem>
+                                                    <SelectItem value="PNG">PNG Image</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                Choose PDF (Letter) for standard paper or PDF (Thermal 4x6)/ZPL for label printers.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 

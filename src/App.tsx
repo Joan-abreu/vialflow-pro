@@ -84,6 +84,13 @@ const AppRoutes = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(true);
 
+    // Intercept hash fragment for password recovery if Supabase falls back to root URL
+    useEffect(() => {
+        if (window.location.hash.includes("type=recovery") && window.location.pathname !== "/reset-password") {
+            window.location.replace("/reset-password" + window.location.hash);
+        }
+    }, [location]);
+
     // Check maintenance mode
     useEffect(() => {
         let isMounted = true;

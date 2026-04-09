@@ -92,6 +92,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 const newItems = [...currentItems];
                 newItems[existingItemIndex] = {
                     ...newItems[existingItemIndex],
+                    variant, // Re-update with latest variant data (price, etc.)
                     quantity: newItems[existingItemIndex].quantity + quantity
                 };
                 return newItems;

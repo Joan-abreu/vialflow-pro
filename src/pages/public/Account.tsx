@@ -17,6 +17,14 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { TrackingDialog } from "@/components/shipping/TrackingDialog";
+import { detectCarrier } from "@/utils/shipping";
+
+interface TrackingInfo {
+    trackingNumber: string;
+    carrier: string;
+    trackingUrl?: string;
+    shipmentId?: string;
+}
 
 interface Order {
     id: string;
@@ -63,7 +71,7 @@ const Account = () => {
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [reordering, setReordering] = useState<string | null>(null);
     const [trackingOpen, setTrackingOpen] = useState(false);
-    const [trackingInfo, setTrackingInfo] = useState<{trackingNumber: string, carrier?: string, shipmentId?: string} | null>(null);
+    const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null);
 
     useEffect(() => {
         checkUser();
@@ -106,7 +114,7 @@ const Account = () => {
                 tax,
                 shipping_service,
                 tracking_number,
-                order_shipments(id, carrier, tracking_number),
+                order_shipments(id, carrier, tracking_number, tracking_url),
                 order_items (
                     id,
                     quantity,
@@ -152,13 +160,32 @@ const Account = () => {
     };
 
     const getStatusColor = (status: string) => {
-        switch (status) {
+        const lower = status?.toLowerCase();
+        switch (lower) {
             case "pending": return "bg-yellow-100 text-yellow-800";
             case "processing": return "bg-blue-100 text-blue-800";
-            case "shipped": return "bg-purple-100 text-purple-800";
+            case "shipped": 
+            case "in_transit":
+            case "pickup_scheduled": return "bg-purple-100 text-purple-800";
+            case "out_for_delivery": return "bg-indigo-100 text-indigo-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
             default: return "bg-gray-100 text-gray-800";
+        }
+    };
+
+    const formatStatus = (status: string) => {
+        switch (status?.toLowerCase()) {
+            case "pending": return "Pending";
+            case "processing": return "Processing";
+            case "shipped": return "Shipped";
+            case "in_transit": return "In Transit";
+            case "out_for_delivery": return "Out for Delivery";
+            case "delivered": return "Delivered";
+            case "cancelled": return "Cancelled";
+            case "pickup_scheduled": return "In Transit";
+            case "ready_to_ship": return "Ready to Ship";
+            default: return status?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Pending";
         }
     };
 
@@ -385,14 +412,16 @@ const Account = () => {
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <Badge variant="secondary" className={getStatusColor(order.status)}>
-                                                    {order.status}
+                                                    {formatStatus(order.status)}
                                                 </Badge>
                                                 {order.tracking_number && (
                                                     <Button variant="outline" size="sm" onClick={() => {
                                                         const shipment = order.order_shipments?.[0];
+                                                        const trackingNum = order.tracking_number as string;
                                                         setTrackingInfo({
-                                                            trackingNumber: order.tracking_number as string,
-                                                            carrier: shipment?.carrier || 'UPS',
+                                                            trackingNumber: trackingNum,
+                                                            carrier: shipment?.carrier || detectCarrier(trackingNum),
+                                                            trackingUrl: shipment?.tracking_url || undefined,
                                                             shipmentId: shipment?.id
                                                         });
                                                         setTrackingOpen(true);

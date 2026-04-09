@@ -18,19 +18,27 @@ interface TrackingDialogProps {
     onOpenChange: (open: boolean) => void;
     trackingNumber?: string;
     carrier?: string;
+    trackingUrl?: string; // Add this
     shipmentId?: string;
 }
+
+import { getTrackingUrl } from "@/utils/shipping";
 
 export function TrackingDialog({
     open,
     onOpenChange,
     trackingNumber,
     carrier = "UPS",
+    trackingUrl: passedTrackingUrl,
     shipmentId,
 }: TrackingDialogProps) {
     const [loading, setLoading] = useState(false);
     const [trackingData, setTrackingData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const trackingUrl = passedTrackingUrl || 
+                      trackingData?.rawResponse?.tracking_url_provider || 
+                      getTrackingUrl(carrier, trackingNumber || "");
 
     useEffect(() => {
         if (open && trackingNumber) {
@@ -75,37 +83,68 @@ export function TrackingDialog({
     const getStatusIcon = (status: string) => {
         const lower = (status || "").toLowerCase();
         if (lower.includes("delivered")) return <CheckCircle2 className="h-6 w-6 text-green-500" />;
-        if (lower.includes("transit") || lower.includes("delivery")) return <Truck className="h-6 w-6 text-blue-500" />;
-        if (lower.includes("exception") || lower.includes("error")) return <AlertCircle className="h-6 w-6 text-red-500" />;
+        if (lower.includes("transit") || lower.includes("delivery") || lower.includes("pre_transit") || lower.includes("shipped")) return <Truck className="h-6 w-6 text-blue-500" />;
+        if (lower.includes("exception") || lower.includes("error") || lower.includes("failure")) return <AlertCircle className="h-6 w-6 text-red-500" />;
         return <Package className="h-6 w-6 text-gray-500" />;
     };
 
-    const formatUPSTime = (dateStr?: string, timeStr?: string) => {
+    const formatTime = (dateStr?: string, timeStr?: string) => {
         if (!dateStr) return "Unknown date";
+        
         try {
-            // UPS formats: date usually "YYYYMMDD", time usually "HHMMSS"
-            const year = dateStr.substring(0, 4);
-            const month = dateStr.substring(4, 6);
-            const day = dateStr.substring(6, 8);
-            
-            if (timeStr && timeStr.length >= 6) {
-                const hour = timeStr.substring(0, 2);
-                const min = timeStr.substring(2, 4);
-                const sec = timeStr.substring(4, 6);
-                return format(new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`), "MMM d, yyyy h:mm a");
+            // Check if it's an ISO date string (common in Shippo/FedEx)
+            if (dateStr.includes("-") || dateStr.includes("T")) {
+                return format(parseISO(dateStr), "MMM d, yyyy h:mm a");
             }
-            return format(new Date(`${year}-${month}-${day}`), "MMM d, yyyy");
+
+            // UPS specific formats: date usually "YYYYMMDD", time usually "HHMMSS"
+            if (dateStr.length === 8 && !dateStr.includes("-")) {
+                const year = dateStr.substring(0, 4);
+                const month = dateStr.substring(4, 6);
+                const day = dateStr.substring(6, 8);
+                
+                if (timeStr && timeStr.length >= 6) {
+                    const hour = timeStr.substring(0, 2);
+                    const min = timeStr.substring(2, 4);
+                    const sec = timeStr.substring(4, 6);
+                    return format(new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`), "MMM d, yyyy h:mm a");
+                }
+                return format(new Date(`${year}-${month}-${day}`), "MMM d, yyyy");
+            }
+            
+            return dateStr;
         } catch (e) {
             return `${dateStr} ${timeStr || ""}`;
         }
     };
 
     const formatLocation = (location?: any) => {
-        if (!location?.address) return null;
-        const { city, stateProvince, countryCode } = location.address;
-        const parts = [city, stateProvince, countryCode].filter(Boolean);
-        return parts.length > 0 ? parts.join(", ") : null;
+        if (!location) return null;
+        
+        // Handle Shippo location format
+        if (location.city && location.state) {
+            return `${location.city}, ${location.state} ${location.zip || ""}`;
+        }
+        
+        // Handle UPS location format
+        if (location.address) {
+            const { city, stateProvince, countryCode } = location.address;
+            const parts = [city, stateProvince, countryCode].filter(Boolean);
+            return parts.length > 0 ? parts.join(", ") : null;
+        }
+
+        // Handle string location
+        if (typeof location === "string") return location;
+
+        return null;
     };
+
+
+    const displayCarrier = 
+        trackingUrl.includes("usps.com") ? "USPS" : 
+        trackingUrl.includes("ups.com") ? "UPS" : 
+        trackingUrl.includes("fedex.com") ? "FedEx" : 
+        carrier === "SHIPPO" ? "USPS" : carrier;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,14 +152,14 @@ export function TrackingDialog({
                 <DialogHeader className="p-6 pb-2 border-b">
                     <DialogTitle className="text-2xl flex items-center justify-between">
                         <div>
-                            Tracking via {carrier}
+                            Tracking via {displayCarrier}
                             <span className="block text-sm text-muted-foreground mt-1 font-normal font-mono">
                                 {trackingNumber || "No tracking number available"}
                             </span>
                         </div>
                         {trackingData && (
                             <Badge variant={trackingData.status === "delivered" ? "default" : "secondary"} className="text-sm px-3 py-1">
-                                {trackingData.status === "delivered" ? "Delivered" : "In Transit"}
+                                {trackingData.status === "delivered" ? "Delivered" : trackingData.status?.replace(/_/g, " ") || "In Transit"}
                             </Badge>
                         )}
                     </DialogTitle>
@@ -141,12 +180,17 @@ export function TrackingDialog({
                             </p>
                             {trackingNumber && (
                                 <a 
-                                    href={`https://www.ups.com/track?tracknum=${trackingNumber}`} 
+                                    href={trackingUrl} 
                                     target="_blank" 
                                     rel="noreferrer"
                                     className="text-primary hover:underline font-medium"
                                 >
-                                    Track directly on {carrier}.com
+                                    Track directly on {
+                                        trackingUrl.includes("usps.com") ? "USPS" : 
+                                        trackingUrl.includes("ups.com") ? "UPS" : 
+                                        trackingUrl.includes("fedex.com") ? "FedEx" : 
+                                        carrier === "SHIPPO" ? "Shippo" : carrier
+                                    } website
                                 </a>
                             )}
                         </div>
@@ -159,46 +203,57 @@ export function TrackingDialog({
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-lg capitalize">{trackingData.status?.replace(/_/g, " ") || "In Transit"}</h3>
-                                    {trackingData.status === "delivered" && trackingData.deliveredAt && (
+                                    {(trackingData.status === "delivered" || trackingData.deliveredAt) && (
                                         <p className="text-muted-foreground text-sm">
-                                            Delivered on {formatUPSTime(trackingData.deliveredAt.substring(0,8))}
+                                            {trackingData.status === "delivered" ? "Delivered on " : "Last update on "} 
+                                            {formatTime(trackingData.deliveredAt || trackingData.status_date)}
                                         </p>
                                     )}
                                     <a 
-                                        href={`https://www.ups.com/track?tracknum=${trackingNumber}`} 
+                                        href={trackingUrl} 
                                         target="_blank" 
                                         rel="noreferrer"
-                                        className="text-xs text-primary hover:underline mt-1 inline-block"
+                                        className="text-xs text-primary hover:underline mt-1 inline-block font-medium"
                                     >
-                                        View on {carrier} website
+                                        View on {
+                                            trackingUrl.includes("usps.com") ? "USPS" : 
+                                            trackingUrl.includes("ups.com") ? "UPS" : 
+                                            trackingUrl.includes("fedex.com") ? "FedEx" : 
+                                            carrier === "SHIPPO" ? "Shippo" : carrier
+                                        } website
                                     </a>
                                 </div>
                             </div>
 
                             {/* Timeline */}
-                            <div className="relative pl-4 border-l-2 border-primary/20 ml-4 space-y-8 pb-4">
+                            <div className="relative border-l-2 border-primary/20 ml-6 space-y-8 pb-4">
                                 {trackingData.events?.length > 0 ? trackingData.events.map((event: any, idx: number) => {
                                     const isFirst = idx === 0;
+                                    
+                                    // Handle different event formats
+                                    const eventStatus = event.status?.description || event.description || event.status_details || "Status Update";
+                                    const eventDate = event.date || event.status_date;
+                                    const eventTime = event.time;
                                     const loc = formatLocation(event.location);
                                     
                                     return (
-                                        <div key={idx} className="relative">
+                                        <div key={idx} className="relative pl-8">
                                             {/* Timeline Node */}
-                                            <div className={`absolute -left-[21px] p-1 rounded-full border-2 bg-white ${isFirst ? 'border-primary text-primary' : 'border-gray-300 text-gray-400'}`}>
+                                            <div className={`absolute left-0 top-1 -translate-x-1/2 p-1 rounded-full border-2 bg-white ${isFirst ? 'border-primary text-primary' : 'border-gray-300 text-gray-400'}`}>
                                                 {isFirst ? <CheckCircle2 className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full bg-gray-300" />}
                                             </div>
                                             
                                             <div className="pl-6">
                                                 <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 mb-1">
                                                     <h4 className={`font-semibold ${isFirst ? 'text-foreground' : 'text-gray-600'}`}>
-                                                        {event.status?.description || event.description || "Status Update"}
+                                                        {eventStatus}
                                                     </h4>
                                                 </div>
                                                 
                                                 <div className="flex flex-col gap-1 mt-2 text-sm text-muted-foreground">
                                                     <div className="flex items-center gap-1.5">
                                                         <Clock className="w-3.5 h-3.5" />
-                                                        {formatUPSTime(event.date, event.time)}
+                                                        {formatTime(eventDate, eventTime)}
                                                     </div>
                                                     {loc && (
                                                         <div className="flex items-center gap-1.5">

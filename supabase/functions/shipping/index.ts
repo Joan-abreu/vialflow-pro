@@ -201,7 +201,9 @@ const handler = async (req: Request): Promise<Response> => {
 
                 // Update shipment status
                 if (result.success) {
-                    await supabase
+                    console.log(`[Shipping Handler] Tracking success for ${data.shipmentId}. New status: ${result.status}`);
+                    
+                    const { error: shipmentUpdateError } = await supabase
                         .from("order_shipments")
                         .update({
                             status: result.status,
@@ -214,32 +216,61 @@ const handler = async (req: Request): Promise<Response> => {
                         })
                         .eq("id", data.shipmentId);
 
-                    // If status is delivered or shipped, update the order as well
-                    if (result.status === "delivered" || result.status === "shipped") {
-                        await supabase
-                            .from("orders")
-                            .update({
-                                status: result.status,
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq("id", trackShipment.order_id);
+                    if (shipmentUpdateError) {
+                        console.error("[Shipping Handler] Error updating shipment:", shipmentUpdateError);
+                    }
+
+                    // If status is delivered or shipped (or in transit), update the order as well
+                    const status = result.status?.toLowerCase();
+                    const isShipped = ["shipped", "transit", "in_transit", "out_for_delivery", "pre_transit"].includes(status);
+                    const isDelivered = status === "delivered";
+
+                    console.log(`[Shipping Handler] Logic checks: isShipped=${isShipped}, isDelivered=${isDelivered}, currentOrderStatus=${trackShipment.orders?.status}`);
+
+                    if (isShipped || isDelivered) {
+                        const newOrderStatus = isDelivered ? "delivered" : "shipped";
                         
-                        // Send status update email if it was a significant change
-                        if (result.status !== trackShipment.orders?.status) {
-                             await fetch(
-                                `${SUPABASE_URL}/functions/v1/send-order-email`,
-                                {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                                    },
-                                    body: JSON.stringify({
-                                        order_id: trackShipment.order_id,
-                                        type: result.status === "delivered" ? "delivered" : "shipped",
-                                    }),
+                        if (trackShipment.order_id) {
+                            console.log(`[Shipping Handler] Attempting to update order ${trackShipment.order_id} to ${newOrderStatus}`);
+                            
+                            const { data: updatedOrder, error: orderUpdateError } = await supabase
+                                .from("orders")
+                                .update({
+                                    status: newOrderStatus
+                                })
+                                .eq("id", trackShipment.order_id)
+                                .select();
+                            
+                            if (orderUpdateError) {
+                                console.error("[Shipping Handler] Error updating order:", orderUpdateError);
+                            } else {
+                                console.log(`[Shipping Handler] Order successfully updated. New data:`, updatedOrder);
+                                
+                                // Check if we should send email
+                                // Handle case where orders might be an array or object
+                                const orderData = Array.isArray(trackShipment.orders) ? trackShipment.orders[0] : trackShipment.orders;
+                                const oldStatus = orderData?.status;
+
+                                if (newOrderStatus !== oldStatus) {
+                                    console.log(`[Shipping Handler] Status changed from ${oldStatus} to ${newOrderStatus}. Triggering email.`);
+                                    await fetch(
+                                        `${SUPABASE_URL}/functions/v1/send-order-email`,
+                                        {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                            },
+                                            body: JSON.stringify({
+                                                order_id: trackShipment.order_id,
+                                                type: newOrderStatus,
+                                            }),
+                                        }
+                                    );
                                 }
-                            );
+                            }
+                        } else {
+                            console.warn("[Shipping Handler] No order_id found on shipment record");
                         }
                     }
                 }

@@ -313,9 +313,14 @@ export class ShippoCarrier implements ICarrier {
             
             // Map Shippo status to our internal statuses
             let status = data.tracking_status?.status?.toLowerCase() || "unknown";
+            const substatus = data.tracking_status?.substatus?.code;
+
+            console.log(`[Shippo Tracker] Tracking #${trackingNumber} | Status: ${status} | Substatus: ${substatus || 'none'}`);
             
-            // Check for Out for Delivery in substatus if available
-            if (data.tracking_status?.substatus?.code === "out_for_delivery") {
+            // Normalize statuses for our internal system
+            if (status === "transit" || status === "in_transit") {
+                status = "shipped";
+            } else if (substatus === "out_for_delivery") {
                 status = "out_for_delivery";
             }
 

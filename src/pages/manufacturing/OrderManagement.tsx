@@ -637,6 +637,7 @@ const OrderManagement = () => {
                                                                                         className="h-6 w-6"
                                                                                         onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
                                                                                         disabled={refreshingTracking === shipment.id}
+                                                                                        title="Refresh Tracking Status"
                                                                                     >
                                                                                         <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
                                                                                     </Button>
@@ -650,6 +651,7 @@ const OrderManagement = () => {
                                                                                         className="h-6 w-6"
                                                                                         onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
                                                                                         disabled={refreshingTracking === shipment.id}
+                                                                                        title="Refresh Tracking Status"
                                                                                     >
                                                                                         <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
                                                                                     </Button>

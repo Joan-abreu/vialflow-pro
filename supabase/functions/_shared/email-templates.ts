@@ -337,6 +337,8 @@ export function getOrderStatusUpdateEmail(orderData: {
     customerName: string;
     status: string;
     trackingUrl?: string;
+    statusDetails?: string;
+    statusDate?: string;
 }): string {
     // Map status to user-friendly text and colors
     const statusMap: Record<string, { text: string; color: string; bgColor: string }> = {
@@ -344,6 +346,7 @@ export function getOrderStatusUpdateEmail(orderData: {
         processing: { text: 'Processing', color: '#3b82f6', bgColor: '#dbeafe' },
         shipped: { text: 'Shipped', color: '#10b981', bgColor: '#d1fae5' },
         in_transit: { text: 'In Transit', color: '#8b5cf6', bgColor: '#ede9fe' },
+        out_for_delivery: { text: 'Out for Delivery', color: '#3b82f6', bgColor: '#dbeafe' },
         delivered: { text: 'Delivered', color: '#059669', bgColor: '#a7f3d0' },
         cancelled: { text: 'Cancelled', color: '#ef4444', bgColor: '#fee2e2' },
     };
@@ -371,6 +374,8 @@ export function getOrderStatusUpdateEmail(orderData: {
         <div style="background-color: ${statusInfo.bgColor}; border-left: 4px solid ${statusInfo.color}; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; font-size: 14px; color: #6b7280;">Current Status</p>
             <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 700; color: ${statusInfo.color};">${statusInfo.text}</p>
+            ${orderData.statusDetails ? `<p style="margin: 10px 0 0 0; font-size: 15px; color: #4b5563;">${orderData.statusDetails}</p>` : ''}
+            ${orderData.statusDate ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #6b7280;">${new Date(orderData.statusDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>` : ''}
         </div>
 
         ${orderData.trackingUrl ? `
@@ -378,7 +383,9 @@ export function getOrderStatusUpdateEmail(orderData: {
         ` : ''}
 
         <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
-            ${(orderData.status.toLowerCase() === 'shipped' || orderData.status.toLowerCase() === 'in_transit')
+            ${(orderData.status.toLowerCase() === 'shipped' || 
+               orderData.status.toLowerCase() === 'in_transit' || 
+               orderData.status.toLowerCase() === 'out_for_delivery')
             ? "Your order is on its way!"
             : orderData.status.toLowerCase() === 'delivered'
                 ? "Your order has been delivered. We hope you enjoy your purchase!"

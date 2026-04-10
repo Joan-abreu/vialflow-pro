@@ -327,6 +327,8 @@ export class ShippoCarrier implements ICarrier {
             return {
                 success: true,
                 status: status,
+                statusDetails: data.tracking_status?.status_details,
+                statusDate: data.tracking_status?.status_date,
                 deliveredAt: data.tracking_status?.status === "DELIVERED" ? data.tracking_status.status_date : undefined,
                 events: data.tracking_history || [],
                 rawResponse: data,

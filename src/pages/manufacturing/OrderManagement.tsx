@@ -377,7 +377,7 @@ const OrderManagement = () => {
         { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production', 'ready_to_ship'] },
         { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['label_created', 'pickup_scheduled'] },
         { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
-        { id: 'in_transit', label: 'In Transit', statuses: ['in_transit'] },
+        { id: 'in_transit', label: 'In Transit', statuses: ['in_transit', 'out_for_delivery'] },
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
         { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },

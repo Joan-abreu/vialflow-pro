@@ -24,6 +24,8 @@ const corsHeaders = {
 interface OrderEmailRequest {
   order_id: string;
   type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered";
+  status_details?: string;
+  status_date?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -84,7 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
       SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { order_id, type }: OrderEmailRequest = await req.json();
+    const { order_id, type, status_details, status_date }: OrderEmailRequest = await req.json();
 
     if (!order_id) {
       throw new Error("Missing order_id");
@@ -236,6 +238,8 @@ const handler = async (req: Request): Promise<Response> => {
         customerName: customerName,
         status: displayStatus,
         trackingUrl,
+        statusDetails: status_details,
+        statusDate: status_date,
       });
     }
 

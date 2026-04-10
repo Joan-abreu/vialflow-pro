@@ -116,6 +116,8 @@ serve(async (req) => {
             body: JSON.stringify({
               order_id: orderId,
               type: emailType,
+              status_details: payload.data.tracking_status?.status_details,
+              status_date: payload.data.tracking_status?.status_date,
             }),
           }
         );

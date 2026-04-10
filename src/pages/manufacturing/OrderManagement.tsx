@@ -314,6 +314,7 @@ const OrderManagement = () => {
             case "label_created": return "bg-cyan-100 text-cyan-800";
             case "pickup_scheduled": return "bg-teal-100 text-teal-800";
             case "shipped": return "bg-indigo-100 text-indigo-800";
+            case "in_transit": return "bg-violet-100 text-violet-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
             default: return "bg-gray-100 text-gray-800";
@@ -376,6 +377,7 @@ const OrderManagement = () => {
         { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production', 'ready_to_ship'] },
         { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['label_created', 'pickup_scheduled'] },
         { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
+        { id: 'in_transit', label: 'In Transit', statuses: ['in_transit'] },
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
         { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
@@ -556,6 +558,7 @@ const OrderManagement = () => {
                                                             <SelectItem value="label_created">Label Created</SelectItem>
                                                             <SelectItem value="pickup_scheduled">Pickup Scheduled</SelectItem>
                                                             <SelectItem value="shipped">Shipped</SelectItem>
+                                                            <SelectItem value="in_transit">In Transit</SelectItem>
                                                             <SelectItem value="delivered">Delivered</SelectItem>
                                                             <SelectItem value="cancelled">Cancelled</SelectItem>
                                                         </SelectContent>

@@ -71,10 +71,10 @@ serve(async (req) => {
       internalStatus = "out_for_delivery";
       emailType = "out_for_delivery";
     } else if (status === "transit") {
-      internalStatus = "shipped";
-      // Only send shipped email if it wasn't already marked as shipped
-      if (currentOrderStatus !== "shipped") {
-        emailType = "shipped";
+      internalStatus = "in_transit";
+      // Only send in_transit email if it wasn't already marked as in_transit
+      if (currentOrderStatus !== "in_transit") {
+        emailType = "in_transit";
       }
     }
 

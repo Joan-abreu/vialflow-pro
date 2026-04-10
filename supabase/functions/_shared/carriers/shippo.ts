@@ -319,7 +319,7 @@ export class ShippoCarrier implements ICarrier {
             
             // Normalize statuses for our internal system
             if (status === "transit" || status === "in_transit") {
-                status = "shipped";
+                status = "in_transit";
             } else if (substatus === "out_for_delivery") {
                 status = "out_for_delivery";
             }

@@ -228,7 +228,7 @@ const handler = async (req: Request): Promise<Response> => {
                     console.log(`[Shipping Handler] Logic checks: isShipped=${isShipped}, isDelivered=${isDelivered}, currentOrderStatus=${trackShipment.orders?.status}`);
 
                     if (isShipped || isDelivered) {
-                        const newOrderStatus = isDelivered ? "delivered" : "shipped";
+                        const newOrderStatus = isDelivered ? "delivered" : (status === "shipped" ? "shipped" : "in_transit");
                         
                         if (trackShipment.order_id) {
                             console.log(`[Shipping Handler] Attempting to update order ${trackShipment.order_id} to ${newOrderStatus}`);

@@ -83,7 +83,7 @@ serve(async (req) => {
       .from("order_shipments")
       .update({
         status: internalStatus,
-        last_status_update: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         carrier_response: data // Update with latest full tracking data
       })
       .eq("id", shipment.id);
@@ -95,8 +95,7 @@ serve(async (req) => {
       const { error: updateOrderError } = await supabase
         .from("orders")
         .update({
-          status: internalStatus,
-          updated_at: new Date().toISOString()
+          status: internalStatus
         })
         .eq("id", orderId);
 

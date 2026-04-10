@@ -208,7 +208,7 @@ const handler = async (req: Request): Promise<Response> => {
                         .update({
                             status: result.status,
                             actual_delivery_date: result.deliveredAt,
-                            last_status_update: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
                             carrier_response: {
                                 ...trackShipment.carrier_response,
                                 tracking_update: result.rawResponse

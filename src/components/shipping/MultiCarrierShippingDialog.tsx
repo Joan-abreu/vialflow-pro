@@ -653,10 +653,45 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         setTrackingOpen(true);
     };
 
-    const downloadLabel = () => {
+    const downloadLabel = async () => {
         if (!labelUrl) return;
 
         window.open(labelUrl, '_blank', 'noopener,noreferrer');
+
+        try {
+            // Get current order status
+            const { data: currentOrder } = await supabase
+                .from("orders")
+                .select("status")
+                .eq("id", orderId)
+                .single();
+
+            if (currentOrder && (currentOrder.status === 'label_created' || currentOrder.status === 'pickup_scheduled')) {
+                
+                // Update to shipped
+                const { error: updateError } = await supabase
+                    .from("orders")
+                    .update({ status: 'shipped' })
+                    .eq("id", orderId);
+
+                if (updateError) throw updateError;
+
+                // Trigger email notification
+                await supabase.functions.invoke("send-order-email", {
+                    body: {
+                        order_id: orderId,
+                        type: "shipped"
+                    }
+                });
+
+                toast.success("Order marked as shipped and customer notified");
+                onSuccess?.(); // Refresh UI
+            }
+        } catch (error: any) {
+            console.error("Error updating status on download:", error);
+            // We don't toast error here because the download already happened, 
+            // and we don't want to confuse the user if the status update fails silently.
+        }
     };
 
     const renderShipmentSummary = () => {
@@ -910,7 +945,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                     </div>
                                     <Button onClick={downloadLabel} variant="outline" className="w-full">
                                         <Download className="mr-2 h-4 w-4" />
-                                        Download Label
+                                        Download Label & Print
                                     </Button>
                                 </CardContent>
                             </Card>

@@ -228,9 +228,14 @@ const handler = async (req: Request): Promise<Response> => {
                     console.log(`[Shipping Handler] Logic checks: isShipped=${isShipped}, isDelivered=${isDelivered}, currentOrderStatus=${trackShipment.orders?.status}`);
 
                     if (isShipped || isDelivered) {
+                        // Determine the internal status based on priority
+                        // pre_transit or shipped -> shipped
+                        // transit -> in_transit
+                        // out_for_delivery -> out_for_delivery
+                        // delivered -> delivered
                         const newOrderStatus = isDelivered ? "delivered" : 
-                                              (status === "shipped" ? "shipped" : 
-                                              (status === "out_for_delivery" ? "out_for_delivery" : "in_transit"));
+                                              (status === "out_for_delivery" ? "out_for_delivery" : 
+                                              (["transit", "in_transit"].includes(status) ? "in_transit" : "shipped"));
                         
                         if (trackShipment.order_id) {
                             console.log(`[Shipping Handler] Attempting to update order ${trackShipment.order_id} to ${newOrderStatus}`);

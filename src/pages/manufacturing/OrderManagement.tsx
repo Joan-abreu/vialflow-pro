@@ -108,6 +108,7 @@ const OrderManagement = () => {
     const [showProductionDialog, setShowProductionDialog] = useState(false);
     const [showShippingDialog, setShowShippingDialog] = useState(false);
     const [activeTab, setActiveTab] = useState("all");
+    const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string, status: string } | null>(null);
     const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -289,6 +290,10 @@ const OrderManagement = () => {
         updateStatusMutation.mutate({ orderId, status });
     };
 
+    const handleInitiateStatusChange = (orderId: string, status: string) => {
+        setPendingStatusChange({ orderId, status });
+    };
+
     const handleViewDetails = (order: Order) => {
         setSelectedOrder(order);
         setShowDetailsDialog(true);
@@ -315,6 +320,7 @@ const OrderManagement = () => {
             case "pickup_scheduled": return "bg-teal-100 text-teal-800";
             case "shipped": return "bg-indigo-100 text-indigo-800";
             case "in_transit": return "bg-violet-100 text-violet-800";
+            case "out_for_delivery": return "bg-sky-100 text-sky-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
             default: return "bg-gray-100 text-gray-800";
@@ -545,7 +551,7 @@ const OrderManagement = () => {
                                                     />
                                                     <Select
                                                         value={order.status}
-                                                        onValueChange={(value) => handleStatusChange(order.id, value)}
+                                                        onValueChange={(value) => handleInitiateStatusChange(order.id, value)}
                                                     >
                                                         <SelectTrigger className="w-[140px] h-8 text-xs">
                                                             <SelectValue placeholder="Status" />
@@ -559,6 +565,7 @@ const OrderManagement = () => {
                                                             <SelectItem value="pickup_scheduled">Pickup Scheduled</SelectItem>
                                                             <SelectItem value="shipped">Shipped</SelectItem>
                                                             <SelectItem value="in_transit">In Transit</SelectItem>
+                                                            <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                                                             <SelectItem value="delivered">Delivered</SelectItem>
                                                             <SelectItem value="cancelled">Cancelled</SelectItem>
                                                         </SelectContent>
@@ -930,6 +937,31 @@ const OrderManagement = () => {
                             disabled={deleteOrderMutation.isPending}
                         >
                             {deleteOrderMutation.isPending ? "Deleting..." : "Delete Order"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!pendingStatusChange} onOpenChange={(open) => !open && setPendingStatusChange(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Change Order Status?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to change the status of order #{pendingStatusChange?.orderId.slice(0, 8)} to <span className="font-semibold uppercase">{pendingStatusChange?.status.replace(/_/g, " ")}</span>? 
+                            This action may trigger automated processes such as sending update emails to the customer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (pendingStatusChange) {
+                                    handleStatusChange(pendingStatusChange.orderId, pendingStatusChange.status);
+                                    setPendingStatusChange(null);
+                                }
+                            }}
+                        >
+                            Confirm Change
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

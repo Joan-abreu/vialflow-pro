@@ -375,7 +375,6 @@ export function getOrderStatusUpdateEmail(orderData: {
             <p style="margin: 0; font-size: 14px; color: #6b7280;">Current Status</p>
             <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 700; color: ${statusInfo.color};">${statusInfo.text}</p>
             ${orderData.statusDetails ? `<p style="margin: 10px 0 0 0; font-size: 15px; color: #4b5563;">${orderData.statusDetails}</p>` : ''}
-            ${orderData.statusDate ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #6b7280;">${new Date(orderData.statusDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>` : ''}
         </div>
 
         ${orderData.trackingUrl ? `

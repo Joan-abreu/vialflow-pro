@@ -318,10 +318,15 @@ export class ShippoCarrier implements ICarrier {
             console.log(`[Shippo Tracker] Tracking #${trackingNumber} | Status: ${status} | Substatus: ${substatus || 'none'}`);
             
             // Normalize statuses for our internal system
-            if (status === "transit" || status === "in_transit") {
-                status = "in_transit";
-            } else if (substatus === "out_for_delivery") {
+            const detailText = (data.tracking_status?.status_details || "").toLowerCase();
+            const isOutForDelivery = substatus === "out_for_delivery" || 
+                                   status === "out_for_delivery" || 
+                                   detailText.includes("out for delivery");
+
+            if (isOutForDelivery) {
                 status = "out_for_delivery";
+            } else if (status === "transit" || status === "in_transit") {
+                status = "in_transit";
             }
 
             return {

@@ -59,6 +59,7 @@ serve(async (req) => {
 
     const orderId = shipment.order_id;
     const currentOrderStatus = shipment.orders?.status;
+    const detailText = (payload.data.tracking_status?.status_details || "").toLowerCase();
 
     // 2. Map Shippo status to our internal status
     let internalStatus = shipment.status;
@@ -67,14 +68,26 @@ serve(async (req) => {
     if (status === "delivered") {
       internalStatus = "delivered";
       emailType = "delivered";
-    } else if (substatus === "out_for_delivery") {
+    } else if (substatus === "out_for_delivery" || status === "out_for_delivery" || detailText.includes("out for delivery")) {
       internalStatus = "out_for_delivery";
       emailType = "out_for_delivery";
     } else if (status === "transit") {
       internalStatus = "in_transit";
       // Only send in_transit email if it wasn't already marked as in_transit
-      if (currentOrderStatus !== "in_transit") {
+      if (currentOrderStatus !== "in_transit" && currentOrderStatus !== "out_for_delivery" && currentOrderStatus !== "delivered") {
         emailType = "in_transit";
+      }
+    } else {
+      // pre_transit or shipped -> shipped
+      internalStatus = "shipped";
+      // Only send shipped email if it wasn't already marked as shipped or further
+      if (
+        currentOrderStatus !== "shipped" && 
+        currentOrderStatus !== "in_transit" && 
+        currentOrderStatus !== "out_for_delivery" && 
+        currentOrderStatus !== "delivered"
+      ) {
+        emailType = "shipped";
       }
     }
 

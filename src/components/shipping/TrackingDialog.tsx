@@ -227,7 +227,7 @@ export function TrackingDialog({
 
                             {/* Timeline */}
                             <div className="relative border-l-2 border-primary/20 ml-6 space-y-8 pb-4">
-                                {trackingData.events?.length > 0 ? trackingData.events.map((event: any, idx: number) => {
+                                {trackingData.events?.length > 0 ? [...trackingData.events].reverse().map((event: any, idx: number) => {
                                     const isFirst = idx === 0;
                                     
                                     // Handle different event formats

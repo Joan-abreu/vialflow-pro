@@ -23,7 +23,7 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   order_id: string;
-  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "out_for_delivery" | "delivered";
+  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered";
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -191,7 +191,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // STATUS UPDATE (GENERIC OR SPECIFIC SHIPMENT STAGES)
-    else if (type === "status_update" || type === "shipped" || type === "out_for_delivery" || type === "delivered") {
+    else if (type === "status_update" || type === "shipped" || type === "in_transit" || type === "out_for_delivery" || type === "delivered") {
       if (!customerEmail) {
         throw new Error("No customer email available");
       }
@@ -201,6 +201,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Map internal type to status wording
       const displayStatus = 
         type === "shipped" ? "Shipped" : 
+        type === "in_transit" ? "In Transit" : 
         type === "out_for_delivery" ? "Out for Delivery" : 
         type === "delivered" ? "Delivered" : 
         order.status;

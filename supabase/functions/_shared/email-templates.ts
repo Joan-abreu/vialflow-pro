@@ -343,6 +343,7 @@ export function getOrderStatusUpdateEmail(orderData: {
         pending: { text: 'Pending', color: '#f59e0b', bgColor: '#fef3c7' },
         processing: { text: 'Processing', color: '#3b82f6', bgColor: '#dbeafe' },
         shipped: { text: 'Shipped', color: '#10b981', bgColor: '#d1fae5' },
+        in_transit: { text: 'In Transit', color: '#8b5cf6', bgColor: '#ede9fe' },
         delivered: { text: 'Delivered', color: '#059669', bgColor: '#a7f3d0' },
         cancelled: { text: 'Cancelled', color: '#ef4444', bgColor: '#fee2e2' },
     };
@@ -377,8 +378,8 @@ export function getOrderStatusUpdateEmail(orderData: {
         ` : ''}
 
         <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
-            ${orderData.status.toLowerCase() === 'shipped'
-            ? "Your order is on its way! You should receive it within 2-3 business days."
+            ${(orderData.status.toLowerCase() === 'shipped' || orderData.status.toLowerCase() === 'in_transit')
+            ? "Your order is on its way!"
             : orderData.status.toLowerCase() === 'delivered'
                 ? "Your order has been delivered. We hope you enjoy your purchase!"
                 : "We'll keep you updated on any changes to your order status."}

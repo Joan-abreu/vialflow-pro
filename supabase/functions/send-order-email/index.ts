@@ -102,7 +102,8 @@ const handler = async (req: Request): Promise<Response> => {
             product:products(name),
             vial_type:vial_types(name, capacity_ml, color, shape)
           )
-        )
+        ),
+        order_shipments(*)
       `)
       .eq("id", order_id)
       .single();
@@ -208,7 +209,11 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Generate Tracking URL
       let trackingUrl = undefined;
-      if (order.tracking_number) {
+      const activeShipment = order.order_shipments?.find((s: any) => s.status !== 'cancelled' && s.tracking_url);
+      
+      if (activeShipment?.tracking_url) {
+        trackingUrl = activeShipment.tracking_url;
+      } else if (order.tracking_number) {
         // We can try to be smart about the carrier
         const carrier = order.shipping_carrier?.toLowerCase();
         if (carrier === "fedex") {

@@ -367,6 +367,14 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                     applicationId={appId}
                                     locationId={locationId}
                                     cardTokenizeResponseReceived={((token: any) => {
+                                        if (typeof window !== 'undefined' && window.gtag) {
+                                            window.gtag('event', 'click_pay_button', {
+                                                event_category: 'ecommerce',
+                                                event_label: 'Square Checkout',
+                                                value: amount,
+                                                currency: 'USD'
+                                            });
+                                        }
                                         if (token.status === "OK") {
                                             handleSquarePayment(token.token);
                                         } else {

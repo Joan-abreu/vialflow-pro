@@ -119,7 +119,8 @@ const Dashboard = () => {
         { name: 'Processing', value: statusCounts['processing'] || 0, color: '#3b82f6' },
         { name: 'Ready To Ship', value: statusCounts['ready_to_ship'] || 0, color: '#0ea5e9' },
         { name: 'Label Created', value: statusCounts['label_created'] || 0, color: '#c026d3' },
-        { name: 'Shipped', value: (statusCounts['shipped'] || 0) + (statusCounts['transit'] || 0), color: '#8b5cf6' },
+        { name: 'Shipped', value: statusCounts['shipped'] || 0, color: '#8b5cf6' },
+        { name: 'In Transit', value: (statusCounts['in_transit'] || 0) + (statusCounts['transit'] || 0) + (statusCounts['out_for_delivery'] || 0), color: '#6366f1' },
         { name: 'Delivered', value: statusCounts['delivered'] || 0, color: '#10b981' },
       ].filter(item => item.value > 0);
 

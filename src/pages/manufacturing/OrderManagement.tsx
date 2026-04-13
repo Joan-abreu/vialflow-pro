@@ -36,7 +36,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
@@ -426,7 +426,8 @@ const OrderManagement = () => {
     });
 
     return (
-        <div className="space-y-6">
+        <>
+        <div className="space-y-6 print:hidden">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold">Order Management</h1>
@@ -847,7 +848,11 @@ const OrderManagement = () => {
                             </div>
                         </div>
                     )}
-                    <DialogFooter>
+                    <DialogFooter className="flex justify-between sm:justify-between w-full">
+                        <Button variant="outline" onClick={() => window.print()} className="gap-2">
+                            <Printer className="h-4 w-4" />
+                            Print Order
+                        </Button>
                         <Button onClick={() => setShowDetailsDialog(false)}>Close</Button>
                     </DialogFooter>
                 </DialogContent>
@@ -984,6 +989,135 @@ const OrderManagement = () => {
                 }}
             />
         </div>
+
+        {/* Print Only View */}
+        <div className="hidden print:block w-full bg-white text-black print-p-8 print-m-0">
+            {selectedOrder && (
+                <div className="max-w-4xl mx-auto space-y-8">
+                    <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6">
+                        <div>
+                            <h1 className="text-4xl font-bold mb-2">Order Details</h1>
+                            <p className="text-gray-800 text-lg font-mono font-medium">Order #{selectedOrder.id}</p>
+                            <p className="text-gray-600 mt-2 text-sm">Date: {format(new Date(selectedOrder.created_at), "PPP p")}</p>
+                        </div>
+                        <div className="text-right">
+                            <h2 className="font-bold text-2xl mb-1">{selectedOrder.customer_profile?.full_name || "Guest Customer"}</h2>
+                            <p className="text-gray-800">{selectedOrder.customer_email}</p>
+                            <p className="font-bold mt-3 text-lg">
+                                Status: {selectedOrder.status.replace(/_/g, " ").toUpperCase()}
+                            </p>
+                        </div>
+                    </div>
+
+                    {selectedOrder.shipping_address && (
+                        <div className="mb-8">
+                            <h3 className="font-bold text-xl mb-3 border-b border-gray-300 pb-2">Shipping Information</h3>
+                            <div className="grid grid-cols-2 gap-8 text-black">
+                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <p className="font-bold mb-2 uppercase text-xs tracking-wider text-gray-500">Address</p>
+                                    <p className="font-medium text-lg">{selectedOrder.shipping_address.line1}</p>
+                                    {selectedOrder.shipping_address.line2 && <p className="font-medium text-lg">{selectedOrder.shipping_address.line2}</p>}
+                                    <p className="font-medium text-lg">{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} {selectedOrder.shipping_address.postal_code}</p>
+                                    <p className="text-gray-600 mt-1">{selectedOrder.shipping_address.country}</p>
+                                </div>
+                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <p className="font-bold mb-2 uppercase text-xs tracking-wider text-gray-500">Method</p>
+                                    <p className="font-medium text-lg">{selectedOrder.shipping_service || "Standard"}</p>
+                                    {selectedOrder.shipping_carrier && <p className="font-medium text-lg mt-1">Carrier: {selectedOrder.shipping_carrier}</p>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <h3 className="font-bold text-xl mb-4 border-b border-gray-300 pb-2">Order Items</h3>
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b-2 border-gray-800 bg-gray-100">
+                                    <th className="py-3 px-4 font-bold text-gray-800">Product</th>
+                                    <th className="py-3 px-4 font-bold text-gray-800">SKU</th>
+                                    <th className="py-3 px-4 font-bold text-gray-800 text-right">Price</th>
+                                    <th className="py-3 px-4 font-bold text-gray-800 text-center">Qty</th>
+                                    <th className="py-3 px-4 font-bold text-gray-800 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {selectedOrder.order_items?.map((item) => (
+                                    <tr key={item.id} className="border-b border-gray-300 break-inside-avoid">
+                                        <td className="py-4 px-4">
+                                            <div className="font-bold text-gray-900 border-b border-transparent">{item.variant?.product?.name}</div>
+                                            <div className="text-gray-700 text-sm mt-1 font-medium">
+                                                {item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})
+                                                {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-4 font-mono text-sm">{item.variant?.sku || "N/A"}</td>
+                                        <td className="py-4 px-4 text-right">${item.price_at_time.toFixed(2)}</td>
+                                        <td className="py-4 px-4 text-center font-bold">{item.quantity}</td>
+                                        <td className="py-4 px-4 text-right font-bold text-gray-900">
+                                            ${(item.price_at_time * item.quantity).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="flex justify-end pt-8">
+                        <div className="w-80 space-y-3">
+                            <div className="flex justify-between text-gray-700 text-lg">
+                                <span>Subtotal</span>
+                                <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-gray-700 text-lg">
+                                <span>Shipping</span>
+                                <span>${(selectedOrder.shipping_cost || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between border-t-2 border-gray-800 pt-4 text-2xl font-bold text-black">
+                                <span>Total</span>
+                                <span>${selectedOrder.total_amount.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <style>{`
+            @media print {
+                html, body, #root, div[data-reactroot], .min-h-screen, main, .flex-1 {
+                    height: auto !important;
+                    min-height: 0 !important;
+                    overflow: visible !important;
+                    position: static !important;
+                    display: block !important;
+                }
+                body {
+                    background: white !important;
+                    color: black !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                @page {
+                    margin: 1.5cm;
+                }
+                /* Hide radix portal (where dialogs live) during print so it doesn't overlap */
+                [data-radix-portal], 
+                [role="dialog"],
+                .fixed {
+                    display: none !important;
+                }
+                
+                /* Reset tailwind's gray to actual black where needed for better print contrast */
+                .text-black { color: #000 !important; }
+                .text-gray-900 { color: #111 !important; }
+                .text-gray-800 { color: #222 !important; }
+                .text-gray-700 { color: #333 !important; }
+                .bg-gray-50 { background-color: #f9fafb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+        `}</style>
+        </>
     );
 };
 

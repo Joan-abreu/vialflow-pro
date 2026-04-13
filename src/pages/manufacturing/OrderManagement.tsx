@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
     Table,
@@ -435,6 +436,12 @@ const OrderManagement = () => {
                         Track and manage your customer orders, production status, and shipments.
                     </p>
                 </div>
+                <Link to="/manufacturing/order-labels">
+                    <Button variant="outline" className="flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        Order Labels
+                    </Button>
+                </Link>
             </div>
 
             <div className="flex flex-col gap-4">

@@ -110,10 +110,11 @@ const handler = async (req: Request): Promise<Response> => {
                                 email: carrierSettings.shipper_email || "sales@livwellresearchlabs.com"
                             },
                             ship_to: data.recipient,
-                            shipping_cost: result.shippingCost,
-                            total_cost: result.totalCost,
+                            shipping_cost: data.rateAmount || result.shippingCost || 0,
+                            total_cost: data.rateAmount || result.totalCost || 0,
                             currency: "USD",
                             status: "label_created",
+                            metadata: { rateAmount: data.rateAmount || result.totalCost || 0 },
                             carrier_response: result.rawResponse,
                         })
                         .select()

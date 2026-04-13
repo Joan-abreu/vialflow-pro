@@ -113,7 +113,7 @@ const Layout = ({ children }: LayoutProps) => {
   const mainNavigation = [
     { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
     { name: "Production", href: "/manufacturing/production", icon: Package },
-    { name: "Shipments", href: "/manufacturing/shipments", icon: Truck },
+    { name: "Shipments FBA", href: "/manufacturing/shipments", icon: Truck },
     { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
     { name: "Planner", href: "/manufacturing/planner", icon: Calendar },
     { name: "Products", href: "/manufacturing/products", icon: Tag },

@@ -60,12 +60,19 @@ const Register = () => {
                 return;
             }
 
+            // Format full name to Title Case
+            const formattedFullName = fullName
+                .trim()
+                .split(/\s+/)
+                .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : '')
+                .join(' ');
+
             // Custom registration flow via Edge Function to bypass SMTP limits
             const { data, error: funcError } = await supabase.functions.invoke('register-user', {
                 body: {
                     email,
                     password,
-                    fullName,
+                    fullName: formattedFullName,
                     phone,
                     redirectTo: `${window.location.origin}/auth/confirm`
                 }

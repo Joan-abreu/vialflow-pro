@@ -450,6 +450,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     data: {
                         orderId: orderId,
                         serviceCode: selectedService,
+                        rateAmount: rates.find(r => r.serviceCode === selectedService)?.cost || 0,
                         description: `Order #${order.id.slice(0, 8)}`,
                         shipper: {
                             name: carrierSettings?.shipper_name || DEFAULT_SHIPPER.name,
@@ -659,6 +660,26 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         window.open(labelUrl, '_blank', 'noopener,noreferrer');
 
         try {
+            // Update order_shipments printed_at in metadata
+            if (shipmentId) {
+                const { data: currentShipment } = await supabase
+                    .from("order_shipments")
+                    .select("metadata")
+                    .eq("id", shipmentId)
+                    .single();
+                
+                const currentMetadata = currentShipment?.metadata || {};
+                const newMetadata = {
+                    ...(typeof currentMetadata === 'object' && currentMetadata !== null ? currentMetadata : {}),
+                    printed_at: new Date().toISOString()
+                };
+
+                await supabase
+                    .from("order_shipments")
+                    .update({ metadata: newMetadata })
+                    .eq("id", shipmentId);
+            }
+
             // Get current order status
             const { data: currentOrder } = await supabase
                 .from("orders")

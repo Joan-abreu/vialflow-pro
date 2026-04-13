@@ -991,14 +991,22 @@ const OrderManagement = () => {
         </div>
 
         {/* Print Only View */}
-        <div className="hidden print:block w-full bg-white text-black print-p-8 print-m-0">
+        <div className="hidden print:block w-full bg-white text-black p-12 pb-0 mb-0">
             {selectedOrder && (
                 <div className="max-w-4xl mx-auto space-y-8">
-                    <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6">
+                    {/* Header Row */}
+                    <div className="flex justify-between items-center pb-2">
+                        <div className="font-bold text-2xl tracking-tight">VialFlow Pro</div>
+                        <div className="text-gray-500 text-sm font-medium">Printed Date: {format(new Date(), "PPP p")}</div>
+                    </div>
+
+                    <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mt-0">
                         <div>
                             <h1 className="text-4xl font-bold mb-2">Order Details</h1>
-                            <p className="text-gray-800 text-lg font-mono font-medium">Order #{selectedOrder.id}</p>
-                            <p className="text-gray-600 mt-2 text-sm">Date: {format(new Date(selectedOrder.created_at), "PPP p")}</p>
+                            <p className="text-gray-800 text-lg font-mono font-medium">Order #{selectedOrder.id.slice(0, 8)}</p>
+                            <div className="mt-4">
+                                <p className="text-gray-700 text-sm"><span className="font-semibold">Order Date:</span> {format(new Date(selectedOrder.created_at), "PPP p")}</p>
+                            </div>
                         </div>
                         <div className="text-right">
                             <h2 className="font-bold text-2xl mb-1">{selectedOrder.customer_profile?.full_name || "Guest Customer"}</h2>
@@ -1099,12 +1107,15 @@ const OrderManagement = () => {
                     margin: 0 !important;
                 }
                 @page {
-                    margin: 1.5cm;
+                    margin: 0;
                 }
                 /* Hide radix portal (where dialogs live) during print so it doesn't overlap */
                 [data-radix-portal], 
                 [role="dialog"],
-                .fixed {
+                .fixed,
+                header,
+                aside,
+                [data-sidebar] {
                     display: none !important;
                 }
                 

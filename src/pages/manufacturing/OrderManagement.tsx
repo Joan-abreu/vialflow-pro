@@ -514,8 +514,13 @@ const OrderManagement = () => {
                                             <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}...</TableCell>
                                             <TableCell>{format(new Date(order.created_at), "MMMM d, yyyy 'at' h:mm a")}</TableCell>
                                             <TableCell>
-                                                <div className="text-sm">
-                                                    {order.customer_email || "N/A"}
+                                                <div className="flex flex-col">
+                                                    <div className="font-medium text-sm">
+                                                        {order.customer_profile?.full_name || "Customer"}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {order.customer_email || "N/A"}
+                                                    </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -728,7 +733,10 @@ const OrderManagement = () => {
                                             }
                                         />
                                     </h4>
-                                    <p className="text-sm">{selectedOrder.customer_email}</p>
+                                    <div className="flex flex-col">
+                                        <p className="font-medium">{selectedOrder.customer_profile?.full_name || "Guest Customer"}</p>
+                                        <p className="text-sm text-muted-foreground">{selectedOrder.customer_email}</p>
+                                    </div>
                                     {selectedOrder.shipping_address && (
                                         <div className="mt-2 text-sm text-muted-foreground">
                                             <p>{selectedOrder.shipping_address.line1}</p>

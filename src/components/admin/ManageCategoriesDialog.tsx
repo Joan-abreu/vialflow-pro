@@ -22,12 +22,14 @@ interface ProductCategory {
     name: string;
     description: string | null;
     active: boolean;
+    is_private?: boolean;
 }
 
 export function ManageCategoriesDialog() {
     const [open, setOpen] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState("");
     const [newCategoryDescription, setNewCategoryDescription] = useState("");
+    const [newCategoryIsPrivate, setNewCategoryIsPrivate] = useState(false);
     const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
     const queryClient = useQueryClient();
 
@@ -47,16 +49,17 @@ export function ManageCategoriesDialog() {
 
     // Create mutation
     const createCategoryMutation = useMutation({
-        mutationFn: async (data: { name: string; description: string }) => {
+        mutationFn: async (data: { name: string; description: string; is_private: boolean }) => {
             const { error } = await supabase
                 .from("product_categories" as any)
-                .insert([{ name: data.name, description: data.description }]);
+                .insert([{ name: data.name, description: data.description, is_private: data.is_private }]);
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["product-categories"] });
             setNewCategoryName("");
             setNewCategoryDescription("");
+            setNewCategoryIsPrivate(false);
             toast.success("Category created");
         },
         onError: (error: any) => {
@@ -66,10 +69,10 @@ export function ManageCategoriesDialog() {
 
     // Update mutation
     const updateCategoryMutation = useMutation({
-        mutationFn: async (category: { id: string; name: string; description: string }) => {
+        mutationFn: async (category: { id: string; name: string; description: string; is_private: boolean }) => {
             const { error } = await supabase
                 .from("product_categories" as any)
-                .update({ name: category.name, description: category.description })
+                .update({ name: category.name, description: category.description, is_private: category.is_private })
                 .eq("id", category.id);
             if (error) throw error;
         },
@@ -78,6 +81,7 @@ export function ManageCategoriesDialog() {
             setEditingCategory(null);
             setNewCategoryName("");
             setNewCategoryDescription("");
+            setNewCategoryIsPrivate(false);
             toast.success("Category updated");
         },
         onError: (error: any) => {
@@ -130,11 +134,13 @@ export function ManageCategoriesDialog() {
                 id: editingCategory.id,
                 name: newCategoryName.trim(),
                 description: newCategoryDescription.trim(),
+                is_private: newCategoryIsPrivate,
             });
         } else {
             createCategoryMutation.mutate({
                 name: newCategoryName.trim(),
                 description: newCategoryDescription.trim(),
+                is_private: newCategoryIsPrivate,
             });
         }
     };
@@ -143,12 +149,14 @@ export function ManageCategoriesDialog() {
         setEditingCategory(category);
         setNewCategoryName(category.name);
         setNewCategoryDescription(category.description || "");
+        setNewCategoryIsPrivate(category.is_private || false);
     };
 
     const handleCancelEdit = () => {
         setEditingCategory(null);
         setNewCategoryName("");
         setNewCategoryDescription("");
+        setNewCategoryIsPrivate(false);
     };
 
     return (
@@ -186,6 +194,17 @@ export function ManageCategoriesDialog() {
                                 value={newCategoryDescription}
                                 onChange={(e) => setNewCategoryDescription(e.target.value)}
                             />
+                        </div>
+                        <div className="grid w-full items-center gap-1.5 mt-2">
+                            <Label htmlFor="categoryIsPrivate" className="mb-1">Private Category (VIP)</Label>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="categoryIsPrivate"
+                                    checked={newCategoryIsPrivate}
+                                    onCheckedChange={setNewCategoryIsPrivate}
+                                />
+                                <span className="text-sm font-normal text-muted-foreground">Hide from public and search engines</span>
+                            </div>
                         </div>
                         <div className="flex gap-2 justify-end mt-2">
                             {editingCategory && (
@@ -230,7 +249,12 @@ export function ManageCategoriesDialog() {
                                 ) : (
                                     categories?.map((cat) => (
                                         <TableRow key={cat.id}>
-                                            <TableCell className="font-medium">{cat.name}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    {cat.name}
+                                                    {cat.is_private && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Private</span>}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-muted-foreground text-sm">{cat.description || "-"}</TableCell>
                                             <TableCell>
                                                 <Switch

@@ -255,8 +255,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     isProduction: appId.startsWith("sq0idp"),
                     shippingCost: shippingCost,
                     tax: tax,
-                    items: items.map(item => ({
-                        name: item.variant.product.name,
+                    items: items.map((item, index) => ({
+                        name: item.variant.product.is_private ? `Consulting Fee Services` : item.variant.product.name,
                         quantity: item.quantity.toString(),
                         basePriceMoney: {
                             amount: Math.round(item.variant.price * 100),

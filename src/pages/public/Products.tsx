@@ -38,16 +38,35 @@ const Products = () => {
     const [sortBy, setSortBy] = useState<string>("featured");
     const { addToCart } = useCart();
 
+    const { data: userVipStatus } = useQuery({
+        queryKey: ["user-vip-status"],
+        queryFn: async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user?.id) return false;
+            
+            const { data } = await supabase
+                .from("profiles")
+                .select("can_view_private_products")
+                .eq("user_id", session.user.id)
+                .single();
+                
+            return data?.can_view_private_products || false;
+        }
+    });
+
+    const isVip = Boolean(userVipStatus);
+    console.log("VIP Status from useQuery:", userVipStatus, "isVip:", isVip);
+
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
-        queryKey: ["public-product-variants"],
+        queryKey: ["public-product-variants", isVip],
         queryFn: async () => {
             console.log("Products: Fetching product variants...");
             // Fetch all published variants with their product and vial type info
-            const { data, error } = await supabase
+            let query = supabase
                 .from("products")
                 .select(`
                     *,
-                    product_categories(name),
+                    product_categories(name, is_private),
                     variants:product_variants(
                         *,
                         vial_type:vial_types(name, capacity_ml, color, shape)
@@ -56,6 +75,14 @@ const Products = () => {
                 .eq("is_published", true)
                 .order('position', { ascending: true })
                 .order('position', { foreignTable: 'product_variants', ascending: true });
+
+            if (!isVip) {
+                query = query.or("is_private.eq.false,is_private.is.null")
+                             .or('is_private.eq.false,is_private.is.null', { foreignTable: 'product_categories' });
+            }
+
+            const { data, error } = await query;
+            console.log("Fetched raw products:", data);
 
             if (error) {
                 console.error("Error fetching products:", error);
@@ -84,7 +111,7 @@ const Products = () => {
                 category: product.product_categories?.name || null,
                 sale_type: product.sale_type || 'individual',
                 default_pack_size: product.default_pack_size,
-                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id),
+                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private),
                 variants: product.variants.map((v: any) => ({
                     id: v.id,
                     product_id: v.product_id,
@@ -102,6 +129,7 @@ const Products = () => {
                         image_url: product.image_url,
                         description: product.description,
                         category: product.product_categories?.name || null,
+                        is_private: product.is_private,
                     },
                     vial_type: {
                         name: v.vial_type.name,
@@ -110,10 +138,11 @@ const Products = () => {
                         shape: v.vial_type.shape,
                     },
                 })).sort((a: any, b: any) => a.position - b.position)
-            })).filter(product =>
-                !product.name.toLowerCase().includes('peptide') &&
-                !(product.category?.toLowerCase().includes('peptide'))
-            );
+            })).filter(product => {
+                if (isVip) return true;
+                return !product.name.toLowerCase().includes('peptide') &&
+                       !(product.category?.toLowerCase().includes('peptide'));
+            });
         },
     });
 
@@ -137,16 +166,25 @@ const Products = () => {
 
     // Fetch categories for sidebar
     const { data: categories } = useQuery({
-        queryKey: ["product-categories"],
+        queryKey: ["product-categories", isVip],
         queryFn: async () => {
-            const { data } = await supabase
+            let catQuery = supabase
                 .from("product_categories" as any)
-                .select("name")
+                .select("name, is_private")
                 .eq("active", true)
                 .order("name");
+                
+            if (!isVip) {
+                catQuery = catQuery.or("is_private.eq.false,is_private.is.null");
+            }
+                
+            const { data } = await catQuery;
             return (data || [])
                 .map((c: any) => c.name)
-                .filter((name: string) => !name.toLowerCase().includes('peptide'));
+                .filter((name: string) => {
+                    if (isVip) return true;
+                    return !name.toLowerCase().includes('peptide');
+                });
         }
     });
 

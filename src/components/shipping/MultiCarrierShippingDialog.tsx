@@ -450,6 +450,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     data: {
                         orderId: orderId,
                         serviceCode: selectedService,
+                        serviceName: rates.find(r => r.serviceCode === selectedService)?.serviceName || "Standard Shipping",
                         rateAmount: rates.find(r => r.serviceCode === selectedService)?.cost || 0,
                         description: `Order #${order.id.slice(0, 8)}`,
                         shipper: {

@@ -87,6 +87,7 @@ const CustomerManagement = () => {
     const [purchaseFilter, setPurchaseFilter] = useState("all"); // all, purchaser, nopurchase
     const [statusFilter, setStatusFilter] = useState("all"); // all, active, disabled, pending
     const [sortFilter, setSortFilter] = useState("newest"); // newest, highest_spent, most_orders
+    const [vipFilter, setVipFilter] = useState("all"); // all, vip, nonvip
 
     const { isAdmin, loading: roleLoading } = useUserRole();
     const navigate = useNavigate();
@@ -393,8 +394,15 @@ const CustomerManagement = () => {
             result.sort((a, b) => (b.orderCount || 0) - (a.orderCount || 0));
         }
 
+        // 5. VIP Filter
+        if (vipFilter === "vip") {
+            result = result.filter(user => user.can_view_private_products === true);
+        } else if (vipFilter === "nonvip") {
+            result = result.filter(user => !user.can_view_private_products);
+        }
+
         return result;
-    }, [users, searchQuery, purchaseFilter, statusFilter, sortFilter]);
+    }, [users, searchQuery, purchaseFilter, statusFilter, sortFilter, vipFilter]);
 
     if (roleLoading || !isAdmin) {
         return (
@@ -444,6 +452,16 @@ const CustomerManagement = () => {
                                     <SelectItem value="all">All Purchasers</SelectItem>
                                     <SelectItem value="purchaser">Has Purchased</SelectItem>
                                     <SelectItem value="nopurchase">No Purchases Yet</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={vipFilter} onValueChange={(val) => { setVipFilter(val); setCurrentPage(1); }}>
+                                <SelectTrigger className="w-[140px]">
+                                    <SelectValue placeholder="VIP Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Any Status</SelectItem>
+                                    <SelectItem value="vip">Only VIP</SelectItem>
+                                    <SelectItem value="nonvip">Non-VIP</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
@@ -552,7 +570,7 @@ const CustomerManagement = () => {
                                                 </TableCell>
                                                 <TableCell className="text-xs sm:text-sm">
                                                     {user.last_sign_in_at ? (
-                                                        format(new Date(user.last_sign_in_at), "MMM d, yyyy HH:mm")
+                                                        format(new Date(user.last_sign_in_at), "MMM d, yyyy h:mm a")
                                                     ) : (
                                                         <span className="text-muted-foreground italic">Never signed in</span>
                                                     )}

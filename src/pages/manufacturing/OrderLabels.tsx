@@ -17,6 +17,7 @@ interface OrderShipment {
     order_id: string;
     carrier: string;
     service_code: string;
+    service_name?: string;
     tracking_number: string;
     label_url: string;
     status: string;
@@ -33,6 +34,7 @@ interface OrderShipment {
     ship_to: any;
     orders?: {
         created_at: string;
+        shipping_service?: string;
     };
 }
 
@@ -53,6 +55,7 @@ export default function OrderLabels() {
                     order_id,
                     carrier,
                     service_code,
+                    service_name,
                     tracking_number,
                     label_url,
                     status,
@@ -67,7 +70,7 @@ export default function OrderLabels() {
                     metadata,
                     carrier_response,
                     ship_to,
-                    orders(created_at)
+                    orders(created_at, shipping_service)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -149,6 +152,28 @@ export default function OrderLabels() {
         }
     };
 
+    const formatServiceLevel = (code: string) => {
+        if (!code) return "Unknown Service";
+        
+        // If it's a raw Shippo Rate ID (32 hex characters), hide the hash
+        if (/^[a-fA-F0-9]{32}$/.test(code)) {
+            return "Standard Service";
+        }
+
+        const mapped: Record<string, string> = {
+            'usps_ground_advantage': 'USPS Ground Advantage',
+            'usps_priority': 'USPS Priority Mail',
+            'usps_priority_express': 'USPS Priority Mail Express',
+            'ups_ground': 'UPS Ground',
+            'ups_next_day_air': 'UPS Next Day Air',
+            'fedex_ground': 'FedEx Ground',
+            'fedex_home_delivery': 'FedEx Home Delivery'
+        };
+        // Fallback: usps_something -> USPS Something
+        return mapped[code.toLowerCase()] || 
+            code.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -226,8 +251,9 @@ export default function OrderLabels() {
                                                             <Badge variant="outline" className="font-mono text-[10px]">
                                                                 {label.carrier}
                                                             </Badge>
-                                                            <span className="text-xs text-muted-foreground truncate max-w-[100px]" title={label.service_code}>
-                                                                {label.service_code}
+                                                            <span className="text-xs text-muted-foreground truncate max-w-[150px]" title={label.orders?.shipping_service || label.service_code}>
+                                                                {(label.service_name && label.service_name !== 'Shippo Shipment') ? label.service_name : 
+                                                                    (label.orders?.shipping_service || formatServiceLevel(label.service_code))}
                                                             </span>
                                                         </div>
                                                         {(() => {

@@ -24,6 +24,10 @@ const Dashboard = () => {
     lowStockItems: 0,
     activeShipments: 0,
     totalRevenue: 0,
+    productRevenue: 0,
+    shippingCollected: 0,
+    shippingPaid: 0,
+    netRevenue: 0,
     totalOrders: 0,
     totalPurchasingClients: 0,
     totalRegisteredUsers: 0,
@@ -42,7 +46,7 @@ const Dashboard = () => {
     const fetchStats = async () => {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
 
-      const [batches, materials, shipments, profiles, ordersResp] = await Promise.all([
+      const [batches, materials, shipments, profiles, ordersResp, orderShipmentsResp] = await Promise.all([
         supabase
           .from("production_batches")
           .select("*", { count: "exact", head: true })
@@ -62,6 +66,7 @@ const Dashboard = () => {
           .select(`
             id,
             total_amount,
+            shipping_cost,
             status,
             created_at,
             user_id,
@@ -72,7 +77,12 @@ const Dashboard = () => {
               variant:product_variants(product:products(name))
             )
           `)
+          .gte("created_at", thirtyDaysAgo),
+        supabase
+          .from("order_shipments")
+          .select("total_cost, status")
           .gte("created_at", thirtyDaysAgo)
+          .neq("status", "refunded")
       ]);
 
       const lowStock = materials.data?.filter(
@@ -80,6 +90,7 @@ const Dashboard = () => {
       ) || [];
 
       const orders = ordersResp.data || [];
+      const orderShipments = orderShipmentsResp.data || [];
 
       // Valid statuses for revenue calculation
       const revenueStatuses = ["shipped", "delivered"]; // Usually you only count shipped/delivered or maybe processing as 'locked-in' revenue
@@ -87,7 +98,13 @@ const Dashboard = () => {
         revenueStatuses.includes(o.status) || o.status === "processing" || o.status === "ready_to_ship"
       );
 
-      const revenue = validOrders.reduce((sum: number, order: any) => sum + Number(order.total_amount), 0);
+      const totalRevenue = validOrders.reduce((sum: number, order: any) => sum + Number(order.total_amount), 0);
+      const shippingCollected = validOrders.reduce((sum: number, order: any) => sum + Number(order.shipping_cost || 0), 0);
+      const productRevenue = totalRevenue - shippingCollected;
+      
+      const shippingPaid = orderShipments.reduce((sum: number, sh: any) => sum + Number(sh.total_cost || 0), 0);
+      const netRevenue = productRevenue + (shippingCollected - shippingPaid);
+
       const uniqueClients = new Set(orders.map((o: any) => o.user_id).filter(Boolean)).size;
 
       // Fulfillment specific metrics
@@ -98,7 +115,11 @@ const Dashboard = () => {
         activeBatches: batches.count || 0,
         lowStockItems: lowStock.length,
         activeShipments: shipments.count || 0,
-        totalRevenue: revenue,
+        totalRevenue,
+        productRevenue,
+        shippingCollected,
+        shippingPaid,
+        netRevenue,
         totalOrders: orders.length,
         totalPurchasingClients: uniqueClients,
         totalRegisteredUsers: profiles.data?.length || 0,
@@ -120,7 +141,8 @@ const Dashboard = () => {
         { name: 'Ready To Ship', value: statusCounts['ready_to_ship'] || 0, color: '#0ea5e9' },
         { name: 'Label Created', value: statusCounts['label_created'] || 0, color: '#c026d3' },
         { name: 'Shipped', value: statusCounts['shipped'] || 0, color: '#8b5cf6' },
-        { name: 'In Transit', value: (statusCounts['in_transit'] || 0) + (statusCounts['transit'] || 0) + (statusCounts['out_for_delivery'] || 0), color: '#6366f1' },
+        { name: 'In Transit', value: (statusCounts['transit'] || 0) + (statusCounts['in_transit'] || 0), color: '#a855f7' },
+        { name: 'Out for Delivery', value: statusCounts['out_for_delivery'] || 0, color: '#ec4899' },
         { name: 'Delivered', value: statusCounts['delivered'] || 0, color: '#10b981' },
       ].filter(item => item.value > 0);
 
@@ -292,19 +314,50 @@ const Dashboard = () => {
         </p>
       </div>
 
+      {/* Financial Overview Card */}
+      <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-primary/20">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row justify-between w-full md:items-center gap-6">
+             {/* Net Revenue Highlights */}
+             <div className="flex-1">
+               <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Net Revenue (30d Margin)</h3>
+               <div className="flex items-baseline gap-2">
+                 <span className="text-4xl font-extrabold text-green-600 dark:text-green-500">
+                    ${stats.netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                 </span>
+               </div>
+               <p className="text-sm text-slate-500 mt-2 max-w-xs">
+                 Actual margin after separating gross product sales entirely from your shipping carrier costs and collected shipping fees.
+               </p>
+             </div>
+
+             {/* Breakdown Metrics */}
+             <div className="flex-2 grid grid-cols-2 sm:grid-cols-4 gap-4 w-full md:w-auto">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase opacity-80">Gross Sales</p>
+                  <p className="text-lg font-semibold">${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase opacity-80">Products (No Ship)</p>
+                  <p className="text-lg font-semibold">${stats.productRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase opacity-80">Ship Collected</p>
+                  <p className="text-lg font-semibold">${stats.shippingCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase opacity-80">Ship Labels Paid</p>
+                  <p className="text-lg font-semibold text-rose-500">-${stats.shippingPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+             </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Group 1: E-Commerce Sales */}
-      <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce & Revenue (30 Days)</h2>
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                    <DollarSign className="h-5 w-5 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">${stats.totalRevenue.toLocaleString()}</div>
-                </CardContent>
-            </Card>
+      <div className="space-y-4 pt-2">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce Activity (30 Days)</h2>
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Orders Placed</CardTitle>

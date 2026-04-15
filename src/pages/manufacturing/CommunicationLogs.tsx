@@ -202,7 +202,7 @@ const CommunicationLogs = () => {
                                     {paginatedLogs?.map((log) => (
                                         <TableRow key={log.id}>
                                             <TableCell>
-                                                {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                                                {format(new Date(log.created_at), "MMM d, yyyy h:mm a")}
                                             </TableCell>
                                             <TableCell className="capitalize">
                                                 {log.type.replace(/_/g, " ")}

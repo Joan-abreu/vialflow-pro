@@ -8,19 +8,43 @@ import SEO from "@/components/SEO";
 import { getBaseSalesCount } from "@/utils/salesCount";
 
 const Home = () => {
+    const { data: userVipStatus } = useQuery({
+        queryKey: ["user-vip-status"],
+        queryFn: async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user?.id) return false;
+            
+            const { data } = await supabase
+                .from("profiles")
+                .select("can_view_private_products")
+                .eq("user_id", session.user.id)
+                .single();
+                
+            return data?.can_view_private_products || false;
+        }
+    });
+
+    const isVip = Boolean(userVipStatus);
+
     const { data: featuredProducts, isLoading } = useQuery({
-        queryKey: ["featured-products"],
+        queryKey: ["featured-products", isVip],
         queryFn: async () => {
             // Fetch published variants with product info
-            const { data, error } = await (supabase
+            let query = supabase
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, is_published, position, product_categories(name)),
+                    product:products!inner(id, slug, name, description, image_url, is_published, position, is_private, product_categories(name)),
                     vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true) as any);
+                .eq("product.is_published", true);
+
+            if (!isVip) {
+                query = query.or("is_private.eq.false,is_private.is.null", { foreignTable: 'product' });
+            }
+
+            const { data, error } = await query as any;
 
             if (error) throw error;
             
@@ -52,7 +76,7 @@ const Home = () => {
                         capacity_ml: variant.vial_type.capacity_ml,
                         pack_size: variant.pack_size,
                         position: variant.product.position || 0,
-                        sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId),
+                        sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId, variant.product.is_private),
                         variants: [variant],
                     };
                 } else {

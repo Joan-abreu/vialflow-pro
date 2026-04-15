@@ -31,6 +31,7 @@ export interface ProductVariant {
         image_url: string | null;
         description: string | null;
         category: string | null;
+        is_private?: boolean;
     };
     vial_type: {
         name: string;

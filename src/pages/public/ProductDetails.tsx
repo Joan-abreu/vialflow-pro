@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";
 import { getBaseSalesCount } from "@/utils/salesCount";
+import { Helmet } from "react-helmet-async";
 
 interface ProductWithVariants {
     id: string;
@@ -25,6 +26,7 @@ interface ProductWithVariants {
     default_pack_size: number | null;
     variants: ProductVariant[];
     sales_count?: number;
+    is_private?: boolean;
 }
 
 const ProductDetails = () => {
@@ -41,7 +43,7 @@ const ProductDetails = () => {
             // Check if id is a valid UUID
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-            let query = supabase.from("products").select("*, product_categories(name)");
+            let query = supabase.from("products").select("*, product_categories(name, is_private)");
 
             if (isUuid) {
                 query = query.eq("id", id);
@@ -53,6 +55,25 @@ const ProductDetails = () => {
 
             if (productError) throw productError;
             if (!productData) throw new Error("Product not found");
+
+            // Check VIP access for private products
+            const isProductPrivate = productData.is_private || (productData as any).product_categories?.is_private;
+            if (isProductPrivate) {
+                const { data: { session } } = await supabase.auth.getSession();
+                let hasAccess = false;
+                if (session?.user?.id) {
+                    const { data: profile } = await supabase
+                        .from("profiles")
+                        .select("can_view_private_products")
+                        .eq("user_id", session.user.id)
+                        .single();
+                    hasAccess = profile?.can_view_private_products || false;
+                }
+                
+                if (!hasAccess) {
+                    throw new Error("Product not found"); // Triggers the generic 404 UI
+                }
+            }
 
             // Fetch variants
             const { data: variantsData, error: variantsError } = await supabase
@@ -74,7 +95,7 @@ const ProductDetails = () => {
                 .eq("product_id", productData.id);
 
             const realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
-            const salesCount = realSales + getBaseSalesCount(productData.id);
+            const salesCount = realSales + getBaseSalesCount(productData.id, productData.is_private);
 
             const variants: ProductVariant[] = (variantsData as any[])?.map((v: any) => ({
                 id: v.id,
@@ -93,6 +114,7 @@ const ProductDetails = () => {
                     image_url: productData.image_url,
                     description: productData.description,
                     category: productData.category,
+                    is_private: productData.is_private || false,
                 },
                 vial_type: {
                     name: v.vial_type.name,
@@ -115,6 +137,7 @@ const ProductDetails = () => {
                 default_pack_size: productData.default_pack_size,
                 variants,
                 sales_count: salesCount,
+                is_private: productData.is_private,
             } as ProductWithVariants;
         },
         enabled: !!id,
@@ -187,6 +210,11 @@ const ProductDetails = () => {
 
     return (
         <div className="container py-12 md:py-20">
+            {product?.is_private && (
+                <Helmet>
+                    <meta name="robots" content="noindex, nofollow" />
+                </Helmet>
+            )}
             <Link to="/products" className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Products

@@ -78,6 +78,7 @@ interface Product {
     category_id: string | null;
     product_categories?: ProductCategory | null;
     image_url: string | null;
+    is_private?: boolean;
     images?: string[];
     sale_type: string;
     default_pack_size: number | null;
@@ -211,8 +212,7 @@ const ProductManagement = () => {
     const [variantSaleType, setVariantSaleType] = useState<string>("individual");
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
     const [deletingVariant, setDeletingVariant] = useState<ProductVariant | null>(null);
-    const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] = useState(false);
-    const [editingDescriptionProduct, setEditingDescriptionProduct] = useState<Product | null>(null);
+
     const [richTextDescription, setRichTextDescription] = useState("");
     const queryClient = useQueryClient();
     const [currentPage, setCurrentPage] = useState(1);
@@ -392,26 +392,6 @@ const ProductManagement = () => {
         },
     });
 
-    const updateProductDescriptionMutation = useMutation({
-        mutationFn: async ({ id, rich_description }: { id: string, rich_description: string }) => {
-            const { data, error } = await supabase
-                .from("products")
-                .update({ rich_description } as any)
-                .eq("id", id)
-                .select();
-            if (error) throw error;
-            return data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
-            toast.success("Product description updated successfully");
-            setIsDescriptionDialogOpen(false);
-            setEditingDescriptionProduct(null);
-        },
-        onError: (error) => {
-            toast.error(`Error updating description: ${error.message}`);
-        },
-    });
 
     // Variant mutations
     const createVariantMutation = useMutation({
@@ -526,6 +506,7 @@ const ProductManagement = () => {
             rich_description: richTextDescription,
             is_active: formData.get("is_active") === "on",
             is_published: formData.get("is_published") === "on",
+            is_private: formData.get("is_private") === "on",
             position: parseInt(formData.get("position") as string) || 0,
             sale_type: 'individual',
             default_pack_size: null,
@@ -617,20 +598,6 @@ const ProductManagement = () => {
         }
     };
 
-    const handleEditDescription = (product: Product) => {
-        setEditingDescriptionProduct(product);
-        setRichTextDescription(product.rich_description || product.description || "");
-        setIsDescriptionDialogOpen(true);
-    };
-
-    const handleSaveDescription = () => {
-        if (editingDescriptionProduct) {
-            updateProductDescriptionMutation.mutate({
-                id: editingDescriptionProduct.id,
-                rich_description: richTextDescription
-            });
-        }
-    };
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -812,6 +779,19 @@ const ProductManagement = () => {
                                             defaultChecked={editingProduct?.is_published ?? false}
                                         />
                                         <Label htmlFor="is_published">Published (E-commerce)</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2 pb-4">
+                                        <input
+                                            type="checkbox"
+                                            id="is_private"
+                                            name="is_private"
+                                            className="h-4 w-4 rounded border-gray-300"
+                                            defaultChecked={editingProduct?.is_private ?? false}
+                                        />
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor="is_private">Private Product (VIP)</Label>
+                                            <p className="text-xs text-muted-foreground">Hide from public and search engines</p>
+                                        </div>
                                     </div>
                                     <Button type="submit" className="w-full">
                                         {editingProduct ? "Update Product" : "Create Product"}
@@ -1064,7 +1044,12 @@ const ProductManagement = () => {
                                                             </div>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell className="font-medium">{product.name}</TableCell>
+                                                    <TableCell className="font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            {product.name}
+                                                            {product.is_private && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Private</span>}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>{product.product_categories?.name || "—"}</TableCell>
                                                     <TableCell>
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
@@ -1085,9 +1070,7 @@ const ProductManagement = () => {
                                                             <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
                                                                 <Pencil className="h-4 w-4" />
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleEditDescription(product)} title="Edit Description">
-                                                                <FileText className="h-4 w-4" />
-                                                            </Button>
+
                                                             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -1151,37 +1134,6 @@ const ProductManagement = () => {
                     />
                 )}
 
-                {/* Description Editor Dialog */}
-                <Dialog open={isDescriptionDialogOpen} onOpenChange={(open) => {
-                    setIsDescriptionDialogOpen(open);
-                    if (!open) {
-                        setEditingDescriptionProduct(null);
-                    }
-                }}>
-                    <DialogContent className="max-w-5xl h-[85vh] flex flex-col">
-                        <DialogHeader>
-                            <DialogTitle>Edit Product Description</DialogTitle>
-                            <DialogDescription>
-                                Add rich text content for "{editingDescriptionProduct?.name}". This will be displayed on the product details page.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                            <RichTextEditor
-                                key={editingDescriptionProduct?.id}
-                                content={richTextDescription}
-                                onChange={setRichTextDescription}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2 pt-4">
-                            <Button variant="outline" onClick={() => setIsDescriptionDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={handleSaveDescription}>
-                                Save Content
-                            </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
 
                 {/* Delete Product Confirmation Dialog */}
                 <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>

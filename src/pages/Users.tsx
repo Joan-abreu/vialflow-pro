@@ -34,6 +34,7 @@ import { Shield, Loader2, KeyRound, UserX, UserCheck, Trash2, UserPlus, Send } f
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
+import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ interface UserWithRole {
   role: string;
   role_id: string;
   banned_until?: string;
+  can_view_private_products?: boolean;
 }
 
 const Users = () => {
@@ -63,13 +65,8 @@ const Users = () => {
   const [inviteRole, setInviteRole] = useState("staff");
   const [inviting, setInviting] = useState(false);
 
-  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
-  const [selectedUserForMessage, setSelectedUserForMessage] = useState<UserWithRole | null>(null);
-  const [messageSubject, setMessageSubject] = useState("");
-  const [messageBody, setMessageBody] = useState("");
-  const [sendingMessage, setSendingMessage] = useState(false);
-
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
+  const [togglingAccess, setTogglingAccess] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserWithRole | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
@@ -119,12 +116,28 @@ const Users = () => {
 
       const { users: usersData } = await response.json();
 
+      const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("user_id, can_view_private_products");
+
+      if (profilesError) {
+          console.error("Error fetching profiles:", profilesError);
+      }
+
+      const profilesByUser: Record<string, boolean> = {};
+      if (profilesData) {
+          profilesData.forEach(p => {
+              profilesByUser[p.user_id] = p.can_view_private_products || false;
+          });
+      }
+
       // Add banned status to users and filter out hidden admin and customers
       const usersWithStatus = usersData
         .filter((user: any) => user.email !== 'hidden.admin@dev.com' && user.role !== 'customer')
         .map((user: any) => ({
           ...user,
-          banned_until: user.banned_until || null
+          banned_until: user.banned_until || null,
+          can_view_private_products: profilesByUser[user.id] || false
         }));
 
       setUsers(usersWithStatus);
@@ -269,6 +282,32 @@ const Users = () => {
     }
   };
 
+  const handleTogglePrivateAccess = async (user: UserWithRole) => {
+    try {
+        setTogglingAccess(user.id);
+        const newAccess = !user.can_view_private_products;
+        
+        // First check if profile exists
+        const { data: profile } = await supabase.from('profiles').select('user_id').eq('user_id', user.id).single();
+        
+        if (profile) {
+            const { error } = await supabase.from('profiles').update({ can_view_private_products: newAccess }).eq('user_id', user.id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase.from('profiles').insert({ user_id: user.id, can_view_private_products: newAccess });
+            if (error) throw error;
+        }
+        
+        toast.success(`VIP Access ${newAccess ? 'granted' : 'revoked'}`);
+        fetchUsers();
+    } catch (error: any) {
+        console.error("Error toggling access:", error);
+        toast.error(error.message || "Error updating access");
+    } finally {
+        setTogglingAccess(null);
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!selectedUserForDelete) return;
 
@@ -339,39 +378,6 @@ const Users = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!selectedUserForMessage || !messageSubject || !messageBody) return;
-    try {
-      setSendingMessage(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-system-notification`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'generic',
-          recipient: selectedUserForMessage.email,
-          data: {
-            title: messageSubject,
-            message: messageBody,
-          },
-          related_id: selectedUserForMessage.id
-        }),
-      });
-
-      if (!response.ok) throw new Error(await response.text());
-      toast.success("Message sent and logged successfully");
-      setMessageDialogOpen(false);
-      setMessageSubject("");
-      setMessageBody("");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to send message");
-    } finally {
-      setSendingMessage(false);
-    }
-  };
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
@@ -489,7 +495,37 @@ const Users = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 justify-end">
+                            <SendEmailDialog 
+                              recipientEmail={user.email} 
+                              recipientName={user.email.split('@')[0]}
+                              trigger={
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  title="Send Email"
+                                  className="h-8 w-8 text-primary"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mail"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                                </Button>
+                              }
+                            />
+                            
+                            <Button
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleTogglePrivateAccess(user)}
+                              disabled={togglingAccess === user.id}
+                              title={user.can_view_private_products ? "Revoke VIP Access" : "Grant VIP Access"}
+                              className={`h-8 w-8 ${user.can_view_private_products ? 'text-amber-500' : 'text-muted-foreground'}`}
+                            >
+                                {togglingAccess === user.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={user.can_view_private_products ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                )}
+                            </Button>
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -499,6 +535,7 @@ const Users = () => {
                               }}
                               disabled={resettingPassword === user.id || !!user.banned_until}
                               title={user.banned_until ? "Cannot reset password for disabled user" : "Reset password"}
+                              className="h-8 w-8"
                             >
                               {resettingPassword === user.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -512,7 +549,8 @@ const Users = () => {
                               size="sm"
                               onClick={() => handleToggleUserStatus(user)}
                               disabled={togglingStatus === user.id}
-                              title="Active/Disable"
+                              title={user.banned_until ? "Enable User" : "Disable User"}
+                              className="h-8 w-8 text-muted-foreground"
                             >
                               {togglingStatus === user.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -532,24 +570,13 @@ const Users = () => {
                                 setDeleteDialogOpen(true);
                               }}
                               disabled={deletingUser === user.id}
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             >
                               {deletingUser === user.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <Trash2 className="h-4 w-4" color="red" />
                               )}
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Send Message"
-                              onClick={() => {
-                                setSelectedUserForMessage(user);
-                                setMessageDialogOpen(true);
-                              }}
-                            >
-                              <Send className="h-4 w-4 text-blue-500" />
                             </Button>
                           </div>
                         </TableCell>
@@ -662,45 +689,7 @@ const Users = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Send Message Dialog */}
-      <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Send Message to {selectedUserForMessage?.email}</DialogTitle>
-            <DialogDescription>
-              This message will be sent via email and logged in Communications.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
-              <Input
-                id="subject"
-                placeholder="Message Subject"
-                value={messageSubject}
-                onChange={(e) => setMessageSubject(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="body">Message Body</Label>
-              <Textarea
-                id="body"
-                placeholder="Type your message here..."
-                className="min-h-[150px]"
-                value={messageBody}
-                onChange={(e) => setMessageBody(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSendMessage} disabled={sendingMessage || !messageSubject || !messageBody}>
-              {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Send Email
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
 
   );

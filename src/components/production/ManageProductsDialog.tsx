@@ -16,6 +16,7 @@ interface Product {
   name: string;
   description: string | null;
   is_active: boolean;
+  is_private?: boolean;
 }
 
 export function ManageProductsDialog() {
@@ -27,6 +28,7 @@ export function ManageProductsDialog() {
     name: "",
     description: "",
     is_active: true,
+    is_private: false,
   });
 
   const fetchProducts = async () => {
@@ -72,7 +74,7 @@ export function ManageProductsDialog() {
         toast.success("Product created successfully");
       }
 
-      setFormData({ name: "", description: "", is_active: true });
+      setFormData({ name: "", description: "", is_active: true, is_private: false });
       setEditingProduct(null);
       fetchProducts();
     } catch (error) {
@@ -89,6 +91,7 @@ export function ManageProductsDialog() {
       name: product.name,
       description: product.description || "",
       is_active: product.is_active,
+      is_private: product.is_private || false,
     });
   };
 
@@ -125,7 +128,7 @@ export function ManageProductsDialog() {
 
   const cancelEdit = () => {
     setEditingProduct(null);
-    setFormData({ name: "", description: "", is_active: true });
+    setFormData({ name: "", description: "", is_active: true, is_private: false });
   };
 
   return (
@@ -167,6 +170,19 @@ export function ManageProductsDialog() {
                   />
                   <Label htmlFor="is_active" className="font-normal">
                     {formData.is_active ? "Active" : "Inactive"}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="is_private">Private Product (VIP)</Label>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    id="is_private"
+                    checked={formData.is_private}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_private: checked })}
+                  />
+                  <Label htmlFor="is_private" className="font-normal text-muted-foreground">
+                    Hide from public and search engines
                   </Label>
                 </div>
               </div>
@@ -217,7 +233,12 @@ export function ManageProductsDialog() {
                 ) : (
                   products.map((product) => (
                     <TableRow key={product.id}>
-                      <TableCell className="font-medium text-xs sm:text-sm">{product.name}</TableCell>
+                      <TableCell className="font-medium text-xs sm:text-sm">
+                        <div className="flex items-center gap-2">
+                          {product.name}
+                          {product.is_private && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Private</span>}
+                        </div>
+                      </TableCell>
                       <TableCell className="hidden md:table-cell text-xs sm:text-sm">{product.description || "-"}</TableCell>
                       <TableCell>
                         <span className={product.is_active ? "text-green-600 text-xs sm:text-sm" : "text-gray-400 text-xs sm:text-sm"}>

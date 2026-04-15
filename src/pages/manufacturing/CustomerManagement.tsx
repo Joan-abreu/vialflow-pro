@@ -61,6 +61,7 @@ interface UserWithRole {
     orders?: OrderHistoryItem[];
     totalSpent?: number;
     orderCount?: number;
+    can_view_private_products?: boolean;
 }
 
 const CustomerManagement = () => {
@@ -72,6 +73,7 @@ const CustomerManagement = () => {
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
     const [selectedUserForReset, setSelectedUserForReset] = useState<UserWithRole | null>(null);
     const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
+    const [togglingAccess, setTogglingAccess] = useState<string | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserWithRole | null>(null);
     const [deletingUser, setDeletingUser] = useState<string | null>(null);
@@ -141,6 +143,22 @@ const CustomerManagement = () => {
                  console.error("Error fetching orders:", ordersError);
             }
 
+            // Fetch Profiles for can_view_private_products
+            const { data: profilesData, error: profilesError } = await supabase
+                .from("profiles")
+                .select("user_id, can_view_private_products");
+
+            if (profilesError) {
+                console.error("Error fetching profiles:", profilesError);
+            }
+
+            const profilesByUser: Record<string, boolean> = {};
+            if (profilesData) {
+                profilesData.forEach(p => {
+                    profilesByUser[p.user_id] = p.can_view_private_products || false;
+                });
+            }
+
             // Group orders by user_id
             const ordersByUser: Record<string, OrderHistoryItem[]> = {};
             if (ordersData) {
@@ -165,7 +183,8 @@ const CustomerManagement = () => {
                         banned_until: user.banned_until || null,
                         orders: userOrders.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
                         orderCount: validOrders.length,
-                        totalSpent
+                        totalSpent,
+                        can_view_private_products: profilesByUser[user.id] || false
                     };
                 });
 
@@ -262,6 +281,32 @@ const CustomerManagement = () => {
             toast.error(error.message || "Error updating user status");
         } finally {
             setTogglingStatus(null);
+        }
+    };
+
+    const handleTogglePrivateAccess = async (user: UserWithRole) => {
+        try {
+            setTogglingAccess(user.id);
+            const newAccess = !user.can_view_private_products;
+            
+            // First check if profile exists
+            const { data: profile } = await supabase.from('profiles').select('user_id').eq('user_id', user.id).single();
+            
+            if (profile) {
+                const { error } = await supabase.from('profiles').update({ can_view_private_products: newAccess }).eq('user_id', user.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('profiles').insert({ user_id: user.id, can_view_private_products: newAccess });
+                if (error) throw error;
+            }
+            
+            toast.success(`VIP Access ${newAccess ? 'granted' : 'revoked'}`);
+            fetchUsers();
+        } catch (error: any) {
+            console.error("Error toggling access:", error);
+            toast.error(error.message || "Error updating access");
+        } finally {
+            setTogglingAccess(null);
         }
     };
 
@@ -544,6 +589,20 @@ const CustomerManagement = () => {
                                                                 </Button>
                                                             }
                                                         />
+                                                        <Button
+                                                            variant="ghost" 
+                                                            size="sm"
+                                                            onClick={() => handleTogglePrivateAccess(user)}
+                                                            disabled={togglingAccess === user.id}
+                                                            title={user.can_view_private_products ? "Revoke VIP Access" : "Grant VIP Access"}
+                                                            className={`h-8 w-8 ${user.can_view_private_products ? 'text-amber-500' : 'text-muted-foreground'}`}
+                                                        >
+                                                            {togglingAccess === user.id ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={user.can_view_private_products ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                            )}
+                                                        </Button>
                                                         <Button
                                                             variant="ghost" 
                                                             size="sm"

@@ -1,6 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, User, Menu, LogOut } from "lucide-react";
+import { ShoppingCart, User, Menu, LogOut, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
@@ -42,6 +42,7 @@ const PublicLayoutContent = () => {
     const user = session?.user ?? null;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -228,6 +229,21 @@ const PublicLayoutContent = () => {
                     </div>
                 </div>
             </footer>
+
+            {/* FDA Disclaimer Banner - Bottom Fixed */}
+            {showFdaDisclaimer && (
+                <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-3 text-[10px] md:text-xs text-muted-foreground flex items-start gap-4">
+                    <div className="flex-1 max-w-7xl mx-auto flex items-start md:items-center gap-4">
+                        <div className="flex-1 text-left sm:text-center pb-2 md:pb-0">
+                            <strong className="text-foreground">FDA DISCLAIMER:</strong> These products have not been evaluated by the FDA and are not intended to diagnose, treat, cure, or prevent any disease. This website contains research materials intended strictly for laboratory and educational purposes. All products sold on this website are intended for research and identification purposes only. These products are not intended for human dosing, injection, or ingestion.
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 rounded-full hover:bg-muted/80 self-start md:self-center absolute right-2 top-2 md:relative md:top-0 md:right-0" onClick={() => setShowFdaDisclaimer(false)}>
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">Close disclaimer</span>
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

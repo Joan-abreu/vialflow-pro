@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow, subDays, format } from "date-fns";
+import { formatDistanceToNow, subDays, format, eachDayOfInterval } from "date-fns";
 import { Link } from "react-router-dom";
+import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter";
 import OrderStatusChart from "@/components/dashboard/OrderStatusChart";
 import RevenueTrendChart from "@/components/dashboard/RevenueTrendChart";
 import TopProductsList from "@/components/dashboard/TopProductsList";
@@ -19,6 +20,10 @@ interface Activity {
 }
 
 const Dashboard = () => {
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+    endDate: format(new Date(), "yyyy-MM-dd")
+  });
   const [stats, setStats] = useState({
     activeBatches: 0,
     lowStockItems: 0,
@@ -44,7 +49,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const startDateTime = `${dateRange.startDate}T00:00:00.000Z`;
+      const endDateTime = `${dateRange.endDate}T23:59:59.999Z`;
 
       const [batches, materials, shipments, profiles, ordersResp, orderShipmentsResp] = await Promise.all([
         supabase
@@ -77,11 +83,13 @@ const Dashboard = () => {
               variant:product_variants(product:products(name))
             )
           `)
-          .gte("created_at", thirtyDaysAgo),
+          .gte("created_at", startDateTime)
+          .lte("created_at", endDateTime),
         supabase
           .from("order_shipments")
           .select("total_cost, status")
-          .gte("created_at", thirtyDaysAgo)
+          .gte("created_at", startDateTime)
+          .lte("created_at", endDateTime)
           .neq("status", "refunded")
       ]);
 
@@ -148,21 +156,32 @@ const Dashboard = () => {
 
       setStatusData(chartData);
 
-      // 2. Revenue Trend (Last 30 Days)
+      // 2. Revenue Trend (Dynamic)
       const dailyRevenue: Record<string, number> = {};
-      for (let i = 29; i >= 0; i--) {
-        const date = format(subDays(new Date(), i), 'MMM dd');
-        dailyRevenue[date] = 0;
-      }
+      const intervalDays = eachDayOfInterval({ 
+          start: new Date(dateRange.startDate + "T00:00:00"), 
+          end: new Date(dateRange.endDate + "T23:59:59") 
+      });
+
+      intervalDays.forEach(d => {
+        dailyRevenue[format(d, 'MMM dd')] = 0;
+      });
 
       validOrders.forEach((o: any) => {
         const date = format(new Date(o.created_at), 'MMM dd');
         if (dailyRevenue[date] !== undefined) {
           dailyRevenue[date] += Number(o.total_amount);
+        } else {
+            dailyRevenue[date] = Number(o.total_amount);
         }
       });
 
-      setRevenueData(Object.entries(dailyRevenue).map(([date, amount]) => ({ date, revenue: amount })));
+      // Maintain chronological order without sorting manually because object iteration is sufficient for pre-filled dates
+      const revenueDataArray = Object.entries(dailyRevenue).map(([date, revenue]) => ({ date, revenue }));
+      
+      // If we're showing a massive timeframe (e.g. all time), we might have too many data points.
+      // Recharts handles it gracefully by skipping labels anyway.
+      setRevenueData(revenueDataArray);
 
       // 3. Top Products
       const productStats: Record<string, { quantity: number; revenue: number }> = {};
@@ -303,15 +322,18 @@ const Dashboard = () => {
 
     fetchStats();
     fetchActivities();
-  }, []);
+  }, [dateRange]);
 
   return (
-    <div className="space-y-8 pb-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
-        <p className="text-sm text-muted-foreground sm:text-base">
-          Overview of your operations and e-commerce fulfillment
-        </p>
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col xl:flex-row justify-between xl:items-end gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
+            <p className="text-sm text-muted-foreground sm:text-base">
+              Overview of your operations and e-commerce fulfillment
+            </p>
+          </div>
+          <DateRangeFilter initialRange={dateRange} onChange={setDateRange} className="w-full xl:w-auto" />
       </div>
 
       {/* Financial Overview Card */}
@@ -320,7 +342,7 @@ const Dashboard = () => {
           <div className="flex flex-col md:flex-row justify-between w-full md:items-center gap-6">
              {/* Net Revenue Highlights */}
              <div className="flex-1">
-               <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Net Revenue (30d Margin)</h3>
+               <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Net Revenue</h3>
                <div className="flex items-baseline gap-2">
                  <span className="text-4xl font-extrabold text-green-600 dark:text-green-500">
                     ${stats.netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -356,7 +378,7 @@ const Dashboard = () => {
 
       {/* Group 1: E-Commerce Sales */}
       <div className="space-y-4 pt-2">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce Activity (30 Days)</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce Activity</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

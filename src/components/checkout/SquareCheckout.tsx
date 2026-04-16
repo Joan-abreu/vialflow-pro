@@ -25,12 +25,13 @@ interface SquareCheckoutProps {
     hideAddress?: boolean;
     hideShipping?: boolean;
     hidePayment?: boolean;
+    appliedCoupons?: string[];
 }
 
 const appId = import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
 
-const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment }: SquareCheckoutProps) => {
+const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment, appliedCoupons }: SquareCheckoutProps) => {
     const { items } = useCart();
     
     const [loading, setLoading] = useState(false);
@@ -154,9 +155,15 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         return errorMsg; // Show the raw error message if no friendly translation exists
     };
 
-    const handleSquarePayment = async (token: string) => {
+    const handleSquarePayment = async (token?: string) => {
         if (isCalculating) {
             toast.error("Still calculating shipping rates. Please wait.");
+            return;
+        }
+        
+        // Skip token check for free orders
+        if (amount > 0 && !token) {
+            toast.error("Invalid payment token.");
             return;
         }
 
@@ -255,6 +262,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     isProduction: appId.startsWith("sq0idp"),
                     shippingCost: shippingCost,
                     tax: tax,
+                    applied_coupons: appliedCoupons || [],
                     items: items.map((item, index) => ({
                         name: item.variant.product.is_private ? `Consulting Fee Services` : item.variant.product.name,
                         quantity: item.quantity.toString(),
@@ -362,6 +370,14 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                     <p className="font-semibold">Square API Keys Missing</p>
                                     <p className="text-sm">Please set VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID in your .env file to view the payment form.</p>
                                 </div>
+                            ) : amount === 0 ? (
+                                <Button 
+                                    className="w-full py-6 text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg transition-all"
+                                    onClick={() => handleSquarePayment()}
+                                    disabled={loading}
+                                >
+                                    {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : "Complete Free Order"}
+                                </Button>
                             ) : (
                                 <PaymentForm
                                     applicationId={appId}
@@ -402,7 +418,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                             )}
                         </div>
                     </div>
-)}
+                )}
             </CardContent>
             {loading && (
                 <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10 rounded-lg">

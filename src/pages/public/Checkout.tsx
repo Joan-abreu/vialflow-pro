@@ -6,6 +6,7 @@ import SquareCheckout from "@/components/checkout/SquareCheckout";
 import { Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
@@ -27,13 +28,23 @@ const Checkout = () => {
     const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
     const [step, setStep] = useState<'address' | 'shipping' | 'payment'>('address');
     const [externalAddressUpdate, setExternalAddressUpdate] = useState<any>(null);
+    
+    // Coupon & Referral State
+    const [couponCode, setCouponCode] = useState("");
+    const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+    const [appliedDiscounts, setAppliedDiscounts] = useState<any[]>([]);
+    const [finalSubtotal, setFinalSubtotal] = useState<number>(cartTotal);
+    const [finalShipping, setFinalShipping] = useState<number>(0);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
         return sum + ((item.variant.weight || 0) * item.quantity);
     }, 0);
-
-    const totalAmount = Number((cartTotal + shippingCost).toFixed(2));
+    
+    // Use final values if coupons are applied, otherwise fallback to standard
+    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : cartTotal;
+    const displayShipping = appliedDiscounts.length > 0 ? finalShipping : shippingCost;
+    const totalAmount = Number((displaySubtotal + displayShipping).toFixed(2));
 
     const [currentAddress, setCurrentAddress] = useState<any>(null);
     const [validationResult, setValidationResult] = useState<any>(null);
@@ -155,12 +166,90 @@ const Checkout = () => {
     };
 
     const handleShippingSelect = (rate: any) => {
-        setShippingCost(rate.rate || rate.cost);
+        const cost = rate.rate || rate.cost;
+        setShippingCost(cost);
         setShippingService(rate.serviceName || rate.service || rate.service_name);
         setShippingServiceCode(rate.serviceCode || rate.service_code || rate.service); 
         setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase());
         setShippingEstimatedDays(rate.estimated_days || rate.estimatedDays);
         intentAmountRef.current = 0;
+
+        // Re-validate coupons if shipping changes
+        if (appliedDiscounts.length > 0) {
+            handleApplyCoupon(appliedDiscounts.map(d => d.code), cost);
+        } else {
+            setFinalShipping(cost);
+        }
+    };
+
+    const handleApplyCoupon = async (codesInput?: string[], currentShipCost?: number) => {
+        const codesToValidate = codesInput || [couponCode];
+        if (codesToValidate.length === 0 || (codesToValidate.length === 1 && !codesToValidate[0])) return;
+
+        setIsValidatingCoupon(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('validate-coupon', {
+                body: { 
+                    codes: codesToValidate, 
+                    subtotal: cartTotal, 
+                    shipping: currentShipCost ?? shippingCost,
+                    userId: session?.user?.id
+                }
+            });
+
+            if (error) throw error;
+
+            setAppliedDiscounts(data.appliedDiscounts || []);
+            setFinalSubtotal(data.subtotal);
+            setFinalShipping(data.shipping);
+            
+            if (!codesInput) {
+                if (data.appliedDiscounts.length > appliedDiscounts.length) {
+                    toast.success("Coupon applied!");
+                    setCouponCode("");
+                } else {
+                    toast.error("Invalid or expired coupon.");
+                }
+            }
+        } catch (error: any) {
+            console.error("Coupon error detail:", error);
+            
+            let message = "This code could not be applied. Please check it and try again.";
+            
+            // Handle Supabase Functions error specifically
+            if (error.context) {
+                try {
+                    const body = await error.context.json();
+                    if (body && body.error) {
+                        message = body.error;
+                    }
+                } catch (e) {
+                    console.error("Could not parse error body", e);
+                }
+            } else if (error.message && !error.message.includes("non-2xx")) {
+                message = error.message;
+            }
+            
+            toast.error(message, {
+                description: "Codes cannot be used by the same person who created them."
+            });
+        } finally {
+            setIsValidatingCoupon(false);
+        }
+    };
+
+    const removeCoupon = (codeToRemove: string) => {
+        const newCodes = appliedDiscounts
+            .filter(d => d.code !== codeToRemove)
+            .map(d => d.code);
+        
+        if (newCodes.length === 0) {
+            setAppliedDiscounts([]);
+            setFinalSubtotal(cartTotal);
+            setFinalShipping(shippingCost);
+        } else {
+            handleApplyCoupon(newCodes);
+        }
     };
 
     const nextStep = () => {
@@ -268,7 +357,7 @@ const Checkout = () => {
 
                         <SquareCheckout
                             amount={totalAmount}
-                            shippingCost={shippingCost}
+                            shippingCost={displayShipping}
                             shippingService={shippingService}
                             shippingServiceCode={shippingServiceCode}
                             shippingCarrier={shippingCarrier}
@@ -276,9 +365,10 @@ const Checkout = () => {
                             tax={0}
                             onAddressChange={handleAddressChange}
                             externalAddress={externalAddressUpdate}
-                            isCalculating={isCalculatingShipping || isValidating}
+                            isCalculating={isCalculatingShipping || isValidating || isValidatingCoupon}
                             hideAddress={step !== 'address'}
                             hidePayment={step !== 'payment'}
+                            appliedCoupons={appliedDiscounts.map(d => d.code)}
                         />
                         
                         {step === 'address' && validationResult && (
@@ -401,11 +491,34 @@ const Checkout = () => {
                             <div className="border-t pt-4 space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span>Subtotal</span>
-                                    <span>${cartTotal.toFixed(2)}</span>
+                                    <div className="flex items-center gap-2">
+                                        {displaySubtotal < cartTotal && (
+                                            <span className="line-through text-muted-foreground">${cartTotal.toFixed(2)}</span>
+                                        )}
+                                        <span className="font-medium">${displaySubtotal.toFixed(2)}</span>
+                                    </div>
                                 </div>
+                                {appliedDiscounts.map((d, i) => (
+                                    <div key={i} className="flex justify-between text-sm text-green-600 font-medium">
+                                        <div className="flex items-center gap-1">
+                                            <span>
+                                                {d.isReferralTracking ? "Referral Code" : "Discount"} ({d.code})
+                                            </span>
+                                            <button onClick={() => removeCoupon(d.code)} className="text-destructive hover:text-destructive/80 ml-1">×</button>
+                                        </div>
+                                        <span>{d.amount > 0 ? `-$${d.amount.toFixed(2)}` : "Applied"}</span>
+                                    </div>
+                                ))}
                                 <div className="flex justify-between text-base font-medium">
                                     <span>Shipping</span>
-                                    <span>{shippingCost > 0 ? `$${shippingCost.toFixed(2)}` : (step === 'address' ? '--' : 'Select method')}</span>
+                                    <div className="flex items-center gap-2">
+                                        {displayShipping < shippingCost && shippingCost > 0 && (
+                                            <span className="line-through text-muted-foreground text-sm font-normal">${shippingCost.toFixed(2)}</span>
+                                        )}
+                                        <span>
+                                            {shippingCost > 0 ? `$${displayShipping.toFixed(2)}` : (step === 'address' ? '--' : 'Select method')}
+                                        </span>
+                                    </div>
                                 </div>
                                 {shippingService && shippingCost > 0 && (
                                     <div className="text-xs text-muted-foreground text-right -mt-1 italic">
@@ -414,7 +527,35 @@ const Checkout = () => {
                                 )}
                                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                                     <span>Total</span>
-                                    <span>${totalAmount.toFixed(2)}</span>
+                                    <div className="flex flex-col items-end">
+                                        <div className="flex items-center gap-2">
+                                            {totalAmount < (cartTotal + shippingCost) && (
+                                                <span className="line-through text-muted-foreground text-sm font-normal">${(cartTotal + shippingCost).toFixed(2)}</span>
+                                            )}
+                                            <span>${totalAmount.toFixed(2)}</span>
+                                        </div>
+                                        {totalAmount === 0 && <span className="text-[10px] text-green-600 uppercase">Free Order</span>}
+                                    </div>
+                                </div>
+                                
+                                <div className="pt-4 mt-4 border-t">
+                                    <div className="flex gap-2">
+                                        <Input 
+                                            placeholder="Promo or Referral Code" 
+                                            value={couponCode}
+                                            onChange={(e) => setCouponCode(e.target.value)}
+                                            className="h-9 transition-all focus:ring-1"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                                        />
+                                        <Button 
+                                            variant="secondary" 
+                                            size="sm" 
+                                            onClick={() => handleApplyCoupon()}
+                                            disabled={isValidatingCoupon || !couponCode.trim()}
+                                        >
+                                            {isValidatingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

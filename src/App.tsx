@@ -13,6 +13,7 @@ import Users from "./pages/Users";
 import BillOfMaterials from "./pages/BillOfMaterials";
 import InventoryReport from "./pages/InventoryReport";
 import ProductManagement from "./pages/manufacturing/ProductManagement";
+import Coupons from "./pages/manufacturing/Coupons";
 import OrderManagement from "./pages/manufacturing/OrderManagement";
 import OrderLabels from "./pages/manufacturing/OrderLabels";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
@@ -203,6 +204,7 @@ const AppRoutes = () => {
                     <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
                     <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
                     <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+                    <Route path="coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
                     <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
                     <Route path="order-labels" element={<ProtectedRoute><OrderLabels /></ProtectedRoute>} />
                     <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />

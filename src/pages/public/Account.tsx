@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { User, Package, Settings, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { User, Package, ChevronDown, ChevronUp, RotateCcw, Users, Copy, Pencil, Check, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
     Collapsible,
@@ -72,6 +72,10 @@ const Account = () => {
     const [reordering, setReordering] = useState<string | null>(null);
     const [trackingOpen, setTrackingOpen] = useState(false);
     const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null);
+    
+    // Inline edit states
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [isEditingPhone, setIsEditingPhone] = useState(false);
 
     useEffect(() => {
         checkUser();
@@ -140,6 +144,11 @@ const Account = () => {
     };
 
     const handleUpdateProfile = async () => {
+        if (!fullName.trim()) {
+            toast.error("Full Name is required");
+            return;
+        }
+        
         setUpdating(true);
         try {
             const { error } = await supabase
@@ -151,6 +160,8 @@ const Account = () => {
 
             toast.success("Profile updated successfully");
             setProfile({ ...profile, full_name: fullName, phone: phone });
+            setIsEditingName(false);
+            setIsEditingPhone(false);
         } catch (error: any) {
             toast.error("Failed to update profile");
             console.error(error);
@@ -307,71 +318,154 @@ const Account = () => {
 
     return (
         <div className="container py-12">
-            <h1 className="text-3xl font-bold mb-8">My Account</h1>
+            <div className="max-w-5xl mx-auto">
+                <h1 className="text-3xl font-bold mb-8">My Account</h1>
 
-            <div className="grid gap-6 md:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-2">
                 {/* Profile Section */}
-                <Card className="md:col-span-1">
+                <Card className="md:col-span-1 flex flex-col">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <User className="h-5 w-5" />
                             Profile
                         </CardTitle>
+                        <CardDescription>Manage your personal information</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
+                    <CardContent className="space-y-4 flex-1">
+                        <div className="space-y-1">
                             <Label className="text-sm text-muted-foreground">Email</Label>
-                            <p className="font-medium">{user?.email}</p>
+                            <p className="font-medium text-slate-700 bg-slate-50 p-2 rounded border border-slate-100">{user?.email}</p>
                         </div>
-                        <div>
-                            <Label className="text-sm text-muted-foreground">Full Name</Label>
-                            <p className="font-medium">{profile?.full_name || "Not set"}</p>
+                        <div className="space-y-3">
+                            <Label className="text-[10px] items-center font-bold text-muted-foreground uppercase tracking-widest">Full Name <span className="text-destructive">*</span></Label>
+                            {isEditingName ? (
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        className="h-9 transition-all focus:ring-primary/20"
+                                        autoFocus
+                                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateProfile()}
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={handleUpdateProfile}>
+                                        <Check className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => {
+                                        setIsEditingName(false);
+                                        setFullName(profile?.full_name || "");
+                                    }}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 py-1">
+                                    <p className="font-medium text-slate-800">{fullName || "Not set"}</p>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7 transition-colors hover:bg-slate-100" onClick={() => setIsEditingName(true)}>
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                                    </Button>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <Label className="text-sm text-muted-foreground">Phone</Label>
-                            <p className="font-medium">{profile?.phone || "Not set"}</p>
+
+                        <div className="space-y-3">
+                            <Label className="text-[10px] items-center font-bold text-muted-foreground uppercase tracking-widest">Phone Number</Label>
+                            {isEditingPhone ? (
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="tel"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        className="h-9 transition-all focus:ring-primary/20"
+                                        autoFocus
+                                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateProfile()}
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={handleUpdateProfile}>
+                                        <Check className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => {
+                                        setIsEditingPhone(false);
+                                        setPhone(profile?.phone || "");
+                                    }}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 py-1">
+                                    <p className="font-medium text-slate-800">{phone || "Not set"}</p>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7 transition-colors hover:bg-slate-100" onClick={() => setIsEditingPhone(true)}>
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                                    </Button>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <Label className="text-sm text-muted-foreground">Member Since</Label>
-                            <p className="font-medium">
+
+                        {(isEditingName || isEditingPhone) && (
+                            <Button 
+                                onClick={handleUpdateProfile} 
+                                disabled={updating}
+                                className="w-full mt-2 shadow-sm"
+                                size="sm"
+                            >
+                                {updating ? "Saving Changes..." : "Save All Changes"}
+                            </Button>
+                        )}
+                        <Separator />
+                        <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
+                            <span>Member Since</span>
+                            <span className="font-medium text-slate-600">
                                 {user?.created_at ? format(new Date(user.created_at), "MMMM yyyy") : "-"}
-                            </p>
+                            </span>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Account Settings */}
-                <Card className="md:col-span-2">
+                {/* Referrals Section */}
+                <Card className="md:col-span-1">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Settings className="h-5 w-5" />
-                            Account Settings
+                            <Users className="h-5 w-5" />
+                            Refer & Earn
                         </CardTitle>
-                        <CardDescription>Update your account information</CardDescription>
+                        <CardDescription>Share your code and get rewards</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="fullName">Full Name</Label>
-                            <Input
-                                id="fullName"
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
-                                placeholder="Enter your full name"
-                            />
+                            <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Your Referral Code</Label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    value={profile?.referral_code || ""} 
+                                    readOnly 
+                                    className="font-mono text-center tracking-widest bg-muted/50 border-primary/20" 
+                                />
+                                <Button 
+                                    size="icon" 
+                                    variant="outline" 
+                                    className="shrink-0 hover:bg-primary/5"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(profile?.referral_code || "");
+                                        toast.success("Code copied to clipboard!");
+                                    }}
+                                >
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">Phone Number</Label>
-                            <Input
-                                id="phone"
-                                type="tel"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                placeholder="+1 (555) 000-0000"
-                            />
+                        <Separator />
+                        <div className="flex justify-between items-center py-1">
+                            <div className="space-y-0.5">
+                                <p className="text-sm font-medium">Successful Referrals</p>
+                                <p className="text-3xl font-extrabold text-primary">{profile?.successful_referrals || 0}</p>
+                            </div>
+                            <div className="text-right space-y-1">
+                                <p className="text-[10px] items-center font-bold text-muted-foreground uppercase tracking-widest">Next Reward</p>
+                                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                    {Math.min((profile?.successful_referrals || 0) * 10, 30)}% OFF
+                                </Badge>
+                            </div>
                         </div>
-                        <Button onClick={handleUpdateProfile} disabled={updating}>
-                            {updating ? "Updating..." : "Update Profile"}
-                        </Button>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground italic bg-muted/30 p-2 rounded">
+                            Get 10% off products for each friend referred. Use your code during checkout to redeem your earned discount (capped at 30% off).
+                        </p>
                     </CardContent>
                 </Card>
             </div>
@@ -536,6 +630,7 @@ const Account = () => {
                 carrier={trackingInfo?.carrier}
                 shipmentId={trackingInfo?.shipmentId}
             />
+            </div>
         </div>
     );
 };

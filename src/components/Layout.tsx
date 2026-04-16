@@ -14,6 +14,7 @@ import {
   Shield,
   User,
   Tag,
+  Ticket,
   ShoppingCart,
   Users,
   Store,
@@ -117,6 +118,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
     { name: "Planner", href: "/manufacturing/planner", icon: Calendar },
     { name: "Products", href: "/manufacturing/products", icon: Tag },
+    { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
   ];
 
   if (isAdmin) {

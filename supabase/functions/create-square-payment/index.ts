@@ -21,7 +21,59 @@ serve(async (req) => {
     }
 
     try {
-        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax } = await req.json();
+        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax, applied_coupons } = await req.json();
+
+        // 0. Handle Referral and Coupon Usage Tracking
+        if (applied_coupons && Array.isArray(applied_coupons)) {
+            for (const code of applied_coupons) {
+                const trimmedCode = code.trim().toUpperCase();
+                // Atomic increment of coupon usage
+                await supabase.rpc('increment_coupon_usage', { coupon_code: trimmedCode });
+                
+                // Atomic increment of referral count (if it's a referral code)
+                const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmedCode).single();
+                if (profile) {
+                    await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
+                }
+            }
+        }
+
+        // 1. Skip Square if amount is 0 (Free Order)
+        if (amount <= 0) {
+            // Update order status to 'processing'
+            await supabase.from("orders").update({ status: "processing", applied_coupons }).eq("id", orderId);
+
+            // Send Email Notifications
+            const sendEmail = async (type: string) => {
+                await fetch(`${supabaseUrl}/functions/v1/send-system-notification`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                        "apikey": supabaseServiceRoleKey,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        type: type,
+                        data: { order_id: orderId },
+                        related_id: orderId
+                    }),
+                });
+            };
+
+            await Promise.allSettled([
+                sendEmail("order_confirmation"),
+                sendEmail("admin_order_notification")
+            ]);
+
+            return new Response(JSON.stringify({
+                success: true,
+                status: "COMPLETED",
+                message: "Free order processed successfully"
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
 
         // Dynamically instantiate the Square Client based on the frontend's environment explicit request
         const squareEnvironment = isProduction ? Environment.Production : Environment.Sandbox;
@@ -110,8 +162,11 @@ serve(async (req) => {
         const payment = paymentResponse.result.payment;
 
         if (payment?.status === "COMPLETED" || payment?.status === "APPROVED") {
-             // Update order status to 'processing'
-             await supabase.from("orders").update({ status: "processing" }).eq("id", orderId);
+             // Update order status to 'processing' and save coupons used
+             await supabase.from("orders").update({ 
+                status: "processing",
+                applied_coupons: applied_coupons || []
+             }).eq("id", orderId);
 
              // Send Email Notifications
              const sendEmail = async (type: string) => {

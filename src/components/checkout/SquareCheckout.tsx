@@ -184,8 +184,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             return;
         }
 
-        if (!shippingCost || shippingCost <= 0) {
-            toast.error("Shipping cost must be calculated and greater than $0.00.");
+        if (shippingCost === undefined || shippingCost === null) {
+            toast.error("Shipping cost must be calculated.");
             return;
         }
         // -------------------------
@@ -401,18 +401,18 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                     <CreditCard 
                                         buttonProps={{
                                             css: {
-                                                backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary))',
+                                                backgroundColor: (isCalculating || !shippingService || shippingCost === undefined) ? '#cccccc' : 'hsl(var(--primary))',
                                                 color: '#fff',
-                                                cursor: (isCalculating || !shippingService || shippingCost <= 0) ? 'not-allowed' : 'pointer',
-                                                pointerEvents: (isCalculating || !shippingService || shippingCost <= 0) ? 'none' : 'auto',
+                                                cursor: (isCalculating || !shippingService || shippingCost === undefined) ? 'not-allowed' : 'pointer',
+                                                pointerEvents: (isCalculating || !shippingService || shippingCost === undefined) ? 'none' : 'auto',
                                                 fontFamily: 'Inter, sans-serif',
                                                 '&:hover': {
-                                                    backgroundColor: (isCalculating || !shippingService || shippingCost <= 0) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
+                                                    backgroundColor: (isCalculating || !shippingService || shippingCost === undefined) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
                                                 }
                                             }
                                         }}
                                     >
-                                        {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost <= 0 ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
+                                        {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost === undefined ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
                                     </CreditCard>
                                 </PaymentForm>
                             )}

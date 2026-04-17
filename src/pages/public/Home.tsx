@@ -76,7 +76,7 @@ const Home = () => {
                         capacity_ml: variant.vial_type.capacity_ml,
                         pack_size: variant.pack_size,
                         position: variant.product.position || 0,
-                        sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId, variant.product.is_private),
+                        sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId, variant.product.is_private, variant.product.name),
                         variants: [variant],
                     };
                 } else {

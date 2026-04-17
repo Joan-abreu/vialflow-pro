@@ -98,6 +98,9 @@ interface Order {
         status: string;
         pickup_confirmation?: string;
     }[];
+    applied_coupons?: string[];
+    product_discount?: number;
+    shipping_discount?: number;
 }
 
 const OrderManagement = () => {
@@ -838,8 +841,14 @@ const OrderManagement = () => {
                                 <div className="w-1/3 space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">Subtotal</span>
-                                        <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0)).toFixed(2)}</span>
+                                        <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0) + (selectedOrder.product_discount || 0) + (selectedOrder.shipping_discount || 0)).toFixed(2)}</span>
                                     </div>
+                                    {(selectedOrder.product_discount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                            <span>Discount {selectedOrder.applied_coupons && `(${selectedOrder.applied_coupons.join(", ")})`}</span>
+                                            <span>-${selectedOrder.product_discount?.toFixed(2)}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">
                                             Shipping ({selectedOrder.shipping_service || "Standard"})
@@ -847,6 +856,12 @@ const OrderManagement = () => {
                                         </span>
                                         <span>${(selectedOrder.shipping_cost || 0).toFixed(2)}</span>
                                     </div>
+                                    {(selectedOrder.shipping_discount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                            <span>Shipping Discount</span>
+                                            <span>-${selectedOrder.shipping_discount?.toFixed(2)}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between border-t pt-4">
                                         <span className="font-bold text-lg">Total</span>
                                         <span className="font-bold text-lg">${selectedOrder.total_amount.toFixed(2)}</span>
@@ -1082,12 +1097,24 @@ const OrderManagement = () => {
                         <div className="w-80 space-y-3">
                             <div className="flex justify-between text-gray-700 text-lg">
                                 <span>Subtotal</span>
-                                <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0)).toFixed(2)}</span>
+                                <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0) + (selectedOrder.product_discount || 0) + (selectedOrder.shipping_discount || 0)).toFixed(2)}</span>
                             </div>
+                            {(selectedOrder.product_discount || 0) > 0 && (
+                                <div className="flex justify-between text-green-700 text-lg font-medium">
+                                    <span>Discount {selectedOrder.applied_coupons && `(${selectedOrder.applied_coupons.join(", ")})`}</span>
+                                    <span>-${selectedOrder.product_discount?.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-gray-700 text-lg">
                                 <span>Shipping</span>
                                 <span>${(selectedOrder.shipping_cost || 0).toFixed(2)}</span>
                             </div>
+                            {(selectedOrder.shipping_discount || 0) > 0 && (
+                                <div className="flex justify-between text-green-700 text-lg font-medium">
+                                    <span>Shipping Discount</span>
+                                    <span>-${selectedOrder.shipping_discount?.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between border-t-2 border-gray-800 pt-4 text-2xl font-bold text-black">
                                 <span>Total</span>
                                 <span>${selectedOrder.total_amount.toFixed(2)}</span>

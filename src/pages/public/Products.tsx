@@ -111,7 +111,7 @@ const Products = () => {
                 category: product.product_categories?.name || null,
                 sale_type: product.sale_type || 'individual',
                 default_pack_size: product.default_pack_size,
-                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private),
+                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private, product.name),
                 variants: product.variants.map((v: any) => ({
                     id: v.id,
                     product_id: v.product_id,
@@ -170,8 +170,9 @@ const Products = () => {
         queryFn: async () => {
             let catQuery = supabase
                 .from("product_categories" as any)
-                .select("name, is_private")
+                .select("name, is_private, position")
                 .eq("active", true)
+                .order("position", { ascending: true })
                 .order("name");
                 
             if (!isVip) {

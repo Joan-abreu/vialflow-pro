@@ -10,6 +10,7 @@ import OrderStatusChart from "@/components/dashboard/OrderStatusChart";
 import RevenueTrendChart from "@/components/dashboard/RevenueTrendChart";
 import TopProductsList from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
+import { cn } from "@/lib/utils";
 
 interface Activity {
   id: string;
@@ -100,10 +101,12 @@ const Dashboard = () => {
       const orders = ordersResp.data || [];
       const orderShipments = orderShipmentsResp.data || [];
 
-      // Valid statuses for revenue calculation
-      const revenueStatuses = ["shipped", "delivered"]; // Usually you only count shipped/delivered or maybe processing as 'locked-in' revenue
+      // Valid orders for revenue calculation (any order that is paid and not cancelled)
       const validOrders = orders.filter((o: any) =>
-        revenueStatuses.includes(o.status) || o.status === "processing" || o.status === "ready_to_ship"
+        o.status !== "pending" && 
+        o.status !== "pending_payment" && 
+        o.status !== "cancelled" && 
+        o.status !== "failed"
       );
 
       const totalRevenue = validOrders.reduce((sum: number, order: any) => sum + Number(order.total_amount), 0);
@@ -186,8 +189,8 @@ const Dashboard = () => {
       // 3. Top Products
       const productStats: Record<string, { quantity: number; revenue: number }> = {};
       orders.forEach((order: any) => {
-        // Skip cancelled/failed
-        if (order.status === "cancelled" || order.status === "failed") return;
+        // Skip cancelled/failed or unpaid
+        if (order.status === "cancelled" || order.status === "failed" || order.status === "pending_payment" || order.status === "pending") return;
 
         if (order.order_items) {
           order.order_items.forEach((item: any) => {
@@ -212,7 +215,7 @@ const Dashboard = () => {
       const customerStats: Record<string, { name: string, email: string, orderCount: number; totalSpent: number }> = {};
       
       orders.forEach((order: any) => {
-        if (order.status === "cancelled" || order.status === "failed") return;
+        if (order.status === "cancelled" || order.status === "failed" || order.status === "pending_payment" || order.status === "pending") return;
 
         let name = "Unknown";
         let email = "";
@@ -344,7 +347,10 @@ const Dashboard = () => {
              <div className="flex-1">
                <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Net Revenue</h3>
                <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-extrabold text-green-600 dark:text-green-500">
+                 <span className={cn(
+                   "text-4xl font-extrabold transition-colors duration-500",
+                   stats.netRevenue < 0 ? "text-rose-600 dark:text-rose-500" : "text-green-600 dark:text-green-500"
+                 )}>
                     ${stats.netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                  </span>
                </div>

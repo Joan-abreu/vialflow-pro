@@ -95,7 +95,7 @@ const ProductDetails = () => {
                 .eq("product_id", productData.id);
 
             const realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
-            const salesCount = realSales + getBaseSalesCount(productData.id, productData.is_private);
+            const salesCount = realSales + getBaseSalesCount(productData.id, productData.is_private, productData.name);
 
             const variants: ProductVariant[] = (variantsData as any[])?.map((v: any) => ({
                 id: v.id,

@@ -23,6 +23,7 @@ interface ProductCategory {
     description: string | null;
     active: boolean;
     is_private?: boolean;
+    position: number;
 }
 
 export function ManageCategoriesDialog() {
@@ -30,6 +31,7 @@ export function ManageCategoriesDialog() {
     const [newCategoryName, setNewCategoryName] = useState("");
     const [newCategoryDescription, setNewCategoryDescription] = useState("");
     const [newCategoryIsPrivate, setNewCategoryIsPrivate] = useState(false);
+    const [newCategoryPosition, setNewCategoryPosition] = useState(0);
     const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
     const queryClient = useQueryClient();
 
@@ -40,6 +42,7 @@ export function ManageCategoriesDialog() {
             const { data, error } = await supabase
                 .from("product_categories" as any)
                 .select("*")
+                .order("position", { ascending: true })
                 .order("name");
             if (error) throw error;
             return data as any as ProductCategory[];
@@ -49,10 +52,15 @@ export function ManageCategoriesDialog() {
 
     // Create mutation
     const createCategoryMutation = useMutation({
-        mutationFn: async (data: { name: string; description: string; is_private: boolean }) => {
+        mutationFn: async (data: { name: string; description: string; is_private: boolean, position: number }) => {
             const { error } = await supabase
                 .from("product_categories" as any)
-                .insert([{ name: data.name, description: data.description, is_private: data.is_private }]);
+                .insert([{ 
+                    name: data.name, 
+                    description: data.description, 
+                    is_private: data.is_private,
+                    position: data.position 
+                }]);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -60,6 +68,7 @@ export function ManageCategoriesDialog() {
             setNewCategoryName("");
             setNewCategoryDescription("");
             setNewCategoryIsPrivate(false);
+            setNewCategoryPosition(0);
             toast.success("Category created");
         },
         onError: (error: any) => {
@@ -69,10 +78,15 @@ export function ManageCategoriesDialog() {
 
     // Update mutation
     const updateCategoryMutation = useMutation({
-        mutationFn: async (category: { id: string; name: string; description: string; is_private: boolean }) => {
+        mutationFn: async (category: { id: string; name: string; description: string; is_private: boolean, position: number }) => {
             const { error } = await supabase
                 .from("product_categories" as any)
-                .update({ name: category.name, description: category.description, is_private: category.is_private })
+                .update({ 
+                    name: category.name, 
+                    description: category.description, 
+                    is_private: category.is_private,
+                    position: category.position
+                })
                 .eq("id", category.id);
             if (error) throw error;
         },
@@ -82,6 +96,7 @@ export function ManageCategoriesDialog() {
             setNewCategoryName("");
             setNewCategoryDescription("");
             setNewCategoryIsPrivate(false);
+            setNewCategoryPosition(0);
             toast.success("Category updated");
         },
         onError: (error: any) => {
@@ -135,12 +150,14 @@ export function ManageCategoriesDialog() {
                 name: newCategoryName.trim(),
                 description: newCategoryDescription.trim(),
                 is_private: newCategoryIsPrivate,
+                position: newCategoryPosition,
             });
         } else {
             createCategoryMutation.mutate({
                 name: newCategoryName.trim(),
                 description: newCategoryDescription.trim(),
                 is_private: newCategoryIsPrivate,
+                position: newCategoryPosition,
             });
         }
     };
@@ -150,6 +167,7 @@ export function ManageCategoriesDialog() {
         setNewCategoryName(category.name);
         setNewCategoryDescription(category.description || "");
         setNewCategoryIsPrivate(category.is_private || false);
+        setNewCategoryPosition(category.position || 0);
     };
 
     const handleCancelEdit = () => {
@@ -157,6 +175,7 @@ export function ManageCategoriesDialog() {
         setNewCategoryName("");
         setNewCategoryDescription("");
         setNewCategoryIsPrivate(false);
+        setNewCategoryPosition(0);
     };
 
     return (
@@ -206,6 +225,16 @@ export function ManageCategoriesDialog() {
                                 <span className="text-sm font-normal text-muted-foreground">Hide from public and search engines</span>
                             </div>
                         </div>
+                        <div className="grid w-full items-center gap-1.5 mt-2">
+                            <Label htmlFor="categoryPosition">Display Order (Lower numbers show first)</Label>
+                            <Input
+                                id="categoryPosition"
+                                type="number"
+                                placeholder="0"
+                                value={newCategoryPosition}
+                                onChange={(e) => setNewCategoryPosition(parseInt(e.target.value) || 0)}
+                            />
+                        </div>
                         <div className="flex gap-2 justify-end mt-2">
                             {editingCategory && (
                                 <Button type="button" variant="ghost" onClick={handleCancelEdit}>
@@ -231,6 +260,7 @@ export function ManageCategoriesDialog() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-[60px]">Order</TableHead>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead>Active</TableHead>
@@ -249,6 +279,7 @@ export function ManageCategoriesDialog() {
                                 ) : (
                                     categories?.map((cat) => (
                                         <TableRow key={cat.id}>
+                                            <TableCell className="font-mono text-xs">{cat.position}</TableCell>
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2">
                                                     {cat.name}

@@ -39,6 +39,7 @@ import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import { format } from "date-fns";
 import CopyCell from "@/components/CopyCell";
+import { cn } from "@/lib/utils";
 
 interface OrderHistoryItem {
     id: string;
@@ -176,7 +177,12 @@ const CustomerManagement = () => {
                 .filter((user: any) => user.role === 'customer' && user.email !== 'hidden.admin@dev.com')
                 .map((user: any) => {
                     const userOrders = ordersByUser[user.id] || [];
-                    const validOrders = userOrders.filter(o => o.status !== 'cancelled' && o.status !== 'failed');
+                    const validOrders = userOrders.filter(o => 
+                        o.status !== 'cancelled' && 
+                        o.status !== 'failed' && 
+                        o.status !== 'pending_payment' && 
+                        o.status !== 'pending'
+                    );
                     const totalSpent = validOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
 
                     return {
@@ -716,11 +722,23 @@ const CustomerManagement = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                 <Badge variant={order.status === "delivered" || order.status === "completed" ? "secondary" : "outline"} className="capitalize text-[10px]">
+                                                 <Badge 
+                                                    variant={
+                                                        order.status === "delivered" || order.status === "completed" 
+                                                        ? "secondary" 
+                                                        : (order.status === "pending_payment" || order.status === "pending" ? "destructive" : "outline")
+                                                    } 
+                                                    className="capitalize text-[10px]"
+                                                >
                                                     {order.status.replace(/_/g, " ")}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell align="right" className="font-medium text-green-600">
+                                            <TableCell align="right" className={cn(
+                                                "font-medium",
+                                                (order.status === "pending_payment" || order.status === "pending" || order.status === "cancelled" || order.status === "failed") 
+                                                ? "text-muted-foreground line-through" 
+                                                : "text-green-600"
+                                            )}>
                                                 ${Number(order.total_amount).toFixed(2)}
                                             </TableCell>
                                         </TableRow>

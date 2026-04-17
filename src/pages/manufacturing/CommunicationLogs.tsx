@@ -84,14 +84,12 @@ const CommunicationLogs = () => {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        type: 'generic',
+                        type: 'raw',
                         recipient: log.recipient,
                         data: {
-                            subject: `[RESEND] ${log.subject}`,
-                            message: "See attached content",
-                            // We can't easily resend the exact HTML without a tweak to the engine
-                            // so we'll just send it as a generic message for now or improve the engine later
-                            html: log.content 
+                            subject: log.subject,
+                            html: log.content,
+                            log_type: log.type
                         }
                     }),
                 }

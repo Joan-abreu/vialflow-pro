@@ -206,6 +206,7 @@ export function getOrderConfirmationEmail(orderData: {
     shipping: number;
     total: number;
     trackingUrl?: string;
+    coupons?: string[];
 }): string {
     const itemsHtml = orderData.items.map(item => `
         <tr>
@@ -255,6 +256,17 @@ export function getOrderConfirmationEmail(orderData: {
             </tbody>
         </table>
 
+        ${orderData.coupons && orderData.coupons.length > 0 ? `
+            <div style="margin-top: 20px; padding: 15px; background-color: #f0fdf4; border: 1px dashed #16a34a; border-radius: 8px;">
+                <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: #16a34a; text-transform: uppercase; letter-spacing: 0.05em;">Applied Coupons</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${orderData.coupons.map(code => `
+                        <span style="display: inline-block; padding: 4px 10px; background-color: #16a34a; color: #ffffff; border-radius: 4px; font-weight: 600; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">${code}</span>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
+
         ${orderData.trackingUrl ? `
             <a href="${orderData.trackingUrl}" class="button">Track Your Order</a>
         ` : ''}
@@ -277,6 +289,7 @@ export function getAdminNotificationEmail(orderData: {
     shippingCost?: number;
     shippingCarrier?: string;
     shippingService?: string;
+    coupons?: string[];
 }): string {
     const itemsHtml = orderData.items.map(item => `
         <tr>
@@ -323,6 +336,17 @@ export function getAdminNotificationEmail(orderData: {
                 </tr>
             </tbody>
         </table>
+
+        ${orderData.coupons && orderData.coupons.length > 0 ? `
+            <div style="margin-top: 20px; padding: 15px; background-color: #f0fdf4; border: 1px dashed #16a34a; border-radius: 8px;">
+                <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: #16a34a; text-transform: uppercase; letter-spacing: 0.05em;">Applied Coupons</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${orderData.coupons.map(code => `
+                        <span style="display: inline-block; padding: 4px 10px; background-color: #16a34a; color: #ffffff; border-radius: 4px; font-weight: 600; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">${code}</span>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
 
         <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
             Please process this order in the admin panel.
@@ -576,6 +600,46 @@ export function getUserInvitationEmail(data: {
 
         <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px;">
             If you weren't expecting this invitation, you can safely ignore this email.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getCouponPromotionEmail(data: {
+    customerName: string;
+    couponCode: string;
+    discountDetails: string;
+    expiresAt?: string;
+    personalNote?: string;
+}): string {
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">A Special Offer for You! 🎁</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            ${data.personalNote || "We value your support and wanted to share a special discount code with you for your next order at Liv Well Research Labs."}
+        </p>
+        
+        <div style="background-color: #f0f7ff; border: 2px dashed #3B82F6; padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #3B82F6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">Your Exclusive Code</p>
+            <div style="font-size: 36px; font-weight: 800; color: #1e40af; letter-spacing: 0.1em; font-family: 'Courier New', Courier, monospace; background: #ffffff; display: inline-block; padding: 10px 25px; border-radius: 8px; border: 1px solid #dbeafe; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);">
+                ${data.couponCode}
+            </div>
+            <p style="margin: 20px 0 0 0; font-size: 18px; font-weight: 700; color: #1e3a8a;">${data.discountDetails}</p>
+            ${data.expiresAt ? `<p style="margin: 10px 0 0 0; font-size: 13px; color: #6b7280;">Valid until: <strong>${data.expiresAt}</strong></p>` : ''}
+        </div>
+
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563; text-align: center;">
+            Apply this code at checkout to claim your discount.
+        </p>
+
+        <div style="text-align: center;">
+            <a href="https://livwellresearchlabs.com" class="button" style="color: white !important;">Shop Now & Save</a>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 30px; border-top: 1px solid #e5e7eb; pt: 20px;">
+            Thank you for being part of our community. If you have any questions, feel free to reply to this email.
         </p>
     `;
     return getEmailTemplate(content);

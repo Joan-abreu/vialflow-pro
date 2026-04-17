@@ -39,14 +39,25 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Check, ChevronsUpDown, Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon, Mail, Search } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import CopyCell from "@/components/CopyCell";
+import { SendCouponDialog } from "@/components/shared/SendCouponDialog";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
 interface Coupon {
@@ -60,6 +71,8 @@ interface Coupon {
     expires_at: string | null;
     is_active: boolean;
     is_referral: boolean;
+    one_use_per_user: boolean;
+    restricted_to_user_ids: string[] | null;
     created_at: string;
 }
 
@@ -68,6 +81,10 @@ const Coupons = () => {
     const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
     const [deletingCoupon, setDeletingCoupon] = useState<Coupon | null>(null);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+    
+    // Searchable Customer Selector state
+    const [userSearchOpen, setUserSearchOpen] = useState(false);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     
     const queryClient = useQueryClient();
 
@@ -81,6 +98,19 @@ const Coupons = () => {
                 .order("created_at", { ascending: false });
             if (error) throw error;
             return data as Coupon[];
+        },
+    });
+
+    // Fetch customers for restriction dropdown
+    const { data: users } = useQuery({
+        queryKey: ["admin-profiles-lookup"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("user_id, full_name, email")
+                .order("full_name");
+            if (error) throw error;
+            return data;
         },
     });
 
@@ -146,6 +176,8 @@ const Coupons = () => {
     const resetForm = () => {
         setEditingCoupon(null);
         setExpiryDate(undefined);
+        setSelectedUserIds([]);
+        setUserSearchOpen(false);
     };
 
     const generateCode = () => {
@@ -166,6 +198,8 @@ const Coupons = () => {
             max_uses: formData.get("max_uses") ? parseInt(formData.get("max_uses") as string) : null,
             expires_at: expiryDate ? expiryDate.toISOString() : null,
             is_active: formData.get("is_active") === "on",
+            one_use_per_user: formData.get("one_use_per_user") === "on",
+            restricted_to_user_ids: selectedUserIds.length > 0 ? selectedUserIds : [],
         };
 
         if (editingCoupon) {
@@ -182,6 +216,7 @@ const Coupons = () => {
     const handleEdit = (coupon: Coupon) => {
         setEditingCoupon(coupon);
         setExpiryDate(coupon.expires_at ? new Date(coupon.expires_at) : undefined);
+        setSelectedUserIds(coupon.restricted_to_user_ids || []);
         setIsDialogOpen(true);
     };
 
@@ -317,6 +352,107 @@ const Coupons = () => {
                                 </Label>
                             </div>
 
+                            <div className="flex items-center space-x-2 pt-2 border-t pt-4">
+                                <Checkbox 
+                                    id="one_use_per_user" 
+                                    name="one_use_per_user" 
+                                    defaultChecked={editingCoupon?.one_use_per_user ?? true} 
+                                />
+                                <Label htmlFor="one_use_per_user" className="text-sm font-medium leading-none cursor-pointer">
+                                    Limit to one use per customer
+                                </Label>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="restricted_to_user_ids">Restrict to Specific Customers (Optional)</Label>
+                                <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={userSearchOpen}
+                                            className="w-full justify-between h-auto min-h-[40px] font-normal py-2"
+                                        >
+                                            <div className="flex flex-wrap gap-1 items-start max-w-[90%]">
+                                                {selectedUserIds.length > 0 ? (
+                                                    selectedUserIds.map(id => {
+                                                        const user = users?.find(u => u.user_id === id);
+                                                        return (
+                                                            <Badge key={id} variant="secondary" className="text-[10px] h-5 py-0 px-1 font-medium bg-primary/10 text-primary border-primary/20 flex items-center gap-1 group">
+                                                                {user?.full_name || "Unknown"}
+                                                                <div 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedUserIds(prev => prev.filter(i => i !== id));
+                                                                    }}
+                                                                    className="hover:text-destructive cursor-pointer"
+                                                                >
+                                                                    ×
+                                                                </div>
+                                                            </Badge>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <span className="text-muted-foreground">Anyone can use</span>
+                                                )}
+                                            </div>
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[300px] p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder="Search customer by name or email..." className="h-9" />
+                                            <CommandList>
+                                                <CommandEmpty>No customer found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandItem
+                                                        value="none"
+                                                        onSelect={() => {
+                                                            setSelectedUserIds([]);
+                                                            setUserSearchOpen(false);
+                                                        }}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                selectedUserIds.length === 0 ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        Anyone can use (Clear selection)
+                                                    </CommandItem>
+                                                    {users?.map((user) => (
+                                                        <CommandItem
+                                                            key={user.user_id}
+                                                            value={`${user.full_name} ${user.email}`}
+                                                            onSelect={() => {
+                                                                setSelectedUserIds(prev => 
+                                                                    prev.includes(user.user_id) 
+                                                                        ? prev.filter(i => i !== user.user_id)
+                                                                        : [...prev, user.user_id]
+                                                                );
+                                                            }}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    selectedUserIds.includes(user.user_id) ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium text-xs">{user.full_name}</span>
+                                                                <span className="text-[9px] text-muted-foreground">{user.email}</span>
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+
                             <Button type="submit" className="w-full mt-6" disabled={createCouponMutation.isPending || updateCouponMutation.isPending}>
                                 {editingCoupon ? "Save Changes" : "Create Coupon"}
                             </Button>
@@ -333,7 +469,7 @@ const Coupons = () => {
                             <TableHead>Target</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Value</TableHead>
-                            <TableHead>Usage</TableHead>
+                            <TableHead>Limits</TableHead>
                             <TableHead>Expiry</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -355,7 +491,14 @@ const Coupons = () => {
                         ) : (
                             coupons?.map((coupon) => (
                                 <TableRow key={coupon.id} className="hover:bg-muted/30 transition-colors">
-                                    <TableCell className="font-mono font-bold text-primary">{coupon.code}</TableCell>
+                                    <TableCell className="font-mono font-bold text-primary">
+                                        <div className="flex items-center gap-2 group">
+                                            <span>{coupon.code}</span>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <CopyCell value={coupon.code} size={14} />
+                                            </div>
+                                        </div>
+                                    </TableCell>
                                     <TableCell className="capitalize text-xs font-medium">
                                         <span className={cn(
                                             "px-2 py-1 rounded-full",
@@ -370,11 +513,33 @@ const Coupons = () => {
                                         {coupon.type === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toFixed(2)}`}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-sm">{coupon.times_used} uses</span>
-                                            {coupon.max_uses && (
-                                                <span className="text-[10px] text-muted-foreground">Limit: {coupon.max_uses}</span>
-                                            )}
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs font-semibold">{coupon.times_used} uses</span>
+                                                {coupon.max_uses && (
+                                                    <span className="text-[10px] text-muted-foreground">/ {coupon.max_uses} max</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {coupon.one_use_per_user && (
+                                                    <Badge variant="outline" className="text-[9px] h-4 py-0 bg-blue-50 text-blue-600 border-blue-200">Single Use</Badge>
+                                                )}
+                                                {coupon.restricted_to_user_ids && coupon.restricted_to_user_ids.length > 0 && (
+                                                    <div className="flex flex-col gap-0.5 mt-1 border-t border-amber-100 pt-1">
+                                                        <span className="text-[8px] text-amber-700 font-bold uppercase tracking-wider">Restricted to:</span>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {coupon.restricted_to_user_ids.map(id => {
+                                                                const user = users?.find(u => u.user_id === id);
+                                                                return (
+                                                                    <span key={id} className="text-[9px] bg-amber-50 text-amber-600 px-1 rounded-sm border border-amber-200 truncate max-w-[120px]">
+                                                                        {user?.full_name || "Unknown"}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
@@ -395,6 +560,17 @@ const Coupons = () => {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
+                                            <SendCouponDialog 
+                                                couponCode={coupon.code}
+                                                discountDetails={coupon.type === 'percentage' ? `${coupon.value}% off ${coupon.target}` : `$${coupon.value.toFixed(2)} off ${coupon.target}`}
+                                                expiresAt={coupon.expires_at ? format(new Date(coupon.expires_at), "MMM d, yyyy") : undefined}
+                                                restrictedToUserIds={coupon.restricted_to_user_ids}
+                                                trigger={
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" title="Send to Customers">
+                                                        <Mail className="h-4 w-4" />
+                                                    </Button>
+                                                }
+                                            />
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(coupon)}>
                                                 <Ticket className="h-4 w-4" />
                                             </Button>

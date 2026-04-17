@@ -70,6 +70,36 @@ serve(async (req) => {
                     continue;
                 }
 
+                // New Restriction: Check if restricted to specific users
+                if (coupon.restricted_to_user_ids && Array.isArray(coupon.restricted_to_user_ids) && coupon.restricted_to_user_ids.length > 0) {
+                    if (!userId) {
+                        console.log(`Code ${trimmedCode} is restricted but no userId provided`);
+                        continue;
+                    }
+                    if (!coupon.restricted_to_user_ids.includes(userId)) {
+                        console.log(`Code ${trimmedCode} is restricted to [${coupon.restricted_to_user_ids.join(', ')}], but user is ${userId}`);
+                        continue;
+                    }
+                }
+
+                // New Restriction: One use per customer
+                if (coupon.one_use_per_user && userId) {
+                    const { data: previousUsage, error: usageError } = await supabase
+                        .from("orders")
+                        .select("id")
+                        .eq("user_id", userId)
+                        .not("status", "in", '("cancelled", "failed")')
+                        .contains("applied_coupons", [trimmedCode])
+                        .limit(1);
+
+                    if (usageError) {
+                        console.error(`Error checking previous usage for ${trimmedCode}:`, usageError);
+                    } else if (previousUsage && previousUsage.length > 0) {
+                        console.log(`Code ${trimmedCode} already used by user ${userId}`);
+                        continue;
+                    }
+                }
+
                 let discountAmount = 0;
                 if (coupon.target === 'product' || coupon.target === 'all') {
                     const amount = coupon.type === 'percentage' 

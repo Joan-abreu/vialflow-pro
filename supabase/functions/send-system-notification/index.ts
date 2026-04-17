@@ -9,7 +9,8 @@ import {
     getGenericNotificationEmail,
     getSimpleEmailTemplate,
     getContactFormEmail,
-    getSignupConfirmationEmail
+    getSignupConfirmationEmail,
+    getCouponPromotionEmail
 } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -29,7 +30,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form" | "signup_confirmation" | "manual";
+  type: "order_confirmation" | "order_status_update" | "admin_order_notification" | "low_stock_alert" | "user_invitation" | "password_reset" | "generic" | "contact_form" | "signup_confirmation" | "manual" | "coupon_promotion" | "raw";
   recipient: string | string[];
   data: any;
   related_id?: string;
@@ -123,6 +124,7 @@ const handler = async (req: Request): Promise<Response> => {
                     subtotal: order.total_amount - (order.shipping_cost || 0),
                     shipping: order.shipping_cost || 0,
                     total: order.total_amount,
+                    coupons: order.applied_coupons,
                 });
                 finalRecipients = [customerEmail];
             } else if (type === "order_status_update") {
@@ -146,7 +148,8 @@ const handler = async (req: Request): Promise<Response> => {
                     shippingAddress: formatAddress(order.shipping_address),
                     shippingCost: order.shipping_cost,
                     shippingCarrier: order.shipping_carrier,
-                    shippingService: order.shipping_service
+                    shippingService: order.shipping_service,
+                    coupons: order.applied_coupons
                 });
                 finalRecipients = ADMIN_EMAILS;
             }
@@ -219,6 +222,21 @@ const handler = async (req: Request): Promise<Response> => {
             buttonUrl: data.buttonUrl
         });
         break;
+      case "coupon_promotion":
+        subject = data.subject || `Special Discount from Liv Well Research Labs`;
+        // Handle multiple personalized content if needed, but for now we use the same for all in this batch
+        htmlContent = getCouponPromotionEmail({
+            customerName: data.customerName || "Customer",
+            couponCode: data.couponCode,
+            discountDetails: data.discountDetails,
+            expiresAt: data.expiresAt,
+            personalNote: data.personalNote
+        });
+        break;
+      case "raw":
+        subject = data.subject || "No Subject";
+        htmlContent = data.html || "";
+        break;
       case "contact_form":
         subject = `New Web Inquiry: ${data.subject}`;
         htmlContent = getContactFormEmail(data);
@@ -230,7 +248,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let fromEmail = FROM_EMAIL;
-    if (["order_confirmation", "order_status_update", "admin_order_notification", "manual"].includes(type)) {
+    if (["order_confirmation", "order_status_update", "admin_order_notification", "manual", "coupon_promotion"].includes(type)) {
       fromEmail = FROM_SALES_EMAIL;
     }
 
@@ -289,7 +307,7 @@ const handler = async (req: Request): Promise<Response> => {
       subject,
       content: htmlContent,
       status,
-      type,
+      type: data.log_type || type,
       related_id,
       metadata: { resend_response: resData, event_data: data }
     });

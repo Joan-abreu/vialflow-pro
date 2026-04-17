@@ -183,14 +183,19 @@ const Checkout = () => {
     };
 
     const handleApplyCoupon = async (codesInput?: string[], currentShipCost?: number) => {
-        const codesToValidate = codesInput || [couponCode];
-        if (codesToValidate.length === 0 || (codesToValidate.length === 1 && !codesToValidate[0])) return;
+        const currentlyApplied = appliedDiscounts.map(d => d.code);
+        const codesToValidate = codesInput || (couponCode ? [...currentlyApplied, couponCode] : currentlyApplied);
+        
+        if (codesToValidate.length === 0) return;
+        
+        // Avoid duplicate codes
+        const uniqueCodes = Array.from(new Set(codesToValidate.map(c => c.trim().toUpperCase())));
 
         setIsValidatingCoupon(true);
         try {
             const { data, error } = await supabase.functions.invoke('validate-coupon', {
                 body: { 
-                    codes: codesToValidate, 
+                    codes: uniqueCodes, 
                     subtotal: cartTotal, 
                     shipping: currentShipCost ?? shippingCost,
                     userId: session?.user?.id

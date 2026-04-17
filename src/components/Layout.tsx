@@ -20,8 +20,14 @@ import {
   Store,
   Mail,
   Settings,
-  Calendar
+  Calendar,
+  ChevronDown
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
@@ -113,33 +119,39 @@ const Layout = ({ children }: LayoutProps) => {
 
   const mainNavigation = [
     { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
-    { name: "Production", href: "/manufacturing/production", icon: Package },
-    { name: "Shipments FBA", href: "/manufacturing/shipments", icon: Truck },
-    { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
-    { name: "Planner", href: "/manufacturing/planner", icon: Calendar },
+    ...(isAdmin ? [
+      { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
+    ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
     { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
+    ...(isAdmin ? [
+      { name: "Customers", href: "/manufacturing/customers", icon: Users },
+    ] : []),
   ];
 
-  if (isAdmin) {
-    mainNavigation.push(
-      { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
-      { name: "Customers", href: "/manufacturing/customers", icon: Users }
-    );
-  }
+  const operationsNavigation = [
+    { name: "Production", href: "/manufacturing/production", icon: Package },
+    { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
+    { name: "Shipments FBA", href: "/manufacturing/shipments", icon: Truck },
+    { name: "Planner", href: "/manufacturing/planner", icon: Calendar },
+  ];
 
-  const settingsNavigation = isAdmin ? [
+  const adminNavigation = isAdmin ? [
     { name: "Users", href: "/manufacturing/users", icon: Shield },
-    { name: "Communications", href: "/manufacturing/communications", icon: Mail },
-    { name: "Shipping", href: "/manufacturing/shipping-settings", icon: Truck },
-    { name: "General", href: "/manufacturing/settings", icon: Settings },
+    { name: "Email Logs", href: "/manufacturing/communications", icon: Mail },
     { name: "Audit Logs", href: "/manufacturing/audit-logs", icon: Shield },
   ] : [];
 
-  const navigation = [...mainNavigation, ...settingsNavigation];
+  const settingsNavigation = isAdmin ? [
+    { name: "Shipping", href: "/manufacturing/shipping-settings", icon: Truck },
+    { name: "General", href: "/manufacturing/settings", icon: Settings },
+  ] : [];
 
   const NavigationLinks = () => (
     <>
+      <div className="px-3 py-2 text-[10px] font-bold text-primary/80 mt-2 mb-1 uppercase tracking-[0.15em] border-l-2 border-primary/30">
+        Main
+      </div>
       {mainNavigation.map((item) => {
         const isActive = location.pathname === item.href;
         const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
@@ -164,9 +176,55 @@ const Layout = ({ children }: LayoutProps) => {
         );
       })}
 
+      <div className="px-3 py-2 text-[10px] font-bold text-primary/80 mt-4 mb-1 uppercase tracking-[0.15em] border-l-2 border-primary/30">
+        Operations
+      </div>
+      {operationsNavigation.map((item) => {
+        const isActive = location.pathname === item.href;
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+          >
+            <item.icon className="h-5 w-5" />
+            <span className="flex-1">{item.name}</span>
+          </Link>
+        );
+      })}
+
+      {adminNavigation.length > 0 && (
+        <>
+          <div className="px-3 py-2 text-[10px] font-bold text-primary/80 mt-4 mb-1 uppercase tracking-[0.15em] border-l-2 border-primary/30">
+            Administration
+          </div>
+          {adminNavigation.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="flex-1">{item.name}</span>
+              </Link>
+            );
+          })}
+        </>
+      )}
+
       {settingsNavigation.length > 0 && (
         <>
-          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground mt-4 mb-2">
+          <div className="px-3 py-2 text-[10px] font-bold text-primary/80 mt-4 mb-1 uppercase tracking-[0.15em] border-l-2 border-primary/30">
             Settings
           </div>
           {settingsNavigation.map((item) => {
@@ -203,67 +261,162 @@ const Layout = ({ children }: LayoutProps) => {
             </h1>
           </div>
 
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="space-y-1 px-3 py-4">
-                {mainNavigation.map((item) => {
-                  const isActive = location.pathname === item.href;
-                  const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
-                  return (
-                    <SidebarMenuItem key={item.name}>
-                      <SidebarMenuButton asChild>
-                        <Link
-                          to={item.href}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                            }`}
-                        >
-                          <item.icon className="h-5 w-5 flex-shrink-0" />
-                          <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
-                          {showBadge && open && (
-                            <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
-                              {pendingOrdersCount}
-                            </Badge>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup>
+              <SidebarGroupLabel asChild className={open ? "px-4 text-[10px] font-bold text-primary/80 mb-2 mt-4 uppercase tracking-[0.15em] border-l-2 border-primary/30 h-auto py-1 cursor-pointer transition-colors hover:text-primary" : "sr-only"}>
+                <CollapsibleTrigger className="flex w-full items-center justify-between">
+                  <span>Main</span>
+                  {open && <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu className="space-y-1">
+                    {mainNavigation.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
+                      return (
+                        <SidebarMenuItem key={item.name}>
+                          <SidebarMenuButton 
+                            asChild 
+                            isActive={isActive}
+                            className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : ""}
+                          >
+                            <Link
+                              to={item.href}
+                              className="flex items-center gap-3 font-medium transition-colors"
+                            >
+                              <item.icon className="h-5 w-5 flex-shrink-0" />
+                              <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                              {showBadge && open && (
+                                <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
+                                  {pendingOrdersCount}
+                                </Badge>
+                              )}
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup>
+              <SidebarGroupLabel asChild className={open ? "px-4 text-[10px] font-bold text-primary/80 mb-2 mt-4 uppercase tracking-[0.15em] border-l-2 border-primary/30 h-auto py-1 cursor-pointer transition-colors hover:text-primary" : "sr-only"}>
+                <CollapsibleTrigger className="flex w-full items-center justify-between">
+                  <span>Operations</span>
+                  {open && <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu className="space-y-1">
+                    {operationsNavigation.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      return (
+                        <SidebarMenuItem key={item.name}>
+                          <SidebarMenuButton 
+                            asChild 
+                            isActive={isActive}
+                            className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : ""}
+                          >
+                            <Link
+                              to={item.href}
+                              className="flex items-center gap-3 font-medium transition-colors"
+                            >
+                              <item.icon className="h-5 w-5 flex-shrink-0" />
+                              <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+
+          {adminNavigation.length > 0 && (
+            <Collapsible defaultOpen className="group/collapsible">
+              <SidebarGroup>
+                <SidebarGroupLabel asChild className={open ? "px-4 text-[10px] font-bold text-primary/80 mb-2 mt-4 uppercase tracking-[0.15em] border-l-2 border-primary/30 h-auto py-1 cursor-pointer transition-colors hover:text-primary" : "sr-only"}>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between">
+                    <span>Administration</span>
+                    {open && <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                  </CollapsibleTrigger>
+                </SidebarGroupLabel>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu className="space-y-1">
+                      {adminNavigation.map((item) => {
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <SidebarMenuItem key={item.name}>
+                            <SidebarMenuButton 
+                              asChild 
+                              isActive={isActive}
+                              className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : ""}
+                            >
+                              <Link
+                                to={item.href}
+                                className="flex items-center gap-3 font-medium transition-colors"
+                              >
+                                <item.icon className="h-5 w-5 flex-shrink-0" />
+                                <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          )}
 
           {settingsNavigation.length > 0 && (
-            <SidebarGroup>
-              <SidebarGroupLabel className={open ? "px-6 text-xs font-semibold text-muted-foreground mb-2" : "sr-only"}>
-                Settings
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu className="space-y-1 px-3">
-                  {settingsNavigation.map((item) => {
-                    const isActive = location.pathname === item.href;
-                    return (
-                      <SidebarMenuItem key={item.name}>
-                        <SidebarMenuButton asChild>
-                          <Link
-                            to={item.href}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                              }`}
-                          >
-                            <item.icon className="h-5 w-5 flex-shrink-0" />
-                            <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <Collapsible defaultOpen={false} className="group/collapsible">
+              <SidebarGroup>
+                <SidebarGroupLabel asChild className={open ? "px-4 text-[10px] font-bold text-primary/80 mb-2 mt-4 uppercase tracking-[0.15em] border-l-2 border-primary/30 h-auto py-1 cursor-pointer transition-colors hover:text-primary" : "sr-only"}>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between">
+                    <span>Settings</span>
+                    {open && <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                  </CollapsibleTrigger>
+                </SidebarGroupLabel>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu className="space-y-1">
+                      {settingsNavigation.map((item) => {
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <SidebarMenuItem key={item.name}>
+                            <SidebarMenuButton 
+                              asChild 
+                              isActive={isActive}
+                              className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : ""}
+                            >
+                              <Link
+                                to={item.href}
+                                className="flex items-center gap-3 font-medium transition-colors"
+                              >
+                                <item.icon className="h-5 w-5 flex-shrink-0" />
+                                <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
           )}
 
           <div className="mt-auto border-t">

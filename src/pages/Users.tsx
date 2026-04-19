@@ -70,6 +70,16 @@ const Users = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserWithRole | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  
+  // Filters and Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all"); // all, admin, manager, staff, pending
+  const [statusFilter, setStatusFilter] = useState("all"); // all, active, disabled
+  const [sortFilter, setSortFilter] = useState("newest"); // newest, oldest
+  
+  const [totalUsersCount, setTotalUsersCount] = useState(0);
+  const [customerCount, setCustomerCount] = useState(0);
+
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
 
@@ -90,7 +100,6 @@ const Users = () => {
     try {
       setLoading(true);
 
-      // Call edge function to get users
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
@@ -115,6 +124,10 @@ const Users = () => {
       }
 
       const { users: usersData } = await response.json();
+      setTotalUsersCount(usersData.length);
+
+      const customerUsers = usersData.filter((u: any) => u.role === 'customer');
+      setCustomerCount(customerUsers.length);
 
       const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
@@ -131,9 +144,8 @@ const Users = () => {
           });
       }
 
-      // Add banned status to users and filter out hidden admin and customers
+      // Add banned status to users
       const usersWithStatus = usersData
-        .filter((user: any) => user.email !== 'hidden.admin@dev.com' && user.role !== 'customer')
         .map((user: any) => ({
           ...user,
           banned_until: user.banned_until || null,
@@ -287,15 +299,31 @@ const Users = () => {
         setTogglingAccess(user.id);
         const newAccess = !user.can_view_private_products;
         
-        // First check if profile exists
-        const { data: profile } = await supabase.from('profiles').select('user_id').eq('user_id', user.id).single();
-        
-        if (profile) {
-            const { error } = await supabase.from('profiles').update({ can_view_private_products: newAccess }).eq('user_id', user.id);
-            if (error) throw error;
-        } else {
-            const { error } = await supabase.from('profiles').insert({ user_id: user.id, can_view_private_products: newAccess });
-            if (error) throw error;
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+            toast.error("Not authenticated");
+            return;
+        }
+
+        const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/toggle-vip-access`,
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: user.id,
+                    canViewPrivate: newAccess,
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update VIP access');
         }
         
         toast.success(`VIP Access ${newAccess ? 'granted' : 'revoked'}`);
@@ -379,6 +407,45 @@ const Users = () => {
   };
 
 
+  const processedUsers = import.meta.env.PROD || true ? (() => {
+    let result = [...users];
+
+    // Always hide hidden admin for security as requested
+    result = result.filter(u => u.email !== 'hidden.admin@dev.com');
+
+    // 1. Search Query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(u => u.email.toLowerCase().includes(q));
+    }
+
+    // 2. Role Filter
+    if (roleFilter !== "all") {
+      result = result.filter(u => u.role === roleFilter);
+    } else {
+      // By default show team members (not customers) unless searching
+      if (!searchQuery) {
+        result = result.filter(u => u.role !== 'customer');
+      }
+    }
+
+    // 3. Status Filter
+    if (statusFilter === "disabled") {
+      result = result.filter(u => !!u.banned_until);
+    } else if (statusFilter === "active") {
+      result = result.filter(u => !u.banned_until);
+    }
+
+    // 4. Sorting
+    if (sortFilter === "newest") {
+      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else {
+      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    }
+
+    return result;
+  })() : [];
+
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       admin: "Administrator",
@@ -419,20 +486,73 @@ const Users = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>System Users</CardTitle>
-          <CardDescription>
-            Assign roles to users to control their access permissions
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle>System Users</CardTitle>
+              <CardDescription>
+                Assign roles to users to control their access permissions.
+              </CardDescription>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <Input 
+                placeholder="Search by email..." 
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              />
+            </div>
+            <Select value={roleFilter} onValueChange={(val) => { setRoleFilter(val); setCurrentPage(1); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Team Roles (Admins/Staff)</SelectItem>
+                <SelectItem value="admin">Administrators</SelectItem>
+                <SelectItem value="manager">Managers</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="customer">Customers (All)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="disabled">Disabled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortFilter} onValueChange={(val) => { setSortFilter(val); setCurrentPage(1); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Registration (Newest)</SelectItem>
+                <SelectItem value="oldest">Registration (Oldest)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : users.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No users registered
-            </p>
+          ) : processedUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-2">No users found matching your filters.</p>
+              {users.length > 0 && searchQuery && (
+                <p className="text-xs text-muted-foreground">
+                  Try clearing your search or checking the "Customers" role filter.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="rounded-md border">
               <Table>
@@ -447,7 +567,7 @@ const Users = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users
+                  {processedUsers
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((user) => (
                       <TableRow key={user.id}>
@@ -586,12 +706,12 @@ const Users = () => {
               </Table>
             </div>
           )}
-          {!loading && users.length > 0 && (
+          {!loading && processedUsers.length > 0 && (
             <DataTablePagination
               currentPage={currentPage}
-              totalPages={Math.ceil(users.length / itemsPerPage)}
+              totalPages={Math.ceil(processedUsers.length / itemsPerPage)}
               onPageChange={setCurrentPage}
-              totalItems={users.length}
+              totalItems={processedUsers.length}
               pageSize={itemsPerPage}
               onPageSizeChange={(size) => {
                 setItemsPerPage(size);

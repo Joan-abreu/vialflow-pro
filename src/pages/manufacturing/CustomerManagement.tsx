@@ -296,15 +296,31 @@ const CustomerManagement = () => {
             setTogglingAccess(user.id);
             const newAccess = !user.can_view_private_products;
             
-            // First check if profile exists
-            const { data: profile } = await supabase.from('profiles').select('user_id').eq('user_id', user.id).single();
-            
-            if (profile) {
-                const { error } = await supabase.from('profiles').update({ can_view_private_products: newAccess }).eq('user_id', user.id);
-                if (error) throw error;
-            } else {
-                const { error } = await supabase.from('profiles').insert({ user_id: user.id, can_view_private_products: newAccess });
-                if (error) throw error;
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                toast.error("Not authenticated");
+                return;
+            }
+
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/toggle-vip-access`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        canViewPrivate: newAccess,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update VIP access');
             }
             
             toast.success(`VIP Access ${newAccess ? 'granted' : 'revoked'}`);

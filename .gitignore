@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 supabase/.temp/cli-latest
+
+# Backups
+backups/

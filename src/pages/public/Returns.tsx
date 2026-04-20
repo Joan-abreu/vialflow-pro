@@ -51,6 +51,16 @@ const Returns = () => {
                     </section>
 
                     <section className="space-y-4">
+                        <h2 className="text-2xl font-semibold text-foreground">Damaged or Incorrect Items</h2>
+                        <p>
+                            If your order arrives damaged during shipment or you receive the incorrect item, we will replace it <span className="font-semibold text-primary">free of charge</span>. 
+                        </p>
+                        <p>
+                            Please notify us within <span className="font-semibold text-foreground">48 hours</span> of delivery by sending a photo of the damaged item and your order number to <a href="mailto:sales@livwellresearchlabs.com" className="text-primary hover:underline">sales@livwellresearchlabs.com</a>.
+                        </p>
+                    </section>
+
+                    <section className="space-y-4">
                         <h2 className="text-2xl font-semibold text-foreground">How to request a return</h2>
                         <p>
                             To initiate a return, please contact us at:

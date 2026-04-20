@@ -213,6 +213,7 @@ const PublicLayoutContent = () => {
                                 <li><Link to="/contact">Contact</Link></li>
                                 <li><Link to="/terms">Terms of Service</Link></li>
                                 <li><Link to="/privacy">Privacy Policy</Link></li>
+                                <li><Link to="/returns">Return Policy</Link></li>
                             </ul>
                         </div>
                         <div>

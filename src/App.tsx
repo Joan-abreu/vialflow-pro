@@ -39,6 +39,7 @@ import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
 import Terms from "./pages/public/Terms";
 import Privacy from "./pages/public/Privacy";
+import Returns from "./pages/public/Returns";
 import Account from "./pages/public/Account";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
@@ -191,6 +192,7 @@ const AppRoutes = () => {
                     <Route path="/account" element={<Account />} />
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/returns" element={<Returns />} />
                 </Route>
 
                 {/* Maintenance Route */}

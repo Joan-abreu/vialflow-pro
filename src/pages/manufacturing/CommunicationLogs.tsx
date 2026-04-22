@@ -210,7 +210,17 @@ const CommunicationLogs = () => {
                                             <TableCell className="capitalize">
                                                 {log.type.replace(/_/g, " ")}
                                             </TableCell>
-                                            <TableCell>{log.recipient}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">
+                                                        {log.metadata?.customer_name || 
+                                                         log.metadata?.event_data?.customerName || 
+                                                         log.metadata?.event_data?.customer_name || 
+                                                         ""}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">{log.recipient}</span>
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="max-w-[200px] truncate" title={log.subject}>
                                                 {log.subject}
                                             </TableCell>

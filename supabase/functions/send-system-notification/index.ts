@@ -50,6 +50,7 @@ const handler = async (req: Request): Promise<Response> => {
     let subject = "";
     let htmlContent = "";
     let finalRecipients = Array.isArray(recipient) ? recipient : [recipient];
+    let resolvedCustomerName: string | null = null;
 
     const formatAddress = (address: any) => {
         if (!address) return "N/A";
@@ -121,6 +122,7 @@ const handler = async (req: Request): Promise<Response> => {
             } else if (customerEmail) {
                 customerName = customerEmail.split('@')[0];
             }
+            resolvedCustomerName = customerName;
 
             const items = order.order_items.map((item: any) => ({
                 name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
@@ -250,6 +252,7 @@ const handler = async (req: Request): Promise<Response> => {
             expiresAt: data.expiresAt,
             personalNote: data.personalNote
         });
+        resolvedCustomerName = data.customerName || null;
         break;
       case "raw":
         subject = data.subject || "No Subject";
@@ -327,7 +330,11 @@ const handler = async (req: Request): Promise<Response> => {
       status,
       type: data.log_type || type,
       related_id,
-      metadata: { resend_response: resData, event_data: data }
+      metadata: { 
+          resend_response: resData, 
+          event_data: data,
+          customer_name: resolvedCustomerName
+      }
     });
 
     if (!res.ok) throw new Error(`Resend API Error: ${JSON.stringify(resData)}`);

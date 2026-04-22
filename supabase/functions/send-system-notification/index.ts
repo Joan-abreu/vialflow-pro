@@ -104,6 +104,24 @@ const handler = async (req: Request): Promise<Response> => {
             const orderNumber = order.id.slice(0, 8);
             const customerEmail = order.customer_email || (order.user_id ? (await supabase.auth.admin.getUserById(order.user_id)).data.user?.email : null);
 
+            // Resolve Customer Name
+            let customerName = "Customer";
+            if (order.user_id) {
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("full_name")
+                    .eq("user_id", order.user_id)
+                    .single();
+                
+                if (profile?.full_name) {
+                    customerName = profile.full_name;
+                } else if (customerEmail) {
+                    customerName = customerEmail.split('@')[0];
+                }
+            } else if (customerEmail) {
+                customerName = customerEmail.split('@')[0];
+            }
+
             const items = order.order_items.map((item: any) => ({
                 name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
                 quantity: item.quantity,
@@ -119,7 +137,7 @@ const handler = async (req: Request): Promise<Response> => {
                 subject = `Order Confirmation #${orderNumber}`;
                 htmlContent = getOrderConfirmationEmail({
                     orderNumber,
-                    customerName: customerEmail.split('@')[0] || "Customer",
+                    customerName,
                     items,
                     subtotal: order.total_amount - (order.shipping_cost || 0),
                     shipping: order.shipping_cost || 0,
@@ -132,7 +150,7 @@ const handler = async (req: Request): Promise<Response> => {
                 const trackingUrl = order.tracking_number ? `https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}` : undefined;
                 htmlContent = getOrderStatusUpdateEmail({
                     orderNumber,
-                    customerName: customerEmail?.split('@')[0] || "Customer",
+                    customerName,
                     status: order.status,
                     trackingUrl,
                 });
@@ -141,7 +159,7 @@ const handler = async (req: Request): Promise<Response> => {
                 subject = `🎉 New Order Received #${orderNumber}`;
                 htmlContent = getAdminNotificationEmail({
                     orderNumber,
-                    customerName: customerEmail?.split('@')[0] || "Customer",
+                    customerName,
                     customerEmail: customerEmail || "N/A",
                     items,
                     total: order.total_amount,

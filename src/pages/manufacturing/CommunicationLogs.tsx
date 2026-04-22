@@ -111,7 +111,12 @@ const CommunicationLogs = () => {
             log.subject.toLowerCase().includes(query) ||
             log.type.toLowerCase().includes(query);
             
-        const matchesType = typeFilter === "all" || log.type === typeFilter;
+        const matchesType = typeFilter === "all" || 
+            (typeFilter === "generic" 
+                ? ["generic", "manual", "coupon_promotion", "raw"].includes(log.type) 
+                : typeFilter === "status_update"
+                    ? ["status_update", "order_status_update"].includes(log.type)
+                    : log.type === typeFilter);
         
         return matchesSearch && matchesType;
     });

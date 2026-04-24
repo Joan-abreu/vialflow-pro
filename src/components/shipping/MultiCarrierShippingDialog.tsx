@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { DEFAULT_SHIPPER } from "@/lib/constants";
 import { TrackingDialog } from "./TrackingDialog";
 import { EditAddressDialog } from "./EditAddressDialog";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 
 interface ShippingDialogProps {
     orderId: string;
@@ -74,7 +74,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [height, setHeight] = useState<string>("6");
 
     // Pickup details
-    const [pickupDate, setPickupDate] = useState<string>("");
+    const [pickupDate, setPickupDate] = useState<string>(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
     const [pickupReadyTime, setPickupReadyTime] = useState<string>("09:00");
     const [pickupCloseTime, setPickupCloseTime] = useState<string>("17:00");
     const [pickupInstructions, setPickupInstructions] = useState<string>("Open door from street");
@@ -263,7 +263,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setWidth("");
             setHeight("");
 
-            setPickupDate("");
+            setPickupDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
             setPickupReadyTime("09:00");
             setPickupCloseTime("17:00");
             setPickupInstructions("Open door from street");
@@ -370,8 +370,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
             setRates(fetchedRates);
             
-            // Try to match the original shipping service code if it exists
-            const matchingService = fetchedRates.find((r: any) => r.serviceCode === shippingServiceCode);
+            // Try to match the original shipping service code or name if it exists
+            const matchingService = fetchedRates.find((r: any) => 
+                (r.serviceCode && shippingServiceCode && r.serviceCode.toLowerCase() === shippingServiceCode.toLowerCase()) ||
+                (r.serviceName && order.shipping_service && r.serviceName.toLowerCase() === order.shipping_service.toLowerCase())
+            );
+
             if (matchingService) {
                 setSelectedService(matchingService.serviceCode);
             } else if (fetchedRates.length > 0) {

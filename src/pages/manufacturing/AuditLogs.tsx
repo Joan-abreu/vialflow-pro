@@ -59,7 +59,18 @@ const AuditLogs = () => {
             .select("*", { count: "exact" });
 
         if (searchQuery) {
-            query = query.or(`table_name.ilike.%${searchQuery}%,operation.ilike.%${searchQuery}%`);
+            query = query.or(
+                `table_name.ilike.%${searchQuery}%,` +
+                `operation.ilike.%${searchQuery}%,` +
+                `new_values->>id.ilike.%${searchQuery}%,` +
+                `old_values->>id.ilike.%${searchQuery}%,` +
+                `new_values->>name.ilike.%${searchQuery}%,` +
+                `old_values->>name.ilike.%${searchQuery}%,` +
+                `new_values->>shipment_number.ilike.%${searchQuery}%,` +
+                `old_values->>shipment_number.ilike.%${searchQuery}%,` +
+                `new_values->>batch_number.ilike.%${searchQuery}%,` +
+                `old_values->>batch_number.ilike.%${searchQuery}%`
+            );
         }
 
         const { data, error, count } = await query

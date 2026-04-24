@@ -79,15 +79,19 @@ serve(async (req) => {
       }
     } else {
       // pre_transit or shipped -> shipped
-      internalStatus = "shipped";
-      // Only send shipped email if it wasn't already marked as shipped or further
-      if (
-        currentOrderStatus !== "shipped" && 
-        currentOrderStatus !== "in_transit" && 
-        currentOrderStatus !== "out_for_delivery" && 
-        currentOrderStatus !== "delivered"
-      ) {
-        emailType = "shipped";
+      if (currentOrderStatus === "pickup_scheduled") {
+        internalStatus = "pickup_scheduled";
+      } else {
+        internalStatus = "shipped";
+        // Only send shipped email if it wasn't already marked as shipped or further
+        if (
+          currentOrderStatus !== "shipped" && 
+          currentOrderStatus !== "in_transit" && 
+          currentOrderStatus !== "out_for_delivery" && 
+          currentOrderStatus !== "delivered"
+        ) {
+          emailType = "shipped";
+        }
       }
     }
 

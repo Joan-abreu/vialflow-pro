@@ -363,12 +363,20 @@ export class UPSCarrier implements ICarrier {
 
         const data = await response.json();
         const shipment = data.trackResponse?.shipment?.[0];
+        const pkg = shipment?.package?.[0];
+        
+        // Try to get status from currentStatus first, then fallback to latest activity
+        const currentStatus = pkg?.currentStatus;
+        const latestActivity = pkg?.activity?.[0];
+        
+        const statusCode = currentStatus?.code || latestActivity?.status?.code;
+        const statusDescription = currentStatus?.description || latestActivity?.status?.description || latestActivity?.description;
 
         return {
             success: true,
-            status: this.mapTrackingStatus(shipment?.package?.[0]?.currentStatus?.description),
-            deliveredAt: shipment?.package?.[0]?.deliveryDate?.date,
-            events: shipment?.package?.[0]?.activity || [],
+            status: this.mapTrackingStatus(statusDescription, statusCode),
+            deliveredAt: pkg?.deliveryDate?.date || (statusCode === 'D' ? latestActivity?.date : undefined),
+            events: pkg?.activity || [],
             rawResponse: data,
         };
     }
@@ -464,14 +472,28 @@ export class UPSCarrier implements ICarrier {
         return services[code] || `Service ${code}`;
     }
 
-    private mapTrackingStatus(description: string): string {
-        if (!description) return "unknown";
+    private mapTrackingStatus(description: string, code?: string): string {
+        // First check codes which are more reliable
+        if (code) {
+            switch (code) {
+                case 'D': return "delivered";
+                case 'I': return "in_transit";
+                case 'P': return "picked_up";
+                case 'M': return "label_created";
+                case 'X': return "exception";
+                case 'RS': return "returned";
+                case 'DO': return "delivered"; // Delivered to Access Point
+            }
+        }
+
+        if (!description) return "in_transit";
 
         const lower = description.toLowerCase();
         if (lower.includes("delivered")) return "delivered";
         if (lower.includes("out for delivery")) return "out_for_delivery";
         if (lower.includes("in transit")) return "in_transit";
         if (lower.includes("picked up")) return "picked_up";
+        if (lower.includes("manifest") || lower.includes("label created")) return "label_created";
 
         return "in_transit";
     }

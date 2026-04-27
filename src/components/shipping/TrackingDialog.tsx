@@ -20,9 +20,12 @@ interface TrackingDialogProps {
     carrier?: string;
     trackingUrl?: string; // Add this
     shipmentId?: string;
+    onSuccess?: () => void;
 }
 
 import { getTrackingUrl } from "@/utils/shipping";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 export function TrackingDialog({
     open,
@@ -31,6 +34,7 @@ export function TrackingDialog({
     carrier = "UPS",
     trackingUrl: passedTrackingUrl,
     shipmentId,
+    onSuccess,
 }: TrackingDialogProps) {
     const [loading, setLoading] = useState(false);
     const [trackingData, setTrackingData] = useState<any>(null);
@@ -72,6 +76,11 @@ export function TrackingDialog({
             }
 
             setTrackingData(data.data);
+            
+            // If the status has changed (e.g. to delivered), notify the parent to refresh the table
+            if (data.data.status) {
+                onSuccess?.();
+            }
         } catch (err: any) {
             console.error("Error fetching tracking:", err);
             setError(err.message || "Failed to retrieve tracking details");
@@ -151,11 +160,23 @@ export function TrackingDialog({
             <DialogContent className="sm:max-w-[600px] h-[80vh] flex flex-col p-0 gap-0">
                 <DialogHeader className="p-6 pb-2 border-b">
                     <DialogTitle className="text-2xl flex items-center justify-between">
-                        <div>
-                            Tracking via {displayCarrier}
-                            <span className="block text-sm text-muted-foreground mt-1 font-normal font-mono">
-                                {trackingNumber || "No tracking number available"}
-                            </span>
+                        <div className="flex items-center gap-2">
+                            <div>
+                                Tracking via {displayCarrier}
+                                <span className="block text-sm text-muted-foreground mt-1 font-normal font-mono">
+                                    {trackingNumber || "No tracking number available"}
+                                </span>
+                            </div>
+                            <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8 ml-2" 
+                                onClick={() => fetchTrackingDetails()}
+                                disabled={loading}
+                                title="Refresh Tracking"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                            </Button>
                         </div>
                         {trackingData && (
                             <Badge variant={trackingData.status === "delivered" ? "default" : "secondary"} className="text-sm px-3 py-1">

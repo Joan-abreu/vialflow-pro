@@ -80,6 +80,11 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [pickupInstructions, setPickupInstructions] = useState<string>("Open door from street");
     const [pickupConfirmation, setPickupConfirmation] = useState<string>("");
 
+    // Manual Entry
+    const [isManualMode, setIsManualMode] = useState(false);
+    const [manualCarrier, setManualCarrier] = useState("");
+    const [manualTrackingNumber, setManualTrackingNumber] = useState("");
+
     useEffect(() => {
         if (open) {
             checkExistingShipment();
@@ -268,6 +273,9 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setPickupCloseTime("17:00");
             setPickupInstructions("Open door from street");
             setPickupConfirmation("");
+            setIsManualMode(false);
+            setManualCarrier("");
+            setManualTrackingNumber("");
         }
     }, [open]);
 
@@ -659,6 +667,55 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         setTrackingOpen(true);
     };
 
+    const handleSaveManualTracking = async () => {
+        if (!manualCarrier || !manualTrackingNumber) {
+            toast.error("Please provide both carrier and tracking number");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // 1. Create order shipment
+            const { error: shipmentError } = await supabase
+                .from("order_shipments")
+                .insert({
+                    order_id: orderId,
+                    carrier: manualCarrier,
+                    tracking_number: manualTrackingNumber,
+                    status: 'label_created',
+                    service_code: 'MANUAL',
+                    service_name: 'Manual Entry'
+                });
+
+            if (shipmentError) throw shipmentError;
+
+            // 2. Update order status to shipped
+            const { error: orderError } = await supabase
+                .from("orders")
+                .update({ status: 'shipped' })
+                .eq("id", orderId);
+
+            if (orderError) throw orderError;
+
+            // 3. Trigger email
+            await supabase.functions.invoke("send-order-email", {
+                body: {
+                    order_id: orderId,
+                    type: "shipped"
+                }
+            });
+
+            toast.success("Tracking information saved and customer notified!");
+            onSuccess?.();
+            onOpenChange(false);
+        } catch (error: any) {
+            console.error("Error saving manual tracking:", error);
+            toast.error(error.message || "Failed to save tracking information");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const downloadLabel = async () => {
         if (!labelUrl) return;
 
@@ -809,91 +866,158 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     <>
                         {(step === 'carrier' || step === 'rates') && renderShipmentSummary()}
                         {step === 'carrier' && (
-                    <div className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Select Carrier</CardTitle>
-                                <CardDescription>Choose your shipping carrier</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {availableCarriers.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">
-                                        No carriers configured. Please configure carriers in settings.
-                                    </p>
-                                ) : (
-                                    <>
-                                        <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select carrier" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {availableCarriers.map((carrier) => (
-                                                    <SelectItem key={carrier.carrier} value={carrier.carrier}>
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline">{carrier.carrier}</Badge>
-                                                            <span className="text-sm text-muted-foreground">
-                                                                {carrier.shipper_name}
-                                                            </span>
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <Label>Weight (lbs) <span className="text-destructive">*</span></Label>
-                                                <Input
-                                                    type="number"
-                                                    value={weight}
-                                                    onChange={(e) => setWeight(e.target.value)}
-                                                    step="0.01"
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label>Length (in) <span className="text-destructive">*</span></Label>
-                                                <Input
-                                                    type="number"
-                                                    value={length}
-                                                    onChange={(e) => setLength(e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label>Width (in) <span className="text-destructive">*</span></Label>
-                                                <Input
-                                                    type="number"
-                                                    value={width}
-                                                    onChange={(e) => setWidth(e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label>Height (in) <span className="text-destructive">*</span></Label>
-                                                <Input
-                                                    type="number"
-                                                    value={height}
-                                                    onChange={(e) => setHeight(e.target.value)}
-                                                    required
-                                                />
-                                            </div>
+                            isManualMode ? (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Manual Tracking Entry</CardTitle>
+                                        <CardDescription>Enter details for a shipment created outside the app</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label>Carrier</Label>
+                                            <Select value={manualCarrier} onValueChange={setManualCarrier}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select carrier" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableCarriers.map((carrier) => (
+                                                        <SelectItem key={carrier.carrier} value={carrier.carrier}>
+                                                            {carrier.carrier}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="UPS">UPS</SelectItem>
+                                                    <SelectItem value="USPS">USPS</SelectItem>
+                                                    <SelectItem value="FEDEX">FedEx</SelectItem>
+                                                    <SelectItem value="DHL">DHL</SelectItem>
+                                                    <SelectItem value="OTHER">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
+                                        <div className="space-y-2">
+                                            <Label>Tracking Number</Label>
+                                            <Input 
+                                                placeholder="Enter tracking number"
+                                                value={manualTrackingNumber}
+                                                onChange={(e) => setManualTrackingNumber(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-2 pt-2">
+                                            <Button 
+                                                onClick={handleSaveManualTracking}
+                                                disabled={loading}
+                                                className="w-full"
+                                            >
+                                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                Save Tracking & Notify Customer
+                                            </Button>
+                                            <Button 
+                                                variant="ghost" 
+                                                onClick={() => setIsManualMode(false)}
+                                                className="w-full"
+                                            >
+                                                Back to Shipping Rates
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                <div className="space-y-4">
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle>Select Carrier</CardTitle>
+                                            <CardDescription>Choose your shipping carrier</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {availableCarriers.length === 0 ? (
+                                                <p className="text-sm text-muted-foreground">
+                                                    No carriers configured. Please configure carriers in settings.
+                                                </p>
+                                            ) : (
+                                                <>
+                                                    <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select carrier" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {availableCarriers.map((carrier) => (
+                                                                <SelectItem key={carrier.carrier} value={carrier.carrier}>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge variant="outline">{carrier.carrier}</Badge>
+                                                                        <span className="text-sm text-muted-foreground">
+                                                                            {carrier.shipper_name}
+                                                                        </span>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
 
-                                        <Button
-                                            onClick={getShippingRates}
-                                            disabled={loading || !selectedCarrier}
-                                            className="w-full"
-                                        >
-                                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            Get Shipping Rates
-                                        </Button>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <Label>Weight (lbs) <span className="text-destructive">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={weight}
+                                                                onChange={(e) => setWeight(e.target.value)}
+                                                                step="0.01"
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label>Length (in) <span className="text-destructive">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={length}
+                                                                onChange={(e) => setLength(e.target.value)}
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label>Width (in) <span className="text-destructive">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={width}
+                                                                onChange={(e) => setWidth(e.target.value)}
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label>Height (in) <span className="text-destructive">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={height}
+                                                                onChange={(e) => setHeight(e.target.value)}
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <Button
+                                                        onClick={getShippingRates}
+                                                        disabled={loading || !selectedCarrier}
+                                                        className="w-full"
+                                                    >
+                                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                        Get Shipping Rates
+                                                    </Button>
+
+                                                    <div className="pt-2 border-t mt-4 flex justify-center">
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="sm" 
+                                                            className="text-xs text-muted-foreground"
+                                                            onClick={() => setIsManualMode(true)}
+                                                        >
+                                                            Link existing shipment manually
+                                                        </Button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            )
+                        )}
 
                 {step === 'rates' && (
                     <div className="space-y-4">
@@ -1103,6 +1227,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             trackingNumber={trackingNumber}
             carrier={selectedCarrier}
             shipmentId={shipmentId}
+            onSuccess={onSuccess}
         />
         </>
     );

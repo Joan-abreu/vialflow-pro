@@ -41,7 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon, Mail, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon, Mail, Search, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import CopyCell from "@/components/CopyCell";
 import { SendCouponDialog } from "@/components/shared/SendCouponDialog";
@@ -322,12 +322,24 @@ const Coupons = () => {
                                         <Button
                                             variant={"outline"}
                                             className={cn(
-                                                "w-full justify-start text-left font-normal",
+                                                "w-full justify-start text-left font-normal relative pr-8",
                                                 !expiryDate && "text-muted-foreground"
                                             )}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {expiryDate ? format(expiryDate, "PPP") : <span>Pick a date</span>}
+                                            {expiryDate && (
+                                                <div 
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 hover:text-destructive cursor-pointer z-10 p-1"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setExpiryDate(undefined);
+                                                    }}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </div>
+                                            )}
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">

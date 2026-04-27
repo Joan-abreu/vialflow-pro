@@ -1,5 +1,14 @@
 project_id = "rubfmgjipzjexqqvohll"
 
+[functions.shippo-webhook]
+verify_jwt = false
+
+[functions.fedex-webhook]
+verify_jwt = false
+
+[functions.square-webhook]
+verify_jwt = false
+
 [functions.extract-label-data]
 verify_jwt = false
 

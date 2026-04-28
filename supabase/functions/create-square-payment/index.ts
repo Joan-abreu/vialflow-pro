@@ -23,25 +23,23 @@ serve(async (req) => {
     try {
         const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax, applied_coupons, discounts } = await req.json();
 
-        // 0. Handle Referral and Coupon Usage Tracking
-        if (applied_coupons && Array.isArray(applied_coupons)) {
-            for (const code of applied_coupons) {
-                const trimmedCode = code.trim().toUpperCase();
-                // Atomic increment of coupon usage
-                await supabase.rpc('increment_coupon_usage', { coupon_code: trimmedCode });
-                
-                // Atomic increment of referral count (if it's a referral code)
-                const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmedCode).single();
-                if (profile) {
-                    await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
-                }
-            }
-        }
 
         // 1. Skip Square if amount is 0 (Free Order)
         if (amount <= 0) {
             // Update order status to 'processing'
             await supabase.from("orders").update({ status: "processing", applied_coupons }).eq("id", orderId);
+
+            // Handle Referral and Coupon Usage Tracking (Only on success)
+            if (applied_coupons && Array.isArray(applied_coupons)) {
+                for (const code of applied_coupons) {
+                    const trimmedCode = code.trim().toUpperCase();
+                    await supabase.rpc('increment_coupon_usage', { coupon_code: trimmedCode });
+                    const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmedCode).single();
+                    if (profile) {
+                        await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
+                    }
+                }
+            }
 
             // Send Email Notifications
             const sendEmail = async (type: string) => {
@@ -176,6 +174,18 @@ serve(async (req) => {
                 status: "processing",
                 applied_coupons: applied_coupons || []
              }).eq("id", orderId);
+
+             // Handle Referral and Coupon Usage Tracking (Only on success)
+             if (applied_coupons && Array.isArray(applied_coupons)) {
+                for (const code of applied_coupons) {
+                    const trimmedCode = code.trim().toUpperCase();
+                    await supabase.rpc('increment_coupon_usage', { coupon_code: trimmedCode });
+                    const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmedCode).single();
+                    if (profile) {
+                        await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
+                    }
+                }
+             }
 
              // Send Email Notifications
              const sendEmail = async (type: string) => {

@@ -25,13 +25,13 @@ interface SquareCheckoutProps {
     hideAddress?: boolean;
     hideShipping?: boolean;
     hidePayment?: boolean;
-    appliedCoupons?: string[];
+    appliedDiscounts?: any[];
 }
 
 const appId = import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
 
-const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment, appliedCoupons }: SquareCheckoutProps) => {
+const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment, appliedDiscounts }: SquareCheckoutProps) => {
     const { items } = useCart();
     
     const [loading, setLoading] = useState(false);
@@ -262,7 +262,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     isProduction: appId.startsWith("sq0idp"),
                     shippingCost: shippingCost,
                     tax: tax,
-                    applied_coupons: appliedCoupons || [],
+                    applied_coupons: appliedDiscounts?.map(d => d.code) || [],
+                    discounts: appliedDiscounts || [],
                     items: items.map((item, index) => ({
                         name: item.variant.product.is_private ? `Consulting Fee Services` : item.variant.product.name,
                         quantity: item.quantity.toString(),

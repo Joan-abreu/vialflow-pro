@@ -21,7 +21,7 @@ serve(async (req) => {
     }
 
     try {
-        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax, applied_coupons } = await req.json();
+        const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax, applied_coupons, discounts } = await req.json();
 
         // 0. Handle Referral and Coupon Usage Tracking
         if (applied_coupons && Array.isArray(applied_coupons)) {
@@ -132,6 +132,15 @@ serve(async (req) => {
                             },
                             scope: "ORDER"
                         }] : undefined,
+                        // Square uses 'discounts' for coupons
+                        discounts: (discounts && discounts.length > 0) ? discounts.filter((d: any) => d.amount > 0).map((d: any) => ({
+                            name: `Discount: ${d.code}`,
+                            amountMoney: {
+                                amount: BigInt(Math.round(Number(d.amount) * 100)),
+                                currency: currency
+                            },
+                            scope: "ORDER"
+                        })) : undefined,
                     }
                 });
                 squareOrderId = orderResponse.result.order?.id;

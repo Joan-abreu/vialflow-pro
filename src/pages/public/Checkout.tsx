@@ -373,7 +373,7 @@ const Checkout = () => {
                             isCalculating={isCalculatingShipping || isValidating || isValidatingCoupon}
                             hideAddress={step !== 'address'}
                             hidePayment={step !== 'payment'}
-                            appliedCoupons={appliedDiscounts.map(d => d.code)}
+                            appliedDiscounts={appliedDiscounts}
                         />
                         
                         {step === 'address' && validationResult && (

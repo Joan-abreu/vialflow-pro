@@ -43,7 +43,7 @@ export const ImageUpload = ({
                 .from(bucket)
                 .upload(fileName, compressedFile, {
                     upsert: false,
-                    cacheControl: "31536000", // 1 year cache
+                    cacheControl: "1728000", // 20 days cache
                 });
 
             if (error) {

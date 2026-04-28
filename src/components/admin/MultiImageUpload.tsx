@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { UploadCloud, X, Image as ImageIcon, GripVertical, Star } from "lucide-react";
+import imageCompression from 'browser-image-compression';
 import {
     DndContext,
     closestCenter,
@@ -108,16 +109,25 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
         const bucket = "product-images";
 
         try {
+            const options = {
+                maxSizeMB: 0.3,
+                maxWidthOrHeight: 1280,
+                useWebWorker: true,
+            };
+
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${crypto.randomUUID()}.${fileExt}`;
 
+                // Compress image before upload
+                const compressedFile = await imageCompression(file, options);
+
                 const { data, error } = await supabase.storage
                     .from(bucket)
-                    .upload(fileName, file, {
+                    .upload(fileName, compressedFile, {
                         upsert: false,
-                        cacheControl: "3600",
+                        cacheControl: "31536000", // 1 year cache
                     });
 
                 if (error) {
@@ -133,7 +143,7 @@ export const MultiImageUpload = ({ urls = [], onUpload }: MultiImageUploadProps)
             }
 
             onUpload(newUrls);
-            toast.success("Images uploaded successfully");
+            toast.success("Images compressed and uploaded successfully");
         } catch (error: any) {
             toast.error(`Error uploading images: ${error.message}`);
         } finally {

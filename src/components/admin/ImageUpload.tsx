@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import imageCompression from 'browser-image-compression';
 
 /**
  * Simple image uploader that stores files in Supabase Storage bucket "product-images".
@@ -27,26 +28,41 @@ export const ImageUpload = ({
         const bucket = "product-images";
 
         setUploading(true);
-        const { data, error } = await supabase.storage
-            .from(bucket)
-            .upload(fileName, file, {
-                upsert: false,
-                cacheControl: "3600",
-            });
+        
+        try {
+            // Compress image before upload
+            const options = {
+                maxSizeMB: 0.3, // 300KB max size
+                maxWidthOrHeight: 1280, // Max dimension
+                useWebWorker: true,
+            };
+            
+            const compressedFile = await imageCompression(file, options);
+            
+            const { data, error } = await supabase.storage
+                .from(bucket)
+                .upload(fileName, compressedFile, {
+                    upsert: false,
+                    cacheControl: "31536000", // 1 year cache
+                });
 
-        if (error) {
-            toast.error(`Upload failed: ${error.message}`);
+            if (error) {
+                toast.error(`Upload failed: ${error.message}`);
+                setUploading(false);
+                return;
+            }
+
+            // Get public URL
+            const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+            const url = publicData?.publicUrl || "";
+            onUpload(url);
+            toast.success("Image compressed and uploaded");
+        } catch (err: any) {
+            toast.error(`Compression error: ${err.message}`);
+        } finally {
             setUploading(false);
-            return;
+            setProgress(0);
         }
-
-        // Get public URL
-        const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-        const url = publicData?.publicUrl || "";
-        onUpload(url);
-        toast.success("Image uploaded");
-        setUploading(false);
-        setProgress(0);
     };
 
     return (

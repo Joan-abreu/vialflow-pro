@@ -233,6 +233,7 @@ const ProductDetails = () => {
                                             <img
                                                 src={img}
                                                 alt={`${product.name} - ${idx + 1}`}
+                                                loading="lazy"
                                                 className="w-full h-full object-contain"
                                             />
                                         </div>
@@ -258,7 +259,7 @@ const ProductDetails = () => {
                                         selectedIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-primary/50'
                                     }`}
                                 >
-                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                    <img src={img} alt="" loading="lazy" className="w-full h-full object-cover" />
                                 </button>
                             ))}
                         </div>

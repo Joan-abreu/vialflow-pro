@@ -315,7 +315,7 @@ const Products = () => {
                                             return (
                                                 <>
                                                     {displayImage ? (
-                                                        <img src={displayImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                                        <img src={displayImage} alt={product.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                                     ) : (
                                                         <div className="text-muted-foreground opacity-50 font-medium">No image</div>
                                                     )}

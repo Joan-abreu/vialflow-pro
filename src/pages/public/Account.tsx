@@ -36,6 +36,9 @@ interface Order {
     created_at: string;
     tracking_number?: string;
     order_shipments?: any[];
+    applied_coupons?: string[];
+    product_discount?: number;
+    shipping_discount?: number;
     order_items: {
         id: string;
         quantity: number;
@@ -582,8 +585,14 @@ const Account = () => {
                                             <div className="mt-4 pt-4 border-t space-y-2">
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-muted-foreground">Subtotal</span>
-                                                    <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0)).toFixed(2)}</span>
+                                                    <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0) + (order.product_discount || 0) + (order.shipping_discount || 0)).toFixed(2)}</span>
                                                 </div>
+                                                {(order.product_discount || 0) > 0 && (
+                                                    <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                        <span>Discount {order.applied_coupons && order.applied_coupons.length > 0 && `(${order.applied_coupons.join(", ")})`}</span>
+                                                        <span>-${(order.product_discount || 0).toFixed(2)}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-muted-foreground">Shipping</span>
                                                     <span className="text-right">
@@ -593,6 +602,12 @@ const Account = () => {
                                                         </span>
                                                     </span>
                                                 </div>
+                                                {(order.shipping_discount || 0) > 0 && (
+                                                    <div className="flex justify-between text-sm text-green-600 font-medium">
+                                                        <span>Shipping Discount</span>
+                                                        <span>-${(order.shipping_discount || 0).toFixed(2)}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-muted-foreground">Tax</span>
                                                     <span>${(order.tax || 0).toFixed(2)}</span>

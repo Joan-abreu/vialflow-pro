@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Package, Truck, MapPin } from "lucide-react";
+import { CheckCircle2, Package, Truck, MapPin, RotateCcw, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/contexts/CartContext";
 

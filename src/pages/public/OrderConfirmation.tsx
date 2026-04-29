@@ -129,12 +129,24 @@ const OrderConfirmation = () => {
                         <div className="border-t pt-4 mt-4 space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Subtotal</span>
-                                <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0)).toFixed(2)}</span>
+                                <span>${(order.total_amount - (order.shipping_cost || 0) - (order.tax || 0) + (order.product_discount || 0) + (order.shipping_discount || 0)).toFixed(2)}</span>
                             </div>
+                            {order.product_discount > 0 && (
+                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                    <span>Discount {order.applied_coupons?.length > 0 && `(${order.applied_coupons.join(", ")})`}</span>
+                                    <span>-${order.product_discount.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Shipping ({order.shipping_service || 'Standard'})</span>
                                 <span>${(order.shipping_cost || 0).toFixed(2)}</span>
                             </div>
+                            {order.shipping_discount > 0 && (
+                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                    <span>Shipping Discount</span>
+                                    <span>-${order.shipping_discount.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Tax</span>
                                 <span>${(order.tax || 0).toFixed(2)}</span>

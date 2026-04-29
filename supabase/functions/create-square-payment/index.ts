@@ -26,8 +26,26 @@ serve(async (req) => {
 
         // 1. Skip Square if amount is 0 (Free Order)
         if (amount <= 0) {
+            // Calculate discounts
+            let productDiscount = 0;
+            let shippingDiscount = 0;
+            if (discounts && Array.isArray(discounts)) {
+                discounts.forEach((d: any) => {
+                    if (d.target === 'shipping') {
+                        shippingDiscount += Number(d.amount);
+                    } else {
+                        productDiscount += Number(d.amount);
+                    }
+                });
+            }
+
             // Update order status to 'processing'
-            await supabase.from("orders").update({ status: "processing", applied_coupons }).eq("id", orderId);
+            await supabase.from("orders").update({ 
+                status: "processing", 
+                applied_coupons,
+                product_discount: productDiscount,
+                shipping_discount: shippingDiscount
+            }).eq("id", orderId);
 
             // Handle Referral and Coupon Usage Tracking (Only on success)
             if (applied_coupons && Array.isArray(applied_coupons)) {
@@ -169,10 +187,25 @@ serve(async (req) => {
         const payment = paymentResponse.result.payment;
 
         if (payment?.status === "COMPLETED" || payment?.status === "APPROVED") {
+             // Calculate discounts
+             let productDiscount = 0;
+             let shippingDiscount = 0;
+             if (discounts && Array.isArray(discounts)) {
+                 discounts.forEach((d: any) => {
+                     if (d.target === 'shipping') {
+                         shippingDiscount += Number(d.amount);
+                     } else {
+                         productDiscount += Number(d.amount);
+                     }
+                 });
+             }
+
              // Update order status to 'processing' and save coupons used
              await supabase.from("orders").update({ 
                 status: "processing",
-                applied_coupons: applied_coupons || []
+                applied_coupons: applied_coupons || [],
+                product_discount: productDiscount,
+                shipping_discount: shippingDiscount
              }).eq("id", orderId);
 
              // Handle Referral and Coupon Usage Tracking (Only on success)

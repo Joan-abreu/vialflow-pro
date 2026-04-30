@@ -384,8 +384,9 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                     applicationId={appId}
                                     locationId={locationId}
                                     cardTokenizeResponseReceived={((token: any) => {
-                                        if (typeof window !== 'undefined' && window.gtag) {
-                                            window.gtag('event', 'click_pay_button', {
+                                        if (typeof window !== 'undefined' && window.dataLayer) {
+                                            window.dataLayer.push({
+                                                event: 'click_pay_button',
                                                 event_category: 'ecommerce',
                                                 event_label: 'Square Checkout',
                                                 value: amount,

@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { CheckCircle2, Package, Truck, MapPin, UserPlus } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus } from "lucide-react";
 
 const OrderConfirmation = () => {
     const { orderId } = useParams();

@@ -281,40 +281,6 @@ const Checkout = () => {
         );
     }
 
-    if (!session) {
-        return (
-            <div className="container py-12 flex justify-center">
-                <Card className="w-full max-w-md">
-                    <CardHeader className="text-center">
-                        <div className="mx-auto bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                            <LogIn className="w-6 h-6 text-primary" />
-                        </div>
-                        <CardTitle className="text-2xl">Log In Required</CardTitle>
-                        <CardDescription>
-                            Please log in or create an account to complete your purchase.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                        <Button
-                            className="w-full"
-                            size="lg"
-                            onClick={() => navigate("/login", { state: { from: "/checkout" } })}
-                        >
-                            Log In
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => navigate("/register", { state: { from: "/checkout" } })}
-                        >
-                            Create Account
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
     if (items.length === 0) {
         return (
             <div className="container py-12 text-center">

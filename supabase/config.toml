@@ -1,4 +1,4 @@
-project_id = "rubfmgjipzjexqqvohll"
+project_id = "gtmpqjbbcobjxwfeyqzz"
 
 [functions.shippo-webhook]
 verify_jwt = false
@@ -19,4 +19,16 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-system-notification]
+verify_jwt = false
+
+[functions.validate-address]
+verify_jwt = false
+
+[functions.calculate-shipping]
+verify_jwt = false
+
+[functions.validate-coupon]
+verify_jwt = false
+
+[functions.create-square-payment]
 verify_jwt = false

@@ -51,6 +51,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     // Custom Address Collection State for Square
     const [addressState, setAddressState] = useState({
         full_name: "",
+        email: "",
         line1: "",
         line2: "",
         city: "",
@@ -76,6 +77,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                 if (profile && profile.address_line1 && isMounted) {
                     const savedAddress = {
                         full_name: profile.full_name || "",
+                        email: user.email || "",
                         line1: profile.address_line1,
                         line2: profile.address_line2 || "",
                         city: profile.city,
@@ -168,14 +170,20 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
         }
 
         // --- STRICT VALIDATION ---
+        const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addressState.email);
         const isAddressComplete = addressState.full_name.length > 2 &&
+                                 isEmailValid &&
                                  addressState.line1.length > 5 && 
                                  addressState.city.length > 2 && 
                                  addressState.state.length >= 2 && 
                                  addressState.postal_code.length >= 5;
 
         if (!isAddressComplete) {
-            toast.error("Please provide a complete shipping address (Street, City, State, ZIP).");
+            if (!isEmailValid) {
+                toast.error("Please provide a valid email address.");
+            } else {
+                toast.error("Please provide a complete shipping address (Street, City, State, ZIP).");
+            }
             return;
         }
 
@@ -214,7 +222,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             }
 
             // 2. Create Order in Supabase
-            const customerEmail = user?.email || "";
+            const customerEmail = addressState.email || user?.email || "";
 
             const { data: order, error: orderError } = await supabase
                 .from("orders")
@@ -318,6 +326,13 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                             <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full Name <span className="text-destructive">*</span></Label>
                             <Input id="full_name" placeholder="John Doe" name="full_name" value={addressState.full_name} onChange={handleAddressInputChange} required autoComplete="name" />
                         </div>
+                        {!user && (
+                            <div className="md:col-span-2 space-y-1.5">
+                                <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Email Address <span className="text-destructive">*</span></Label>
+                                <Input id="email" type="email" placeholder="john@example.com" name="email" value={addressState.email} onChange={handleAddressInputChange} required autoComplete="email" />
+                                <p className="text-[10px] text-muted-foreground">We'll send your receipt and tracking info here.</p>
+                            </div>
+                        )}
                         <div className="md:col-span-2 space-y-1.5">
                             <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address Line 1 <span className="text-destructive">*</span></Label>
                             <Input 

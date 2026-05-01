@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Package, Truck, MapPin, RotateCcw, ChevronRight } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserPlus } from "lucide-react";
 
 const OrderConfirmation = () => {
     const { orderId } = useParams();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const { clearCart } = useCart();
+    const { session } = useAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -206,6 +208,36 @@ const OrderConfirmation = () => {
                     </div>
                 </div>
             </div>
+
+            {!session && (
+                <div className="mt-12 bg-primary/5 border border-primary/20 rounded-xl p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                        <UserPlus className="w-8 h-8 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2">Save time on your next order</h2>
+                    <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                        Create an account now to track your orders, manage returns, and see our exclusive VIP products.
+                    </p>
+                    <div className="flex flex-col sm:flex-row justify-center gap-4">
+                        <Button 
+                            className="px-8 py-6 text-lg font-semibold shadow-lg hover:scale-105 transition-all"
+                            onClick={() => navigate("/register", { 
+                                state: { 
+                                    email: order?.customer_email,
+                                    fullName: order?.shipping_address?.full_name 
+                                } 
+                            })}
+                        >
+                            Create My Account
+                        </Button>
+                        <Link to="/products">
+                            <Button variant="ghost" className="px-8 py-6 text-lg">
+                                Maybe Later
+                            </Button>
+                        </Link>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

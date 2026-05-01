@@ -217,7 +217,7 @@ const OrderConfirmation = () => {
                     </div>
                     <h2 className="text-2xl font-bold mb-2">Save time on your next order</h2>
                     <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                        Create an account now to track your orders, manage returns, and see our exclusive VIP products.
+                        Create an account now to track your orders easily and stay updated with our latest news.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
                         <Button 

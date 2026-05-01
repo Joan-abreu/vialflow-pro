@@ -527,7 +527,7 @@ const OrderManagement = () => {
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <div className="font-medium text-sm">
-                                                        {order.customer_profile?.full_name || "Customer"}
+                                                        {order.customer_profile?.full_name || order.shipping_address?.full_name || "Guest Customer"}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {order.customer_email || "N/A"}
@@ -552,7 +552,7 @@ const OrderManagement = () => {
                                                     </Button>
                                                     <SendEmailDialog 
                                                         recipientEmail={order.customer_email} 
-                                                        recipientName={order.customer_profile?.full_name || order.customer_email?.split('@')[0]}
+                                                        recipientName={order.customer_profile?.full_name || order.shipping_address?.full_name || order.customer_email?.split('@')[0]}
                                                         relatedId={order.id}
                                                         trigger={
                                                             <Button 
@@ -735,7 +735,7 @@ const OrderManagement = () => {
                                         Customer Info
                                         <SendEmailDialog 
                                             recipientEmail={selectedOrder.customer_email} 
-                                            recipientName={selectedOrder.customer_profile?.full_name || selectedOrder.customer_email?.split('@')[0]}
+                                            recipientName={selectedOrder.customer_profile?.full_name || selectedOrder.shipping_address?.full_name || selectedOrder.customer_email?.split('@')[0]}
                                             relatedId={selectedOrder.id}
                                             trigger={
                                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -745,7 +745,7 @@ const OrderManagement = () => {
                                         />
                                     </h4>
                                     <div className="flex flex-col">
-                                        <p className="font-medium">{selectedOrder.customer_profile?.full_name || "Guest Customer"}</p>
+                                        <p className="font-medium">{selectedOrder.customer_profile?.full_name || selectedOrder.shipping_address?.full_name || "Guest Customer"}</p>
                                         <p className="text-sm text-muted-foreground">{selectedOrder.customer_email}</p>
                                     </div>
                                     {selectedOrder.shipping_address && (

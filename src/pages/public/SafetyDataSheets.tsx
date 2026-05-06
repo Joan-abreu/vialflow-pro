@@ -1,6 +1,6 @@
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Image as ImageIcon } from "lucide-react";
 import SEO from "@/components/SEO";
 
 const SafetyDataSheets = () => {
@@ -8,29 +8,32 @@ const SafetyDataSheets = () => {
         {
             name: "Reconstitution Solution 2-Pack - 10ml",
             filename: "sds-reconstitution-solution-10ml.pdf",
+            imageFilename: "label_reconstitution_solucion_10ml.png",
             size: "10ml",
-            description: "Safety Data Sheet for Reconstitution Solution (10ml variant)."
+            description: "Safety Data Sheet and Ingredient Label for Reconstitution Solution (10ml variant)."
         },
         {
             name: "Reconstitution Solution 2-Pack - 30ml",
             filename: "sds-reconstitution-solution-30ml.pdf",
+            imageFilename: "label_reconstitution_solucion_30ml.png",
             size: "30ml",
-            description: "Safety Data Sheet for Reconstitution Solution (30ml variant)."
+            description: "Safety Data Sheet and Ingredient Label for Reconstitution Solution (30ml variant)."
         }
     ];
 
     return (
         <div className="container py-12 md:py-20 max-w-4xl min-h-[60vh]">
             <SEO 
-                title="Safety Data Sheets (SDS)" 
-                description="Download Safety Data Sheets (SDS) for our laboratory research products." 
+                title="Compliance & Safety Data" 
+                description="Download Safety Data Sheets (SDS) and view ingredient labels for our products." 
+                noindex={true}
             />
             
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-4xl font-bold tracking-tight mb-4">Safety Data Sheets (SDS)</h1>
+                    <h1 className="text-4xl font-bold tracking-tight mb-4">Compliance & Safety Data</h1>
                     <p className="text-muted-foreground text-lg">
-                        Access and download the official Safety Data Sheets for our products. 
+                        Access and download official Safety Data Sheets (SDS) and ingredient labels for our products. 
                         These documents provide essential safety, handling, and technical information.
                     </p>
                 </div>
@@ -54,7 +57,19 @@ const SafetyDataSheets = () => {
                                 </div>
                             </div>
                             
-                            <div className="flex-shrink-0">
+                            <div className="flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                                {doc.imageFilename && (
+                                    <a 
+                                        href={`/ingredients/${doc.imageFilename}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                    >
+                                        <Button variant="outline" className="w-full sm:w-auto flex items-center gap-2">
+                                            <ImageIcon className="h-4 w-4" />
+                                            View Label
+                                        </Button>
+                                    </a>
+                                )}
                                 <a 
                                     href={`/sds/${doc.filename}`} 
                                     target="_blank" 

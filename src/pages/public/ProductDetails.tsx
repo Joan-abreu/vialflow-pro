@@ -13,6 +13,7 @@ import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";
 import { getBaseSalesCount } from "@/utils/salesCount";
 import { Helmet } from "react-helmet-async";
+import SEO from "@/components/SEO";
 
 interface ProductWithVariants {
     id: string;
@@ -210,6 +211,7 @@ const ProductDetails = () => {
 
     return (
         <div className="container py-12 md:py-20">
+            {product && <SEO title={product.name} description={product.description || undefined} image={product.image_url || undefined} />}
             {product?.is_private && (
                 <Helmet>
                     <meta name="robots" content="noindex, nofollow" />

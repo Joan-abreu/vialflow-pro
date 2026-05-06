@@ -1,8 +1,10 @@
 import { Separator } from "@/components/ui/separator";
+import SEO from "@/components/SEO";
 
 const Terms = () => {
     return (
         <div className="container py-12 md:py-20 max-w-4xl">
+            <SEO title="Terms & Conditions" description="Terms and conditions for Liv Well Research Labs." />
             <div className="space-y-8">
                 <div>
                     <h1 className="text-4xl font-bold tracking-tight mb-4">TERMS & CONDITIONS</h1>

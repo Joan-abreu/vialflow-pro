@@ -6,6 +6,7 @@ interface SEOProps {
     image?: string;
     url?: string;
     type?: string;
+    noindex?: boolean;
 }
 
 const SEO = ({
@@ -13,7 +14,8 @@ const SEO = ({
     description = "Premium Research Materials and Water",
     image = "/og-image.png", // Ensure this exists or use a fallback
     url = typeof window !== 'undefined' ? window.location.href : '',
-    type = "website"
+    type = "website",
+    noindex = false
 }: SEOProps) => {
     const siteTitle = "Liv Well Research Labs";
     const fullTitle = `${title} | ${siteTitle}`;
@@ -23,6 +25,7 @@ const SEO = ({
             {/* Standard metadata */}
             <title>{fullTitle}</title>
             <meta name="description" content={description} />
+            {noindex && <meta name="robots" content="noindex, nofollow" />}
 
             {/* Open Graph / Facebook */}
             <meta property="og:type" content={type} />

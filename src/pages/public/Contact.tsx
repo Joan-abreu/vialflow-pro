@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import SEO from "@/components/SEO";
 
 const Contact = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,6 +54,7 @@ const Contact = () => {
 
     return (
         <div className="container py-12">
+            <SEO title="Contact Us" description="Contact Liv Well Research Labs." />
             <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold tracking-tight mb-4">Contact Us</h1>

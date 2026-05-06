@@ -41,6 +41,7 @@ import Terms from "./pages/public/Terms";
 import Privacy from "./pages/public/Privacy";
 import Returns from "./pages/public/Returns";
 import Account from "./pages/public/Account";
+import SafetyDataSheets from "./pages/public/SafetyDataSheets";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
@@ -193,6 +194,7 @@ const AppRoutes = () => {
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/returns" element={<Returns />} />
+                    <Route path="/sds" element={<SafetyDataSheets />} />
                 </Route>
 
                 {/* Maintenance Route */}

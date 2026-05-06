@@ -191,8 +191,8 @@ const PublicLayoutContent = () => {
 
             <footer className="border-t bg-muted/50">
                 <div className="container py-10 md:py-16">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+                        <div className="space-y-4 md:col-span-1">
                             <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
                             <p className="text-sm text-muted-foreground">
                                 Premium research materials for scientific advancement.
@@ -201,7 +201,6 @@ const PublicLayoutContent = () => {
                         <div>
                             <h4 className="font-semibold mb-4">Shop</h4>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-
                                 <li><Link to="/products?category=water">Water</Link></li>
                                 <li><Link to="/products">All Products</Link></li>
                             </ul>
@@ -211,9 +210,15 @@ const PublicLayoutContent = () => {
                             <ul className="space-y-2 text-sm text-muted-foreground">
                                 <li><Link to="/about">About Us</Link></li>
                                 <li><Link to="/contact">Contact</Link></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-4">Legal & Resources</h4>
+                            <ul className="space-y-2 text-sm text-muted-foreground">
                                 <li><Link to="/terms">Terms of Service</Link></li>
                                 <li><Link to="/privacy">Privacy Policy</Link></li>
                                 <li><Link to="/returns">Return Policy</Link></li>
+                                <li><Link to="/sds">Safety Data Sheets (SDS)</Link></li>
                             </ul>
                         </div>
                         <div>

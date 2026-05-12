@@ -74,21 +74,21 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .eq('user_id', user.id)
                     .single();
 
-                if (profile && profile.address_line1 && isMounted) {
+                if (isMounted) {
                     const savedAddress = {
-                        full_name: profile.full_name || "",
+                        full_name: profile?.full_name || "",
                         email: user.email || "",
-                        line1: profile.address_line1,
-                        line2: profile.address_line2 || "",
-                        city: profile.city,
-                        state: profile.state,
-                        postal_code: profile.postal_code,
-                        country: normalizeCountry(profile.country || 'US'),
+                        line1: profile?.address_line1 || "",
+                        line2: profile?.address_line2 || "",
+                        city: profile?.city || "",
+                        state: profile?.state || "",
+                        postal_code: profile?.postal_code || "",
+                        country: normalizeCountry(profile?.country || 'US'),
                     };
                     setAddressState(savedAddress);
 
-                    // Notify parent immediately
-                    if (onAddressChange) {
+                    // Notify parent immediately if we have a saved address
+                    if (profile?.address_line1 && onAddressChange) {
                         onAddressChange(savedAddress);
                     }
                 }

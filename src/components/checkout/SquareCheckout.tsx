@@ -304,6 +304,26 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                 .update({ status: "processing" })
                 .eq("id", order.id);
 
+            if (typeof window !== 'undefined') {
+                const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
+                dataLayer.push({
+                    event: 'purchase',
+                    ecommerce: {
+                        transaction_id: order.id,
+                        value: Number(amount.toFixed(2)),
+                        tax: tax || 0,
+                        shipping: shippingCost || 0,
+                        currency: 'USD',
+                        items: items.map(item => ({
+                            item_id: item.variant.id,
+                            item_name: item.variant.product.name,
+                            price: item.variant.price,
+                            quantity: item.quantity
+                        }))
+                    }
+                });
+            }
+
             // Redirect to success
             window.location.href = `/order-confirmation/${order.id}`;
 

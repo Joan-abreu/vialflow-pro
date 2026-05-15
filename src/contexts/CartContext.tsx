@@ -85,6 +85,23 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAnimating(true);
         setTimeout(() => setIsAnimating(false), 300);
 
+        if (typeof window !== 'undefined') {
+            const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
+            dataLayer.push({
+                event: 'add_to_cart',
+                ecommerce: {
+                    currency: 'USD',
+                    value: variant.price * quantity,
+                    items: [{
+                        item_id: variant.id,
+                        item_name: variant.product.name,
+                        price: variant.price,
+                        quantity: quantity
+                    }]
+                }
+            });
+        }
+
         setItems((currentItems) => {
             const existingItemIndex = currentItems.findIndex((item) => item.variant.id === variant.id);
             

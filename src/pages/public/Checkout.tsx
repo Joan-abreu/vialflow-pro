@@ -53,6 +53,29 @@ const Checkout = () => {
 
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
+    const checkoutStartedRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        if (!checkoutStartedRef.current && items.length > 0) {
+            checkoutStartedRef.current = true;
+            if (typeof window !== 'undefined') {
+                const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
+                dataLayer.push({
+                    event: 'begin_checkout',
+                    ecommerce: {
+                        currency: 'USD',
+                        value: cartTotal,
+                        items: items.map(item => ({
+                            item_id: item.variant.id,
+                            item_name: item.variant.product.name,
+                            price: item.variant.price,
+                            quantity: item.quantity
+                        }))
+                    }
+                });
+            }
+        }
+    }, [items, cartTotal]);
 
     // Handle Address change from Square Form (Silent update)
     const handleAddressChange = useCallback((address: any) => {

@@ -173,16 +173,10 @@ serve(async (req) => {
         results.forEach((result, idx) => {
             const carrierSetting = activeCarriers[idx].settings;
             if (result.success && result.rates) {
-                const ratesWithProvider = result.rates.map((r: any) => {
-                    // Add 10% Handling Fee
-                    const originalCost = Number(r.cost);
-                    const costWithFee = Number((originalCost * 1.10).toFixed(2));
-                    return {
-                        ...r,
-                        carrier: r.carrier || carrierSetting.carrier,
-                        cost: costWithFee
-                    };
-                });
+                const ratesWithProvider = result.rates.map((r: any) => ({
+                    ...r,
+                    carrier: r.carrier || carrierSetting.carrier
+                }));
                 allRates = [...allRates, ...ratesWithProvider];
             } else if ((result as any).error) {
                 console.warn(`Carrier error (${carrierSetting.carrier}):`, (result as any).error);

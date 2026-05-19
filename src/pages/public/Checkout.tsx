@@ -523,7 +523,7 @@ const Checkout = () => {
                                     <span>Total</span>
                                     <div className="flex flex-col items-end">
                                         <div className="flex items-center gap-2">
-                                            {totalAmount < (cartTotal + shippingCost) && (
+                                            {totalAmount < Number((cartTotal + shippingCost).toFixed(2)) && (
                                                 <span className="line-through text-muted-foreground text-sm font-normal">${(cartTotal + shippingCost).toFixed(2)}</span>
                                             )}
                                             <span>${totalAmount.toFixed(2)}</span>

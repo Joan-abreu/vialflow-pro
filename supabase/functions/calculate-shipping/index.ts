@@ -82,28 +82,60 @@ serve(async (req) => {
                 }
             },
             packages: [
-                {
-                    weight: parseFloat(Math.max(0.1, Number(weight)).toFixed(2)),
-                    ...(() => {
-                        // Packing logic: simple bounding box heuristic
-                        // Assuming items are stacked vertically
-                        if (items && items.length > 0) {
-                            const maxLength = Math.max(...items.map((i: any) => i.length || 0), 6);
-                            const maxWidth = Math.max(...items.map((i: any) => i.width || 0), 4);
-                            const totalHeight = items.reduce((sum: number, item: any) => sum + ((item.height || 0.1) * item.quantity), 0);
-                            
-                            // Add 10% buffer for packaging material
-                            return {
-                                length: Math.ceil(maxLength * 1.1),
-                                width: Math.ceil(maxWidth * 1.1),
-                                height: Math.max(4, Math.ceil(totalHeight * 1.1))
-                            }
-                        }
-                        return { length: 6, width: 4, height: 4 };
-                    })()
-                }
+                (() => {
+                    let calculatedWeight = parseFloat(Math.max(0.1, Number(weight)).toFixed(2));
+                    let finalLength = 6;
+                    let finalWidth = 4;
+                    let finalHeight = 4;
+
+                    if (items && items.length > 0) {
+                        let maxL = 0;
+                        let maxW = 0;
+                        let totalH = 0;
+                        let totalWeight = 0;
+
+                        items.forEach((item: any) => {
+                            const l = Number(item.length) || 6;
+                            const w = Number(item.width) || 4;
+                            const h = Number(item.height) || 4;
+                            const wgt = Number(item.weight) || 0.1;
+                            const qty = Number(item.quantity) || 1;
+
+                            // Sort dimensions of each item (largest face down)
+                            const dims = [l, w, h].sort((a, b) => b - a);
+                            const itemL = dims[0];
+                            const itemW = dims[1];
+                            const itemH = dims[2];
+
+                            if (itemL > maxL) maxL = itemL;
+                            if (itemW > maxW) maxW = itemW;
+                            totalH += (itemH * qty);
+                            totalWeight += (wgt * qty);
+                        });
+
+                        // Cap dimensions at max box size (27x15x17)
+                        finalLength = Math.min(Math.ceil(maxL), 27);
+                        finalWidth = Math.min(Math.ceil(maxW), 15);
+                        finalHeight = Math.min(Math.ceil(totalH), 17);
+
+                        // Add buffer for the empty box weight (10% of total, min 0.3 lbs)
+                        const boxWeight = Math.max(0.3, totalWeight * 0.1);
+                        calculatedWeight = parseFloat((totalWeight + boxWeight).toFixed(2));
+                    }
+
+                    return {
+                        weight: Math.max(0.1, calculatedWeight),
+                        length: finalLength,
+                        width: finalWidth,
+                        height: finalHeight
+                    };
+                })()
             ]
         };
+
+        // --- DEBUG LOG FOR PACKAGE DIMENSIONS ---
+        console.log("📦 CALCULATED PACKAGE FOR SHIPPING:", JSON.stringify(baseShipment.packages[0], null, 2));
+        // ----------------------------------------
 
         // 4. Fetch Rates in Parallel
         const ratePromises = activeCarriers.map(({ instance, settings }) => {
@@ -141,10 +173,16 @@ serve(async (req) => {
         results.forEach((result, idx) => {
             const carrierSetting = activeCarriers[idx].settings;
             if (result.success && result.rates) {
-                const ratesWithProvider = result.rates.map((r: any) => ({
-                    ...r,
-                    carrier: r.carrier || carrierSetting.carrier
-                }));
+                const ratesWithProvider = result.rates.map((r: any) => {
+                    // Add 10% Handling Fee
+                    const originalCost = Number(r.cost);
+                    const costWithFee = Number((originalCost * 1.10).toFixed(2));
+                    return {
+                        ...r,
+                        carrier: r.carrier || carrierSetting.carrier,
+                        cost: costWithFee
+                    };
+                });
                 allRates = [...allRates, ...ratesWithProvider];
             } else if ((result as any).error) {
                 console.warn(`Carrier error (${carrierSetting.carrier}):`, (result as any).error);

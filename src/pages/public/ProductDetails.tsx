@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import useEmblaCarousel from 'embla-carousel-react';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,7 @@ interface ProductWithVariants {
 
 const ProductDetails = () => {
     const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
     const { addToCart } = useCart();
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number>(1);
@@ -180,6 +181,13 @@ const ProductDetails = () => {
             addToCart(selectedVariant, quantity);
             // Toast is handled in CartContext
             setQuantity(1); // Reset quantity after adding
+        }
+    };
+
+    const handleBuyNow = () => {
+        if (selectedVariant) {
+            addToCart(selectedVariant, quantity);
+            navigate("/checkout");
         }
     };
 
@@ -344,15 +352,25 @@ const ProductDetails = () => {
                             </div>
                         </div>
 
-                        {/* Add to Cart Button */}
-                        <Button
-                            className="w-full h-14 text-lg font-semibold"
-                            onClick={handleAddToCart}
-                            disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
-                        >
-                            <ShoppingCart className="mr-2 h-5 w-5" />
-                            {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                        </Button>
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Button
+                                variant="outline"
+                                className="flex-1 h-14 text-lg font-semibold border-primary text-primary hover:bg-primary/5"
+                                onClick={handleAddToCart}
+                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
+                            >
+                                <ShoppingCart className="mr-2 h-5 w-5" />
+                                {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+                            </Button>
+                            <Button
+                                className="flex-1 h-14 text-lg font-semibold"
+                                onClick={handleBuyNow}
+                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
+                            >
+                                Buy Now
+                            </Button>
+                        </div>
 
                         {/* Product Features */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t">

@@ -21,13 +21,15 @@ const Home = () => {
                 .single();
                 
             return data?.can_view_private_products || false;
-        }
+        },
+        staleTime: 0
     });
 
     const isVip = Boolean(userVipStatus);
 
     const { data: featuredProducts, isLoading } = useQuery({
         queryKey: ["featured-products", isVip],
+        staleTime: 0,
         queryFn: async () => {
             // Fetch published variants with product info
             let query = supabase

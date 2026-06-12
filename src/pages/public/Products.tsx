@@ -54,7 +54,8 @@ const Products = () => {
                 .single();
                 
             return data?.can_view_private_products || false;
-        }
+        },
+        staleTime: 0
     });
 
     const isVip = Boolean(userVipStatus);
@@ -62,6 +63,7 @@ const Products = () => {
 
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", isVip],
+        staleTime: 0,
         queryFn: async () => {
             console.log("Products: Fetching product variants...");
             // Fetch all published variants with their product and vial type info
@@ -172,6 +174,7 @@ const Products = () => {
     // Fetch categories for sidebar
     const { data: categories } = useQuery({
         queryKey: ["product-categories", isVip],
+        staleTime: 0,
         queryFn: async () => {
             let catQuery = supabase
                 .from("product_categories" as any)

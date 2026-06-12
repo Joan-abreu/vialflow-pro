@@ -76,6 +76,7 @@ const Home = () => {
                         capacity_ml: variant.vial_type.capacity_ml,
                         pack_size: variant.pack_size,
                         position: variant.product.position || 0,
+                        is_private: variant.product.is_private,
                         sales_count: (salesMap[productId] || 0) + getBaseSalesCount(productId, variant.product.is_private, variant.product.name),
                         variants: [variant],
                     };
@@ -89,7 +90,12 @@ const Home = () => {
             });
 
             return Object.values(grouped)
-                .sort((a, b) => a.position - b.position)
+                .sort((a, b) => {
+                    if (a.is_private !== b.is_private) {
+                        return a.is_private ? -1 : 1;
+                    }
+                    return a.position - b.position;
+                })
                 .slice(0, 4);
         },
     });

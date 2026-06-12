@@ -30,6 +30,8 @@ interface ProductWithVariants {
     default_pack_size: number | null;
     variants: ProductVariant[];
     sales_count?: number;
+    is_private?: boolean;
+    position?: number;
 }
 
 const Products = () => {
@@ -112,6 +114,8 @@ const Products = () => {
                 category: product.product_categories?.name || null,
                 sale_type: product.sale_type || 'individual',
                 default_pack_size: product.default_pack_size,
+                is_private: product.is_private,
+                position: product.position || 0,
                 sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private, product.name),
                 variants: product.variants.map((v: any) => ({
                     id: v.id,
@@ -296,7 +300,11 @@ const Products = () => {
                                         return b.name.localeCompare(a.name);
                                     case "featured":
                                     default:
-                                        return 0;
+                                        // Prioritize private/VIP products, then sort by position
+                                        if (a.is_private !== b.is_private) {
+                                            return a.is_private ? -1 : 1;
+                                        }
+                                        return (a.position || 0) - (b.position || 0);
                                 }
                             });
 

@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
+import { Link } from "react-router-dom";
 
 
 interface SquareCheckoutProps {
@@ -37,6 +38,27 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     const [loading, setLoading] = useState(false);
     const [saveAddress, setSaveAddress] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const [requireResearchAck, setRequireResearchAck] = useState(false);
+    const [ackResearch, setAckResearch] = useState(false);
+    const [ackTerms, setAckTerms] = useState(false);
+
+    useEffect(() => {
+        const fetchAckSetting = async () => {
+            try {
+                const { data } = await supabase
+                    .from("app_settings" as any)
+                    .select("value")
+                    .eq("key", "require_research_acknowledgment")
+                    .maybeSingle();
+                if (data) {
+                    setRequireResearchAck(data.value === "true");
+                }
+            } catch (err) {
+                console.error("Error fetching require_research_acknowledgment:", err);
+            }
+        };
+        fetchAckSetting();
+    }, []);
 
     // Sync externalAddress if provided (e.g. after a UPS correction)
     useEffect(() => {
@@ -399,6 +421,44 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                 {!hidePayment && (
                     /* Square Web SDK */
                     <div className="space-y-4">
+                        {requireResearchAck && (
+                            <div className="p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-sm">
+                                <div className="flex items-center gap-2 text-destructive font-semibold text-xs uppercase tracking-wider">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    Research Use Only — Required Acknowledgment
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    By submitting your payment, you confirm that:
+                                </p>
+                                
+                                <div className="space-y-3">
+                                    <div className="flex items-start space-x-2">
+                                        <Checkbox 
+                                            id="checkout-ruo-ack" 
+                                            checked={ackResearch} 
+                                            onCheckedChange={(checked) => setAckResearch(checked === true)} 
+                                            className="mt-1 flex-shrink-0"
+                                        />
+                                        <Label htmlFor="checkout-ruo-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
+                                            I am a qualified researcher, scientist, or institutional professional purchasing on behalf of a licensed research institution, laboratory, or organization. I understand that all products are exclusively for <strong>laboratory research use only (RUO)</strong> and are <strong>not approved or intended for use in humans or animals</strong>, nor for clinical, diagnostic, or therapeutic purposes.
+                                        </Label>
+                                    </div>
+
+                                    <div className="flex items-start space-x-2">
+                                        <Checkbox 
+                                            id="checkout-terms-ack" 
+                                            checked={ackTerms} 
+                                            onCheckedChange={(checked) => setAckTerms(checked === true)}
+                                            className="mt-1 flex-shrink-0"
+                                        />
+                                        <Label htmlFor="checkout-terms-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
+                                            I have read and agree to the <Link to="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms & Conditions</Link>.
+                                        </Label>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <h3 className="text-sm font-medium">Payment Details</h3>
                         <div className="bg-white p-4 rounded-md border min-h-[120px]">
                             {appId.includes("your-app-id") || locationId.includes("location-id") ? (
@@ -410,9 +470,14 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                 <Button 
                                     className="w-full py-6 text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg transition-all"
                                     onClick={() => handleSquarePayment()}
-                                    disabled={loading}
+                                    disabled={loading || (requireResearchAck && (!ackResearch || !ackTerms))}
                                 >
-                                    {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : "Complete Free Order"}
+                                    {loading 
+                                        ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> 
+                                        : (requireResearchAck && (!ackResearch || !ackTerms))
+                                            ? "Acknowledge terms to complete"
+                                            : "Complete Free Order"
+                                    }
                                 </Button>
                             ) : (
                                 <PaymentForm
@@ -438,18 +503,25 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                                     <CreditCard 
                                         buttonProps={{
                                             css: {
-                                                backgroundColor: (isCalculating || !shippingService || shippingCost === undefined) ? '#cccccc' : 'hsl(var(--primary))',
+                                                backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? '#cccccc' : 'hsl(var(--primary))',
                                                 color: '#fff',
-                                                cursor: (isCalculating || !shippingService || shippingCost === undefined) ? 'not-allowed' : 'pointer',
-                                                pointerEvents: (isCalculating || !shippingService || shippingCost === undefined) ? 'none' : 'auto',
+                                                cursor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? 'not-allowed' : 'pointer',
+                                                pointerEvents: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? 'none' : 'auto',
                                                 fontFamily: 'Inter, sans-serif',
                                                 '&:hover': {
-                                                    backgroundColor: (isCalculating || !shippingService || shippingCost === undefined) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
+                                                    backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
                                                 }
                                             }
                                         }}
                                     >
-                                        {isCalculating ? "Calculating Shipping..." : !shippingService || shippingCost === undefined ? "Select Shipping Method" : `Pay $${(amount).toFixed(2)}`}
+                                        {isCalculating 
+                                            ? "Calculating Shipping..." 
+                                            : !shippingService || shippingCost === undefined 
+                                                ? "Select Shipping Method" 
+                                                : (requireResearchAck && (!ackResearch || !ackTerms))
+                                                    ? "Acknowledge terms to pay"
+                                                    : `Pay $${(amount).toFixed(2)}`
+                                        }
                                     </CreditCard>
                                 </PaymentForm>
                             )}

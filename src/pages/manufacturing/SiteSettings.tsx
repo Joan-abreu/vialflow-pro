@@ -9,7 +9,9 @@ import { Loader2, Settings } from "lucide-react";
 const SiteSettings = () => {
     const [loading, setLoading] = useState(true);
     const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [requireResearchAck, setRequireResearchAck] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [savingResearchAck, setSavingResearchAck] = useState(false);
 
     useEffect(() => {
         fetchSettings();
@@ -20,13 +22,20 @@ const SiteSettings = () => {
             const { data, error } = await supabase
                 .from("app_settings" as any)
                 .select("*")
-                .eq("key", "maintenance_mode")
-                .single();
+                .in("key", ["maintenance_mode", "require_research_acknowledgment"]);
 
-            if (error && error.code !== 'PGRST116') throw error; // PGRST116 is not found
+            if (error) throw error;
 
             if (data) {
-                setMaintenanceMode((data as any).value === "true");
+                const maintenance = data.find((s: any) => s.key === "maintenance_mode");
+                const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
+
+                if (maintenance) {
+                    setMaintenanceMode(maintenance.value === "true");
+                }
+                if (researchAck) {
+                    setRequireResearchAck(researchAck.value === "true");
+                }
             }
         } catch (error: any) {
             console.error("Error fetching settings:", error);
@@ -58,6 +67,31 @@ const SiteSettings = () => {
             setMaintenanceMode(!checked); // Revert UI on error
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleResearchAckToggle = async (checked: boolean) => {
+        setRequireResearchAck(checked);
+        setSavingResearchAck(true);
+
+        try {
+            const { error } = await supabase
+                .from("app_settings" as any)
+                .upsert({
+                    key: "require_research_acknowledgment",
+                    value: String(checked),
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) throw error;
+
+            toast.success(`Research acknowledgment requirement ${checked ? "enabled" : "disabled"}`);
+        } catch (error: any) {
+            console.error("Error saving settings:", error);
+            toast.error("Failed to save settings");
+            setRequireResearchAck(!checked); // Revert UI on error
+        } finally {
+            setSavingResearchAck(false);
         }
     };
 
@@ -97,6 +131,30 @@ const SiteSettings = () => {
                                 checked={maintenanceMode}
                                 onCheckedChange={handleMaintenanceToggle}
                                 disabled={saving}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Storefront Settings</CardTitle>
+                        <CardDescription>
+                            Configure settings for the customer checkout and shopping experience.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <Label className="text-base">Require Research Acknowledgment</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    When enabled, customers must acknowledge that products are for laboratory research use only (RUO) and agree to the Terms & Conditions before proceeding to checkout and submitting payment.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={requireResearchAck}
+                                onCheckedChange={handleResearchAckToggle}
+                                disabled={savingResearchAck}
                             />
                         </div>
                     </CardContent>

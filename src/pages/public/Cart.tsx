@@ -1,10 +1,35 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 const Cart = () => {
     const { items, removeFromCart, updateQuantity, cartTotal } = useCart();
+    const [requireResearchAck, setRequireResearchAck] = useState(false);
+    const [ackResearch, setAckResearch] = useState(false);
+    const [ackTerms, setAckTerms] = useState(false);
+
+    useEffect(() => {
+        const fetchAckSetting = async () => {
+            try {
+                const { data } = await supabase
+                    .from("app_settings" as any)
+                    .select("value")
+                    .eq("key", "require_research_acknowledgment")
+                    .maybeSingle();
+                if (data) {
+                    setRequireResearchAck(data.value === "true");
+                }
+            } catch (err) {
+                console.error("Error fetching require_research_acknowledgment setting:", err);
+            }
+        };
+        fetchAckSetting();
+    }, []);
 
     return (
         <div className="container py-12">
@@ -102,11 +127,55 @@ const Cart = () => {
                                     <span>${cartTotal.toFixed(2)}</span>
                                 </div>
                             </div>
-                            <Link to="/checkout">
-                                <Button className="w-full" size="lg">
+                            {requireResearchAck && (
+                                <div className="mb-6 p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-sm">
+                                    <div className="flex items-center gap-2 text-destructive font-semibold text-xs uppercase tracking-wider">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Research Use Only — Required Acknowledgment
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        By proceeding to checkout, you confirm that:
+                                    </p>
+                                    
+                                    <div className="space-y-3">
+                                        <div className="flex items-start space-x-2">
+                                            <Checkbox 
+                                                id="cart-ruo-ack" 
+                                                checked={ackResearch} 
+                                                onCheckedChange={(checked) => setAckResearch(checked === true)} 
+                                                className="mt-1 flex-shrink-0"
+                                            />
+                                            <Label htmlFor="cart-ruo-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
+                                                I am a qualified researcher, scientist, or institutional professional purchasing on behalf of a licensed research institution, laboratory, or organization. I understand that all products are exclusively for <strong>laboratory research use only (RUO)</strong> and are <strong>not approved or intended for use in humans or animals</strong>, nor for clinical, diagnostic, or therapeutic purposes.
+                                            </Label>
+                                        </div>
+
+                                        <div className="flex items-start space-x-2">
+                                            <Checkbox 
+                                                id="cart-terms-ack" 
+                                                checked={ackTerms} 
+                                                onCheckedChange={(checked) => setAckTerms(checked === true)}
+                                                className="mt-1 flex-shrink-0"
+                                            />
+                                            <Label htmlFor="cart-terms-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
+                                                I have read and agree to the <Link to="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms & Conditions</Link>.
+                                            </Label>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(!requireResearchAck || (ackResearch && ackTerms)) ? (
+                                <Link to="/checkout">
+                                    <Button className="w-full shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold" size="lg">
+                                        Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <Button className="w-full cursor-not-allowed opacity-50 font-semibold" size="lg" disabled>
                                     Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
-                            </Link>
+                            )}
                             <p className="text-xs text-muted-foreground text-center mt-4">
                                 Secure checkout powered by Square
                             </p>

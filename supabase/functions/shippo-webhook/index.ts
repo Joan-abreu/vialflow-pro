@@ -95,13 +95,20 @@ serve(async (req) => {
       }
     }
 
+    // Merge rather than overwrite to preserve original transaction details like object_id
+    const currentResponse = shipment.carrier_response;
+    const mergedResponse = {
+      ...(typeof currentResponse === "object" && currentResponse !== null ? currentResponse : {}),
+      tracking_update: data
+    };
+
     // 3. Update order_shipments
     const { error: updateShipmentError } = await supabase
       .from("order_shipments")
       .update({
         status: internalStatus,
         updated_at: new Date().toISOString(),
-        carrier_response: data // Update with latest full tracking data
+        carrier_response: mergedResponse
       })
       .eq("id", shipment.id);
 

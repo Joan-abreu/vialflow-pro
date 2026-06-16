@@ -146,12 +146,28 @@ export class ShippoCarrier implements ICarrier {
         }
 
         try {
-            const rawResponse = pickup.shipmentData?.carrier_response;
-            if (!rawResponse || !rawResponse.object_id) {
+            let rawResponse = pickup.shipmentData?.carrier_response;
+            let transactionId = rawResponse?.object_id;
+
+            // Fallback: if transactionId is missing, query Shippo for recent transactions matching the tracking number
+            if (!transactionId && pickup.shipmentData?.tracking_number) {
+                const trackingNumber = pickup.shipmentData.tracking_number;
+                const transRes = await fetch(`${this.apiUrl}transactions/?results=50`, { headers: this.getHeaders() });
+                if (transRes.ok) {
+                    const transData = await transRes.json();
+                    const matchedTx = transData.results?.find((tx: any) => tx.tracking_number === trackingNumber);
+                    if (matchedTx) {
+                        transactionId = matchedTx.object_id;
+                        // Use the matched transaction as rawResponse so we can extract rate and carrier_account details
+                        rawResponse = matchedTx;
+                    }
+                }
+            }
+
+            if (!transactionId) {
                 return { success: false, confirmationNumber: "", rawResponse: { error: "Missing Shippo transaction details from the original shipment." } };
             }
 
-            const transactionId = rawResponse.object_id;
             let carrierAccountId = typeof rawResponse.carrier_account === 'object' ? rawResponse.carrier_account?.object_id : rawResponse.carrier_account;
 
             // If not directly in base response, attempt to get it from the rate

@@ -79,6 +79,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [pickupCloseTime, setPickupCloseTime] = useState<string>("17:00");
     const [pickupInstructions, setPickupInstructions] = useState<string>("Open door from street");
     const [pickupConfirmation, setPickupConfirmation] = useState<string>("");
+    const [eligibleShipments, setEligibleShipments] = useState<any[]>([]);
+    const [selectedExtraShipmentIds, setSelectedExtraShipmentIds] = useState<string[]>([]);
 
     // Manual Entry
     const [isManualMode, setIsManualMode] = useState(false);
@@ -250,6 +252,45 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     };
 
     useEffect(() => {
+        if (open && step === 'pickup' && !pickupConfirmation && selectedCarrier && shipmentId) {
+            fetchEligibleShipments();
+        }
+    }, [open, step, pickupConfirmation, selectedCarrier, shipmentId]);
+
+    const fetchEligibleShipments = async () => {
+        try {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const { data, error } = await supabase
+                .from("order_shipments")
+                .select("id, tracking_number, weight, order_id, ship_to, service_code, created_at")
+                .eq("carrier", selectedCarrier)
+                .is("pickup_confirmation", null)
+                .neq("id", shipmentId)
+                .gte("created_at", sevenDaysAgo.toISOString());
+
+            if (error) throw error;
+
+            // Extract provider prefix of current shipment (e.g., "usps" from "usps_ground_advantage")
+            const providerPrefix = shippingServiceCode?.split('_')[0]?.toLowerCase();
+
+            let filtered = data || [];
+            if (providerPrefix) {
+                filtered = filtered.filter((s: any) => {
+                    const candidatePrefix = s.service_code?.split('_')[0]?.toLowerCase();
+                    return !candidatePrefix || candidatePrefix === providerPrefix;
+                });
+            }
+
+            setEligibleShipments(filtered);
+            setSelectedExtraShipmentIds(filtered.map((s: any) => s.id));
+        } catch (error) {
+            console.error("Error fetching eligible shipments for pickup:", error);
+        }
+    };
+
+    useEffect(() => {
         if (!open) {
             // ... (keep existing reset logic)
             setStep("carrier");
@@ -273,6 +314,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             setPickupCloseTime("17:00");
             setPickupInstructions("Open door from street");
             setPickupConfirmation("");
+            setEligibleShipments([]);
+            setSelectedExtraShipmentIds([]);
             setIsManualMode(false);
             setManualCarrier("");
             setManualTrackingNumber("");
@@ -518,6 +561,19 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
         }
     };
 
+    const getComputedPackageCount = () => {
+        return 1 + selectedExtraShipmentIds.length;
+    };
+
+    const getComputedTotalWeight = () => {
+        const baseWeight = parseFloat(weight) || 0;
+        const extraWeight = selectedExtraShipmentIds.reduce((sum, id) => {
+            const s = eligibleShipments.find(ship => ship.id === id);
+            return sum + (s?.weight ? parseFloat(s.weight) : 0);
+        }, 0);
+        return parseFloat((baseWeight + extraWeight).toFixed(2));
+    };
+
     const schedulePickup = async () => {
         if (!pickupDate) {
             toast.error("Please select a pickup date");
@@ -538,11 +594,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     action: "schedule_pickup",
                     data: {
                         shipmentId: shipmentId,
+                        extraShipmentIds: selectedExtraShipmentIds,
                         date: pickupDate.replace(/-/g, ""),
                         readyTime: readyISO,
                         closeTime: closeISO,
-                        packageCount: 1,
-                        totalWeight: parseFloat(weight),
+                        packageCount: getComputedPackageCount(),
+                        totalWeight: getComputedTotalWeight(),
                         instructions: pickupInstructions,
                     },
                 },
@@ -1173,6 +1230,43 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                                 placeholder="Enter instructions for the driver..."
                                             />
                                         </div>
+                                        {eligibleShipments.length > 0 && (
+                                            <div className="space-y-2 border-t pt-4">
+                                                <Label className="text-sm font-semibold">Include Other Packages Ready for {selectedCarrier}</Label>
+                                                <p className="text-xs text-muted-foreground">Select other packages to schedule under this same pickup request.</p>
+                                                <div className="space-y-2 max-h-[150px] overflow-y-auto border rounded-md p-3 bg-muted/20">
+                                                    {eligibleShipments.map((s) => {
+                                                        const isChecked = selectedExtraShipmentIds.includes(s.id);
+                                                        return (
+                                                            <div key={s.id} className="flex items-center space-x-2 text-sm">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id={`extra-ship-${s.id}`}
+                                                                    checked={isChecked}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setSelectedExtraShipmentIds([...selectedExtraShipmentIds, s.id]);
+                                                                        } else {
+                                                                            setSelectedExtraShipmentIds(selectedExtraShipmentIds.filter(id => id !== s.id));
+                                                                        }
+                                                                    }}
+                                                                    className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                                                                />
+                                                                <label htmlFor={`extra-ship-${s.id}`} className="flex-1 cursor-pointer select-none">
+                                                                    <span className="font-medium">Order #{s.order_id?.slice(0, 8)}</span>
+                                                                    <span className="text-muted-foreground ml-2">({s.tracking_number?.slice(-8) || s.id.slice(0, 8)})</span>
+                                                                    <span className="text-primary ml-2 font-medium">{s.weight} lbs</span>
+                                                                </label>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="text-xs flex justify-between px-1 text-muted-foreground pb-2">
+                                                    <span>Total Packages: <strong className="text-foreground">{getComputedPackageCount()}</strong></span>
+                                                    <span>Total Weight: <strong className="text-foreground">{getComputedTotalWeight()} lbs</strong></span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <Button onClick={schedulePickup} disabled={loading} className="w-full">
                                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                             <Calendar className="mr-2 h-4 w-4" />

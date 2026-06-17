@@ -161,19 +161,70 @@ const handler = async (req: Request): Promise<Response> => {
 
                 data.shipmentData = dbShipment;
 
+                // Load extra shipments if provided
+                let allShipments = [dbShipment];
+                if (Array.isArray(data.extraShipmentIds) && data.extraShipmentIds.length > 0) {
+                    const { data: extraShipments, error: extraError } = await supabase
+                        .from("order_shipments")
+                        .select("*")
+                        .in("id", data.extraShipmentIds);
+                    
+                    if (!extraError && extraShipments) {
+                        allShipments = [...allShipments, ...extraShipments];
+                    }
+                }
+                data.allShipments = allShipments;
+
                 result = await carrierInstance.schedulePickup(data);
 
                 // Update shipment with pickup info
-                if (result.success && data.shipmentId) {
+                if (result.success) {
+                    let confirmationNumber = result.confirmationNumber;
+
+                    // If result.confirmationNumber is "ALREADY_SCHEDULED", we need to try to look up
+                    // an existing confirmation number for the same carrier and date.
+                    if (confirmationNumber === "ALREADY_SCHEDULED") {
+                        const { data: existingShipment } = await supabase
+                            .from("order_shipments")
+                            .select("pickup_confirmation")
+                            .eq("carrier", carrier.toUpperCase())
+                            .eq("pickup_date", data.date)
+                            .not("pickup_confirmation", "is", null)
+                            .not("pickup_confirmation", "eq", "ALREADY_SCHEDULED")
+                            .limit(1)
+                            .maybeSingle();
+
+                        if (existingShipment?.pickup_confirmation) {
+                            confirmationNumber = existingShipment.pickup_confirmation;
+                        }
+                    }
+
+                    const shipmentIdsToUpdate = allShipments.map(s => s.id);
+                    const orderIdsToUpdate = allShipments.map(s => s.order_id).filter(Boolean);
+
+                    // Update order shipments
                     await supabase
                         .from("order_shipments")
                         .update({
-                            pickup_confirmation: result.confirmationNumber,
+                            pickup_confirmation: confirmationNumber,
                             pickup_date: data.date,
                             pickup_ready_time: data.readyTime,
                             pickup_close_time: data.closeTime,
                         })
-                        .eq("id", data.shipmentId);
+                        .in("id", shipmentIdsToUpdate);
+
+                    // Update orders status to pickup_scheduled
+                    if (orderIdsToUpdate.length > 0) {
+                        await supabase
+                            .from("orders")
+                            .update({
+                                status: "pickup_scheduled"
+                            })
+                            .in("id", orderIdsToUpdate);
+                    }
+
+                    // Propagate confirmation number back in response
+                    result.confirmationNumber = confirmationNumber;
                 }
                 break;
             }

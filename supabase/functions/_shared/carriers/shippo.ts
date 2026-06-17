@@ -147,24 +147,68 @@ export class ShippoCarrier implements ICarrier {
 
         try {
             let rawResponse = pickup.shipmentData?.carrier_response;
-            let transactionId = rawResponse?.object_id;
+            const transactionIds = [];
 
-            // Fallback: if transactionId is missing, query Shippo for recent transactions matching the tracking number
-            if (!transactionId && pickup.shipmentData?.tracking_number) {
-                const trackingNumber = pickup.shipmentData.tracking_number;
-                const transRes = await fetch(`${this.apiUrl}transactions/?results=50`, { headers: this.getHeaders() });
-                if (transRes.ok) {
-                    const transData = await transRes.json();
-                    const matchedTx = transData.results?.find((tx: any) => tx.tracking_number === trackingNumber);
-                    if (matchedTx) {
-                        transactionId = matchedTx.object_id;
-                        // Use the matched transaction as rawResponse so we can extract rate and carrier_account details
-                        rawResponse = matchedTx;
+            // Collect transaction IDs from all shipments
+            if (Array.isArray(pickup.allShipments) && pickup.allShipments.length > 0) {
+                for (const s of pickup.allShipments) {
+                    const resp = s.carrier_response;
+                    let txId = resp?.object_id;
+
+                    // Fallback: if object_id is missing, query Shippo for recent transactions matching the tracking number
+                    if (!txId && s.tracking_number) {
+                        const trackingNumber = s.tracking_number;
+                        try {
+                            const transRes = await fetch(`${this.apiUrl}transactions/?results=50`, { headers: this.getHeaders() });
+                            if (transRes.ok) {
+                                const transData = await transRes.json();
+                                const matchedTx = transData.results?.find((tx: any) => tx.tracking_number === trackingNumber);
+                                if (matchedTx) {
+                                    txId = matchedTx.object_id;
+                                    if (s.id === pickup.shipmentData?.id) {
+                                        rawResponse = matchedTx;
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error(`Error querying transaction for tracking ${trackingNumber}:`, e);
+                        }
+                    }
+
+                    if (txId) {
+                        transactionIds.push(txId);
                     }
                 }
             }
 
-            if (!transactionId) {
+            // Fallback: if transactionIds is empty, use single shipmentData
+            if (transactionIds.length === 0) {
+                let transactionId = rawResponse?.object_id;
+
+                // Fallback: if transactionId is missing, query Shippo for recent transactions matching the tracking number
+                if (!transactionId && pickup.shipmentData?.tracking_number) {
+                    const trackingNumber = pickup.shipmentData.tracking_number;
+                    try {
+                        const transRes = await fetch(`${this.apiUrl}transactions/?results=50`, { headers: this.getHeaders() });
+                        if (transRes.ok) {
+                            const transData = await transRes.json();
+                            const matchedTx = transData.results?.find((tx: any) => tx.tracking_number === trackingNumber);
+                            if (matchedTx) {
+                                transactionId = matchedTx.object_id;
+                                rawResponse = matchedTx;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Error querying transaction for fallback:", e);
+                    }
+                }
+
+                if (transactionId) {
+                    transactionIds.push(transactionId);
+                }
+            }
+
+            if (transactionIds.length === 0) {
                 return { success: false, confirmationNumber: "", rawResponse: { error: "Missing Shippo transaction details from the original shipment." } };
             }
 
@@ -224,7 +268,7 @@ export class ShippoCarrier implements ICarrier {
             const payload = {
                 carrier_account: carrierAccountId,
                 location: {
-                    building_location_type: "Front door", // Shippo is case sensitive: lowercase 'd'
+                    building_location_type: "Front Door", // Shippo is case sensitive: capital case 'Door'
                     building_type: "building",
                     instructions: pickup.instructions || "Please pick up from the main entrance.",
                     address: {
@@ -239,7 +283,7 @@ export class ShippoCarrier implements ICarrier {
                         email: address.email || this.settings.shipper_email || "shipper@example.com"
                     }
                 },
-                transactions: [transactionId],
+                transactions: transactionIds,
                 requested_start_time: pickup.readyTime,
                 requested_end_time: pickup.closeTime,
                 is_batch: false
@@ -257,6 +301,18 @@ export class ShippoCarrier implements ICarrier {
                 const shippoError = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
                                    (typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
                 
+                const errStr = typeof shippoError === "string" ? shippoError.toLowerCase() : "";
+                if (errStr.includes("already scheduled") || errStr.includes("already_scheduled")) {
+                    return {
+                        success: true,
+                        confirmationNumber: "ALREADY_SCHEDULED",
+                        rawResponse: {
+                            ...data,
+                            message: "A pickup is already scheduled for this carrier on this day."
+                        }
+                    };
+                }
+
                 return { 
                     success: false, 
                     confirmationNumber: "", 
@@ -272,6 +328,18 @@ export class ShippoCarrier implements ICarrier {
                 const msgs = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
                              (typeof data.messages === 'string' ? data.messages : "No detailed error messages provided by Shippo.");
                 
+                const errStr = typeof msgs === "string" ? msgs.toLowerCase() : "";
+                if (errStr.includes("already scheduled") || errStr.includes("already_scheduled")) {
+                    return {
+                        success: true,
+                        confirmationNumber: "ALREADY_SCHEDULED",
+                        rawResponse: {
+                            ...data,
+                            message: "A pickup is already scheduled for this carrier on this day."
+                        }
+                    };
+                }
+
                 return { 
                     success: false, 
                     confirmationNumber: "", 

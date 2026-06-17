@@ -441,8 +441,8 @@ const OrderManagement = () => {
                 </div>
                 <Link to="/manufacturing/order-labels">
                     <Button variant="outline" className="flex items-center gap-2">
-                        <Package className="h-4 w-4" />
-                        Order Labels
+                        <Truck className="h-4 w-4 text-primary" />
+                        Shipping & Pickups
                     </Button>
                 </Link>
             </div>

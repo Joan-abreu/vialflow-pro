@@ -19,5 +19,5 @@ export const getBaseSalesCount = (productId: string, isPrivate: boolean = false,
         return Math.abs(hash) % 80 + 10; // Returns a number between 10 and 89 for private products
     }
     
-    return Math.abs(hash) % 700 + 100; // Returns a number between 100 and 800 for regular products
+    return Math.abs(hash) % 1201 + 1800; // Returns a number between 1800 and 3000 for regular products
 };

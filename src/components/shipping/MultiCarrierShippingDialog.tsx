@@ -582,11 +582,32 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
 
         setLoading(true);
         try {
-            const readyDate = new Date(`${pickupDate}T${pickupReadyTime}:00`);
-            const closeDate = new Date(`${pickupDate}T${pickupCloseTime}:00`);
-            
-            const readyISO = readyDate.toISOString();
-            const closeISO = closeDate.toISOString();
+            const formatEasternISO = (dateStr: string, timeStr: string) => {
+                const dateObj = new Date(`${dateStr}T${timeStr}:00`);
+                try {
+                    const formatter = new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'America/New_York',
+                        timeZoneName: 'longOffset'
+                    });
+                    const parts = formatter.formatToParts(dateObj);
+                    const offsetString = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT-4';
+                    const match = offsetString.match(/GMT([-+]\d+)(?::(\d+))?/);
+                    let offset = "-04:00"; 
+                    if (match) {
+                        const sign = match[1];
+                        const hours = String(Math.abs(parseInt(sign))).padStart(2, '0');
+                        const mins = match[2] || "00";
+                        offset = `${sign.startsWith('+') ? '+' : '-'}${hours}:${mins}`;
+                    }
+                    return `${dateStr}T${timeStr}:00${offset}`;
+                } catch (e) {
+                    console.error("Timezone formatting error, falling back to -04:00", e);
+                    return `${dateStr}T${timeStr}:00-04:00`;
+                }
+            };
+
+            const readyISO = formatEasternISO(pickupDate, pickupReadyTime);
+            const closeISO = formatEasternISO(pickupDate, pickupCloseTime);
 
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {

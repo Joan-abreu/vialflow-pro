@@ -298,11 +298,16 @@ export class ShippoCarrier implements ICarrier {
             const data = await response.json();
             
             if (!response.ok) {
-                const shippoError = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
-                                   (typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
+                const shippoError = Array.isArray(data.messages) 
+                    ? data.messages.map((m: any) => typeof m === 'string' ? m : (m?.text || JSON.stringify(m))).join(", ") 
+                    : (typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
                 
                 const errStr = typeof shippoError === "string" ? shippoError.toLowerCase() : "";
-                if (errStr.includes("already scheduled") || errStr.includes("already_scheduled")) {
+                const isAlreadyScheduled = errStr.includes("already scheduled") || 
+                                           errStr.includes("already_scheduled") || 
+                                           errStr.includes("already-scheduled") || 
+                                           errStr.includes("already requested");
+                if (isAlreadyScheduled) {
                     return {
                         success: true,
                         confirmationNumber: "ALREADY_SCHEDULED",
@@ -325,11 +330,16 @@ export class ShippoCarrier implements ICarrier {
 
             // Shippo responds with "SUCCESS", "PENDING", or "ERROR" on the status prop
             if (data.status === "ERROR") {
-                const msgs = Array.isArray(data.messages) ? data.messages.map((m: any) => m.text).join(", ") : 
-                             (typeof data.messages === 'string' ? data.messages : "No detailed error messages provided by Shippo.");
+                const msgs = Array.isArray(data.messages) 
+                    ? data.messages.map((m: any) => typeof m === 'string' ? m : (m?.text || JSON.stringify(m))).join(", ") 
+                    : (typeof data.messages === 'string' ? data.messages : "No detailed error messages provided by Shippo.");
                 
                 const errStr = typeof msgs === "string" ? msgs.toLowerCase() : "";
-                if (errStr.includes("already scheduled") || errStr.includes("already_scheduled")) {
+                const isAlreadyScheduled = errStr.includes("already scheduled") || 
+                                           errStr.includes("already_scheduled") || 
+                                           errStr.includes("already-scheduled") || 
+                                           errStr.includes("already requested");
+                if (isAlreadyScheduled) {
                     return {
                         success: true,
                         confirmationNumber: "ALREADY_SCHEDULED",
@@ -352,7 +362,7 @@ export class ShippoCarrier implements ICarrier {
 
             return {
                 success: true,
-                confirmationNumber: data.object_id || data.confirmation_code,
+                confirmationNumber: data.confirmation_code || data.object_id,
                 rawResponse: data,
             };
         } catch (e: any) {

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 
 interface SquareCheckoutProps {
@@ -34,7 +34,7 @@ const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-
 
 const SquareCheckout = ({ amount, shippingCost, shippingService, shippingServiceCode, shippingCarrier, estimatedDays, tax, onAddressChange, externalAddress, isCalculating, hideAddress, hideShipping, hidePayment, appliedDiscounts }: SquareCheckoutProps) => {
     const { items } = useCart();
-    
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [saveAddress, setSaveAddress] = useState(false);
     const [user, setUser] = useState<any>(null);
@@ -347,7 +347,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             }
 
             // Redirect to success
-            window.location.href = `/order-confirmation/${order.id}`;
+            navigate(`/order-confirmation/${order.id}`);
 
         } catch (error: any) {
             console.error("Square Payment Error:", error);

@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.livwelresearchlabs.com/</loc>
+    <loc>https://www.livwellresearchlabs.com/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.livwelresearchlabs.com/products</loc>
+    <loc>https://www.livwellresearchlabs.com/products</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.livwelresearchlabs.com/about</loc>
+    <loc>https://www.livwellresearchlabs.com/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://www.livwelresearchlabs.com/contact</loc>
+    <loc>https://www.livwellresearchlabs.com/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

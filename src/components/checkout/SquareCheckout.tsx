@@ -38,6 +38,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     const [loading, setLoading] = useState(false);
     const [saveAddress, setSaveAddress] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const [profile, setProfile] = useState<any>(null);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
     const [ackResearch, setAckResearch] = useState(false);
     const [ackTerms, setAckTerms] = useState(false);
@@ -97,6 +98,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .single();
 
                 if (isMounted) {
+                    setProfile(profile);
                     const savedAddress = {
                         full_name: profile?.full_name || "",
                         email: user.email || "",
@@ -328,6 +330,14 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
             if (typeof window !== 'undefined') {
                 const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
+                
+                // Extract first and last name from full name
+                const fullName = (addressState.full_name || "").trim();
+                const nameParts = fullName.split(/\s+/);
+                const firstName = nameParts[0] || "";
+                const lastName = nameParts.slice(1).join(" ") || "";
+                const phone = profile?.phone || user?.phone || "";
+
                 dataLayer.push({
                     event: 'purchase',
                     ecommerce: {
@@ -342,6 +352,20 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                             price: item.variant.price,
                             quantity: item.quantity
                         }))
+                    },
+                    // Add user_data for Google Ads Enhanced Conversions
+                    user_data: {
+                        email: customerEmail.trim().toLowerCase(),
+                        phone_number: phone ? phone.trim() : undefined,
+                        address: {
+                            first_name: firstName,
+                            last_name: lastName,
+                            street: (addressState.line1 + (addressState.line2 ? ' ' + addressState.line2 : '')).trim(),
+                            city: addressState.city.trim(),
+                            region: addressState.state.trim(),
+                            postal_code: addressState.postal_code.trim(),
+                            country: addressState.country.trim()
+                        }
                     }
                 });
             }

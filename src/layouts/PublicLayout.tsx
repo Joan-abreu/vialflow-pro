@@ -80,6 +80,9 @@ const PublicLayoutContent = () => {
                             <Link to="/products" className="transition-colors hover:text-primary">
                                 Products
                             </Link>
+                            <Link to="/lab-reports" className="transition-colors hover:text-primary">
+                                Lab Reports
+                            </Link>
                             <Link to="/about" className="transition-colors hover:text-primary">
                                 About Us
                             </Link>
@@ -150,6 +153,9 @@ const PublicLayoutContent = () => {
                                     <Link to="/products" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Products
                                     </Link>
+                                    <Link to="/lab-reports" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
+                                        Lab Reports
+                                    </Link>
                                     <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         About Us
                                     </Link>
@@ -195,13 +201,13 @@ const PublicLayoutContent = () => {
                         <div className="space-y-4 md:col-span-1">
                             <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
                             <p className="text-sm text-muted-foreground">
-                                Premium research materials for scientific advancement.
+                                Ultra-pure reconstitution solutions and bacteriostatic water.
                             </p>
                         </div>
                         <div>
                             <h4 className="font-semibold mb-4">Shop</h4>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-                                <li><Link to="/products?category=water">Water</Link></li>
+                                <li><Link to="/products?category=water">Water & Reconstitution Solutions</Link></li>
                                 <li><Link to="/products">All Products</Link></li>
                             </ul>
                         </div>
@@ -219,6 +225,7 @@ const PublicLayoutContent = () => {
                                 <li><Link to="/privacy">Privacy Policy</Link></li>
                                 <li><Link to="/returns">Return Policy</Link></li>
                                 <li><Link to="/sds">Safety Data Sheets (SDS)</Link></li>
+                                <li><Link to="/lab-reports">Lab Reports (COAs)</Link></li>
                             </ul>
                         </div>
                         <div>
@@ -241,7 +248,7 @@ const PublicLayoutContent = () => {
                 <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-3 text-[10px] md:text-xs text-muted-foreground flex items-start gap-4">
                     <div className="flex-1 max-w-7xl mx-auto flex items-start md:items-center gap-4">
                         <div className="flex-1 text-left sm:text-center pb-2 md:pb-0">
-                            <strong className="text-foreground">FDA DISCLAIMER:</strong> These products have not been evaluated by the FDA and are not intended to diagnose, treat, cure, or prevent any disease. This website contains research materials intended strictly for laboratory and educational purposes. All products sold on this website are intended for research and identification purposes only. These products are not intended for human dosing, injection, or ingestion.
+                            <strong className="text-foreground">FDA DISCLAIMER:</strong> These products have not been evaluated by the FDA and are not intended to diagnose, treat, cure, or prevent any disease. This website contains sterile reconstitution solutions and bacteriostatic water intended strictly for laboratory research and educational purposes. All products sold on this website are intended for reconstitution and laboratory research use only. These products are not intended for human dosing, injection, or ingestion.
                         </div>
                         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 rounded-full hover:bg-muted/80 self-start md:self-center absolute right-2 top-2 md:relative md:top-0 md:right-0" onClick={() => setShowFdaDisclaimer(false)}>
                             <X className="h-4 w-4" />

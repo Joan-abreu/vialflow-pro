@@ -106,17 +106,17 @@ const Home = () => {
         <div className="flex flex-col min-h-screen">
             <SEO
                 title="Home"
-                description="Premium Research Materials and Water for Laboratory Research. High purity, lab-verified products with fast shipping."
+                description="Ultra-Pure Reconstitution Solutions and Bacteriostatic Water for Laboratory Research. High purity, lab-verified products with fast shipping."
             />
             {/* Hero Section */}
             <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                 <div className="container px-4 md:px-6 relative z-10">
                     <div className="flex flex-col items-center text-center space-y-8">
                         <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
-                            Premium Research Materials for <span className="text-primary">Scientific Excellence</span>
+                            Ultra-Pure Reconstitution Solutions & <span className="text-primary">Bacteriostatic Water</span>
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                            Liv Well Research Labs provides high-purity research materials and sterile water for laboratory research.
+                            Liv Well Research Labs provides high-purity, laboratory-grade reconstitution solutions and sterile water for scientific research.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to="/products">
@@ -142,22 +142,22 @@ const Home = () => {
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <CheckCircle2 className="h-6 w-6" />
                             </div>
-                            <h3 className="text-xl font-bold mb-2">99% Purity Guaranteed</h3>
-                            <p className="text-muted-foreground">Every batch is rigorously tested to ensure the highest standards of purity for your research.</p>
+                            <h3 className="text-xl font-bold mb-2">99.9% Sterility & Quality</h3>
+                            <p className="text-muted-foreground">Every batch is processed under strict quality controls and sterile-filtered for absolute reliability.</p>
                         </div>
                         <div className="flex flex-col items-center text-center p-6 bg-card rounded-xl shadow-sm border">
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <Truck className="h-6 w-6" />
                             </div>
                             <h3 className="text-xl font-bold mb-2">Fast & Secure Shipping</h3>
-                            <p className="text-muted-foreground">Discreet packaging and expedited shipping options to ensure your materials arrive safely.</p>
+                            <p className="text-muted-foreground">Expedited shipping options and secure, protective packaging to ensure your orders arrive safely.</p>
                         </div>
                         <div className="flex flex-col items-center text-center p-6 bg-card rounded-xl shadow-sm border">
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <ShieldCheck className="h-6 w-6" />
                             </div>
                             <h3 className="text-xl font-bold mb-2">Lab Verified</h3>
-                            <p className="text-muted-foreground">Third-party HPLC and Mass Spectrometry analysis reports available for all products.</p>
+                            <p className="text-muted-foreground">Third-party lab reports confirming pH, benzyl alcohol concentration, and sterility available.</p>
                         </div>
                     </div>
                 </div>
@@ -169,7 +169,7 @@ const Home = () => {
                     <div className="flex justify-between items-end mb-10">
                         <div>
                             <h2 className="text-3xl font-bold mb-2">Featured Products</h2>
-                            <p className="text-muted-foreground">Our most popular research materials</p>
+                            <p className="text-muted-foreground">Our most popular reconstitution solutions</p>
                         </div>
                         <Link to="/products" className="text-primary hover:underline hidden md:flex items-center">
                             View all products <ArrowRight className="ml-1 h-4 w-4" />

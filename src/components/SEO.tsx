@@ -11,7 +11,7 @@ interface SEOProps {
 
 const SEO = ({
     title,
-    description = "Premium Research Materials and Water",
+    description = "Ultra-Pure Reconstitution Solutions and Water",
     image = "/og-image.png", // Ensure this exists or use a fallback
     url = typeof window !== 'undefined' ? window.location.href : '',
     type = "website",

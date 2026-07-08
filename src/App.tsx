@@ -14,6 +14,7 @@ import BillOfMaterials from "./pages/BillOfMaterials";
 import InventoryReport from "./pages/InventoryReport";
 import ProductManagement from "./pages/manufacturing/ProductManagement";
 import Coupons from "./pages/manufacturing/Coupons";
+import COAManagement from "./pages/manufacturing/COAManagement";
 import OrderManagement from "./pages/manufacturing/OrderManagement";
 import OrderLabels from "./pages/manufacturing/OrderLabels";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
@@ -42,6 +43,7 @@ import Privacy from "./pages/public/Privacy";
 import Returns from "./pages/public/Returns";
 import Account from "./pages/public/Account";
 import SafetyDataSheets from "./pages/public/SafetyDataSheets";
+import LabReports from "./pages/public/LabReports";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
@@ -195,6 +197,7 @@ const AppRoutes = () => {
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/returns" element={<Returns />} />
                     <Route path="/sds" element={<SafetyDataSheets />} />
+                    <Route path="/lab-reports" element={<LabReports />} />
                 </Route>
 
                 {/* Maintenance Route */}
@@ -208,6 +211,7 @@ const AppRoutes = () => {
                     <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />
                     <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
                     <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+                    <Route path="coas" element={<ProtectedRoute><COAManagement /></ProtectedRoute>} />
                     <Route path="coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
                     <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
                     <Route path="order-labels" element={<ProtectedRoute><OrderLabels /></ProtectedRoute>} />

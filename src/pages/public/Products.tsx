@@ -199,11 +199,11 @@ const Products = () => {
 
     return (
         <div className="container py-12">
-            <SEO title="Products" description="Browse our complete catalog of research materials." />
+            <SEO title="Products" description="Browse our complete catalog of ultra-pure reconstitution solutions." />
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Our Products</h1>
-                    <p className="text-muted-foreground">Browse our complete catalog of research materials.</p>
+                    <p className="text-muted-foreground">Browse our complete catalog of ultra-pure reconstitution solutions.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
                     <div className="relative flex-1 md:w-64 w-full">

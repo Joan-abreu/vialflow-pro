@@ -4,12 +4,12 @@ import SEO from "@/components/SEO";
 const About = () => {
     return (
         <div className="container py-12">
-            <SEO title="About Us" description="About Liv Well Research Labs." />
+            <SEO title="About Us" description="About Liv Well Research Labs - Ultra-pure reconstitution solutions." />
             <div className="max-w-4xl mx-auto space-y-12">
                 <div className="text-center space-y-4">
                     <h1 className="text-4xl font-bold tracking-tight">About Liv Well Research Labs</h1>
                     <p className="text-xl text-muted-foreground">
-                        Advancing scientific research through premium quality research materials and supplies.
+                        Providing ultra-pure reconstitution solutions and laboratory water.
                     </p>
                 </div>
 
@@ -17,10 +17,10 @@ const About = () => {
                     <div className="space-y-4">
                         <h2 className="text-2xl font-semibold">Our Mission</h2>
                         <p className="text-muted-foreground leading-relaxed">
-                            At Liv Well Research Labs, we are dedicated to providing researchers and institutions with the highest purity research materials and laboratory water. We understand that the integrity of your research depends on the quality of your materials.
+                            At Liv Well Research Labs, we are dedicated to providing researchers, labs, and institutions with the highest purity sterile reconstitution solutions and laboratory water. We understand that the integrity of your research depends on the absolute quality and reliability of your solutions.
                         </p>
                         <p className="text-muted-foreground leading-relaxed">
-                            Our commitment to excellence ensures that every product meets rigorous standards for purity and consistency, supporting the advancement of scientific discovery.
+                            Our commitment to excellence ensures that every batch meets rigorous standards for purity, sterility, and consistency, supporting your scientific work.
                         </p>
                     </div>
                     <div className="bg-muted rounded-lg aspect-video flex items-center justify-center">
@@ -33,15 +33,15 @@ const About = () => {
                         <CardContent className="pt-6 text-center space-y-2">
                             <h3 className="font-semibold text-lg">Quality Assurance</h3>
                             <p className="text-sm text-muted-foreground">
-                                Every batch is rigorously tested to ensure &gt;99% purity and consistency.
+                                Every batch is sterile-filtered and rigorously tested for purity and consistency.
                             </p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="pt-6 text-center space-y-2">
-                            <h3 className="font-semibold text-lg">Research Focused</h3>
+                            <h3 className="font-semibold text-lg">Lab & Research Focused</h3>
                             <p className="text-sm text-muted-foreground">
-                                Products designed specifically for laboratory and research applications.
+                                Reconstitution solutions optimized for laboratory, educational, and research applications.
                             </p>
                         </CardContent>
                     </Card>
@@ -49,7 +49,7 @@ const About = () => {
                         <CardContent className="pt-6 text-center space-y-2">
                             <h3 className="font-semibold text-lg">Fast Shipping</h3>
                             <p className="text-sm text-muted-foreground">
-                                Reliable and secure shipping to ensure your research stays on schedule.
+                                Reliable and secure shipping options to ensure your work stays on schedule.
                             </p>
                         </CardContent>
                     </Card>

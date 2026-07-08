@@ -21,7 +21,8 @@ import {
   Mail,
   Settings,
   Calendar,
-  ChevronDown
+  ChevronDown,
+  FileText
 } from "lucide-react";
 import {
   Collapsible,
@@ -123,6 +124,7 @@ const Layout = ({ children }: LayoutProps) => {
       { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
     ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
+    { name: "COAs", href: "/manufacturing/coas", icon: FileText },
     { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
     ...(isAdmin ? [
       { name: "Customers", href: "/manufacturing/customers", icon: Users },

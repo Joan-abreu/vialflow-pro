@@ -21,7 +21,7 @@ const Terms = () => {
                     <section className="space-y-4">
                         <h2 className="text-2xl font-semibold text-foreground">1. Nature of Products</h2>
                         <ul className="list-disc pl-6 space-y-2">
-                            <li>All products offered through the Site are chemical and reconstitution solutions intended for laboratory research use only (RUO).</li>
+                            <li>All products offered through the Site are sterile reconstitution solutions and laboratory water intended for research use only (RUO).</li>
                             <li>They are not designed, approved, or intended for human consumption, medical, diagnostic, or therapeutic use.</li>
                         </ul>
                     </section>

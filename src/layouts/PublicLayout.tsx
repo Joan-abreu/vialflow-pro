@@ -27,7 +27,7 @@ const CartIcon = () => {
             >
                 <ShoppingCart className="h-5 w-5" />
                 {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[9px] font-bold min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center">
                         {cartCount}
                     </span>
                 )}

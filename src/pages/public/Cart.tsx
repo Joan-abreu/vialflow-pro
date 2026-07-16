@@ -6,6 +6,50 @@ import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+
+const QuantityInput = ({ 
+    initialValue, 
+    minQty, 
+    onChange 
+}: { 
+    initialValue: number; 
+    minQty: number; 
+    onChange: (val: number) => void;
+}) => {
+    const [inputValue, setInputValue] = useState<string>(initialValue.toString());
+
+    useEffect(() => {
+        setInputValue(initialValue.toString());
+    }, [initialValue]);
+
+    const handleBlur = () => {
+        const val = parseInt(inputValue);
+        if (isNaN(val) || val < minQty) {
+            setInputValue(minQty.toString());
+            onChange(minQty);
+        } else {
+            onChange(val);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.currentTarget.blur();
+        }
+    };
+
+    return (
+        <input
+            type="number"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            className="w-14 text-center text-sm px-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+    );
+};
 
 const Cart = () => {
     const { items, removeFromCart, updateQuantity, cartTotal } = useCart();
@@ -68,38 +112,66 @@ const Cart = () => {
                                                 {item.variant.vial_type.capacity_ml}ml{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''}
                                                 {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
                                             </p>
+                                            {item.is_bulk && (
+                                                <div className="flex gap-2 mt-1">
+                                                    <Badge variant="outline" className="text-xs bg-primary/5 text-primary border-primary/20">
+                                                        Bulk Purchase
+                                                    </Badge>
+                                                    <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
+                                                        {item.with_labels ? "With Labels" : "Unlabeled"}
+                                                    </Badge>
+                                                </div>
+                                            )}
                                         </div>
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            onClick={() => removeFromCart(item.variant.id)}
+                                            onClick={() => removeFromCart(item.variant.id, item.is_bulk, item.with_labels)}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
                                     <p className="text-sm text-muted-foreground mb-4">{item.variant.product.category || "Product"}</p>
                                     <div className="flex justify-between items-center">
-                                        <div className="flex items-center border rounded-md">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-none"
-                                                onClick={() => updateQuantity(item.variant.id, item.quantity - 1)}
-                                            >
-                                                <Minus className="h-3 w-3" />
-                                            </Button>
-                                            <span className="w-8 text-center text-sm">{item.quantity}</span>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-none"
-                                                onClick={() => updateQuantity(item.variant.id, item.quantity + 1)}
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                            </Button>
-                                        </div>
-                                        <span className="font-bold">${(item.variant.price * item.quantity).toFixed(2)}</span>
+                                         <div className="flex items-center gap-3">
+                                             <div className="flex items-center border rounded-md">
+                                                 <Button
+                                                     variant="ghost"
+                                                     size="icon"
+                                                     className="h-8 w-8 rounded-none"
+                                                     onClick={() => updateQuantity(item.variant.id, item.quantity - 1, item.is_bulk, item.with_labels)}
+                                                 >
+                                                     <Minus className="h-3 w-3" />
+                                                 </Button>
+                                                 <QuantityInput
+                                                     initialValue={item.quantity}
+                                                     minQty={(item.is_bulk || !!item.variant.bulk_only) ? (item.variant.bulk_min_qty ?? 100) : 1}
+                                                     onChange={(val) => updateQuantity(item.variant.id, val, item.is_bulk, item.with_labels)}
+                                                 />
+                                                 <Button
+                                                     variant="ghost"
+                                                     size="icon"
+                                                     className="h-8 w-8 rounded-none"
+                                                     onClick={() => updateQuantity(item.variant.id, item.quantity + 1, item.is_bulk, item.with_labels)}
+                                                 >
+                                                     <Plus className="h-3 w-3" />
+                                                 </Button>
+                                             </div>
+                                             {item.variant.pack_size > 1 && !item.is_bulk && !item.variant.bulk_only && (
+                                                 <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                                                     Total: <strong className="text-foreground">{item.quantity * item.variant.pack_size}</strong> viales
+                                                 </span>
+                                             )}
+                                         </div>
+                                        <span className="font-bold">
+                                            ${(() => {
+                                                 const bulkPrice = item.variant.bulk_price ?? null;
+                                                 const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
+                                                 const unitPrice = item.is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
+                                                 return (unitPrice * item.quantity).toFixed(2);
+                                            })()}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

@@ -38,7 +38,11 @@ const Checkout = () => {
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
-        return sum + ((item.variant.weight || 0) * item.quantity);
+        const isBulkItem = item.is_bulk || item.variant.bulk_only;
+        const itemWeight = isBulkItem 
+            ? (item.variant.weight || 0) / (item.variant.pack_size || 1)
+            : (item.variant.weight || 0);
+        return sum + (itemWeight * item.quantity);
     }, 0);
     
     // Use final values if coupons are applied, otherwise fallback to standard
@@ -144,13 +148,23 @@ const Checkout = () => {
                 body: { 
                     weight: totalWeight, 
                     address,
-                    items: items.map(item => ({
-                        quantity: item.quantity,
-                        weight: item.variant.weight,
-                        length: item.variant.dimension_length,
-                        width: item.variant.dimension_width,
-                        height: item.variant.dimension_height
-                    }))
+                    items: items.map(item => {
+                        const isBulkItem = item.is_bulk || item.variant.bulk_only;
+                        const itemWeight = isBulkItem 
+                            ? (item.variant.weight || 0) / (item.variant.pack_size || 1)
+                            : (item.variant.weight || 0);
+
+                        return {
+                            variant_id: item.variant.id,
+                            quantity: item.quantity,
+                            weight: itemWeight,
+                            length: item.variant.dimension_length,
+                            width: item.variant.dimension_width,
+                            height: item.variant.dimension_height,
+                            is_bulk: isBulkItem || false,
+                            with_labels: item.with_labels || false
+                        };
+                    })
                 }
             });
 
@@ -462,7 +476,7 @@ const Checkout = () => {
                             {items.map((item) => (
                                 <div key={item.variant.id} className="flex justify-between items-center">
                                     <div className="flex items-center gap-3">
-                                        <div className="h-12 w-12 bg-background rounded border flex items-center justify-center overflow-hidden">
+                                        <div className="h-12 w-12 bg-background rounded border flex items-center justify-center overflow-hidden flex-shrink-0">
                                             {item.variant.product.image_url ? (
                                                 <img src={item.variant.product.image_url} alt={item.variant.product.name} className="h-full w-full object-cover" />
                                             ) : (

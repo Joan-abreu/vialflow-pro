@@ -102,6 +102,32 @@ const Home = () => {
         },
     });
 
+    const { data: hasActiveBulkProduct } = useQuery({
+        queryKey: ["has-active-bulk-product"],
+        staleTime: 60000,
+        queryFn: async () => {
+            const { data, error } = await (supabase
+                .from("product_variants" as any)
+                .select(`
+                    id,
+                    is_published,
+                    product:products!inner(id, is_published, product_categories(name))
+                `)
+                .eq("is_published", true)
+                .eq("product.is_published", true) as any);
+
+            if (error) {
+                console.error("Error checking active bulk products:", error);
+                return false;
+            }
+
+            const hasBulk = (data as any[])?.some(v => 
+                v.product?.product_categories?.name?.toLowerCase().includes("bulk")
+            );
+            return hasBulk || false;
+        }
+    });
+
     return (
         <div className="flex flex-col min-h-screen">
             <SEO
@@ -222,6 +248,36 @@ const Home = () => {
                     </div>
                 </div>
             </section>
+
+            {/* Wholesale/Bulk Orders Banner */}
+            {hasActiveBulkProduct && (
+                <section className="py-12 bg-primary/5 border-y border-primary/10 animate-in fade-in duration-500">
+                    <div className="container px-4 md:px-6">
+                        <div className="bg-background rounded-2xl border p-8 md:p-12 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-20 -translate-y-20" />
+                            <div className="space-y-4 max-w-2xl text-left">
+                                <Badge className="bg-primary/15 hover:bg-primary/20 text-primary border-0 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
+                                    Wholesale & B2B Solutions
+                                </Badge>
+                                <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                                    Need Wholesale Vials? We Do Bulk Orders
+                                </h2>
+                                <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
+                                    Get commercial-grade pricing on large orders. We offer custom printed labels professionally applied, tray packaging, custom split shipping coordinates, and bulk priority fulfillment for laboratory research.
+                                </p>
+                            </div>
+                            <div className="flex-shrink-0 w-full md:w-auto">
+                                <Link to="/products?category=Bulk Orders">
+                                    <Button size="lg" className="w-full md:w-auto h-12 px-8 font-semibold shadow-md group">
+                                        View Bulk Vials
+                                        <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
         </div>
     );
 };

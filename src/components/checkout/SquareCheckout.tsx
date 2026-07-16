@@ -269,13 +269,24 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             if (orderError) throw orderError;
 
             // 3. Create Order Items
-            const orderItems = items.map(item => ({
-                order_id: order.id,
-                product_id: item.variant.product_id,
-                variant_id: item.variant.id,
-                quantity: item.quantity,
-                price_at_time: item.variant.price
-            }));
+            const orderItems = items.map(item => {
+                const bulkPrice = item.variant.bulk_price ?? null;
+                const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
+                const priceAtTime = item.is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
+
+                return {
+                    order_id: order.id,
+                    product_id: item.variant.product_id,
+                    variant_id: item.variant.id,
+                    quantity: item.quantity,
+                    price_at_time: Number(priceAtTime.toFixed(2)),
+                    is_bulk: (item.is_bulk || !!item.variant.bulk_only),
+                    with_labels: item.with_labels || false,
+                    label_fee_applied: labelFee,
+                    custom_label_image_url: item.custom_label_image_url || null,
+                    custom_label_instructions: item.custom_label_instructions || null
+                };
+            });
 
             const { error: itemsError } = await supabase
                 .from("order_items")
@@ -296,14 +307,20 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     tax: tax,
                     applied_coupons: appliedDiscounts?.map(d => d.code) || [],
                     discounts: appliedDiscounts || [],
-                    items: items.map((item, index) => ({
-                        name: item.variant.product.is_private ? `Consulting Fee Services` : item.variant.product.name,
-                        quantity: item.quantity.toString(),
-                        basePriceMoney: {
-                            amount: Math.round(item.variant.price * 100),
-                            currency: "USD"
-                        }
-                    })),
+                    items: items.map((item, index) => {
+                        const bulkPrice = item.variant.bulk_price ?? null;
+                        const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
+                        const priceAtTime = item.is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
+                        
+                        return {
+                            name: item.variant.product.is_private ? `Consulting Fee Services` : item.variant.product.name,
+                            quantity: item.quantity.toString(),
+                            basePriceMoney: {
+                                amount: Math.round(priceAtTime * 100),
+                                currency: "USD"
+                            }
+                        };
+                    }),
                     shippingAddress: {
                         addressLine1: addressState.line1,
                         addressLine2: addressState.line2,

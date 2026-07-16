@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
     id: string;
@@ -25,6 +26,9 @@ export interface ProductVariant {
     image_url: string | null;
     pack_size: number;
     position?: number;
+    bulk_price?: number | null;
+    bulk_min_qty?: number;
+    bulk_label_fee?: number;
     product: {
         name: string;
         slug?: string;
@@ -44,13 +48,25 @@ export interface ProductVariant {
 export interface CartItem {
     variant: ProductVariant;
     quantity: number;
+    is_bulk?: boolean;
+    with_labels?: boolean;
+    label_fee_applied?: number;
+    custom_label_image_url?: string | null;
+    custom_label_instructions?: string | null;
 }
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (variant: ProductVariant, quantity?: number) => void;
-    removeFromCart: (variantId: string) => void;
-    updateQuantity: (variantId: string, quantity: number) => void;
+    addToCart: (
+        variant: ProductVariant, 
+        quantity?: number, 
+        is_bulk?: boolean, 
+        with_labels?: boolean,
+        custom_label_image_url?: string | null,
+        custom_label_instructions?: string | null
+    ) => void;
+    removeFromCart: (variantId: string, is_bulk?: boolean, with_labels?: boolean) => void;
+    updateQuantity: (variantId: string, quantity: number, is_bulk?: boolean, with_labels?: boolean) => void;
     clearCart: () => void;
     cartTotal: number;
     cartCount: number;
@@ -80,10 +96,35 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem("cart", JSON.stringify(items));
     }, [items]);
 
-    const addToCart = (variant: ProductVariant, quantity: number = 1) => {
+    // Clear cart on logout
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === "SIGNED_OUT") {
+                setItems([]);
+                localStorage.removeItem("cart");
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    const addToCart = (
+        variant: ProductVariant, 
+        quantity: number = 1, 
+        is_bulk: boolean = false, 
+        with_labels: boolean = false,
+        custom_label_image_url?: string | null,
+        custom_label_instructions?: string | null
+    ) => {
         // Trigger animation
         setIsAnimating(true);
         setTimeout(() => setIsAnimating(false), 300);
+
+        const bulkPrice = variant.bulk_price ?? null;
+        const labelFee = with_labels ? (variant.bulk_label_fee ?? 0.15) : 0;
+        const unitPrice = is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (variant.bulk_only ? (variant.price + labelFee) : variant.price);
 
         if (typeof window !== 'undefined') {
             const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
@@ -91,11 +132,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 event: 'add_to_cart',
                 ecommerce: {
                     currency: 'USD',
-                    value: variant.price * quantity,
+                    value: unitPrice * quantity,
                     items: [{
                         item_id: variant.id,
                         item_name: variant.product.name,
-                        price: variant.price,
+                        price: unitPrice,
                         quantity: quantity
                     }]
                 }
@@ -103,7 +144,13 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         setItems((currentItems) => {
-            const existingItemIndex = currentItems.findIndex((item) => item.variant.id === variant.id);
+            const existingItemIndex = currentItems.findIndex(
+                (item) => item.variant.id === variant.id && 
+                          !!item.is_bulk === !!is_bulk && 
+                          !!item.with_labels === !!with_labels &&
+                          item.custom_label_image_url === custom_label_image_url &&
+                          item.custom_label_instructions === custom_label_instructions
+            );
             
             if (existingItemIndex > -1) {
                 toast.success("Updated quantity in cart");
@@ -115,27 +162,56 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 };
                 return newItems;
             } else {
-                toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}) to cart`);
-                return [...currentItems, { variant, quantity }];
+                const labelText = is_bulk ? ` (Bulk - ${with_labels ? 'With Labels' : 'Unlabeled'})` : '';
+                toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''})${labelText} to cart`);
+                return [...currentItems, { 
+                    variant, 
+                    quantity, 
+                    is_bulk, 
+                    with_labels, 
+                    label_fee_applied: labelFee,
+                    custom_label_image_url,
+                    custom_label_instructions
+                }];
             }
         });
     };
 
-    const removeFromCart = (variantId: string) => {
-        setItems((currentItems) => currentItems.filter((item) => item.variant.id !== variantId));
+    const removeFromCart = (variantId: string, is_bulk: boolean = false, with_labels: boolean = false) => {
+        setItems((currentItems) => currentItems.filter(
+            (item) => !(item.variant.id === variantId && 
+                       !!item.is_bulk === !!is_bulk && 
+                       !!item.with_labels === !!with_labels)
+        ));
         toast.success("Removed from cart");
     };
 
-    const updateQuantity = (variantId: string, quantity: number) => {
-        if (quantity < 1) {
-            removeFromCart(variantId);
-            return;
-        }
-        setItems((currentItems) =>
-            currentItems.map((item) =>
-                item.variant.id === variantId ? { ...item, quantity } : item
-            )
-        );
+    const updateQuantity = (variantId: string, quantity: number, is_bulk: boolean = false, with_labels: boolean = false) => {
+        setItems((currentItems) => {
+            const item = currentItems.find(
+                (i) => i.variant.id === variantId && 
+                       !!i.is_bulk === !!is_bulk && 
+                       !!i.with_labels === !!with_labels
+            );
+            const minQty = (is_bulk || !!item?.variant.bulk_only) ? (item?.variant.bulk_min_qty ?? 100) : 1;
+
+            if (quantity < minQty) {
+                // If it goes below minimum bulk quantity, remove it
+                return currentItems.filter(
+                    (i) => !(i.variant.id === variantId && 
+                             !!i.is_bulk === !!is_bulk && 
+                             !!i.with_labels === !!with_labels)
+                );
+            }
+            
+            return currentItems.map((i) =>
+                i.variant.id === variantId && 
+                !!i.is_bulk === !!is_bulk && 
+                !!i.with_labels === !!with_labels
+                    ? { ...i, quantity }
+                    : i
+            );
+        });
     };
 
     const clearCart = () => {
@@ -144,7 +220,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const cartTotal = items.reduce(
-        (total, item) => total + item.variant.price * item.quantity,
+        (total, item) => {
+            const bulkPrice = item.variant.bulk_price ?? null;
+            const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
+            const unitPrice = item.is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
+            return total + unitPrice * item.quantity;
+        },
         0
     );
 

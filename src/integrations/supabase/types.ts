@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -203,6 +203,11 @@ export type Database = {
           product_id: string | null
           quantity: number
           variant_id: string | null
+          is_bulk: boolean
+          with_labels: boolean
+          label_fee_applied: number
+          custom_label_image_url: string | null
+          custom_label_instructions: string | null
         }
         Insert: {
           created_at?: string
@@ -212,6 +217,11 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           variant_id?: string | null
+          is_bulk?: boolean
+          with_labels?: boolean
+          label_fee_applied?: number
+          custom_label_image_url?: string | null
+          custom_label_instructions?: string | null
         }
         Update: {
           created_at?: string
@@ -221,6 +231,11 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           variant_id?: string | null
+          is_bulk?: boolean
+          with_labels?: boolean
+          label_fee_applied?: number
+          custom_label_image_url?: string | null
+          custom_label_instructions?: string | null
         }
         Relationships: [
           {
@@ -461,6 +476,10 @@ export type Database = {
           updated_at: string
           vial_type_id: string
           weight: number
+          bulk_price: number | null
+          bulk_min_qty: number
+          bulk_label_fee: number
+          bulk_only: boolean
         }
         Insert: {
           created_at?: string
@@ -479,6 +498,10 @@ export type Database = {
           updated_at?: string
           vial_type_id: string
           weight?: number
+          bulk_price?: number | null
+          bulk_min_qty?: number
+          bulk_label_fee?: number
+          bulk_only?: boolean
         }
         Update: {
           created_at?: string
@@ -497,6 +520,10 @@ export type Database = {
           updated_at?: string
           vial_type_id?: string
           weight?: number
+          bulk_price?: number | null
+          bulk_min_qty?: number
+          bulk_label_fee?: number
+          bulk_only?: boolean
         }
         Relationships: [
           {

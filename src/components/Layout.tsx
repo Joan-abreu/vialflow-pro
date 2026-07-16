@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -55,8 +56,19 @@ const Layout = ({ children }: LayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
-  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
   const { isAdmin } = useUserRole();
+
+  const { data: pendingOrdersCount = 0 } = useQuery({
+    queryKey: ["orders", "pending-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["processing", "in_production", "ready_to_ship"]);
+      return count || 0;
+    },
+    enabled: !!isAdmin,
+  });
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -77,40 +89,8 @@ const Layout = ({ children }: LayoutProps) => {
       }
     };
 
-    const fetchPendingOrdersCount = async () => {
-      if (isAdmin) {
-        const { count } = await supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true })
-          .in("status", ["processing", "in_production", "ready_to_ship"]);
-
-        setPendingOrdersCount(count || 0);
-      }
-    };
-
     fetchUserProfile();
-    fetchPendingOrdersCount();
-
-    // Real-time subscription for order updates
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders'
-        },
-        () => {
-          fetchPendingOrdersCount();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAdmin]);
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

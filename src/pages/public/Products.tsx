@@ -5,10 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { getBaseSalesCount } from "@/utils/salesCount";
 import SEO from "@/components/SEO";
+import { useEffect } from "react";
 import {
     Select,
     SelectContent,
@@ -36,10 +37,18 @@ interface ProductWithVariants {
 
 const Products = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const categoryParam = searchParams.get("category");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(categoryParam || null);
     const [sortBy, setSortBy] = useState<string>("featured");
     const { addToCart } = useCart();
+
+    useEffect(() => {
+        if (categoryParam) {
+            setSelectedCategory(categoryParam);
+        }
+    }, [categoryParam]);
 
     const { data: userVipStatus } = useQuery({
         queryKey: ["user-vip-status"],

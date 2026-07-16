@@ -69,6 +69,119 @@ serve(async (req) => {
         // Default Shipper (Fallback)
         const defaultShipper = DEFAULT_SHIPPER;
 
+        // 3. Prepare Packages list (Multi-Parcel Packing)
+        const packagesList: any[] = [];
+
+        // Separate bulk items and retail items
+        const bulkItems = (items || []).filter((item: any) => item.is_bulk);
+        const retailItems = (items || []).filter((item: any) => !item.is_bulk);
+
+        // Fetch Box Configurations
+        const variantIds = (items || []).map((item: any) => item.variant_id).filter(Boolean);
+        let boxConfigs: any[] = [];
+        if (variantIds.length > 0) {
+            const { data, error } = await supabase
+                .from('box_configurations')
+                .select('*')
+                .in('variant_id', variantIds);
+            if (error) {
+                console.error("Error fetching box configurations:", error);
+            } else if (data) {
+                boxConfigs = data;
+            }
+        }
+
+        // Process Bulk Items
+        bulkItems.forEach((item: any) => {
+            const variantId = item.variant_id;
+            const config = boxConfigs.find((bc: any) => bc.variant_id === variantId);
+            
+            const packsPerBox = config?.packs_per_box || 100;
+            const boxL = Number(config?.box_length) || 12;
+            const boxW = Number(config?.box_width) || 12;
+            const boxH = Number(config?.box_height) || 12;
+            const boxWgt = Number(config?.box_weight) || 0.5;
+            const itemWgt = Number(item.weight) || 0.1;
+
+            const qty = Number(item.quantity) || 1;
+            
+            const fullBoxes = Math.floor(qty / packsPerBox);
+            const remainder = qty % packsPerBox;
+
+            // Full boxes
+            for (let i = 0; i < fullBoxes; i++) {
+                const boxWeight = parseFloat(((packsPerBox * itemWgt) + boxWgt).toFixed(2));
+                packagesList.push({
+                    weight: Math.max(0.1, boxWeight),
+                    length: boxL,
+                    width: boxW,
+                    height: boxH
+                });
+            }
+
+            // Remainder box
+            if (remainder > 0) {
+                const boxWeight = parseFloat(((remainder * itemWgt) + boxWgt).toFixed(2));
+                // Scale height based on remainder ratio
+                const scaledHeight = Math.max(2, Math.min(boxH, Math.ceil((remainder / packsPerBox) * boxH)));
+                packagesList.push({
+                    weight: Math.max(0.1, boxWeight),
+                    length: boxL,
+                    width: boxW,
+                    height: scaledHeight
+                });
+            }
+        });
+
+        // Process Retail Items (stacked combined box, original logic)
+        if (retailItems.length > 0) {
+            let maxL = 0;
+            let maxW = 0;
+            let totalH = 0;
+            let totalWeight = 0;
+
+            retailItems.forEach((item: any) => {
+                const l = Number(item.length) || 6;
+                const w = Number(item.width) || 4;
+                const h = Number(item.height) || 4;
+                const wgt = Number(item.weight) || 0.1;
+                const qty = Number(item.quantity) || 1;
+
+                const dims = [l, w, h].sort((a, b) => b - a);
+                const itemL = dims[0];
+                const itemW = dims[1];
+                const itemH = dims[2];
+
+                if (itemL > maxL) maxL = itemL;
+                if (itemW > maxW) maxW = itemW;
+                totalH += (itemH * qty);
+                totalWeight += (wgt * qty);
+            });
+
+            const finalLength = Math.min(Math.ceil(maxL || 6), 27);
+            const finalWidth = Math.min(Math.ceil(maxW || 4), 15);
+            const finalHeight = Math.min(Math.ceil(totalH || 4), 17);
+            const boxWeight = Math.max(0.3, totalWeight * 0.1);
+            const calculatedWeight = parseFloat((totalWeight + boxWeight).toFixed(2));
+
+            packagesList.push({
+                weight: Math.max(0.1, calculatedWeight),
+                length: finalLength,
+                width: finalWidth,
+                height: finalHeight
+            });
+        }
+
+        // Fallback if packagesList is empty
+        if (packagesList.length === 0) {
+            packagesList.push({
+                weight: Math.max(0.1, Number(weight) || 1.0),
+                length: 6,
+                width: 4,
+                height: 4
+            });
+        }
+
         const baseShipment = {
             shipper: defaultShipper,
             recipient: {
@@ -81,56 +194,7 @@ serve(async (req) => {
                     country: "US"
                 }
             },
-            packages: [
-                (() => {
-                    let calculatedWeight = parseFloat(Math.max(0.1, Number(weight)).toFixed(2));
-                    let finalLength = 6;
-                    let finalWidth = 4;
-                    let finalHeight = 4;
-
-                    if (items && items.length > 0) {
-                        let maxL = 0;
-                        let maxW = 0;
-                        let totalH = 0;
-                        let totalWeight = 0;
-
-                        items.forEach((item: any) => {
-                            const l = Number(item.length) || 6;
-                            const w = Number(item.width) || 4;
-                            const h = Number(item.height) || 4;
-                            const wgt = Number(item.weight) || 0.1;
-                            const qty = Number(item.quantity) || 1;
-
-                            // Sort dimensions of each item (largest face down)
-                            const dims = [l, w, h].sort((a, b) => b - a);
-                            const itemL = dims[0];
-                            const itemW = dims[1];
-                            const itemH = dims[2];
-
-                            if (itemL > maxL) maxL = itemL;
-                            if (itemW > maxW) maxW = itemW;
-                            totalH += (itemH * qty);
-                            totalWeight += (wgt * qty);
-                        });
-
-                        // Cap dimensions at max box size (27x15x17)
-                        finalLength = Math.min(Math.ceil(maxL), 27);
-                        finalWidth = Math.min(Math.ceil(maxW), 15);
-                        finalHeight = Math.min(Math.ceil(totalH), 17);
-
-                        // Add buffer for the empty box weight (10% of total, min 0.3 lbs)
-                        const boxWeight = Math.max(0.3, totalWeight * 0.1);
-                        calculatedWeight = parseFloat((totalWeight + boxWeight).toFixed(2));
-                    }
-
-                    return {
-                        weight: Math.max(0.1, calculatedWeight),
-                        length: finalLength,
-                        width: finalWidth,
-                        height: finalHeight
-                    };
-                })()
-            ]
+            packages: packagesList
         };
 
         // --- DEBUG LOG FOR PACKAGE DIMENSIONS ---

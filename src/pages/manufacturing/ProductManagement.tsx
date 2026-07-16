@@ -37,7 +37,7 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye } from "lucide-react";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import {
     DndContext,
@@ -102,6 +102,17 @@ interface ProductVariant {
     dimension_height: number | null;
     low_stock_threshold: number;
     image_url: string | null;
+    bulk_price: number | null;
+    bulk_min_qty: number | null;
+    bulk_label_fee: number | null;
+    bulk_only: boolean;
+    box_config?: {
+        box_length: number;
+        box_width: number;
+        box_height: number;
+        box_weight: number;
+        packs_per_box: number;
+    } | null;
     vial_type: {
         name: string;
         capacity_ml: number;
@@ -252,7 +263,8 @@ const ProductManagement = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    vial_type:vial_types(name, capacity_ml, color, shape)
+                    vial_type:vial_types(name, capacity_ml, color, shape),
+                    box_configurations(box_length, box_width, box_height, box_weight, packs_per_box)
                 `)
                 .order('position', { ascending: true }) as any);
             if (error) throw error;
@@ -263,6 +275,7 @@ const ProductManagement = () => {
                 if (!grouped[v.product_id]) {
                     grouped[v.product_id] = [];
                 }
+                const boxConfig = v.box_configurations?.[0];
                 grouped[v.product_id].push({
                     id: v.id,
                     product_id: v.product_id,
@@ -279,6 +292,17 @@ const ProductManagement = () => {
                     dimension_height: v.dimension_height,
                     low_stock_threshold: v.low_stock_threshold || 10,
                     image_url: v.image_url,
+                    bulk_price: v.bulk_price,
+                    bulk_min_qty: v.bulk_min_qty,
+                    bulk_label_fee: v.bulk_label_fee,
+                    bulk_only: !!v.bulk_only,
+                    box_config: boxConfig ? {
+                        box_length: Number(boxConfig.box_length),
+                        box_width: Number(boxConfig.box_width),
+                        box_height: Number(boxConfig.box_height),
+                        box_weight: Number(boxConfig.box_weight),
+                        packs_per_box: Number(boxConfig.packs_per_box)
+                    } : null,
                     vial_type: v.vial_type,
                 });
             });
@@ -395,12 +419,24 @@ const ProductManagement = () => {
 
     // Variant mutations
     const createVariantMutation = useMutation({
-        mutationFn: async (newVariant: Omit<ProductVariant, "id" | "vial_type">) => {
+        mutationFn: async (variantWithBox: any) => {
+            const { box_config, ...variant } = variantWithBox;
             const { data, error } = await (supabase
                 .from("product_variants" as any)
-                .insert([newVariant])
+                .insert([variant])
                 .select() as any);
             if (error) throw error;
+
+            const newVariant = data?.[0] || data;
+            if (box_config && newVariant?.id) {
+                const { error: boxError } = await supabase
+                    .from("box_configurations")
+                    .insert({
+                        variant_id: newVariant.id,
+                        ...box_config
+                    });
+                if (boxError) console.error("Error creating box configurations:", boxError);
+            }
             return data;
         },
         onSuccess: () => {
@@ -424,13 +460,38 @@ const ProductManagement = () => {
     });
 
     const updateVariantMutation = useMutation({
-        mutationFn: async (variant: Omit<ProductVariant, "vial_type">) => {
+        mutationFn: async (variantWithBox: any) => {
+            const { box_config, ...variant } = variantWithBox;
             const { data, error } = await (supabase
                 .from("product_variants" as any)
                 .update(variant)
                 .eq("id", variant.id)
                 .select() as any);
             if (error) throw error;
+
+            if (box_config) {
+                const { data: existingConfig } = await supabase
+                    .from("box_configurations")
+                    .select("id")
+                    .eq("variant_id", variant.id)
+                    .maybeSingle();
+
+                if (existingConfig) {
+                    const { error: boxError } = await supabase
+                        .from("box_configurations")
+                        .update(box_config)
+                        .eq("variant_id", variant.id);
+                    if (boxError) console.error("Error updating box configurations:", boxError);
+                } else {
+                    const { error: boxError } = await supabase
+                        .from("box_configurations")
+                        .insert({
+                            variant_id: variant.id,
+                            ...box_config
+                        });
+                    if (boxError) console.error("Error creating box configurations:", boxError);
+                }
+            }
             return data;
         },
         onSuccess: () => {
@@ -523,9 +584,24 @@ const ProductManagement = () => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const skuValue = formData.get("sku") as string;
+
+        const bulkPriceVal = formData.get("bulk_price") ? parseFloat(formData.get("bulk_price") as string) : null;
+        const bulkMinQtyVal = formData.get("bulk_min_qty") ? parseInt(formData.get("bulk_min_qty") as string) : null;
+        const bulkLabelFeeVal = formData.get("bulk_label_fee") ? parseFloat(formData.get("bulk_label_fee") as string) : null;
+        const isBulkOnly = formData.get("bulk_only") === "on";
+
+        // Extract box config fields
+        const boxLengthVal = formData.get("box_length") ? parseFloat(formData.get("box_length") as string) : null;
+        const boxWidthVal = formData.get("box_width") ? parseFloat(formData.get("box_width") as string) : null;
+        const boxHeightVal = formData.get("box_height") ? parseFloat(formData.get("box_height") as string) : null;
+        const boxWeightVal = formData.get("box_weight") ? parseFloat(formData.get("box_weight") as string) : null;
+        const packsPerBoxVal = formData.get("packs_per_box") ? parseInt(formData.get("packs_per_box") as string) : null;
+
+        const hasBoxConfig = boxLengthVal !== null || boxWidthVal !== null || boxHeightVal !== null || boxWeightVal !== null || packsPerBoxVal !== null;
+
         const variantData = {
             product_id: selectedProductId!,
-            vial_type_id: formData.get("vial_type_id") as string,
+            vial_type_id: (formData.get("vial_type_id") as string) || editingVariant?.vial_type_id || "",
             sku: skuValue?.trim() || null,
             price: parseFloat(formData.get("price") as string) || 0,
             stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
@@ -539,6 +615,17 @@ const ProductManagement = () => {
             low_stock_threshold: parseInt(formData.get("low_stock_threshold") as string) || 10,
             is_published: formData.get("is_published") === "on",
             image_url: variantImageUrl || null,
+            bulk_price: bulkPriceVal,
+            bulk_min_qty: bulkMinQtyVal,
+            bulk_label_fee: bulkLabelFeeVal,
+            bulk_only: isBulkOnly,
+            box_config: hasBoxConfig ? {
+                box_length: boxLengthVal || 12,
+                box_width: boxWidthVal || 12,
+                box_height: boxHeightVal || 12,
+                box_weight: boxWeightVal || 0.5,
+                packs_per_box: packsPerBoxVal || 100
+            } : null
         };
 
         if (variantData.weight <= 0) {
@@ -854,7 +941,7 @@ const ProductManagement = () => {
                         setVariantSaleType("individual");
                     }
                 }}>
-                    <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
                             <DialogDescription>
@@ -870,6 +957,7 @@ const ProductManagement = () => {
                                     className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
                                     defaultValue={editingVariant?.vial_type_id || ""}
                                     required
+                                    disabled={!!editingVariant} // Disable editing variant type to prevent data inconsistencies
                                 >
                                     <option value="" disabled>Select vial type</option>
                                     {vialTypes?.map((vt) => (
@@ -921,7 +1009,7 @@ const ProductManagement = () => {
                                     placeholder="0.01"
                                     required
                                 />
-                                <p className="text-xs text-muted-foreground">Must be greater than 0 (e.g., 0.50)</p>
+                                <p className="text-xs text-muted-foreground">Weight of the item as listed (e.g., 1 vial weight for singles, 2 vials weight for a 2-Pack, or 100 vials weight for Bulk 100x Pack).</p>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
@@ -956,6 +1044,122 @@ const ProductManagement = () => {
                                     <p className="text-xs text-muted-foreground">Number of vials in this pack</p>
                                 </div>
                             )}
+
+                            {/* --- Bulk Purchase and Labeling Section --- */}
+                            <div className="border-t pt-4 space-y-4">
+                                <h4 className="font-semibold text-sm text-primary">Bulk Pricing (Optional)</h4>
+                                <div className="flex items-center space-x-2 pb-2">
+                                    <input
+                                        type="checkbox"
+                                        id="bulk_only"
+                                        name="bulk_only"
+                                        className="h-4 w-4 rounded border-gray-300"
+                                        defaultChecked={editingVariant?.bulk_only ?? false}
+                                    />
+                                    <Label htmlFor="bulk_only" className="text-xs font-normal">Enforce Bulk-Only (Hides Retail options for this variant)</Label>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="bulk_price">Bulk Price / Unit</Label>
+                                        <Input 
+                                            id="bulk_price" 
+                                            name="bulk_price" 
+                                            type="number" 
+                                            step="0.01" 
+                                            defaultValue={editingVariant?.bulk_price || ""} 
+                                            placeholder="e.g. 0.80"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="bulk_min_qty">Min Qty for Bulk</Label>
+                                        <Input 
+                                            id="bulk_min_qty" 
+                                            name="bulk_min_qty" 
+                                            type="number" 
+                                            defaultValue={editingVariant?.bulk_min_qty || ""} 
+                                            placeholder="100"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="bulk_label_fee">Labelling Fee / Unit</Label>
+                                    <Input 
+                                        id="bulk_label_fee" 
+                                        name="bulk_label_fee" 
+                                        type="number" 
+                                        step="0.01" 
+                                        defaultValue={editingVariant?.bulk_label_fee || ""} 
+                                        placeholder="0.15"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Charge added per unit if customer requests custom labels</p>
+                                </div>
+                            </div>
+
+                            <div className="border-t pt-4 space-y-4">
+                                <h4 className="font-semibold text-sm text-primary">Standard Box Configuration (For Shipping Split)</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="box_length">Box Length (in)</Label>
+                                        <Input 
+                                            id="box_length" 
+                                            name="box_length" 
+                                            type="number" 
+                                            step="0.1" 
+                                            defaultValue={editingVariant?.box_config?.box_length || ""} 
+                                            placeholder="12"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="box_width">Box Width (in)</Label>
+                                        <Input 
+                                            id="box_width" 
+                                            name="box_width" 
+                                            type="number" 
+                                            step="0.1" 
+                                            defaultValue={editingVariant?.box_config?.box_width || ""} 
+                                            placeholder="12"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="box_height">Box Height (in)</Label>
+                                        <Input 
+                                            id="box_height" 
+                                            name="box_height" 
+                                            type="number" 
+                                            step="0.1" 
+                                            defaultValue={editingVariant?.box_config?.box_height || ""} 
+                                            placeholder="12"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="box_weight">Box Weight (lbs)</Label>
+                                        <Input 
+                                            id="box_weight" 
+                                            name="box_weight" 
+                                            type="number" 
+                                            step="0.01" 
+                                            defaultValue={editingVariant?.box_config?.box_weight || ""} 
+                                            placeholder="0.5"
+                                        />
+                                        <p className="text-xs text-muted-foreground">Weight of the empty cardboard box and packaging materials (e.g., 0.50 lbs).</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="packs_per_box">Max Vials per Box</Label>
+                                        <Input 
+                                            id="packs_per_box" 
+                                            name="packs_per_box" 
+                                            type="number" 
+                                            defaultValue={editingVariant?.box_config?.packs_per_box || ""} 
+                                            placeholder="100"
+                                        />
+                                        <p className="text-xs text-muted-foreground">Maximum number of individual vials that fit in this box config (used to split shipping parcels).</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* ------------------------------------------- */}
+
                             <div className="space-y-2">
                                 <Label htmlFor="variant_image">Variant Image (Optional)</Label>
                                 <ImageUpload
@@ -1070,7 +1274,14 @@ const ProductManagement = () => {
                                                             <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
                                                                 <Pencil className="h-4 w-4" />
                                                             </Button>
-
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="icon" 
+                                                                onClick={() => window.open(`/products/${product.slug || product.id}`, '_blank')}
+                                                                title="Preview Product"
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
                                                             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>

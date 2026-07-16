@@ -49,6 +49,11 @@ interface OrderItem {
     variant_id: string;
     quantity: number;
     price_at_time: number;
+    is_bulk?: boolean;
+    with_labels?: boolean;
+    label_fee_applied?: number;
+    custom_label_image_url?: string | null;
+    custom_label_instructions?: string | null;
     variant?: {
         id: string;
         product_id: string;
@@ -313,6 +318,34 @@ const OrderManagement = () => {
         setShowShippingDialog(true);
     };
 
+    const getCarrierBadge = (carrier?: string, service?: string) => {
+        if (!carrier) return null;
+        
+        const carrierLower = carrier.toLowerCase();
+        let badgeClass = "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100";
+        
+        if (carrierLower.includes("usps")) {
+            badgeClass = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50";
+        } else if (carrierLower.includes("ups")) {
+            badgeClass = "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50";
+        } else if (carrierLower.includes("fedex")) {
+            badgeClass = "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-50";
+        }
+        
+        return (
+            <div className="flex flex-col items-start gap-0.5 mb-1">
+                <Badge variant="outline" className={`${badgeClass} text-[9px] px-1.5 py-0 font-bold uppercase tracking-wider`}>
+                    {carrier}
+                </Badge>
+                {service && (
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap overflow-hidden max-w-[130px] truncate" title={service}>
+                        {service.replace(/®|™/g, "")}
+                    </span>
+                )}
+            </div>
+        );
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case "pending": return "bg-gray-100 text-gray-800";
@@ -522,7 +555,16 @@ const OrderManagement = () => {
                                     ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((order) => (
                                         <TableRow key={order.id}>
-                                            <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}...</TableCell>
+                                            <TableCell className="font-mono text-xs">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span>{order.id.slice(0, 8)}...</span>
+                                                    {order.order_items?.some(item => item.is_bulk) && (
+                                                        <Badge variant="outline" className="bg-indigo-50 hover:bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0 font-bold uppercase tracking-wider">
+                                                            Bulk
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell>{format(new Date(order.created_at), "MMMM d, yyyy 'at' h:mm a")}</TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">
@@ -627,11 +669,14 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col gap-2">
+                                                    {getCarrierBadge(order.shipping_carrier, order.shipping_service)}
+                                                    
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleCreateShippingLabel(order)}
                                                         disabled={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status)}
                                                         variant={['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "secondary" : "outline"}
+                                                        className="mt-1"
                                                         title={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Complete production first" : ""}
                                                     >
                                                         <Truck className="h-4 w-4 mr-2" />
@@ -818,9 +863,36 @@ const OrderManagement = () => {
                                                         </div>
                                                         <div>
                                                             <div className="font-medium text-sm">{item.variant?.product?.name}</div>
-                                                            <div className="text-xs text-muted-foreground">
-                                                                {item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})
+                                                            <div className="text-xs text-muted-foreground mt-1">
+                                                                <span>{item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})</span>
                                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
+                                                                {item.is_bulk && (
+                                                                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
+                                                                        Bulk - {item.with_labels ? 'With Labels' : 'Unlabeled'}
+                                                                    </span>
+                                                                )}
+                                                                {item.with_labels && (item.custom_label_image_url || item.custom_label_instructions) && (
+                                                                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded-lg text-xs text-yellow-900 space-y-1 max-w-md">
+                                                                        <div className="font-semibold flex items-center gap-1">
+                                                                            🎨 Custom Label details:
+                                                                        </div>
+                                                                        {item.custom_label_instructions && (
+                                                                            <p className="italic">"{item.custom_label_instructions}"</p>
+                                                                        )}
+                                                                        {item.custom_label_image_url && (
+                                                                            <div className="pt-1">
+                                                                                <a 
+                                                                                    href={item.custom_label_image_url} 
+                                                                                    target="_blank" 
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline"
+                                                                                >
+                                                                                    Download Design ↗
+                                                                                </a>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1076,9 +1148,24 @@ const OrderManagement = () => {
                                     <tr key={item.id} className="border-b border-gray-300 break-inside-avoid">
                                         <td className="py-4 px-4">
                                             <div className="font-bold text-gray-900 border-b border-transparent">{item.variant?.product?.name}</div>
-                                            <div className="text-gray-700 text-sm mt-1 font-medium">
-                                                {item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})
+                                            <div className="text-gray-700 text-sm mt-1 font-medium flex items-center flex-wrap gap-2">
+                                                <span>{item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})</span>
                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
+                                                {item.is_bulk && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-800 uppercase">
+                                                        Bulk - {item.with_labels ? 'With Labels' : 'Unlabeled'}
+                                                    </span>
+                                                )}
+                                                {item.with_labels && item.custom_label_instructions && (
+                                                    <div className="mt-2 text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded p-2 italic max-w-md">
+                                                        <strong>Label Details:</strong> "{item.custom_label_instructions}"
+                                                    </div>
+                                                )}
+                                                {item.with_labels && item.custom_label_image_url && (
+                                                    <div className="mt-1 text-xs text-blue-600 font-semibold break-all">
+                                                        Design Link: {item.custom_label_image_url}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="py-4 px-4 font-mono text-sm">{item.variant?.sku || "N/A"}</td>

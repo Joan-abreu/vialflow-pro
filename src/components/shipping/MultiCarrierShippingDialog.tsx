@@ -72,6 +72,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
     const [length, setLength] = useState<string>("12");
     const [width, setWidth] = useState<string>("8");
     const [height, setHeight] = useState<string>("6");
+    const [packages, setPackages] = useState<any[]>([]);
 
     // Pickup details
     const [pickupDate, setPickupDate] = useState<string>(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
@@ -149,6 +150,8 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     shipping_address,
                     order_items(
                         quantity,
+                        is_bulk,
+                        with_labels,
                         variant:product_variants(*)
                     )
                 `)
@@ -170,41 +173,111 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 }
             }
 
-            // Calculate total weight and estimate dimensions
-            let totalWeight = 0;
-            let maxL = 0;
-            let maxW = 0;
-            let totalH = 0;
-            let totalVolume = 0;
+            // Calculate package dimensions using multi-parcel logic
+            const packagesList: any[] = [];
+            const bulkItems = (order_obj.order_items || []).filter((item: any) => item.is_bulk);
+            const retailItems = (order_obj.order_items || []).filter((item: any) => !item.is_bulk);
 
-            order_obj.order_items.forEach((item: any) => {
-                const qty = item.quantity;
-                const v = item.variant;
-                if (v) {
-                    // Use weight or default to 0.1 for small items
-                    totalWeight += (v.weight || 0.1) * qty;
-                    
-                    // Shippo/Carriers fail with 0 dimensions. Use sane minima.
-                    const l = Math.max(v.dimension_length || 0, 1.0);
-                    const w = Math.max(v.dimension_width || 0, 1.0);
-                    const h = Math.max(v.dimension_height || 0, 1.0);
+            // Fetch Box Configurations
+            const variantIds = (order_obj.order_items || []).map((item: any) => item.variant?.id).filter(Boolean);
+            let boxConfigs: any[] = [];
+            if (variantIds.length > 0) {
+                const { data, error } = await supabase
+                    .from('box_configurations')
+                    .select('*')
+                    .in('variant_id', variantIds);
+                if (!error && data) {
+                    boxConfigs = data;
+                }
+            }
 
-                    if (l > maxL) maxL = l;
-                    if (w > maxW) maxW = w;
-                    totalH += h * qty;
-                    totalVolume += (l * w * h) * qty;
+            // Process Bulk Items
+            bulkItems.forEach((item: any) => {
+                const variantId = item.variant?.id;
+                const config = boxConfigs.find((bc: any) => bc.variant_id === variantId);
+                
+                const packsPerBox = config?.packs_per_box || 100;
+                const boxL = Number(config?.box_length) || 12;
+                const boxW = Number(config?.box_width) || 12;
+                const boxH = Number(config?.box_height) || 12;
+                const boxWgt = Number(config?.box_weight) || 0.5;
+                const itemWgt = Number(item.variant?.weight) || 0.1;
+
+                const qty = Number(item.quantity) || 1;
+                
+                const fullBoxes = Math.floor(qty / packsPerBox);
+                const remainder = qty % packsPerBox;
+
+                // Full boxes
+                for (let i = 0; i < fullBoxes; i++) {
+                    const boxWeight = parseFloat(((packsPerBox * itemWgt) + boxWgt).toFixed(2));
+                    packagesList.push({
+                        weight: Math.max(0.1, boxWeight).toFixed(2),
+                        length: boxL.toFixed(1),
+                        width: boxW.toFixed(1),
+                        height: boxH.toFixed(1)
+                    });
+                }
+
+                // Remainder box
+                if (remainder > 0) {
+                    const boxWeight = parseFloat(((remainder * itemWgt) + boxWgt).toFixed(2));
+                    const scaledHeight = Math.max(2, Math.min(boxH, Math.ceil((remainder / packsPerBox) * boxH)));
+                    packagesList.push({
+                        weight: Math.max(0.1, boxWeight).toFixed(2),
+                        length: boxL.toFixed(1),
+                        width: boxW.toFixed(1),
+                        height: scaledHeight.toFixed(1)
+                    });
                 }
             });
 
-            if (totalWeight > 0) {
-                setWeight(totalWeight.toFixed(2));
-                
-                // Use EXACT max L/W and sum of H for stacking
-                setLength(maxL > 0 ? maxL.toFixed(1) : "12.0");
-                setWidth(maxW > 0 ? maxW.toFixed(1) : "8.0");
-                setHeight(totalH > 0 ? totalH.toFixed(1) : "6.0");
+            // Process Retail Items (stacked combined box, original logic)
+            if (retailItems.length > 0) {
+                let maxL = 0;
+                let maxW = 0;
+                let totalH = 0;
+                let totalWeight = 0;
+
+                retailItems.forEach((item: any) => {
+                    const qty = item.quantity;
+                    const v = item.variant;
+                    if (v) {
+                        totalWeight += (v.weight || 0.1) * qty;
+                        
+                        const l = Math.max(v.dimension_length || 0, 1.0);
+                        const w = Math.max(v.dimension_width || 0, 1.0);
+                        const h = Math.max(v.dimension_height || 0, 1.0);
+
+                        if (l > maxL) maxL = l;
+                        if (w > maxW) maxW = w;
+                        totalH += h * qty;
+                    }
+                });
+
+                const finalLength = Math.min(Math.ceil(maxL || 6), 27);
+                const finalWidth = Math.min(Math.ceil(maxW || 4), 15);
+                const finalHeight = Math.min(Math.ceil(totalH || 4), 17);
+                const boxWeight = Math.max(0.3, totalWeight * 0.1);
+                const calculatedWeight = parseFloat((totalWeight + boxWeight).toFixed(2));
+
+                packagesList.push({
+                    weight: Math.max(0.1, calculatedWeight).toFixed(2),
+                    length: finalLength.toFixed(1),
+                    width: finalWidth.toFixed(1),
+                    height: finalHeight.toFixed(1)
+                });
+            }
+
+            setPackages(packagesList);
+
+            if (packagesList.length > 0) {
+                // Pre-populate the manual inputs with the first package's details
+                setWeight(packagesList[0].weight);
+                setLength(packagesList[0].length);
+                setWidth(packagesList[0].width);
+                setHeight(packagesList[0].height);
             } else {
-                // Total fallback
                 setWeight("1.0");
                 setLength("12.0");
                 setWidth("8.0");
@@ -374,6 +447,18 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             // User asked: "que cargue el peso por defecto... Actualmente se actualiza... cuando le doy Get Shipping Rates solamente"
             // So we moved it to initial load (above) and remove it from here.
 
+            const finalPackages = packages.length > 0 ? packages.map(pkg => ({
+                weight: parseFloat(String(pkg.weight)),
+                length: parseFloat(String(pkg.length)),
+                width: parseFloat(String(pkg.width)),
+                height: parseFloat(String(pkg.height))
+            })) : [{
+                weight: parseFloat(weight),
+                length: parseFloat(length),
+                width: parseFloat(width),
+                height: parseFloat(height),
+            }];
+
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
                     carrier: selectedCarrier,
@@ -394,12 +479,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             address: order.shipping_address || {},
                         },
                         orderId: orderId,
-                        packages: [{
-                            weight: parseFloat(weight),
-                            length: parseFloat(length),
-                            width: parseFloat(width),
-                            height: parseFloat(height),
-                        }],
+                        packages: finalPackages,
                     },
                 },
             });
@@ -498,6 +578,18 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                 }
             }
 
+            const finalPackages = packages.length > 0 ? packages.map(pkg => ({
+                weight: parseFloat(String(pkg.weight)),
+                length: parseFloat(String(pkg.length)),
+                width: parseFloat(String(pkg.width)),
+                height: parseFloat(String(pkg.height))
+            })) : [{
+                weight: parseFloat(weight),
+                length: parseFloat(length),
+                width: parseFloat(width),
+                height: parseFloat(height),
+            }];
+
             const { data, error } = await supabase.functions.invoke("shipping", {
                 body: {
                     carrier: selectedCarrier,
@@ -522,12 +614,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             name: customerName,
                             address: order.shipping_address || {},
                         },
-                        packages: [{
-                            weight: parseFloat(weight),
-                            length: parseFloat(length),
-                            width: parseFloat(width),
-                            height: parseFloat(height),
-                        }],
+                        packages: finalPackages,
                     },
                 },
             });
@@ -1030,45 +1117,64 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                                                         </SelectContent>
                                                     </Select>
 
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <Label>Weight (lbs) <span className="text-destructive">*</span></Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={weight}
-                                                                onChange={(e) => setWeight(e.target.value)}
-                                                                step="0.01"
-                                                                required
-                                                            />
+                                                    {packages.length > 1 ? (
+                                                        <div className="space-y-3 border p-4 rounded-lg bg-muted/20">
+                                                            <Label className="font-semibold text-xs tracking-wider uppercase text-muted-foreground">Packages Details (Multi-Parcel Split)</Label>
+                                                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                                {packages.map((pkg, idx) => (
+                                                                    <div key={idx} className="flex gap-2 items-center text-xs bg-background p-2 rounded border justify-between">
+                                                                        <span className="font-bold text-muted-foreground">Box {idx + 1}:</span>
+                                                                        <span className="font-medium">{pkg.weight} lbs</span>
+                                                                        <span className="text-muted-foreground">|</span>
+                                                                        <span className="font-mono">{pkg.length}x{pkg.width}x{pkg.height} in</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[10px] text-muted-foreground leading-normal">
+                                                                This shipment is split into multiple packages based on the box configurations defined for the purchased variants. Shippo rates will cover all packages.
+                                                            </p>
                                                         </div>
-                                                        <div>
-                                                            <Label>Length (in) <span className="text-destructive">*</span></Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={length}
-                                                                onChange={(e) => setLength(e.target.value)}
-                                                                required
-                                                            />
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <Label>Weight (lbs) <span className="text-destructive">*</span></Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={weight}
+                                                                    onChange={(e) => setWeight(e.target.value)}
+                                                                    step="0.01"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label>Length (in) <span className="text-destructive">*</span></Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={length}
+                                                                    onChange={(e) => setLength(e.target.value)}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label>Width (in) <span className="text-destructive">*</span></Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={width}
+                                                                    onChange={(e) => setWidth(e.target.value)}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label>Height (in) <span className="text-destructive">*</span></Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={height}
+                                                                    onChange={(e) => setHeight(e.target.value)}
+                                                                    required
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <Label>Width (in) <span className="text-destructive">*</span></Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={width}
-                                                                onChange={(e) => setWidth(e.target.value)}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <Label>Height (in) <span className="text-destructive">*</span></Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={height}
-                                                                onChange={(e) => setHeight(e.target.value)}
-                                                                required
-                                                            />
-                                                        </div>
-                                                    </div>
+                                                    )}
 
                                                     <Button
                                                         onClick={getShippingRates}

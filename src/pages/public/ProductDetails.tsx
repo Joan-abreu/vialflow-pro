@@ -274,7 +274,14 @@ const ProductDetails = () => {
             }
 
             const minLimit = (selectedVariant?.bulk_only) ? (selectedVariant.bulk_min_qty || 100) : (isBulk ? (selectedVariant.bulk_min_qty || 100) : 1);
-            const finalQuantity = quantity === "" ? minLimit : Math.max(minLimit, quantity);
+            const finalQuantity = quantity === "" ? minLimit : Number(quantity);
+
+            if (finalQuantity < minLimit) {
+                toast.error(`Minimum order quantity is ${minLimit} units.`);
+                setQuantity(minLimit);
+                return;
+            }
+
             addToCart(
                 selectedVariant, 
                 finalQuantity, 
@@ -298,7 +305,14 @@ const ProductDetails = () => {
             }
 
             const minLimit = (selectedVariant?.bulk_only) ? (selectedVariant.bulk_min_qty || 100) : (isBulk ? (selectedVariant.bulk_min_qty || 100) : 1);
-            const finalQuantity = quantity === "" ? minLimit : Math.max(minLimit, quantity);
+            const finalQuantity = quantity === "" ? minLimit : Number(quantity);
+
+            if (finalQuantity < minLimit) {
+                toast.error(`Minimum order quantity is ${minLimit} units.`);
+                setQuantity(minLimit);
+                return;
+            }
+
             addToCart(
                 selectedVariant, 
                 finalQuantity, 

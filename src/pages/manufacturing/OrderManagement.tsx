@@ -41,6 +41,7 @@ import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, Refre
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
+import CopyCell from "@/components/CopyCell";
 
 interface OrderItem {
     id: string;
@@ -459,7 +460,12 @@ const OrderManagement = () => {
             shipment.tracking_number?.toLowerCase().includes(query)
         );
 
-        return matchesOrder || matchesShipments;
+        const matchesItems = order.order_items?.some(item => 
+            (item.variant?.sku && item.variant.sku.toLowerCase().includes(query)) ||
+            (item.variant?.product?.name && item.variant.product.name.toLowerCase().includes(query))
+        );
+
+        return matchesOrder || matchesShipments || matchesItems;
     });
 
     return (
@@ -485,7 +491,7 @@ const OrderManagement = () => {
                     <div className="flex items-center gap-2 w-full md:w-96">
                         <Search className="w-4 h-4 text-muted-foreground mr-2" />
                         <Input
-                            placeholder="Search by ID, Customer Name, email, or tracking #"
+                            placeholder="Search by ID, Customer, SKU, Product, Email, or Tracking #"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
@@ -530,6 +536,8 @@ const OrderManagement = () => {
                                 <TableHead>Order ID</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Customer</TableHead>
+                                <TableHead>Products</TableHead>
+                                <TableHead className="text-center">Quantity</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
                                 <TableHead>Actions</TableHead>
@@ -540,13 +548,13 @@ const OrderManagement = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8">
+                                    <TableCell colSpan={10} className="text-center py-8">
                                         Loading orders...
                                     </TableCell>
                                 </TableRow>
                             ) : filteredOrders?.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8">
+                                    <TableCell colSpan={10} className="text-center py-8">
                                         No orders found matching your search.
                                     </TableCell>
                                 </TableRow>
@@ -565,7 +573,7 @@ const OrderManagement = () => {
                                                     )}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{format(new Date(order.created_at), "MMMM d, yyyy 'at' h:mm a")}</TableCell>
+                                            <TableCell className="text-xs whitespace-nowrap">{format(new Date(order.created_at), "MMM d, yyyy h:mm a")}</TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <div className="font-medium text-sm">
@@ -575,6 +583,53 @@ const OrderManagement = () => {
                                                         {order.customer_email || "N/A"}
                                                     </div>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="min-w-[200px] max-w-[300px]">
+                                                {order.order_items && order.order_items.length > 0 ? (
+                                                    <div className="space-y-1.5">
+                                                        {order.order_items.map((item, idx) => (
+                                                            <div key={item.id || idx} className="flex flex-col justify-center min-h-[30px]">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="font-medium text-xs text-foreground truncate" title={item.variant?.product?.name || "Product"}>
+                                                                        {item.variant?.product?.name || "Unknown Product"}
+                                                                    </span>
+                                                                    {item.variant?.sku && (
+                                                                        <div className="inline-flex items-center gap-0.5">
+                                                                            <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4 bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 font-medium">
+                                                                                {item.variant.sku}
+                                                                            </Badge>
+                                                                            <CopyCell value={item.variant.sku} size={11} />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[11px] text-muted-foreground truncate">
+                                                                    {item.variant?.vial_type?.capacity_ml ? `${item.variant.vial_type.capacity_ml}ml` : ''}
+                                                                    {item.variant?.vial_type?.name ? ` (${item.variant.vial_type.name})` : ''}
+                                                                    {(item.variant?.sale_type === 'pack' || (item.variant?.pack_size && item.variant.pack_size > 1))
+                                                                        ? ` - Pack of ${item.variant.pack_size}`
+                                                                        : ''}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground italic">No products</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                {order.order_items && order.order_items.length > 0 ? (
+                                                    <div className="space-y-1.5">
+                                                        {order.order_items.map((item, idx) => (
+                                                            <div key={item.id || idx} className="flex items-center justify-center min-h-[30px]">
+                                                                <Badge variant="outline" className="font-bold text-xs px-2 py-0.5 min-w-[28px] justify-center bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50">
+                                                                    {item.quantity}
+                                                                </Badge>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="secondary" className={getStatusColor(order.status)}>
@@ -897,7 +952,12 @@ const OrderManagement = () => {
                                                         </div>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="font-mono text-xs">{item.variant?.sku || "N/A"}</TableCell>
+                                                <TableCell className="font-mono text-xs">
+                                                    <div className="flex items-center gap-1">
+                                                        <span>{item.variant?.sku || "N/A"}</span>
+                                                        {item.variant?.sku && <CopyCell value={item.variant.sku} size={12} />}
+                                                    </div>
+                                                </TableCell>
                                                 <TableCell className="text-right">${item.price_at_time.toFixed(2)}</TableCell>
                                                 <TableCell className="text-center">{item.quantity}</TableCell>
                                                 <TableCell className="text-right font-medium">

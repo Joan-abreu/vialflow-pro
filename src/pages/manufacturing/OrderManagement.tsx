@@ -42,6 +42,8 @@ import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierSh
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import CopyCell from "@/components/CopyCell";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
 
 interface OrderItem {
     id: string;
@@ -189,9 +191,90 @@ const OrderManagement = () => {
             queryClient.invalidateQueries({ queryKey: ["orders"] });
             toast.success("Order status updated");
         },
-        onError: (error) => {
-            toast.error("Failed to update status: " + error.message);
+    });
+
+    const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+    const [bulkStatus, setBulkStatus] = useState<string>("");
+    const [showBulkShippingDialog, setShowBulkShippingDialog] = useState(false);
+
+    const selectedOrders = useMemo(() => {
+        if (!orders) return [];
+        return orders.filter(o => selectedOrderIds.includes(o.id));
+    }, [orders, selectedOrderIds]);
+
+    const readyToShipOrders = useMemo(() => {
+        return selectedOrders.filter(o => o.status === 'ready_to_ship');
+    }, [selectedOrders]);
+
+    const bulkUpdateStatusMutation = useMutation({
+        mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: string }) => {
+            const { error } = await supabase
+                .from("orders")
+                .update({ status })
+                .in("id", orderIds);
+
+            if (error) throw error;
         },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["orders"] });
+            setSelectedOrderIds([]);
+            setBulkStatus("");
+            toast.success(`Updated ${variables.orderIds.length} orders to ${variables.status.replace(/_/g, " ")}`);
+        },
+        onError: (error: any) => {
+            toast.error("Failed bulk status update: " + error.message);
+        },
+    });
+
+    const bulkSendToProductionMutation = useMutation({
+        mutationFn: async (orderIds: string[]) => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("User not authenticated");
+
+            const targetOrders = orders?.filter(o => orderIds.includes(o.id) && !o.sent_to_production) || [];
+            if (targetOrders.length === 0) {
+                throw new Error("No eligible orders selected (orders may already be in production)");
+            }
+
+            for (const order of targetOrders) {
+                const variantGroups = getVariantGroups(order);
+                const batchInserts = variantGroups.map((group, index) => ({
+                    batch_number: `ORD-${order.id.slice(0, 8)}-${index + 1}`,
+                    product_id: group.variant.id,
+                    quantity: group.totalQuantity * group.variant.pack_size,
+                    sale_type: group.variant.sale_type,
+                    pack_quantity: group.variant.sale_type === 'pack' ? group.variant.pack_size : null,
+                    status: 'pending',
+                    order_id: order.id,
+                    created_by: user.id
+                }));
+
+                const { error: batchError } = await supabase
+                    .from("production_batches")
+                    .insert(batchInserts);
+
+                if (batchError) throw batchError;
+
+                const { error } = await supabase
+                    .from("orders")
+                    .update({
+                        sent_to_production: true,
+                        sent_to_production_at: new Date().toISOString(),
+                        status: 'in_production'
+                    })
+                    .eq("id", order.id);
+
+                if (error) throw error;
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["orders"] });
+            setSelectedOrderIds([]);
+            toast.success("Selected orders sent to production");
+        },
+        onError: (error: any) => {
+            toast.error("Bulk production error: " + error.message);
+        }
     });
 
     const deleteOrderMutation = useMutation({
@@ -468,6 +551,38 @@ const OrderManagement = () => {
         return matchesOrder || matchesShipments || matchesItems;
     });
 
+    const currentVisibleOrders = useMemo(() => {
+        if (!filteredOrders) return [];
+        return filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    }, [filteredOrders, currentPage, itemsPerPage]);
+
+    const isAllVisibleSelected = useMemo(() => {
+        if (currentVisibleOrders.length === 0) return false;
+        return currentVisibleOrders.every(o => selectedOrderIds.includes(o.id));
+    }, [currentVisibleOrders, selectedOrderIds]);
+
+    const handleToggleSelectAll = () => {
+        const visibleIds = currentVisibleOrders.map(o => o.id);
+        if (isAllVisibleSelected) {
+            setSelectedOrderIds(prev => prev.filter(id => !visibleIds.includes(id)));
+        } else {
+            setSelectedOrderIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+        }
+    };
+
+    const handleSelectAllFiltered = () => {
+        if (!filteredOrders) return;
+        const allFilteredIds = filteredOrders.map(o => o.id);
+        setSelectedOrderIds(allFilteredIds);
+        toast.info(`Selected all ${allFilteredIds.length} filtered orders`);
+    };
+
+    const handleToggleSelectOrder = (id: string) => {
+        setSelectedOrderIds(prev =>
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
     return (
         <>
         <div className="space-y-6 print:hidden">
@@ -525,6 +640,86 @@ const OrderManagement = () => {
                 </Tabs>
             </div>
 
+            {selectedOrderIds.length > 0 && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm transition-all animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2">
+                        <Badge variant="default" className="bg-primary text-primary-foreground font-bold">
+                            {selectedOrderIds.length} Order{selectedOrderIds.length > 1 ? 's' : ''} Selected
+                        </Badge>
+                        {filteredOrders && filteredOrders.length > selectedOrderIds.length && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-primary hover:underline h-7 px-2 font-medium"
+                                onClick={handleSelectAllFiltered}
+                            >
+                                Select all {filteredOrders.length} filtered
+                            </Button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Select
+                            value={bulkStatus}
+                            onValueChange={(value) => {
+                                setBulkStatus(value);
+                                if (value) {
+                                    bulkUpdateStatusMutation.mutate({ orderIds: selectedOrderIds, status: value });
+                                }
+                            }}
+                        >
+                            <SelectTrigger className="w-[190px] h-8 text-xs bg-background">
+                                <SelectValue placeholder="Bulk Change Status..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                                <SelectItem value="processing">Processing</SelectItem>
+                                <SelectItem value="in_production">In Production</SelectItem>
+                                <SelectItem value="ready_to_ship">Ready to Ship</SelectItem>
+                                <SelectItem value="label_created">Label Created</SelectItem>
+                                <SelectItem value="pickup_scheduled">Pickup Scheduled</SelectItem>
+                                <SelectItem value="shipped">Shipped</SelectItem>
+                                <SelectItem value="in_transit">In Transit</SelectItem>
+                                <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                <SelectItem value="delivered">Delivered</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs bg-background"
+                            onClick={() => bulkSendToProductionMutation.mutate(selectedOrderIds)}
+                            disabled={bulkSendToProductionMutation.isPending}
+                        >
+                            <Factory className="h-3.5 w-3.5 mr-1 text-primary" />
+                            Send to Production
+                        </Button>
+
+                        <Button
+                            size="sm"
+                            variant={readyToShipOrders.length > 0 ? "default" : "outline"}
+                            className={`h-8 text-xs font-medium ${readyToShipOrders.length > 0 ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "opacity-60 cursor-not-allowed"}`}
+                            onClick={() => setShowBulkShippingDialog(true)}
+                            disabled={readyToShipOrders.length === 0}
+                            title={readyToShipOrders.length === 0 ? "Select orders in 'ready_to_ship' status to create labels" : ""}
+                        >
+                            <Truck className="h-3.5 w-3.5 mr-1" />
+                            Create Shipping Labels ({readyToShipOrders.length})
+                        </Button>
+
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setSelectedOrderIds([])}
+                        >
+                            Deselect All
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-xl">Orders ({filteredOrders?.length || 0})</CardTitle>
@@ -533,6 +728,13 @@ const OrderManagement = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-10">
+                                    <Checkbox
+                                        checked={isAllVisibleSelected}
+                                        onCheckedChange={handleToggleSelectAll}
+                                        aria-label="Select all orders on page"
+                                    />
+                                </TableHead>
                                 <TableHead>Order ID</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Customer</TableHead>
@@ -548,13 +750,13 @@ const OrderManagement = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8">
+                                    <TableCell colSpan={11} className="text-center py-8">
                                         Loading orders...
                                     </TableCell>
                                 </TableRow>
                             ) : filteredOrders?.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8">
+                                    <TableCell colSpan={11} className="text-center py-8">
                                         No orders found matching your search.
                                     </TableCell>
                                 </TableRow>
@@ -562,7 +764,14 @@ const OrderManagement = () => {
                                 filteredOrders
                                     ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((order) => (
-                                        <TableRow key={order.id}>
+                                        <TableRow key={order.id} className={selectedOrderIds.includes(order.id) ? "bg-muted/30" : ""}>
+                                            <TableCell className="w-10">
+                                                <Checkbox
+                                                    checked={selectedOrderIds.includes(order.id)}
+                                                    onCheckedChange={() => handleToggleSelectOrder(order.id)}
+                                                    aria-label={`Select order ${order.id}`}
+                                                />
+                                            </TableCell>
                                             <TableCell className="font-mono text-xs">
                                                 <div className="flex items-center gap-1.5">
                                                     <span>{order.id.slice(0, 8)}...</span>
@@ -1140,6 +1349,16 @@ const OrderManagement = () => {
                 onOpenChange={setShowShippingDialog}
                 onSuccess={() => {
                     queryClient.invalidateQueries({ queryKey: ["orders"] });
+                }}
+            />
+
+            <BulkShippingDialog
+                orders={readyToShipOrders}
+                open={showBulkShippingDialog}
+                onOpenChange={setShowBulkShippingDialog}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ["orders"] });
+                    setSelectedOrderIds([]);
                 }}
             />
         </div>

@@ -405,6 +405,15 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                     .update({ status: "label_created", tracking_number: data.trackingNumber })
                     .eq("id", item.order.id);
 
+                // Send notification email to customer
+                try {
+                    await supabase.functions.invoke("send-order-email", {
+                        body: { order_id: item.order.id, type: "status_update" },
+                    });
+                } catch (emailErr) {
+                    console.error("Error sending label email for order:", item.order.id, emailErr);
+                }
+
                 item.createdShipment = data;
                 item.status = 'success';
                 successCount++;
@@ -434,11 +443,88 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
     }, [itemsState]);
 
     const handlePrintAllLabels = () => {
-        successLabels.forEach(item => {
-            if (item.createdShipment?.labelUrl) {
-                window.open(item.createdShipment.labelUrl, '_blank');
-            }
-        });
+        if (successLabels.length === 0) return;
+
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+            toast.error("Pop-up blocked. Please allow pop-ups to print batch labels.");
+            return;
+        }
+
+        const labelHtml = successLabels.map(item => {
+            const url = item.createdShipment?.labelUrl;
+            const orderNum = item.order.id.slice(0, 8);
+            if (!url) return '';
+
+            return `
+                <div class="label-page">
+                    <div class="order-header">Order #${orderNum}</div>
+                    <iframe src="${url}" class="label-frame"></iframe>
+                </div>
+            `;
+        }).join('');
+
+        const fullDocument = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Batch Shipping Labels (${successLabels.length})</title>
+                <style>
+                    @page {
+                        size: 4in 6in;
+                        margin: 0;
+                    }
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        background: #ffffff;
+                        font-family: system-ui, sans-serif;
+                    }
+                    .label-page {
+                        page-break-after: always;
+                        break-after: page;
+                        width: 100vw;
+                        height: 100vh;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .label-page:last-child {
+                        page-break-after: avoid;
+                        break-after: avoid;
+                    }
+                    .order-header {
+                        font-size: 11px;
+                        font-weight: bold;
+                        padding: 2px 8px;
+                        background: #eee;
+                    }
+                    .label-frame {
+                        width: 100%;
+                        height: 100%;
+                        flex: 1;
+                        border: none;
+                    }
+                    @media print {
+                        .order-header { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${labelHtml}
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                        }, 1000);
+                    };
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(fullDocument);
+        printWindow.document.close();
     };
 
     return (

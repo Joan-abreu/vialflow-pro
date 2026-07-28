@@ -37,7 +37,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
@@ -181,10 +181,12 @@ const OrderManagement = () => {
 
             if (error) throw error;
 
-            if (status !== 'processing' && status !== 'in_production' && status !== 'ready_to_ship' && status !== 'label_created' && status !== 'pickup_scheduled') {
+            try {
                 await supabase.functions.invoke("send-order-email", {
                     body: { order_id: orderId, type: "status_update" },
                 });
+            } catch (emailErr) {
+                console.error("Error sending status email:", emailErr);
             }
         },
         onSuccess: () => {
@@ -214,6 +216,16 @@ const OrderManagement = () => {
                 .in("id", orderIds);
 
             if (error) throw error;
+
+            for (const id of orderIds) {
+                try {
+                    await supabase.functions.invoke("send-order-email", {
+                        body: { order_id: id, type: "status_update" },
+                    });
+                } catch (emailErr) {
+                    console.error(`Error sending bulk status email for order ${id}:`, emailErr);
+                }
+            }
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -603,8 +615,8 @@ const OrderManagement = () => {
 
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-center gap-2 w-full md:w-96">
-                        <Search className="w-4 h-4 text-muted-foreground mr-2" />
+                    <div className="relative flex items-center w-full md:w-96">
+                        <Search className="w-4 h-4 text-muted-foreground absolute left-3 pointer-events-none" />
                         <Input
                             placeholder="Search by ID, Customer, SKU, Product, Email, or Tracking #"
                             value={searchQuery}
@@ -612,8 +624,21 @@ const OrderManagement = () => {
                                 setSearchQuery(e.target.value);
                                 setCurrentPage(1);
                             }}
-                            className="w-full"
+                            className="w-full pl-9 pr-9"
                         />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchQuery("");
+                                    setCurrentPage(1);
+                                }}
+                                className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted"
+                                title="Clear search filter"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

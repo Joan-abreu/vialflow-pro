@@ -115,6 +115,90 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Order not found");
     }
 
+    // Check previous email_logs for duplicate & out-of-order progression prevention
+    const { data: previousLogs } = await supabase
+      .from("email_logs")
+      .select("type, subject, status, created_at")
+      .eq("related_id", order.id)
+      .eq("status", "sent");
+
+    const STATUS_RANK: Record<string, number> = {
+      "pending_payment": 1,
+      "processing": 2,
+      "in_production": 3,
+      "ready_to_ship": 4,
+      "label_created": 5,
+      "pickup_scheduled": 6,
+      "shipped": 7,
+      "in_transit": 8,
+      "out_for_delivery": 9,
+      "delivered": 10,
+      "cancelled": 99,
+    };
+
+    const targetStatusKey = (type === "status_update" ? order.status : type).toLowerCase();
+    const targetRank = STATUS_RANK[targetStatusKey] || 0;
+
+    if (previousLogs && previousLogs.length > 0) {
+      // 1. Prevent duplicate customer_confirmation
+      if (type === "customer_confirmation") {
+        const alreadySentConfirm = previousLogs.some(log => log.type === "customer_confirmation");
+        if (alreadySentConfirm) {
+          console.log(`[Email Skipped] Order #${order.id.slice(0, 8)}: Order confirmation already sent.`);
+          return new Response(JSON.stringify({ success: true, skipped: true, reason: "Order confirmation email already sent" }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // 2. Prevent duplicate status update for exact same stage
+      if (type !== "admin_notification") {
+        const alreadySentExactStatus = previousLogs.some(log => {
+          const logSubject = (log.subject || "").toLowerCase();
+          const targetFormatted = targetStatusKey.replace(/_/g, " ");
+          return logSubject.includes(targetFormatted) || log.type === targetStatusKey;
+        });
+
+        if (alreadySentExactStatus) {
+          console.log(`[Email Skipped] Order #${order.id.slice(0, 8)}: Email for status '${targetStatusKey}' was already sent.`);
+          return new Response(JSON.stringify({ success: true, skipped: true, reason: `Email for status '${targetStatusKey}' already sent` }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // 3. Prevent sending backward / prior status emails if order has progressed
+        let highestSentRank = 0;
+        let highestSentStatusName = "";
+
+        previousLogs.forEach(log => {
+          Object.keys(STATUS_RANK).forEach(st => {
+            const stName = st.replace(/_/g, " ");
+            if ((log.subject || "").toLowerCase().includes(stName) || log.type === st) {
+              const r = STATUS_RANK[st];
+              if (r > highestSentRank && st !== "cancelled") {
+                highestSentRank = r;
+                highestSentStatusName = st;
+              }
+            }
+          });
+        });
+
+        if (targetRank > 0 && highestSentRank > 0 && targetRank < highestSentRank && targetStatusKey !== "cancelled") {
+          console.log(`[Email Skipped] Order #${order.id.slice(0, 8)}: Status '${targetStatusKey}' (rank ${targetRank}) is prior to highest notified status '${highestSentStatusName}' (rank ${highestSentRank}).`);
+          return new Response(JSON.stringify({
+            success: true,
+            skipped: true,
+            reason: `Out-of-order email skipped. Higher stage '${highestSentStatusName}' was already notified.`
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
     // Resolve Customer Name
     let customerName = "Customer";
     let customerEmail = order.customer_email || "";

@@ -85,8 +85,25 @@ const Coupons = () => {
     // Searchable Customer Selector state
     const [userSearchOpen, setUserSearchOpen] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [customEmailInput, setCustomEmailInput] = useState("");
     
     const queryClient = useQueryClient();
+
+    const handleAddCustomEmail = () => {
+        const email = customEmailInput.trim().toLowerCase();
+        if (!email) return;
+        if (!email.includes("@") || !email.includes(".")) {
+            toast.error("Please enter a valid email address");
+            return;
+        }
+        if (selectedUserIds.includes(email)) {
+            toast.error("Email already added");
+            return;
+        }
+        setSelectedUserIds(prev => [...prev, email]);
+        setCustomEmailInput("");
+        toast.success(`Added restriction for ${email}`);
+    };
 
     // Fetch coupons
     const { data: coupons, isLoading } = useQuery({
@@ -190,7 +207,10 @@ const Coupons = () => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         
-        const couponData = {
+        const validUuids = selectedUserIds.filter(id => !id.includes("@"));
+        const emailStrings = selectedUserIds.filter(id => id.includes("@"));
+
+        const couponData: any = {
             code: (formData.get("code") as string).trim().toUpperCase(),
             target: formData.get("target") as any,
             type: formData.get("type") as any,
@@ -199,7 +219,8 @@ const Coupons = () => {
             expires_at: expiryDate ? expiryDate.toISOString() : null,
             is_active: formData.get("is_active") === "on",
             one_use_per_user: formData.get("one_use_per_user") === "on",
-            restricted_to_user_ids: selectedUserIds.length > 0 ? selectedUserIds : [],
+            restricted_to_user_ids: validUuids,
+            restricted_to_emails: emailStrings,
         };
 
         if (editingCoupon) {
@@ -216,7 +237,11 @@ const Coupons = () => {
     const handleEdit = (coupon: Coupon) => {
         setEditingCoupon(coupon);
         setExpiryDate(coupon.expires_at ? new Date(coupon.expires_at) : undefined);
-        setSelectedUserIds(coupon.restricted_to_user_ids || []);
+        const combined = [
+            ...(coupon.restricted_to_user_ids || []),
+            ...((coupon as any).restricted_to_emails || [])
+        ];
+        setSelectedUserIds(combined);
         setIsDialogOpen(true);
     };
 
@@ -388,10 +413,11 @@ const Coupons = () => {
                                             <div className="flex flex-wrap gap-1 items-start max-w-[90%]">
                                                 {selectedUserIds.length > 0 ? (
                                                     selectedUserIds.map(id => {
-                                                        const user = users?.find(u => u.user_id === id);
+                                                        const user = users?.find(u => u.user_id === id || u.email?.toLowerCase() === id.toLowerCase());
+                                                        const label = user ? (user.full_name || user.email) : id;
                                                         return (
                                                             <Badge key={id} variant="secondary" className="text-[10px] h-5 py-0 px-1 font-medium bg-primary/10 text-primary border-primary/20 flex items-center gap-1 group">
-                                                                {user?.full_name || "Unknown"}
+                                                                {label}
                                                                 <div 
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
@@ -463,6 +489,31 @@ const Coupons = () => {
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
+
+                                <div className="flex gap-2 pt-1">
+                                    <Input
+                                        type="email"
+                                        placeholder="Or type prospect email (e.g. buyer@domain.com)..."
+                                        value={customEmailInput}
+                                        onChange={(e) => setCustomEmailInput(e.target.value)}
+                                        className="h-8 text-xs"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAddCustomEmail();
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs shrink-0"
+                                        onClick={handleAddCustomEmail}
+                                    >
+                                        + Add Email
+                                    </Button>
+                                </div>
                             </div>
 
                             <Button type="submit" className="w-full mt-6" disabled={createCouponMutation.isPending || updateCouponMutation.isPending}>
@@ -536,21 +587,30 @@ const Coupons = () => {
                                                 {coupon.one_use_per_user && (
                                                     <Badge variant="outline" className="text-[9px] h-4 py-0 bg-blue-50 text-blue-600 border-blue-200">Single Use</Badge>
                                                 )}
-                                                {coupon.restricted_to_user_ids && coupon.restricted_to_user_ids.length > 0 && (
-                                                    <div className="flex flex-col gap-0.5 mt-1 border-t border-amber-100 pt-1">
-                                                        <span className="text-[8px] text-amber-700 font-bold uppercase tracking-wider">Restricted to:</span>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {coupon.restricted_to_user_ids.map(id => {
-                                                                const user = users?.find(u => u.user_id === id);
-                                                                return (
-                                                                    <span key={id} className="text-[9px] bg-amber-50 text-amber-600 px-1 rounded-sm border border-amber-200 truncate max-w-[120px]">
-                                                                        {user?.full_name || "Unknown"}
-                                                                    </span>
-                                                                );
-                                                            })}
+                                                {(() => {
+                                                    const userIds = coupon.restricted_to_user_ids || [];
+                                                    const emailList = (coupon as any).restricted_to_emails || [];
+                                                    const allRestrictions = Array.from(new Set([...userIds, ...emailList]));
+
+                                                    if (allRestrictions.length === 0) return null;
+
+                                                    return (
+                                                        <div className="flex flex-col gap-0.5 mt-1 border-t border-amber-100 pt-1">
+                                                            <span className="text-[8px] text-amber-700 font-bold uppercase tracking-wider">Restricted to ({allRestrictions.length}):</span>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {allRestrictions.map(id => {
+                                                                    const user = users?.find(u => u.user_id === id || u.email?.toLowerCase() === id.toLowerCase());
+                                                                    const label = user ? (user.full_name || user.email) : id;
+                                                                    return (
+                                                                        <span key={id} className="text-[9px] bg-amber-50 text-amber-700 px-1 py-0.5 rounded-sm border border-amber-200 truncate max-w-[150px] font-medium" title={label}>
+                                                                            {label}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </TableCell>

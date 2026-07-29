@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -16,25 +15,31 @@ serve(async (req) => {
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-        console.log(`Supabase URL is ${supabaseUrl ? 'present' : 'MISSING'}`);
-        console.log(`Supabase Key is ${supabaseKey ? 'present' : 'MISSING'}`);
-
         const supabase = createClient(
             supabaseUrl ?? "",
             supabaseKey ?? ""
         );
 
-        let { codes, subtotal, shipping, userId } = await req.json();
-        console.log(`Validating codes: ${JSON.stringify(codes)} for user: ${userId}`);
+        let { codes, subtotal, shipping, userId, email, shippingAddress } = await req.json();
         
         // Ensure values are numbers
         subtotal = Number(subtotal) || 0;
         shipping = Number(shipping) || 0;
-        console.log(`Subtotal: ${subtotal}, Shipping: ${shipping}`);
 
         if (!codes || !Array.isArray(codes)) {
-            console.error("Invalid request body: codes is not an array");
             throw new Error("Invalid request: codes must be an array");
+        }
+
+        let userEmail = (email || "").trim().toLowerCase();
+        if (!userEmail && userId) {
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("email")
+                .eq("user_id", userId)
+                .maybeSingle();
+            if (profile?.email) {
+                userEmail = profile.email.trim().toLowerCase();
+            }
         }
 
         let currentSubtotal = subtotal;
@@ -44,8 +49,6 @@ serve(async (req) => {
         for (const code of codes) {
             const trimmedCode = code.trim().toUpperCase();
             if (!trimmedCode) continue;
-
-            console.log(`Checking code: ${trimmedCode}`);
 
             // 1. Check if it's a standard coupon
             const { data: coupon, error: couponError } = await supabase
@@ -60,43 +63,112 @@ serve(async (req) => {
             }
 
             if (coupon) {
-                console.log(`Found standard coupon: ${JSON.stringify(coupon)}`);
                 // Check expiry
                 if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-                    continue;
+                    throw new Error(`Coupon ${trimmedCode} has expired.`);
                 }
-                // Check usage limit
+                // Check global usage limit
                 if (coupon.max_uses && coupon.times_used >= coupon.max_uses) {
-                    continue;
+                    throw new Error(`Coupon ${trimmedCode} has reached its maximum global usage limit.`);
                 }
 
-                // New Restriction: Check if restricted to specific users
-                if (coupon.restricted_to_user_ids && Array.isArray(coupon.restricted_to_user_ids) && coupon.restricted_to_user_ids.length > 0) {
-                    if (!userId) {
-                        console.log(`Code ${trimmedCode} is restricted but no userId provided`);
-                        continue;
+                // Restriction Check: Specific Customer / Email
+                const userRestrictions = Array.isArray(coupon.restricted_to_user_ids) ? coupon.restricted_to_user_ids : [];
+                const emailRestrictions = Array.isArray(coupon.restricted_to_emails) ? coupon.restricted_to_emails : [];
+                const allRestrictions = [...userRestrictions, ...emailRestrictions].map((r: string) => r.trim().toLowerCase());
+
+                if (allRestrictions.length > 0) {
+                    let isAllowed = false;
+
+                    // Match 1: Directly matches userId
+                    if (userId && allRestrictions.includes(userId.toLowerCase())) {
+                        isAllowed = true;
                     }
-                    if (!coupon.restricted_to_user_ids.includes(userId)) {
-                        console.log(`Code ${trimmedCode} is restricted to [${coupon.restricted_to_user_ids.join(', ')}], but user is ${userId}`);
-                        continue;
+
+                    // Match 2: Directly matches email address
+                    if (!isAllowed && userEmail && allRestrictions.includes(userEmail)) {
+                        isAllowed = true;
+                    }
+
+                    // Match 3: If restriction is a user_id UUID, check if user's email matches profile
+                    if (!isAllowed && userEmail && userRestrictions.length > 0) {
+                        const { data: restrictedProfiles } = await supabase
+                            .from("profiles")
+                            .select("email")
+                            .in("user_id", userRestrictions);
+                        
+                        if (restrictedProfiles && restrictedProfiles.some((p: any) => p.email?.trim().toLowerCase() === userEmail)) {
+                            isAllowed = true;
+                        }
+                    }
+
+                    if (!isAllowed) {
+                        throw new Error(`Coupon ${trimmedCode} is restricted to specific customer email address(es).`);
                     }
                 }
 
-                // New Restriction: One use per customer
-                if (coupon.one_use_per_user && userId) {
-                    const { data: previousUsage, error: usageError } = await supabase
-                        .from("orders")
-                        .select("id")
-                        .eq("user_id", userId)
-                        .not("status", "in", '("cancelled", "failed")')
-                        .contains("applied_coupons", [trimmedCode])
-                        .limit(1);
+                // Anti-Fraud & Single-Use Check (by Email, User ID, and Shipping Address)
+                if (coupon.one_use_per_user) {
+                    let isAlreadyUsed = false;
 
-                    if (usageError) {
-                        console.error(`Error checking previous usage for ${trimmedCode}:`, usageError);
-                    } else if (previousUsage && previousUsage.length > 0) {
-                        console.log(`Code ${trimmedCode} already used by user ${userId}`);
-                        continue;
+                    // Check by email
+                    if (userEmail) {
+                        const { data: emailUsage } = await supabase
+                            .from("orders")
+                            .select("id")
+                            .ilike("customer_email", userEmail)
+                            .not("status", "in", '("cancelled", "failed")')
+                            .contains("applied_coupons", [trimmedCode])
+                            .limit(1);
+
+                        if (emailUsage && emailUsage.length > 0) {
+                            isAlreadyUsed = true;
+                        }
+                    }
+
+                    // Check by user ID
+                    if (!isAlreadyUsed && userId) {
+                        const { data: userUsage } = await supabase
+                            .from("orders")
+                            .select("id")
+                            .eq("user_id", userId)
+                            .not("status", "in", '("cancelled", "failed")')
+                            .contains("applied_coupons", [trimmedCode])
+                            .limit(1);
+
+                        if (userUsage && userUsage.length > 0) {
+                            isAlreadyUsed = true;
+                        }
+                    }
+
+                    // Anti-fraud check by shipping address (prevents creating duplicate accounts to re-use coupon)
+                    if (!isAlreadyUsed && shippingAddress?.line1 && (shippingAddress?.zip || shippingAddress?.postal_code)) {
+                        const cleanLine1 = shippingAddress.line1.trim().toLowerCase();
+                        const cleanZip = (shippingAddress.zip || shippingAddress.postal_code || "").trim().substring(0, 5);
+
+                        const { data: addressOrders } = await supabase
+                            .from("orders")
+                            .select("id, shipping_address")
+                            .not("status", "in", '("cancelled", "failed")')
+                            .contains("applied_coupons", [trimmedCode])
+                            .limit(25);
+
+                        if (addressOrders && addressOrders.length > 0) {
+                            const addressMatch = addressOrders.some((o: any) => {
+                                const addr = o.shipping_address || {};
+                                const oLine1 = (addr.line1 || addr.street1 || "").trim().toLowerCase();
+                                const oZip = (addr.postal_code || addr.zip || "").trim().substring(0, 5);
+                                return oLine1 === cleanLine1 && oZip === cleanZip;
+                            });
+
+                            if (addressMatch) {
+                                isAlreadyUsed = true;
+                            }
+                        }
+                    }
+
+                    if (isAlreadyUsed) {
+                        throw new Error(`This single-use coupon (${trimmedCode}) has already been redeemed for this email address or shipping address.`);
                     }
                 }
 
@@ -127,7 +199,6 @@ serve(async (req) => {
             }
 
             // 2. Check if it's a referral code (Referrer Reward)
-            // If the user is entering their OWN code to get their earned discount
             if (userId) {
                 const { data: profile } = await supabase
                     .from("profiles")
@@ -136,8 +207,6 @@ serve(async (req) => {
                     .single();
 
                 if (profile && profile.referral_code === trimmedCode) {
-                    // Block self-referral/self-reward as per user request
-                    console.log(`User ${userId} tried to use their own referral code ${trimmedCode}`);
                     throw new Error("You cannot use your own referral code");
                 }
             }
@@ -153,13 +222,10 @@ serve(async (req) => {
             }
 
             if (otherProfile) {
-                console.log(`Found referee code owner: ${otherProfile.user_id}`);
                 if (userId && otherProfile.user_id === userId) {
-                    console.log(`Self-referral detected for user ${userId}`);
                     throw new Error("You cannot use your own referral code");
                 }
-                 // Referee gets no discount for now as per requirements
-                 appliedDiscounts.push({
+                appliedDiscounts.push({
                     code: trimmedCode,
                     amount: 0,
                     target: 'none',

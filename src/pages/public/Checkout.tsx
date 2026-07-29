@@ -230,12 +230,18 @@ const Checkout = () => {
 
         setIsValidatingCoupon(true);
         try {
+            const emailToValidate = session?.user?.email || currentAddress?.email;
             const { data, error } = await supabase.functions.invoke('validate-coupon', {
                 body: { 
                     codes: uniqueCodes, 
                     subtotal: cartTotal, 
                     shipping: currentShipCost ?? shippingCost,
-                    userId: session?.user?.id
+                    userId: session?.user?.id,
+                    email: emailToValidate,
+                    shippingAddress: currentAddress ? {
+                        line1: currentAddress.line1 || currentAddress.street1,
+                        zip: currentAddress.postal_code || currentAddress.zip,
+                    } : null
                 }
             });
 

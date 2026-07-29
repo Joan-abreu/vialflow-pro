@@ -97,12 +97,39 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
         }
     }, [open]);
 
+    const [customEmail, setCustomEmail] = useState("");
+
+    // Auto-select restricted email addresses if passed in restrictedToUserIds
+    useEffect(() => {
+        if (open && restrictedToUserIds && restrictedToUserIds.length > 0) {
+            const emailRestrictions = restrictedToUserIds.filter(r => r.includes("@"));
+            if (emailRestrictions.length > 0) {
+                setSelectedEmails(prev => Array.from(new Set([...prev, ...emailRestrictions])));
+            }
+        }
+    }, [open, restrictedToUserIds]);
+
+    const handleAddCustomEmail = () => {
+        const e = customEmail.trim().toLowerCase();
+        if (!e || !e.includes("@")) {
+            toast.error("Please enter a valid email address");
+            return;
+        }
+        if (selectedEmails.includes(e)) {
+            toast.error("Email already selected");
+            return;
+        }
+        setSelectedEmails(prev => [...prev, e]);
+        setCustomEmail("");
+        toast.success(`Added ${e} to recipients`);
+    };
+
     const filteredCustomers = useMemo(() => {
         let result = customers;
         
-        // Filter by restricted users if applicable
+        // Filter by restricted users if applicable (supporting both user IDs and email addresses)
         if (restrictedToUserIds && restrictedToUserIds.length > 0) {
-            result = result.filter(c => restrictedToUserIds.includes(c.id));
+            result = result.filter(c => restrictedToUserIds.includes(c.id) || restrictedToUserIds.includes(c.email?.toLowerCase()));
         }
 
         if (!searchQuery) return result;
@@ -215,6 +242,30 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
                             </Button>
                         </div>
                         
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="Add prospect/guest email (e.g. prospect@domain.com)..."
+                                className="h-9 text-sm"
+                                value={customEmail}
+                                onChange={(e) => setCustomEmail(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddCustomEmail();
+                                    }
+                                }}
+                            />
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="h-9 text-xs shrink-0"
+                                onClick={handleAddCustomEmail}
+                            >
+                                + Add Recipient
+                            </Button>
+                        </div>
+
                         <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input

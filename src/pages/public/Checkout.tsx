@@ -278,9 +278,7 @@ const Checkout = () => {
                 message = error.message;
             }
             
-            toast.error(message, {
-                description: "Codes cannot be used by the same person who created them."
-            });
+            toast.error(message);
         } finally {
             setIsValidatingCoupon(false);
         }

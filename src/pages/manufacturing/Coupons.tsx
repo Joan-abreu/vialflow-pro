@@ -16,6 +16,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -41,7 +42,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon, Mail, Search, X } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Ticket, Trash2, RefreshCcw, Calendar as CalendarIcon, Mail, Search, X, History, Clock, Loader2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import CopyCell from "@/components/CopyCell";
 import { SendCouponDialog } from "@/components/shared/SendCouponDialog";
@@ -80,12 +81,119 @@ const Coupons = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
     const [deletingCoupon, setDeletingCoupon] = useState<Coupon | null>(null);
+    const [historyCoupon, setHistoryCoupon] = useState<Coupon | null>(null);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
     
     // Searchable Customer Selector state
     const [userSearchOpen, setUserSearchOpen] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [customEmailInput, setCustomEmailInput] = useState("");
+
+    // Fetch redemption history for selected coupon
+    const { data: historyOrders, isLoading: isHistoryLoading } = useQuery({
+        queryKey: ["coupon-history", historyCoupon?.code],
+        enabled: !!historyCoupon,
+        queryFn: async () => {
+            const { data: ordersData, error } = await supabase
+                .from("orders")
+                .select("id, user_id, customer_email, shipping_address, status, total_amount, created_at, applied_coupons")
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.error("Error fetching history orders:", error);
+                throw error;
+            }
+
+            const targetCode = historyCoupon!.code.trim().toUpperCase();
+
+            console.log("[Coupon History Debug] Target Code:", targetCode, "Target Coupon ID:", historyCoupon!.id);
+            console.log("[Coupon History Debug] Total Orders in DB:", ordersData?.length);
+            
+            const ordersWithCoupons = (ordersData || []).filter(o => o.applied_coupons && (Array.isArray(o.applied_coupons) ? o.applied_coupons.length > 0 : true));
+            console.log("[Coupon History Debug] Orders with non-empty applied_coupons:", ordersWithCoupons.length, ordersWithCoupons.slice(0, 5));
+
+            // Fetch profiles for customer names if user_ids are present
+            const userIds = [...new Set((ordersData || []).map((o: any) => o.user_id).filter(Boolean))];
+            let profileMap: Record<string, string> = {};
+
+            if (userIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from("profiles")
+                    .select("user_id, full_name")
+                    .in("user_id", userIds);
+                
+                (profiles || []).forEach((p: any) => {
+                    if (p.user_id && p.full_name) profileMap[p.user_id] = p.full_name;
+                });
+            }
+
+            const couponId = historyCoupon!.id;
+
+            const matchedOrders = (ordersData || []).filter((o: any) => {
+                if (!o.applied_coupons) return false;
+
+                const raw = o.applied_coupons;
+
+                // Case 1: Array of strings or objects
+                if (Array.isArray(raw)) {
+                    return raw.some((c: any) => {
+                        if (typeof c === "string") {
+                            const clean = c.trim().toUpperCase();
+                            return clean === targetCode || clean === couponId;
+                        }
+                        if (typeof c === "object" && c) {
+                            const codeMatch = c.code && String(c.code).trim().toUpperCase() === targetCode;
+                            const idMatch = c.id && String(c.id) === couponId;
+                            return codeMatch || idMatch;
+                        }
+                        return false;
+                    });
+                }
+
+                // Case 2: String representation of JSON or code string
+                if (typeof raw === "string") {
+                    const cleanStr = raw.trim().toUpperCase();
+                    if (cleanStr === targetCode || cleanStr.includes(targetCode) || cleanStr.includes(couponId)) return true;
+
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            return parsed.some((c: any) => {
+                                if (typeof c === "string") {
+                                    const clean = c.trim().toUpperCase();
+                                    return clean === targetCode || clean === couponId;
+                                }
+                                if (typeof c === "object" && c) {
+                                    const codeMatch = c.code && String(c.code).trim().toUpperCase() === targetCode;
+                                    const idMatch = c.id && String(c.id) === couponId;
+                                    return codeMatch || idMatch;
+                                }
+                                return false;
+                            });
+                        }
+                    } catch (e) {
+                        // ignore JSON parse error
+                    }
+                }
+
+                // Case 3: Object containing code or id
+                if (typeof raw === "object" && raw) {
+                    const codeMatch = raw.code && String(raw.code).trim().toUpperCase() === targetCode;
+                    const idMatch = raw.id && String(raw.id) === couponId;
+                    return codeMatch || idMatch;
+                }
+
+                return false;
+            });
+
+            console.log("[Coupon History Debug] Matched Orders:", matchedOrders.length, matchedOrders);
+
+            return matchedOrders.map((o: any) => ({
+                ...o,
+                customer_name: (o.user_id && profileMap[o.user_id]) || (o.shipping_address as any)?.full_name || (o.shipping_address as any)?.name || "Customer"
+            }));
+        },
+    });
     
     const queryClient = useQueryClient();
 
@@ -632,6 +740,15 @@ const Coupons = () => {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50" 
+                                                onClick={() => setHistoryCoupon(coupon)}
+                                                title="View Redemption History"
+                                            >
+                                                <History className="h-4 w-4" />
+                                            </Button>
                                             <SendCouponDialog 
                                                 couponCode={coupon.code}
                                                 discountDetails={coupon.type === 'percentage' ? `${coupon.value}% off ${coupon.target}` : `$${coupon.value.toFixed(2)} off ${coupon.target}`}
@@ -643,10 +760,10 @@ const Coupons = () => {
                                                     </Button>
                                                 }
                                             />
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(coupon)}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(coupon)} title="Edit Coupon">
                                                 <Ticket className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingCoupon(coupon)}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingCoupon(coupon)} title="Delete Coupon">
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>
@@ -658,6 +775,7 @@ const Coupons = () => {
                 </Table>
             </div>
 
+            {/* Delete Confirmation Alert */}
             <AlertDialog open={!!deletingCoupon} onOpenChange={(open) => !open && setDeletingCoupon(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -670,14 +788,109 @@ const Coupons = () => {
                     <div className="flex justify-end gap-3 pt-4">
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction 
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={() => deletingCoupon && deleteCouponMutation.mutate(deletingCoupon.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
                             Delete Coupon
                         </AlertDialogAction>
                     </div>
                 </AlertDialogContent>
             </AlertDialog>
+            {/* Coupon Usage / Redemption History Modal */}
+            <Dialog open={!!historyCoupon} onOpenChange={(open) => !open && setHistoryCoupon(null)}>
+                <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl">
+                            <History className="h-5 w-5 text-primary" />
+                            Redemption History: <span className="font-mono text-primary font-bold">{historyCoupon?.code}</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                            List of all completed customer orders where coupon <strong>{historyCoupon?.code}</strong> was redeemed.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex items-center justify-between py-2 border-b text-xs">
+                        <span className="text-muted-foreground">
+                            Total Redemptions: <strong className="text-foreground font-semibold">{historyOrders?.length || 0} order(s)</strong>
+                        </span>
+                        {historyCoupon && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 font-mono">
+                                {historyCoupon.type === 'percentage' ? `${historyCoupon.value}% OFF` : `$${historyCoupon.value.toFixed(2)} OFF`} ({historyCoupon.target})
+                            </Badge>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto border rounded-md min-h-[250px]">
+                        {isHistoryLoading ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                <span className="text-xs">Loading coupon redemptions...</span>
+                            </div>
+                        ) : !historyOrders || historyOrders.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 text-center px-6">
+                                <Clock className="h-8 w-8 text-muted-foreground/30" />
+                                <span className="font-medium text-sm">No completed customer order records found matching this coupon.</span>
+                                {historyCoupon && historyCoupon.times_used > 0 && (
+                                    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 max-w-md text-left shadow-sm">
+                                        <p className="font-semibold mb-1 flex items-center gap-1">
+                                            ℹ️ Usage Counter Note ({historyCoupon.times_used} recorded):
+                                        </p>
+                                        <p className="text-[11px] leading-relaxed text-amber-700">
+                                            This coupon shows <strong>{historyCoupon.times_used} usage(s)</strong> in its database counter from past test executions or manual increments, but none of the 321 orders currently in your database have <code>"{historyCoupon.code}"</code> saved in their <code>applied_coupons</code> column.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <Table>
+                                <TableHeader className="bg-muted/50 text-xs sticky top-0 z-10">
+                                    <TableRow className="h-9">
+                                        <TableHead>Order ID</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead>Date & Time</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Order Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {historyOrders.map((order: any) => (
+                                        <TableRow key={order.id} className="text-xs hover:bg-muted/30">
+                                            <TableCell className="font-mono font-semibold text-primary">
+                                                #{order.id.slice(0, 8)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">
+                                                    {order.customer_name}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground">
+                                                    {order.customer_email || "No email"}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-[11px]">
+                                                {format(new Date(order.created_at), "MMM d, yyyy h:mm a")}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="capitalize text-[10px] bg-slate-50">
+                                                    {order.status.replace(/_/g, ' ')}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold text-emerald-700">
+                                                ${Number(order.total_amount || 0).toFixed(2)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </div>
+
+                    <DialogFooter className="pt-2 border-t flex justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setHistoryCoupon(null)}>
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

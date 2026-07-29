@@ -111,58 +111,55 @@ serve(async (req) => {
                 if (coupon.one_use_per_user) {
                     let isAlreadyUsed = false;
 
-                    // Check by email
-                    if (userEmail) {
-                        const { data: emailUsage } = await supabase
-                            .from("orders")
-                            .select("id")
-                            .ilike("customer_email", userEmail)
-                            .not("status", "in", '("cancelled", "failed")')
-                            .contains("applied_coupons", [trimmedCode])
-                            .limit(1);
+                    const { data: recentOrders } = await supabase
+                        .from("orders")
+                        .select("id, user_id, customer_email, shipping_address, applied_coupons")
+                        .not("status", "in", '("cancelled", "failed")')
+                        .not("applied_coupons", "is", null)
+                        .limit(200);
 
-                        if (emailUsage && emailUsage.length > 0) {
-                            isAlreadyUsed = true;
-                        }
-                    }
+                    if (recentOrders && recentOrders.length > 0) {
+                        const targetCode = trimmedCode.trim().toUpperCase();
+                        
+                        const couponOrders = recentOrders.filter((o: any) => {
+                            if (!o.applied_coupons) return false;
+                            if (Array.isArray(o.applied_coupons)) {
+                                return o.applied_coupons.some((c: any) => {
+                                    if (typeof c === "string") return c.trim().toUpperCase() === targetCode;
+                                    if (typeof c === "object" && c?.code) return c.code.trim().toUpperCase() === targetCode;
+                                    return false;
+                                });
+                            }
+                            if (typeof o.applied_coupons === "string") {
+                                return o.applied_coupons.trim().toUpperCase().includes(targetCode);
+                            }
+                            return false;
+                        });
 
-                    // Check by user ID
-                    if (!isAlreadyUsed && userId) {
-                        const { data: userUsage } = await supabase
-                            .from("orders")
-                            .select("id")
-                            .eq("user_id", userId)
-                            .not("status", "in", '("cancelled", "failed")')
-                            .contains("applied_coupons", [trimmedCode])
-                            .limit(1);
-
-                        if (userUsage && userUsage.length > 0) {
-                            isAlreadyUsed = true;
-                        }
-                    }
-
-                    // Anti-fraud check by shipping address (prevents creating duplicate accounts to re-use coupon)
-                    if (!isAlreadyUsed && shippingAddress?.line1 && (shippingAddress?.zip || shippingAddress?.postal_code)) {
-                        const cleanLine1 = shippingAddress.line1.trim().toLowerCase();
-                        const cleanZip = (shippingAddress.zip || shippingAddress.postal_code || "").trim().substring(0, 5);
-
-                        const { data: addressOrders } = await supabase
-                            .from("orders")
-                            .select("id, shipping_address")
-                            .not("status", "in", '("cancelled", "failed")')
-                            .contains("applied_coupons", [trimmedCode])
-                            .limit(25);
-
-                        if (addressOrders && addressOrders.length > 0) {
-                            const addressMatch = addressOrders.some((o: any) => {
-                                const addr = o.shipping_address || {};
-                                const oLine1 = (addr.line1 || addr.street1 || "").trim().toLowerCase();
-                                const oZip = (addr.postal_code || addr.zip || "").trim().substring(0, 5);
-                                return oLine1 === cleanLine1 && oZip === cleanZip;
-                            });
-
-                            if (addressMatch) {
+                        if (couponOrders.length > 0) {
+                            // 1. Check email match
+                            if (userEmail && couponOrders.some((o: any) => o.customer_email?.trim().toLowerCase() === userEmail)) {
                                 isAlreadyUsed = true;
+                            }
+
+                            // 2. Check userId match
+                            if (!isAlreadyUsed && userId && couponOrders.some((o: any) => o.user_id === userId)) {
+                                isAlreadyUsed = true;
+                            }
+
+                            // 3. Check shipping address match
+                            if (!isAlreadyUsed && shippingAddress?.line1 && (shippingAddress?.zip || shippingAddress?.postal_code)) {
+                                const cleanLine1 = shippingAddress.line1.trim().toLowerCase();
+                                const cleanZip = (shippingAddress.zip || shippingAddress.postal_code || "").trim().substring(0, 5);
+
+                                const addrMatch = couponOrders.some((o: any) => {
+                                    const addr = o.shipping_address || {};
+                                    const oLine1 = (addr.line1 || addr.street1 || "").trim().toLowerCase();
+                                    const oZip = (addr.postal_code || addr.zip || "").trim().substring(0, 5);
+                                    return oLine1 === cleanLine1 && oZip === cleanZip;
+                                });
+
+                                if (addrMatch) isAlreadyUsed = true;
                             }
                         }
                     }

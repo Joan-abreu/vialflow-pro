@@ -139,6 +139,29 @@ const handler = async (req: Request): Promise<Response> => {
     const targetStatusKey = (type === "status_update" ? order.status : type).toLowerCase();
     const targetRank = STATUS_RANK[targetStatusKey] || 0;
 
+    // Internal fulfillment states should NOT trigger emails to customers
+    const INTERNAL_FULFILLMENT_STATUSES = [
+      "pending",
+      "pending_payment",
+      "processing",
+      "in_production",
+      "ready_to_ship",
+      "label_created",
+      "pickup_scheduled",
+    ];
+
+    if (type === "status_update" && INTERNAL_FULFILLMENT_STATUSES.includes(targetStatusKey)) {
+      console.log(`[Email Skipped] Order #${order.id.slice(0, 8)}: Internal status '${targetStatusKey}' does not trigger customer email.`);
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: `Internal status '${targetStatusKey}' does not trigger customer email`
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (previousLogs && previousLogs.length > 0) {
       // 1. Prevent duplicate customer_confirmation
       if (type === "customer_confirmation") {

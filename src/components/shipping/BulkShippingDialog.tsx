@@ -370,6 +370,9 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
         setIsProcessing(true);
         setProgress(25);
 
+        // Pre-open tab synchronously during user gesture so browser popup blocker does not block it
+        const pdfTab = window.open('', '_blank');
+
         try {
             if (selectedCarrier === "SHIPPO") {
                 // Call single-request Shippo Batches API (POST /v1/batches and /v1/batches/{id}/purchase)
@@ -399,11 +402,17 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                 });
 
                 if (error || !data?.success) {
+                    if (pdfTab) pdfTab.close();
                     throw new Error(data?.error || error?.message || "Shippo Batch Purchase failed");
                 }
 
                 if (data.batchLabelUrl) {
                     setBatchPdfUrl(data.batchLabelUrl);
+                    if (pdfTab) {
+                        pdfTab.location.href = data.batchLabelUrl;
+                    }
+                } else if (pdfTab) {
+                    pdfTab.close();
                 }
 
                 const updatedState = [...itemsState];
@@ -423,14 +432,11 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
 
                 setItemsState(updatedState);
                 setProgress(100);
-                toast.success(`Successfully purchased ${ratedOrReadyItems.length} shipping labels in ONE single transaction!`);
-
-                if (data.batchLabelUrl) {
-                    window.open(data.batchLabelUrl, '_blank');
-                }
+                toast.success(`Successfully purchased ${ratedOrReadyItems.length} shipping labels!`);
 
                 if (onSuccess) onSuccess();
             } else {
+                if (pdfTab) pdfTab.close();
                 // Direct carrier sequential fallback
                 const updatedState = [...itemsState];
                 let count = 0;
@@ -480,6 +486,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                 if (count > 0 && onSuccess) onSuccess();
             }
         } catch (err: any) {
+            if (pdfTab) pdfTab.close();
             console.error("Bulk purchase error:", err);
             toast.error(err.message || "Failed to purchase bulk labels");
         } finally {

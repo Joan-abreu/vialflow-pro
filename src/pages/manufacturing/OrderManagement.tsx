@@ -194,6 +194,8 @@ const OrderManagement = () => {
         return map;
     }, [allOrderNotes]);
 
+    const CUSTOMER_NOTIFY_STATUSES = ['shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled'];
+
     const updateStatusMutation = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
             const { error } = await supabase
@@ -203,12 +205,14 @@ const OrderManagement = () => {
 
             if (error) throw error;
 
-            try {
-                await supabase.functions.invoke("send-order-email", {
-                    body: { order_id: orderId, type: "status_update" },
-                });
-            } catch (emailErr) {
-                console.error("Error sending status email:", emailErr);
+            if (CUSTOMER_NOTIFY_STATUSES.includes(status)) {
+                try {
+                    await supabase.functions.invoke("send-order-email", {
+                        body: { order_id: orderId, type: "status_update" },
+                    });
+                } catch (emailErr) {
+                    console.error("Error sending status email:", emailErr);
+                }
             }
         },
         onSuccess: () => {
@@ -259,13 +263,15 @@ const OrderManagement = () => {
 
             if (error) throw error;
 
-            for (const id of orderIds) {
-                try {
-                    await supabase.functions.invoke("send-order-email", {
-                        body: { order_id: id, type: "status_update" },
-                    });
-                } catch (emailErr) {
-                    console.error(`Error sending bulk status email for order ${id}:`, emailErr);
+            if (CUSTOMER_NOTIFY_STATUSES.includes(status)) {
+                for (const id of orderIds) {
+                    try {
+                        await supabase.functions.invoke("send-order-email", {
+                            body: { order_id: id, type: "status_update" },
+                        });
+                    } catch (emailErr) {
+                        console.error(`Error sending bulk status email for order ${id}:`, emailErr);
+                    }
                 }
             }
         },

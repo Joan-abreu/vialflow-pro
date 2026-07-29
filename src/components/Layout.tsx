@@ -443,7 +443,7 @@ const Layout = ({ children }: LayoutProps) => {
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0">
+          <SheetContent side="left" className="w-56 p-0">
             <div className="flex h-full flex-col">
               <div className="flex h-16 items-center border-b px-6">
                 <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
@@ -494,15 +494,16 @@ const Layout = ({ children }: LayoutProps) => {
 
           {/* Main content with header */}
           <div className="flex-1 flex flex-col min-w-0">
-            <header className="hidden md:flex h-12 items-center justify-between border-b bg-card px-2 sticky top-0 z-50">
+            <header className="hidden md:flex h-11 items-center justify-between border-b border-border/60 bg-card/95 backdrop-blur-md px-3 sticky top-0 z-40 shadow-xs">
               <div className="flex items-center gap-2">
-                <SidebarTrigger />
+                <SidebarTrigger className="h-8 w-8 text-slate-600 hover:text-slate-900" />
+                <span className="text-xs font-semibold text-slate-500 border-l pl-2.5 ml-0.5">VialFlow Pro</span>
               </div>
-              <div className="flex items-center gap-2 px-2">
-                <Link to="/" target="_blank" title="Go to Store">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Store className="h-4 w-4" />
-                    <span className="sr-only">Go to Store</span>
+              <div className="flex items-center gap-2">
+                <Link to="/" target="_blank" title="Go to Public Storefront">
+                  <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 gap-1.5 bg-background/80 hover:bg-accent hover:text-accent-foreground border-border/80 shadow-2xs font-medium">
+                    <Store className="h-3.5 w-3.5 text-primary" />
+                    <span>View Store</span>
                   </Button>
                 </Link>
               </div>

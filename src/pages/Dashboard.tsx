@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow, subDays, format, eachDayOfInterval } from "date-fns";
+import { formatDistanceToNow, subDays, format, eachDayOfInterval, differenceInDays } from "date-fns";
 import { Link } from "react-router-dom";
 import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter";
 import OrderStatusChart from "@/components/dashboard/OrderStatusChart";
 import RevenueTrendChart from "@/components/dashboard/RevenueTrendChart";
+import OrderVolumeTrendChart from "@/components/dashboard/OrderVolumeTrendChart";
 import TopProductsList from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const Dashboard = () => {
   // Analytics State
   const [statusData, setStatusData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [revenueData, setRevenueData] = useState<{ date: string; revenue: number }[]>([]);
+  const [orderVolumeData, setOrderVolumeData] = useState<{ date: string; orders: number }[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; quantity: number; revenue: number }[]>([]);
   const [topCustomers, setTopCustomers] = useState<{ name: string; orderCount: number; totalSpent: number }[]>([]);
 
@@ -159,15 +161,28 @@ const Dashboard = () => {
 
       setStatusData(chartData);
 
-      // 2. Revenue Trend (Dynamic)
+      // 2. Revenue & Order Volume Trends (Dynamic)
       const dailyRevenue: Record<string, number> = {};
+      const dailyOrders: Record<string, number> = {};
+      
       const intervalDays = eachDayOfInterval({ 
           start: new Date(dateRange.startDate + "T00:00:00"), 
           end: new Date(dateRange.endDate + "T23:59:59") 
       });
 
       intervalDays.forEach(d => {
-        dailyRevenue[format(d, 'MMM dd')] = 0;
+        const formattedKey = format(d, 'MMM dd');
+        dailyRevenue[formattedKey] = 0;
+        dailyOrders[formattedKey] = 0;
+      });
+
+      orders.forEach((o: any) => {
+        const date = format(new Date(o.created_at), 'MMM dd');
+        if (dailyOrders[date] !== undefined) {
+          dailyOrders[date] += 1;
+        } else {
+          dailyOrders[date] = 1;
+        }
       });
 
       validOrders.forEach((o: any) => {
@@ -175,16 +190,15 @@ const Dashboard = () => {
         if (dailyRevenue[date] !== undefined) {
           dailyRevenue[date] += Number(o.total_amount);
         } else {
-            dailyRevenue[date] = Number(o.total_amount);
+          dailyRevenue[date] = Number(o.total_amount);
         }
       });
 
-      // Maintain chronological order without sorting manually because object iteration is sufficient for pre-filled dates
       const revenueDataArray = Object.entries(dailyRevenue).map(([date, revenue]) => ({ date, revenue }));
+      const orderVolumeDataArray = Object.entries(dailyOrders).map(([date, orders]) => ({ date, orders }));
       
-      // If we're showing a massive timeframe (e.g. all time), we might have too many data points.
-      // Recharts handles it gracefully by skipping labels anyway.
       setRevenueData(revenueDataArray);
+      setOrderVolumeData(orderVolumeDataArray);
 
       // 3. Top Products
       const productStats: Record<string, { quantity: number; revenue: number }> = {};
@@ -326,6 +340,34 @@ const Dashboard = () => {
     fetchStats();
     fetchActivities();
   }, [dateRange]);
+
+  const getPeriodLabel = () => {
+    if (!dateRange.startDate || !dateRange.endDate) return "Selected Period";
+    try {
+      const start = new Date(dateRange.startDate + "T00:00:00");
+      const end = new Date(dateRange.endDate + "T00:00:00");
+      const diffDays = Math.abs(differenceInDays(end, start)) + 1;
+      
+      if (format(start, "yyyy-MM-dd") === format(end, "yyyy-MM-dd")) {
+        return format(start, "MMM d, yyyy");
+      }
+      
+      const isEndingToday = format(end, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+      if (isEndingToday) {
+        if (diffDays === 1) return "Today";
+        if (diffDays === 7) return "Last 7 Days";
+        if (diffDays === 30) return "Last 30 Days";
+        if (diffDays === 90) return "Last 90 Days";
+        if (diffDays >= 364 && diffDays <= 366) return "This Year";
+      }
+      
+      return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+    } catch {
+      return "Selected Period";
+    }
+  };
+
+  const periodLabel = getPeriodLabel();
 
   return (
     <div className="space-y-6 pb-8">
@@ -489,7 +531,8 @@ const Dashboard = () => {
       {/* Analytics Section */}
       <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200 mt-8">Analytics & Leaderboards</h2>
       <div className="grid gap-4 md:grid-cols-2">
-        <RevenueTrendChart data={revenueData} />
+        <RevenueTrendChart data={revenueData} periodLabel={periodLabel} />
+        <OrderVolumeTrendChart data={orderVolumeData} periodLabel={periodLabel} />
         <OrderStatusChart data={statusData} />
         <TopProductsList products={topProducts} />
         <TopCustomersList customers={topCustomers} />
@@ -551,7 +594,6 @@ const Dashboard = () => {
         </CardContent>
       </Card>
     </div>
-
   );
 };
 

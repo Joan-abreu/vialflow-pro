@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import {
     Dialog,
@@ -37,13 +38,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import CopyCell from "@/components/CopyCell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
+import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 
 interface OrderItem {
     id: string;
@@ -171,6 +173,26 @@ const OrderManagement = () => {
             return ordersData as any as Order[];
         },
     });
+
+    // Fetch all order notes count mapping
+    const { data: allOrderNotes } = useQuery({
+        queryKey: ["all-order-notes"],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from("order_notes")
+                .select("id, order_id");
+            if (error) return [];
+            return data || [];
+        },
+    });
+
+    const notesCountMap = useMemo(() => {
+        const map: Record<string, number> = {};
+        (allOrderNotes || []).forEach((n: any) => {
+            map[n.order_id] = (map[n.order_id] || 0) + 1;
+        });
+        return map;
+    }, [allOrderNotes]);
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
@@ -434,30 +456,45 @@ const OrderManagement = () => {
         setShowShippingDialog(true);
     };
 
-    const getCarrierBadge = (carrier?: string, service?: string) => {
-        if (!carrier) return null;
-        
-        const carrierLower = carrier.toLowerCase();
-        let badgeClass = "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100";
-        
-        if (carrierLower.includes("usps")) {
-            badgeClass = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50";
-        } else if (carrierLower.includes("ups")) {
-            badgeClass = "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50";
-        } else if (carrierLower.includes("fedex")) {
-            badgeClass = "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-50";
+    const renderCarrierLogo = (carrierStr?: string, serviceStr?: string) => {
+        const combined = `${carrierStr || ""} ${serviceStr || ""}`.toLowerCase();
+        let iconName = "usps.svg";
+
+        if (combined.includes("ups") || combined.includes("next day air")) {
+            iconName = "ups.svg";
+        } else if (combined.includes("fedex") || combined.includes("2day")) {
+            iconName = "fedex.svg";
+        } else if (combined.includes("dhl")) {
+            iconName = "dhl.svg";
         }
-        
+
         return (
-            <div className="flex flex-col items-start gap-0.5 mb-1">
-                <Badge variant="outline" className={`${badgeClass} text-[9px] px-1.5 py-0 font-bold uppercase tracking-wider`}>
-                    {carrier}
-                </Badge>
-                {service && (
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap overflow-hidden max-w-[130px] truncate" title={service}>
-                        {service.replace(/®|™/g, "")}
-                    </span>
-                )}
+            <img 
+                src={`/carriers/${iconName}`} 
+                alt="Carrier Logo" 
+                className="w-5 h-5 object-contain shrink-0 rounded"
+            />
+        );
+    };
+
+    const getCarrierBadge = (carrier?: string, service?: string) => {
+        if (!carrier && !service) return null;
+        
+        const combined = `${carrier || ""} ${service || ""}`.toLowerCase();
+        let carrierTarget = "USPS";
+        if (combined.includes("ups")) carrierTarget = "UPS";
+        else if (combined.includes("fedex")) carrierTarget = "FedEx";
+        else if (combined.includes("dhl")) carrierTarget = "DHL";
+
+        const serviceName = service ? service.replace(/®|™/g, "") : carrierTarget;
+
+        return (
+            <div className="flex items-center gap-1.5 min-w-0" title={`Shippo / ${serviceName}`}>
+                {renderCarrierLogo(carrier, service)}
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-800 shrink-0">
+                    <span className="text-[10px] text-slate-500 font-normal shrink-0">Shippo /</span>
+                    <span className="whitespace-nowrap font-medium text-slate-800">{serviceName}</span>
+                </div>
             </div>
         );
     };
@@ -781,29 +818,30 @@ const OrderManagement = () => {
                 <CardHeader className="pb-3">
                     <CardTitle className="text-xl">Orders ({filteredOrders?.length || 0})</CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-10">
-                                    <Checkbox
-                                        checked={isAllVisibleSelected}
-                                        onCheckedChange={handleToggleSelectAll}
-                                        aria-label="Select all orders on page"
-                                    />
-                                </TableHead>
-                                <TableHead>Order ID</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Products</TableHead>
-                                <TableHead className="text-center">Quantity</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                                <TableHead>Actions</TableHead>
-                                <TableHead>Production</TableHead>
-                                <TableHead>Shipping</TableHead>
-                            </TableRow>
-                        </TableHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-auto w-full border-t max-h-[calc(100vh-260px)] relative shadow-inner">
+                        <Table className="min-w-[1300px] [&_td]:py-2 [&_td]:px-3 [&_th]:py-2.5 [&_th]:px-3">
+                            <TableHeader className="bg-muted/90 backdrop-blur sticky top-0 z-20 shadow-sm">
+                                <TableRow>
+                                    <TableHead className="w-10">
+                                        <Checkbox
+                                            checked={isAllVisibleSelected}
+                                            onCheckedChange={handleToggleSelectAll}
+                                            aria-label="Select all orders on page"
+                                        />
+                                    </TableHead>
+                                    <TableHead className="min-w-[90px]">Order ID</TableHead>
+                                    <TableHead className="min-w-[110px]">Date</TableHead>
+                                    <TableHead className="min-w-[160px]">Customer</TableHead>
+                                    <TableHead className="min-w-[200px]">Products</TableHead>
+                                    <TableHead className="text-center w-14">Qty</TableHead>
+                                    <TableHead className="min-w-[120px]">Status</TableHead>
+                                    <TableHead className="text-right w-24">Total</TableHead>
+                                    <TableHead className="min-w-[160px]">Actions</TableHead>
+                                    <TableHead className="min-w-[120px]">Production</TableHead>
+                                    <TableHead className="w-[240px] min-w-[240px]">Shipping</TableHead>
+                                </TableRow>
+                            </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
@@ -829,11 +867,11 @@ const OrderManagement = () => {
                                                     aria-label={`Select order ${order.id}`}
                                                 />
                                             </TableCell>
-                                            <TableCell className="font-mono text-xs">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span>{order.id.slice(0, 8)}...</span>
+                                            <TableCell className="font-mono text-xs whitespace-nowrap">
+                                                <div className="flex items-center gap-1">
+                                                    <span>#{order.id.slice(0, 8)}</span>
                                                     {order.order_items?.some(item => item.is_bulk) && (
-                                                        <Badge variant="outline" className="bg-indigo-50 hover:bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0 font-bold uppercase tracking-wider">
+                                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0 font-bold uppercase">
                                                             Bulk
                                                         </Badge>
                                                     )}
@@ -852,9 +890,9 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell className="min-w-[200px] max-w-[300px]">
                                                 {order.order_items && order.order_items.length > 0 ? (
-                                                    <div className="space-y-1.5">
+                                                    <div className="space-y-1">
                                                         {order.order_items.map((item, idx) => (
-                                                            <div key={item.id || idx} className="flex flex-col justify-center min-h-[30px]">
+                                                            <div key={item.id || idx} className="flex flex-col justify-center py-0.5">
                                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                                     <span className="font-medium text-xs text-foreground truncate" title={item.variant?.product?.name || "Product"}>
                                                                         {item.variant?.product?.name || "Unknown Product"}
@@ -884,9 +922,9 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {order.order_items && order.order_items.length > 0 ? (
-                                                    <div className="space-y-1.5">
+                                                    <div className="space-y-1">
                                                         {order.order_items.map((item, idx) => (
-                                                            <div key={item.id || idx} className="flex items-center justify-center min-h-[30px]">
+                                                            <div key={item.id || idx} className="flex items-center justify-center py-0.5">
                                                                 <Badge variant="outline" className="font-bold text-xs px-2 py-0.5 min-w-[28px] justify-center bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50">
                                                                     {item.quantity}
                                                                 </Badge>
@@ -908,6 +946,7 @@ const OrderManagement = () => {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
+                                                        className="h-7 w-7"
                                                         onClick={() => handleViewDetails(order)}
                                                         title="View Details"
                                                     >
@@ -922,9 +961,32 @@ const OrderManagement = () => {
                                                                 variant="ghost" 
                                                                 size="icon" 
                                                                 title="Send Email"
-                                                                className="h-8 w-8 text-primary"
+                                                                className="h-7 w-7 text-primary"
                                                             >
                                                                 <Mail className="h-4 w-4" />
+                                                            </Button>
+                                                        }
+                                                    />
+                                                    <OrderNotesDialog
+                                                        orderId={order.id}
+                                                        orderNumber={order.id.slice(0, 8)}
+                                                        customerEmail={order.customer_email}
+                                                        trigger={
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="icon" 
+                                                                title="Order Notes & Log"
+                                                                className={cn(
+                                                                    "h-7 w-7 relative",
+                                                                    (notesCountMap[order.id] || 0) > 0 ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-slate-500 hover:text-slate-700"
+                                                                )}
+                                                            >
+                                                                <FileText className="h-4 w-4" />
+                                                                {(notesCountMap[order.id] || 0) > 0 && (
+                                                                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+                                                                        {notesCountMap[order.id]}
+                                                                    </span>
+                                                                )}
                                                             </Button>
                                                         }
                                                     />
@@ -932,7 +994,7 @@ const OrderManagement = () => {
                                                         value={order.status}
                                                         onValueChange={(value) => handleInitiateStatusChange(order.id, value)}
                                                     >
-                                                        <SelectTrigger className="w-[140px] h-8 text-xs">
+                                                        <SelectTrigger className="w-[130px] h-7 text-xs">
                                                             <SelectValue placeholder="Status" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -952,7 +1014,7 @@ const OrderManagement = () => {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="text-destructive h-8 w-8 ml-1"
+                                                        className="text-destructive h-7 w-7 ml-0.5"
                                                         onClick={() => setDeletingOrder(order)}
                                                         title="Delete Order"
                                                     >
@@ -960,20 +1022,20 @@ const OrderManagement = () => {
                                                     </Button>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 {order.status === 'in_production' ? (
                                                     <Button
                                                         size="sm"
                                                         variant="default"
-                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                        className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2 gap-1"
                                                         onClick={() => handleStatusChange(order.id, 'ready_to_ship')}
                                                     >
-                                                        <Package className="h-4 w-4 mr-2" />
-                                                        Complete Production
+                                                        <Package className="h-3.5 w-3.5" />
+                                                        <span>Complete</span>
                                                     </Button>
                                                 ) : order.sent_to_production ? (
-                                                    <Badge variant="outline" className="bg-green-50 text-green-700">
-                                                        ✓ Sent {order.sent_to_production_at && `on ${format(new Date(order.sent_to_production_at), "MMM d")}`}
+                                                    <Badge variant="outline" className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5">
+                                                        ✓ Sent
                                                     </Badge>
                                                 ) : (
                                                     <Button
@@ -981,82 +1043,59 @@ const OrderManagement = () => {
                                                         variant="outline"
                                                         onClick={() => handleSendToProduction(order)}
                                                         disabled={order.status !== 'processing'}
+                                                        className="h-7 text-xs px-2 gap-1"
                                                         title={order.status !== 'processing' ? "Order must be Processing to send to production" : ""}
                                                     >
-                                                        <Factory className="h-4 w-4 mr-2" />
-                                                        Send to Production
+                                                        <Factory className="h-3.5 w-3.5" />
+                                                        <span>Send to Prod</span>
                                                     </Button>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-2">
+                                            <TableCell className="w-[240px] min-w-[240px]">
+                                                <div className="flex flex-col gap-1">
+                                                    {/* Line 1: Logo / Shippo / Carrier service */}
                                                     {getCarrierBadge(order.shipping_carrier, order.shipping_service)}
                                                     
+                                                    {/* Line 2: Create Label / Manage shipment button */}
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleCreateShippingLabel(order)}
                                                         disabled={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status)}
                                                         variant={['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "secondary" : "outline"}
-                                                        className="mt-1"
+                                                        className="h-7 text-xs px-2 w-full justify-center gap-1.5"
                                                         title={!['ready_to_ship', 'label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Complete production first" : ""}
                                                     >
-                                                        <Truck className="h-4 w-4 mr-2" />
-                                                        {['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Manage Shipping" : "Create Label"}
+                                                        <Truck className="h-3.5 w-3.5" />
+                                                        <span>{['label_created', 'pickup_scheduled', 'shipped'].includes(order.status) ? "Manage Shipment" : "Create Label"}</span>
                                                     </Button>
 
+                                                    {/* Line 3: Borderless inline tracking number + copy + refresh */}
                                                     {order.order_shipments && order.order_shipments.filter(s => s.status !== 'cancelled').length > 0 && (
-                                                        <div className="flex flex-col gap-1 text-xs">
+                                                        <div className="flex flex-col gap-0.5 text-xs pt-0.5">
                                                             {order.order_shipments
                                                                 .filter(s => s.status !== 'cancelled')
                                                                 .map((shipment, idx) => (
-                                                                    <div key={idx} className="flex flex-col items-start gap-1">
-                                                                        <div className="flex items-center gap-1">
-                                                                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{shipment.carrier}</Badge>
-                                                                            {shipment.tracking_url ? (
-                                                                                <div className="flex items-center gap-1">
-                                                                                    <a
-                                                                                        href={shipment.tracking_url}
-                                                                                        target="_blank"
-                                                                                        rel="noopener noreferrer"
-                                                                                        className="text-blue-600 hover:underline flex items-center gap-1"
-                                                                                    >
-                                                                                        {shipment.tracking_number}
-                                                                                        <Eye className="h-3 w-3" />
-                                                                                    </a>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="icon"
-                                                                                        className="h-6 w-6"
-                                                                                        onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
-                                                                                        disabled={refreshingTracking === shipment.id}
-                                                                                        title="Refresh Tracking Status"
-                                                                                    >
-                                                                                        <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
-                                                                                    </Button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div className="flex items-center gap-1">
-                                                                                    <span className="text-muted-foreground">{shipment.tracking_number}</span>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="icon"
-                                                                                        className="h-6 w-6"
-                                                                                        onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
-                                                                                        disabled={refreshingTracking === shipment.id}
-                                                                                        title="Refresh Tracking Status"
-                                                                                    >
-                                                                                        <RefreshCw className={`h-3 w-3 ${refreshingTracking === shipment.id ? "animate-spin" : ""}`} />
-                                                                                    </Button>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        {shipment.pickup_confirmation && (
-                                                                            <div className="flex items-center gap-1">
-                                                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-teal-50 text-teal-700 border-teal-200">
-                                                                                    Pickup #: {shipment.pickup_confirmation}
-                                                                                </Badge>
-                                                                            </div>
-                                                                        )}
+                                                                    <div key={idx} className="flex items-center gap-1 text-[11px] px-0.5">
+                                                                        <a
+                                                                            href={shipment.tracking_url || "#"}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-blue-600 hover:underline font-mono text-[10px] font-medium shrink-0"
+                                                                            title={shipment.tracking_number}
+                                                                        >
+                                                                            {shipment.tracking_number}
+                                                                        </a>
+                                                                        <CopyCell value={shipment.tracking_number} size={11} />
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-4 w-4 p-0 text-slate-400 hover:text-slate-700 shrink-0"
+                                                                            onClick={() => handleRefreshTracking(shipment.id, shipment.carrier)}
+                                                                            disabled={refreshingTracking === shipment.id}
+                                                                            title="Refresh Tracking Status"
+                                                                        >
+                                                                            <RefreshCw className={cn("h-3 w-3", refreshingTracking === shipment.id && "animate-spin")} />
+                                                                        </Button>
                                                                     </div>
                                                                 ))}
                                                         </div>
@@ -1068,7 +1107,8 @@ const OrderManagement = () => {
                             )}
                         </TableBody>
                     </Table>
-                    {!isLoading && filteredOrders && filteredOrders.length > 0 && (
+                </div>
+                {!isLoading && filteredOrders && filteredOrders.length > 0 && (
                         <DataTablePagination
                             currentPage={currentPage}
                             totalPages={Math.ceil(filteredOrders.length / itemsPerPage)}
@@ -1269,10 +1309,25 @@ const OrderManagement = () => {
                         </div>
                     )}
                     <DialogFooter className="flex justify-between sm:justify-between w-full">
-                        <Button variant="outline" onClick={() => window.print()} className="gap-2">
-                            <Printer className="h-4 w-4" />
-                            Print Order
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={() => window.print()} className="gap-2">
+                                <Printer className="h-4 w-4" />
+                                Print Order
+                            </Button>
+                            {selectedOrder && (
+                                <OrderNotesDialog
+                                    orderId={selectedOrder.id}
+                                    orderNumber={selectedOrder.id.slice(0, 8)}
+                                    customerEmail={selectedOrder.customer_email}
+                                    trigger={
+                                        <Button variant="outline" className="gap-2 text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100">
+                                            <FileText className="h-4 w-4" />
+                                            <span>Order Notes & Log ({(notesCountMap[selectedOrder.id] || 0)})</span>
+                                        </Button>
+                                    }
+                                />
+                            )}
+                        </div>
                         <Button onClick={() => setShowDetailsDialog(false)}>Close</Button>
                     </DialogFooter>
                 </DialogContent>

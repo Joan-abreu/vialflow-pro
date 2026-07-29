@@ -198,9 +198,16 @@ const OrderManagement = () => {
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+            const updatePayload: any = { status };
+
+            if (status === 'ready_to_ship') {
+                updatePayload.tracking_number = null;
+                await supabase.from("order_shipments").delete().eq("order_id", orderId);
+            }
+
             const { error } = await supabase
                 .from("orders")
-                .update({ status })
+                .update(updatePayload)
                 .eq("id", orderId);
 
             if (error) throw error;
@@ -256,9 +263,16 @@ const OrderManagement = () => {
 
     const bulkUpdateStatusMutation = useMutation({
         mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: string }) => {
+            const updatePayload: any = { status };
+
+            if (status === 'ready_to_ship') {
+                updatePayload.tracking_number = null;
+                await supabase.from("order_shipments").delete().in("order_id", orderIds);
+            }
+
             const { error } = await supabase
                 .from("orders")
-                .update({ status })
+                .update(updatePayload)
                 .in("id", orderIds);
 
             if (error) throw error;

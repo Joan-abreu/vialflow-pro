@@ -685,16 +685,46 @@ export class ShippoCarrier implements ICarrier {
         const batchLabelUrl = purchasedBatch.label_url || purchasedBatch.batch_shipments?.label_url || "";
         const shipmentResults = purchasedBatch.batch_shipments?.results || [];
 
-        const results = batchData.items.map((item: any, idx: number) => {
+        const results = await Promise.all(batchData.items.map(async (item: any, idx: number) => {
             const resItem = shipmentResults[idx] || {};
+            let trackingNumber = "";
+            let trackingUrl = "";
+            let labelUrl = batchLabelUrl;
+
+            let txObj: any = null;
+            if (typeof resItem.transaction === "object" && resItem.transaction !== null) {
+                txObj = resItem.transaction;
+            } else if (typeof resItem.transaction === "string" && resItem.transaction.length > 0) {
+                try {
+                    const txRes = await fetch(`${this.apiUrl}transactions/${resItem.transaction}`, {
+                        headers: this.getHeaders()
+                    });
+                    if (txRes.ok) {
+                        txObj = await txRes.json();
+                    }
+                } catch (e) {
+                    console.error("Error fetching transaction details for batch item:", e);
+                }
+            }
+
+            if (txObj) {
+                trackingNumber = txObj.tracking_number || "";
+                trackingUrl = txObj.tracking_url_provider || "";
+                labelUrl = txObj.label_url || batchLabelUrl;
+            }
+
+            if (!trackingNumber && resItem.tracking_number) {
+                trackingNumber = resItem.tracking_number;
+            }
+
             return {
                 orderId: item.orderId,
-                trackingNumber: resItem.tracking_number || resItem.metadata || "",
-                trackingUrl: resItem.tracking_url_provider || "",
-                labelUrl: resItem.label_url || batchLabelUrl,
+                trackingNumber: trackingNumber,
+                trackingUrl: trackingUrl,
+                labelUrl: labelUrl,
                 status: resItem.status || "SUCCESS",
             };
-        });
+        }));
 
         return {
             success: true,
@@ -702,6 +732,51 @@ export class ShippoCarrier implements ICarrier {
             batchLabelUrl,
             results,
             rawResponse: purchasedBatch,
+        };
+    }
+
+    async cancelShipment(trackingNumber: string) {
+        if (!trackingNumber || trackingNumber.startsWith("Order #")) {
+            return {
+                success: true,
+                message: "Dummy or invalid tracking number cleared locally.",
+            };
+        }
+
+        try {
+            // Find transaction by tracking number in Shippo
+            const transRes = await fetch(`${this.apiUrl}transactions/?results=50`, { headers: this.getHeaders() });
+            if (transRes.ok) {
+                const transData = await transRes.json();
+                const matchedTx = transData.results?.find((tx: any) => tx.tracking_number === trackingNumber);
+                if (matchedTx?.object_id) {
+                    const refundRes = await fetch(`${this.apiUrl}refunds/`, {
+                        method: "POST",
+                        headers: this.getHeaders(),
+                        body: JSON.stringify({
+                            transaction: matchedTx.object_id,
+                            async: false
+                        })
+                    });
+
+                    if (refundRes.ok) {
+                        const refundData = await refundRes.json();
+                        return {
+                            success: true,
+                            message: "Shippo label refund requested successfully.",
+                            rawResponse: refundData
+                        };
+                    }
+                }
+            }
+        } catch (e: any) {
+            console.error("Error initiating Shippo refund:", e);
+        }
+
+        // Fallback: allow deleting local shipment record even if Shippo refund API returns error/already refunded
+        return {
+            success: true,
+            message: "Local shipment record removed.",
         };
     }
 }

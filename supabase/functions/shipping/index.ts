@@ -397,9 +397,21 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error("Shipment not found");
                 }
 
-                result = await carrierInstance.cancelShipment(shipmentToCancel.tracking_number);
+                const isDummyTracking = !shipmentToCancel.tracking_number || shipmentToCancel.tracking_number.startsWith("Order #");
 
-                if (result.success) {
+                if (isDummyTracking || data.force) {
+                    result = { success: true, message: "Cleared invalid/dummy shipment record." };
+                } else {
+                    try {
+                        result = await carrierInstance.cancelShipment(shipmentToCancel.tracking_number);
+                    } catch (cErr: any) {
+                        console.warn("Carrier cancel failed, proceeding with local clear:", cErr);
+                        result = { success: true, message: "Cleared shipment record locally." };
+                    }
+                }
+
+                // If result is successful or force requested, delete local shipment record
+                if (result.success || data.force || isDummyTracking) {
                     // Delete the shipment record entirely
                     await supabase
                         .from("order_shipments")

@@ -532,4 +532,176 @@ export class ShippoCarrier implements ICarrier {
             };
         }
     }
+
+    private resolveServiceLevelToken(service?: string, carrier?: string): string {
+        if (!service && !carrier) return "usps_ground_advantage";
+
+        const s = (service || "").toLowerCase();
+        const c = (carrier || "").toLowerCase();
+
+        if (s.includes("priority") && (s.includes("express") || s.includes("mail express"))) return "usps_priority_mail_express";
+        if (s.includes("priority") || c.includes("priority")) return "usps_priority";
+        if (s.includes("ground") && (s.includes("advantage") || c.includes("usps"))) return "usps_ground_advantage";
+        if (s.includes("first")) return "usps_first";
+
+        if (c.includes("ups") || s.includes("ups")) {
+            if (s.includes("next day")) return "ups_next_day_air";
+            if (s.includes("2nd day")) return "ups_2nd_day_air";
+            if (s.includes("3 day")) return "ups_3_day_select";
+            return "ups_ground";
+        }
+
+        if (c.includes("fedex") || s.includes("fedex")) {
+            if (s.includes("2day") || s.includes("2 day")) return "fedex_2_day";
+            if (s.includes("overnight") || s.includes("express")) return "fedex_priority_overnight";
+            return "fedex_ground";
+        }
+
+        return "usps_ground_advantage";
+    }
+
+    async createBulkShipment(batchData: any) {
+        if (!this.settings.api_key) {
+            throw new Error("Shippo API Token is missing in carrier settings.");
+        }
+
+        const labelFileType = this.settings.config?.label_file_type || "PDF";
+
+        // Step 1: Get active carrier account object_id if not provided
+        let defaultCarrierAccount = batchData.carrierAccountId;
+        let defaultServiceLevelToken = batchData.serviceCode || "usps_ground_advantage";
+
+        if (!defaultCarrierAccount) {
+            try {
+                const caRes = await fetch(`${this.apiUrl}carrier_accounts/`, { headers: this.getHeaders() });
+                if (caRes.ok) {
+                    const caData = await caRes.json();
+                    const activeCA = caData.results?.find((ca: any) => ca.active);
+                    if (activeCA) {
+                        defaultCarrierAccount = activeCA.object_id;
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching carrier accounts for batch:", e);
+            }
+        }
+
+        // Step 2: Construct batch_shipments array preserving per-order requested carrier & service
+        const batchShipments = batchData.items.map((item: any) => {
+            const requestedToken = item.serviceCode || this.resolveServiceLevelToken(item.shippingService, item.shippingCarrier) || defaultServiceLevelToken;
+            return {
+                shipment: {
+                    address_from: {
+                        name: item.shipper?.name || "Shipper",
+                        company: item.shipper?.company || "",
+                        street1: item.shipper?.address?.line1 || item.shipper?.line1 || "123 Main St",
+                        street2: item.shipper?.address?.line2 || item.shipper?.line2 || "",
+                        city: item.shipper?.address?.city || item.shipper?.city || "City",
+                        state: item.shipper?.address?.state || item.shipper?.state || "CA",
+                        zip: item.shipper?.address?.postal_code || item.shipper?.address?.zip || item.shipper?.zip || "90210",
+                        country: item.shipper?.address?.country || item.shipper?.country || "US",
+                        phone: item.shipper?.phone || "5555555555",
+                        email: item.shipper?.email || "sales@livwellresearchlabs.com",
+                    },
+                    address_to: {
+                        name: item.recipient?.name || "Recipient",
+                        company: item.recipient?.company || "",
+                        street1: item.recipient?.address?.line1 || item.recipient?.line1,
+                        street2: item.recipient?.address?.line2 || item.recipient?.line2,
+                        city: item.recipient?.address?.city || item.recipient?.city,
+                        state: item.recipient?.address?.state || item.recipient?.state,
+                        zip: item.recipient?.address?.postal_code || item.recipient?.address?.zip || item.recipient?.zip,
+                        country: item.recipient?.address?.country || item.recipient?.country || "US",
+                        phone: item.recipient?.phone || "5555555555",
+                        email: item.recipient?.email || "customer@example.com",
+                    },
+                    parcels: (item.packages || [{ weight: 1, length: 12, width: 8, height: 6 }]).map((pkg: any) => ({
+                        length: Math.max(parseFloat(pkg.length || "1"), 1.0).toString(),
+                        width: Math.max(parseFloat(pkg.width || "1"), 1.0).toString(),
+                        height: Math.max(parseFloat(pkg.height || "1"), 1.0).toString(),
+                        distance_unit: "in",
+                        weight: Math.max(parseFloat(pkg.weight || "0.1"), 0.1).toString(),
+                        mass_unit: "lb",
+                    })),
+                    metadata: item.orderId ? `Order #${item.orderId.slice(0, 8)}` : "",
+                },
+                carrier_account: item.carrierAccountId || defaultCarrierAccount,
+                servicelevel_token: requestedToken,
+            };
+        });
+
+        // Step 3: Create Batch in Shippo (1 single API request for up to 50 orders)
+        const createBatchRes = await fetch(`${this.apiUrl}batches/`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                default_carrier_account: defaultCarrierAccount,
+                default_servicelevel_token: defaultServiceLevelToken,
+                label_filetype: labelFileType,
+                batch_shipments: batchShipments,
+            }),
+        });
+
+        if (!createBatchRes.ok) {
+            const errText = await createBatchRes.text();
+            throw new Error(`Shippo Batch Creation Error: ${errText}`);
+        }
+
+        const batchObj = await createBatchRes.json();
+        const batchId = batchObj.object_id;
+
+        // Step 4: Poll batch status until VALIDATED
+        let validatedBatch = batchObj;
+        let attempts = 0;
+        while (validatedBatch.status === "CREATING" || validatedBatch.status === "VALIDATING") {
+            if (attempts > 15) break;
+            await new Promise((r) => setTimeout(r, 1000));
+            const checkRes = await fetch(`${this.apiUrl}batches/${batchId}`, { headers: this.getHeaders() });
+            if (checkRes.ok) {
+                validatedBatch = await checkRes.json();
+            }
+            attempts++;
+        }
+
+        if (validatedBatch.status === "INVALID") {
+            const invalidMsgs = validatedBatch.batch_shipments?.results || [];
+            throw new Error(`Shippo Batch Validation Failed: ${JSON.stringify(invalidMsgs)}`);
+        }
+
+        // Step 5: Purchase Batch in ONE SINGLE CREDIT CARD TRANSACTION
+        const purchaseRes = await fetch(`${this.apiUrl}batches/${batchId}/purchase/`, {
+            method: "POST",
+            headers: this.getHeaders(),
+        });
+
+        if (!purchaseRes.ok) {
+            const errText = await purchaseRes.text();
+            throw new Error(`Shippo Batch Purchase Error: ${errText}`);
+        }
+
+        const purchasedBatch = await purchaseRes.json();
+
+        // Extract single combined PDF label URL and shipment results
+        const batchLabelUrl = purchasedBatch.label_url || purchasedBatch.batch_shipments?.label_url || "";
+        const shipmentResults = purchasedBatch.batch_shipments?.results || [];
+
+        const results = batchData.items.map((item: any, idx: number) => {
+            const resItem = shipmentResults[idx] || {};
+            return {
+                orderId: item.orderId,
+                trackingNumber: resItem.tracking_number || resItem.metadata || "",
+                trackingUrl: resItem.tracking_url_provider || "",
+                labelUrl: resItem.label_url || batchLabelUrl,
+                status: resItem.status || "SUCCESS",
+            };
+        });
+
+        return {
+            success: true,
+            batchId,
+            batchLabelUrl,
+            results,
+            rawResponse: purchasedBatch,
+        };
+    }
 }

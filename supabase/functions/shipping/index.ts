@@ -147,6 +147,53 @@ const handler = async (req: Request): Promise<Response> => {
                 break;
             }
 
+            case "create_bulk_shipment": {
+                if (typeof (carrierInstance as any).createBulkShipment === "function") {
+                    result = await (carrierInstance as any).createBulkShipment(data);
+
+                    if (result.success && Array.isArray(result.results)) {
+                        for (const itemRes of result.results) {
+                            if (itemRes.orderId) {
+                                const { error: insertErr } = await supabase
+                                    .from("order_shipments")
+                                    .insert({
+                                        order_id: itemRes.orderId,
+                                        carrier: carrier.toUpperCase(),
+                                        carrier_account_id: carrierSettings.account_number,
+                                        service_code: carrierSettings.default_service_code || "usps_ground_advantage",
+                                        service_name: "Shippo Bulk Label",
+                                        tracking_number: itemRes.trackingNumber,
+                                        tracking_url: itemRes.trackingUrl,
+                                        label_url: itemRes.labelUrl || result.batchLabelUrl,
+                                        label_format: "PDF",
+                                        status: "label_created",
+                                        carrier_response: itemRes,
+                                    });
+
+                                if (insertErr) {
+                                    console.error("Error saving bulk shipment row:", insertErr);
+                                }
+
+                                const { error: orderErr } = await supabase
+                                    .from("orders")
+                                    .update({
+                                        status: "label_created",
+                                        tracking_number: itemRes.trackingNumber,
+                                    })
+                                    .eq("id", itemRes.orderId);
+
+                                if (orderErr) {
+                                    console.error("Error updating order to label_created:", orderErr);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error(`Carrier ${carrier} does not support bulk batch creation.`);
+                }
+                break;
+            }
+
             case "schedule_pickup": {
                 // Fetch the shipment details needed to schedule a pickup
                 const { data: dbShipment, error: dbError } = await supabase

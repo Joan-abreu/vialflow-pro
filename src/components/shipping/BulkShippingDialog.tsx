@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, Truck, Package, CheckCircle2, AlertCircle, ExternalLink, Printer, Edit2, Database } from "lucide-react";
+import { Loader2, Truck, Package, ExternalLink, Printer, Edit2, Database, FileText } from "lucide-react";
 import { DEFAULT_SHIPPER } from "@/lib/constants";
 
 interface BulkOrder {
@@ -51,6 +51,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
     const [dbPackagePresets, setDbPackagePresets] = useState<Record<string, any>>({});
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [batchPdfUrl, setBatchPdfUrl] = useState<string>("");
 
     // Edit package modal state
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -70,7 +71,6 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
             presetKey = `${primaryItem.variant_id}_qty_${primaryItem.quantity || 1}`;
         }
 
-        // Check if DB preset exists for this variant + quantity
         if (presetKey && presets[presetKey]) {
             const dbPreset = presets[presetKey];
             return {
@@ -85,7 +85,6 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
             };
         }
 
-        // Otherwise fallback to variant box calculations
         const packagesList: Array<{ weight: number; length: number; width: number; height: number }> = [];
 
         try {
@@ -187,7 +186,6 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
             const presets = (shippoSetting?.config as any)?.package_presets || {};
             setDbPackagePresets(presets);
 
-            // Initialize items state with presets applied
             const initialState: BulkItemState[] = orders.map(order => {
                 const calculated = calculateOrderPackages(order, presets);
                 return {
@@ -203,6 +201,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
             });
 
             setItemsState(initialState);
+            setBatchPdfUrl("");
         } catch (e) {
             console.error("Error initializing bulk dialog presets", e);
         }
@@ -216,7 +215,6 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
         }
     }, [open, orders, selectedCarrier]);
 
-    // Handle Edit Box & Weight
     const handleOpenEdit = (index: number) => {
         const item = itemsState[index];
         if (!item || item.packages.length === 0) return;
@@ -247,7 +245,6 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
         currentItem.rates = [];
         currentItem.selectedRate = null;
 
-        // If user wants to save to database
         if (saveDbPresetToggle && currentItem.presetKey) {
             try {
                 const { data: currentCarrier } = await supabase
@@ -357,80 +354,136 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
         toast.success("Rates calculation completed for batch!");
     };
 
-    // Step 2: Create / Purchase shipping labels for all rated orders
+    // Step 2: Single-request Bulk Label Purchase (Shippo Batches API)
     const handlePurchaseAllLabels = async () => {
-        const ratedItems = itemsState.filter(i => i.status === 'rated' && i.selectedRate);
-        if (ratedItems.length === 0) {
-            toast.error("No valid rated orders ready for purchase");
+        const ratedOrReadyItems = itemsState.filter(i => i.status === 'rated' || i.status === 'idle');
+        if (ratedOrReadyItems.length === 0) {
+            toast.error("No valid orders ready for label purchase");
+            return;
+        }
+
+        if (ratedOrReadyItems.length > 50) {
+            toast.error(`Shippo supports a maximum of 50 orders per batch. Currently ${ratedOrReadyItems.length} orders are selected.`);
             return;
         }
 
         setIsProcessing(true);
-        setProgress(0);
+        setProgress(25);
 
-        const updatedState = [...itemsState];
-        let successCount = 0;
-
-        for (let i = 0; i < updatedState.length; i++) {
-            const item = updatedState[i];
-            if (item.status !== 'rated' || !item.selectedRate) continue;
-
-            item.status = 'purchasing';
-            setItemsState([...updatedState]);
-
-            try {
+        try {
+            if (selectedCarrier === "SHIPPO") {
+                // Call single-request Shippo Batches API (POST /v1/batches and /v1/batches/{id}/purchase)
+                // This executes ONE single credit card transaction for the entire batch
                 const { data, error } = await supabase.functions.invoke("shipping", {
                     body: {
-                        carrier: selectedCarrier,
-                        action: "create_shipment",
+                        carrier: "SHIPPO",
+                        action: "create_bulk_shipment",
                         data: {
-                            serviceCode: item.selectedRate.serviceCode,
-                            serviceName: item.selectedRate.serviceName,
-                            orderId: item.order.id,
-                            packages: item.packages,
-                            recipient: {
-                                name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || "Customer",
-                                address: item.order.shipping_address || {},
-                            },
-                        },
-                    },
+                            items: ratedOrReadyItems.map(item => ({
+                                orderId: item.order.id,
+                                serviceCode: item.selectedRate?.serviceCode,
+                                shippingService: item.order.shipping_service,
+                                shippingCarrier: item.order.shipping_carrier,
+                                packages: item.packages,
+                                recipient: {
+                                    name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || "Customer",
+                                    address: item.order.shipping_address || {},
+                                },
+                                shipper: {
+                                    name: DEFAULT_SHIPPER.name,
+                                    address: DEFAULT_SHIPPER.address,
+                                }
+                            }))
+                        }
+                    }
                 });
 
                 if (error || !data?.success) {
-                    throw new Error(data?.error || error?.message || "Purchase failed");
+                    throw new Error(data?.error || error?.message || "Shippo Batch Purchase failed");
                 }
 
-                await supabase
-                    .from("orders")
-                    .update({ status: "label_created", tracking_number: data.trackingNumber })
-                    .eq("id", item.order.id);
+                if (data.batchLabelUrl) {
+                    setBatchPdfUrl(data.batchLabelUrl);
+                }
 
-                // Send notification email to customer
-                try {
-                    await supabase.functions.invoke("send-order-email", {
-                        body: { order_id: item.order.id, type: "status_update" },
+                const updatedState = [...itemsState];
+                const resList = data.results || [];
+
+                updatedState.forEach(item => {
+                    const match = resList.find((r: any) => r.orderId === item.order.id);
+                    if (match) {
+                        item.status = 'success';
+                        item.createdShipment = {
+                            trackingNumber: match.trackingNumber,
+                            trackingUrl: match.trackingUrl,
+                            labelUrl: match.labelUrl || data.batchLabelUrl,
+                        };
+                    }
+                });
+
+                setItemsState(updatedState);
+                setProgress(100);
+                toast.success(`Successfully purchased ${ratedOrReadyItems.length} shipping labels in ONE single transaction!`);
+
+                if (data.batchLabelUrl) {
+                    window.open(data.batchLabelUrl, '_blank');
+                }
+
+                if (onSuccess) onSuccess();
+            } else {
+                // Direct carrier sequential fallback
+                const updatedState = [...itemsState];
+                let count = 0;
+
+                for (let i = 0; i < updatedState.length; i++) {
+                    const item = updatedState[i];
+                    if (!item.selectedRate) continue;
+
+                    item.status = 'purchasing';
+                    setItemsState([...updatedState]);
+
+                    const { data, error } = await supabase.functions.invoke("shipping", {
+                        body: {
+                            carrier: selectedCarrier,
+                            action: "create_shipment",
+                            data: {
+                                serviceCode: item.selectedRate.serviceCode,
+                                serviceName: item.selectedRate.serviceName,
+                                orderId: item.order.id,
+                                packages: item.packages,
+                                recipient: {
+                                    name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || "Customer",
+                                    address: item.order.shipping_address || {},
+                                },
+                            },
+                        },
                     });
-                } catch (emailErr) {
-                    console.error("Error sending label email for order:", item.order.id, emailErr);
+
+                    if (!error && data?.success) {
+                        await supabase
+                            .from("orders")
+                            .update({ status: "label_created", tracking_number: data.trackingNumber })
+                            .eq("id", item.order.id);
+
+                        item.createdShipment = data;
+                        item.status = 'success';
+                        count++;
+                    } else {
+                        item.status = 'error';
+                        item.errorMessage = error?.message || "Purchase failed";
+                    }
+
+                    setProgress(Math.round(((i + 1) / updatedState.length) * 100));
+                    setItemsState([...updatedState]);
                 }
 
-                item.createdShipment = data;
-                item.status = 'success';
-                successCount++;
-            } catch (err: any) {
-                console.error(`Purchase error for order ${item.order.id}:`, err);
-                item.status = 'error';
-                item.errorMessage = err.message || "Failed to purchase label";
+                if (count > 0 && onSuccess) onSuccess();
             }
-
-            setProgress(Math.round(((i + 1) / updatedState.length) * 100));
-            setItemsState([...updatedState]);
-        }
-
-        setIsProcessing(false);
-        if (successCount > 0) {
-            toast.success(`Successfully generated ${successCount} shipping label${successCount > 1 ? 's' : ''}!`);
-            if (onSuccess) onSuccess();
+        } catch (err: any) {
+            console.error("Bulk purchase error:", err);
+            toast.error(err.message || "Failed to purchase bulk labels");
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -443,88 +496,17 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
     }, [itemsState]);
 
     const handlePrintAllLabels = () => {
-        if (successLabels.length === 0) return;
-
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) {
-            toast.error("Pop-up blocked. Please allow pop-ups to print batch labels.");
+        if (batchPdfUrl) {
+            window.open(batchPdfUrl, '_blank');
             return;
         }
 
-        const labelHtml = successLabels.map(item => {
-            const url = item.createdShipment?.labelUrl;
-            const orderNum = item.order.id.slice(0, 8);
-            if (!url) return '';
+        if (successLabels.length === 0) return;
 
-            return `
-                <div class="label-page">
-                    <div class="order-header">Order #${orderNum}</div>
-                    <iframe src="${url}" class="label-frame"></iframe>
-                </div>
-            `;
-        }).join('');
-
-        const fullDocument = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Batch Shipping Labels (${successLabels.length})</title>
-                <style>
-                    @page {
-                        size: 4in 6in;
-                        margin: 0;
-                    }
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        background: #ffffff;
-                        font-family: system-ui, sans-serif;
-                    }
-                    .label-page {
-                        page-break-after: always;
-                        break-after: page;
-                        width: 100vw;
-                        height: 100vh;
-                        box-sizing: border-box;
-                        display: flex;
-                        flex-direction: column;
-                    }
-                    .label-page:last-child {
-                        page-break-after: avoid;
-                        break-after: avoid;
-                    }
-                    .order-header {
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 8px;
-                        background: #eee;
-                    }
-                    .label-frame {
-                        width: 100%;
-                        height: 100%;
-                        flex: 1;
-                        border: none;
-                    }
-                    @media print {
-                        .order-header { display: none; }
-                    }
-                </style>
-            </head>
-            <body>
-                ${labelHtml}
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() {
-                            window.print();
-                        }, 1000);
-                    };
-                </script>
-            </body>
-            </html>
-        `;
-
-        printWindow.document.write(fullDocument);
-        printWindow.document.close();
+        const firstUrl = successLabels[0]?.createdShipment?.labelUrl;
+        if (firstUrl) {
+            window.open(firstUrl, '_blank');
+        }
     };
 
     return (
@@ -537,7 +519,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                         Bulk Shipping Labels ({orders.length} Orders)
                     </DialogTitle>
                     <DialogDescription>
-                        Generate and purchase shipping labels in bulk via Shippo / Carriers with DB Package Presets.
+                        Generate and purchase shipping labels in bulk via Shippo Batch API (Single Credit Card Charge & Combined PDF).
                     </DialogDescription>
                 </DialogHeader>
 
@@ -549,7 +531,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                                 <SelectValue placeholder="Select Carrier" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="SHIPPO">Shippo (Multi-carrier)</SelectItem>
+                                <SelectItem value="SHIPPO">Shippo (Multi-carrier Batch)</SelectItem>
                                 <SelectItem value="UPS">UPS Direct</SelectItem>
                                 <SelectItem value="FEDEX">FedEx Direct</SelectItem>
                             </SelectContent>
@@ -565,10 +547,30 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                 {isProcessing && (
                     <div className="space-y-1.5 py-2">
                         <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Processing batch...</span>
+                            <span>Processing batch transaction...</span>
                             <span>{progress}%</span>
                         </div>
                         <Progress value={progress} className="h-2" />
+                    </div>
+                )}
+
+                {batchPdfUrl && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-emerald-600" />
+                            <div>
+                                <h4 className="text-sm font-semibold text-emerald-900">Combined Batch Labels PDF Generated!</h4>
+                                <p className="text-xs text-emerald-700">All labels for this batch have been merged into 1 PDF for quick printing.</p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold"
+                            onClick={() => window.open(batchPdfUrl, '_blank')}
+                        >
+                            <Printer className="h-4 w-4" />
+                            Open / Print Combined PDF
+                        </Button>
                     </div>
                 )}
 
@@ -660,7 +662,7 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <span className="text-muted-foreground italic">-</span>
+                                            <span className="text-muted-foreground italic">USPS Ground Advantage (Default)</span>
                                         )}
                                     </TableCell>
                                     <TableCell>
@@ -705,10 +707,10 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
 
                 <DialogFooter className="flex items-center justify-between sm:justify-between gap-2 pt-2 border-t">
                     <div className="flex items-center gap-2">
-                        {successLabels.length > 0 && (
-                            <Button variant="outline" size="sm" onClick={handlePrintAllLabels} className="flex items-center gap-1 text-xs">
+                        {(batchPdfUrl || successLabels.length > 0) && (
+                            <Button variant="outline" size="sm" onClick={handlePrintAllLabels} className="flex items-center gap-1.5 text-xs font-medium">
                                 <Printer className="h-4 w-4 text-primary" />
-                                Print All Labels ({successLabels.length})
+                                Print Combined Labels PDF ({successLabels.length})
                             </Button>
                         )}
                     </div>
@@ -725,10 +727,11 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                         <Button
                             variant="default"
                             onClick={handlePurchaseAllLabels}
-                            disabled={isProcessing || !itemsState.some(i => i.status === 'rated' && i.selectedRate)}
+                            disabled={isProcessing || itemsState.length === 0}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
                         >
                             {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Truck className="h-4 w-4 mr-2" />}
-                            2. Purchase All Labels (${totalBatchCost.toFixed(2)})
+                            2. Purchase All Labels (Single Batch Charge)
                         </Button>
                     </div>
                 </DialogFooter>

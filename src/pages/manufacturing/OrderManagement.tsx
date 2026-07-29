@@ -208,6 +208,26 @@ const OrderManagement = () => {
         return selectedOrders.filter(o => o.status === 'ready_to_ship');
     }, [selectedOrders]);
 
+    const allSelectedAreReadyToShip = useMemo(() => {
+        return selectedOrders.length > 0 && selectedOrders.every(o => o.status === 'ready_to_ship');
+    }, [selectedOrders]);
+
+    const isBulkShippingEnabled = useMemo(() => {
+        return allSelectedAreReadyToShip && selectedOrders.length <= 50;
+    }, [allSelectedAreReadyToShip, selectedOrders.length]);
+
+    const handleOpenBulkShipping = () => {
+        if (selectedOrders.length > 50) {
+            toast.error(`Shippo supports a maximum of 50 orders per batch. You currently have ${selectedOrders.length} selected. Please select 50 or fewer.`);
+            return;
+        }
+        if (!allSelectedAreReadyToShip) {
+            toast.error("All selected orders must be in 'Ready to Ship' status to create shipping labels.");
+            return;
+        }
+        setShowBulkShippingDialog(true);
+    };
+
     const bulkUpdateStatusMutation = useMutation({
         mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: string }) => {
             const { error } = await supabase
@@ -721,16 +741,28 @@ const OrderManagement = () => {
                             Send to Production
                         </Button>
 
+                        {selectedOrders.length > 50 && (
+                            <Badge variant="destructive" className="text-[11px] animate-pulse">
+                                ⚠️ Max 50 orders per batch ({selectedOrders.length} selected)
+                            </Badge>
+                        )}
+
                         <Button
                             size="sm"
-                            variant={readyToShipOrders.length > 0 ? "default" : "outline"}
-                            className={`h-8 text-xs font-medium ${readyToShipOrders.length > 0 ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "opacity-60 cursor-not-allowed"}`}
-                            onClick={() => setShowBulkShippingDialog(true)}
-                            disabled={readyToShipOrders.length === 0}
-                            title={readyToShipOrders.length === 0 ? "Select orders in 'ready_to_ship' status to create labels" : ""}
+                            variant={isBulkShippingEnabled ? "default" : "outline"}
+                            className={`h-8 text-xs font-medium ${isBulkShippingEnabled ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "opacity-60"}`}
+                            onClick={handleOpenBulkShipping}
+                            disabled={!isBulkShippingEnabled}
+                            title={
+                                selectedOrders.length > 50 
+                                    ? `Shippo limit: Max 50 orders per batch (Currently selected: ${selectedOrders.length})` 
+                                    : !allSelectedAreReadyToShip 
+                                        ? "All selected orders must be in 'Ready to Ship' status to generate labels" 
+                                        : ""
+                            }
                         >
                             <Truck className="h-3.5 w-3.5 mr-1" />
-                            Create Shipping Labels ({readyToShipOrders.length})
+                            Create Shipping Labels ({selectedOrders.length})
                         </Button>
 
                         <Button

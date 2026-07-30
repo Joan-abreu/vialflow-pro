@@ -9,16 +9,24 @@ interface TopProduct {
 
 interface TopProductsListProps {
     products: TopProduct[];
+    periodLabel?: string;
 }
 
-const TopProductsList = ({ products }: TopProductsListProps) => {
+const TopProductsList = ({ products, periodLabel }: TopProductsListProps) => {
     return (
         <Card className="col-span-1">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-yellow-500" />
-                    Top Products
-                </CardTitle>
+            <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                        <Trophy className="h-5 w-5 text-yellow-500" />
+                        Top Products
+                    </CardTitle>
+                    {periodLabel && (
+                        <span className="text-xs text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">
+                            {periodLabel}
+                        </span>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="space-y-6">

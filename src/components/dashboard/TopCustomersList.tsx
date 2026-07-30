@@ -11,16 +11,24 @@ interface TopCustomer {
 
 interface TopCustomersListProps {
     customers: TopCustomer[];
+    periodLabel?: string;
 }
 
-const TopCustomersList = ({ customers }: TopCustomersListProps) => {
+const TopCustomersList = ({ customers, periodLabel }: TopCustomersListProps) => {
     return (
         <Card className="col-span-1">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-indigo-500 fill-indigo-500" />
-                    Top Customers
-                </CardTitle>
+            <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                        <Star className="h-5 w-5 text-indigo-500 fill-indigo-500" />
+                        Top Customers
+                    </CardTitle>
+                    {periodLabel && (
+                        <span className="text-xs text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">
+                            {periodLabel}
+                        </span>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="space-y-6">

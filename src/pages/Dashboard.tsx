@@ -11,6 +11,7 @@ import RevenueTrendChart from "@/components/dashboard/RevenueTrendChart";
 import OrderVolumeTrendChart from "@/components/dashboard/OrderVolumeTrendChart";
 import TopProductsList from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
+import { UnconvertedUsersDialog, UnconvertedUser } from "@/components/dashboard/UnconvertedUsersDialog";
 import { cn } from "@/lib/utils";
 
 interface Activity {
@@ -47,15 +48,16 @@ const Dashboard = () => {
   const [statusData, setStatusData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [revenueData, setRevenueData] = useState<{ date: string; revenue: number }[]>([]);
   const [orderVolumeData, setOrderVolumeData] = useState<{ date: string; orders: number }[]>([]);
+  const [unconvertedUsers, setUnconvertedUsers] = useState<UnconvertedUser[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; quantity: number; revenue: number }[]>([]);
   const [topCustomers, setTopCustomers] = useState<{ name: string; orderCount: number; totalSpent: number }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const startDateTime = `${dateRange.startDate}T00:00:00.000Z`;
-      const endDateTime = `${dateRange.endDate}T23:59:59.999Z`;
+      const startDateTime = new Date(`${dateRange.startDate}T00:00:00`).toISOString();
+      const endDateTime = new Date(`${dateRange.endDate}T23:59:59.999`).toISOString();
 
-      const [batches, materials, shipments, profiles, ordersResp, orderShipmentsResp] = await Promise.all([
+      const [batches, materials, shipments, profiles, ordersResp, orderShipmentsResp, allEverOrdersResp, nonCustomerRolesResp] = await Promise.all([
         supabase
           .from("production_batches")
           .select("*", { count: "exact", head: true })
@@ -69,7 +71,7 @@ const Dashboard = () => {
           .in("status", ["preparing", "shipped"]),
         supabase
           .from("profiles")
-          .select("id, user_id, full_name, email"),
+          .select("id, user_id, full_name, email, created_at"),
         supabase
           .from("orders" as any)
           .select(`
@@ -93,7 +95,13 @@ const Dashboard = () => {
           .select("total_cost, status")
           .gte("created_at", startDateTime)
           .lte("created_at", endDateTime)
-          .neq("status", "refunded")
+          .neq("status", "refunded"),
+        supabase
+          .from("orders" as any)
+          .select("id, status, user_id, customer_email"),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
       ]);
 
       const lowStock = materials.data?.filter(
@@ -102,8 +110,42 @@ const Dashboard = () => {
 
       const orders = ordersResp.data || [];
       const orderShipments = orderShipmentsResp.data || [];
+      const allEverOrders = allEverOrdersResp.data || [];
+      const customerUserIds = new Set(
+        (nonCustomerRolesResp.data || [])
+          .filter((r: any) => r.role === 'customer')
+          .map((r: any) => r.user_id)
+      );
 
-      // Valid orders for revenue calculation (any order that is paid and not cancelled)
+      // Build lifetime sets of users/emails who have EVER placed a valid order (including guest purchases)
+      const validEverOrders = allEverOrders.filter((o: any) =>
+        o.status !== "pending" && 
+        o.status !== "pending_payment" && 
+        o.status !== "cancelled" && 
+        o.status !== "failed"
+      );
+      const everPurchasedUserIds = new Set(validEverOrders.map((o: any) => o.user_id).filter(Boolean));
+      const everPurchasedEmails = new Set(validEverOrders.map((o: any) => o.customer_email?.toLowerCase()).filter(Boolean));
+
+      // Filter registered profiles who are customers and have 0 lifetime purchases (checking user_id AND email)
+      const unconvertedLeads = (profiles.data || [])
+        .filter((p: any) => {
+          if (!p.user_id || !customerUserIds.has(p.user_id)) return false;
+          const hasBoughtById = everPurchasedUserIds.has(p.user_id);
+          const hasBoughtByEmail = Boolean(p.email && everPurchasedEmails.has(p.email.toLowerCase()));
+          return !hasBoughtById && !hasBoughtByEmail;
+        })
+        .map((p: any) => ({
+          id: p.id,
+          user_id: p.user_id,
+          full_name: p.full_name,
+          email: p.email,
+          created_at: p.created_at
+        }));
+
+      setUnconvertedUsers(unconvertedLeads);
+
+      // Valid orders in selected date range for revenue calculation
       const validOrders = orders.filter((o: any) =>
         o.status !== "pending" && 
         o.status !== "pending_payment" && 
@@ -118,11 +160,14 @@ const Dashboard = () => {
       const shippingPaid = orderShipments.reduce((sum: number, sh: any) => sum + Number(sh.total_cost || 0), 0);
       const netRevenue = productRevenue + (shippingCollected - shippingPaid);
 
-      const uniqueClients = new Set(orders.map((o: any) => o.user_id).filter(Boolean)).size;
+      const uniqueClients = new Set(validOrders.map((o: any) => o.user_id).filter(Boolean)).size;
 
-      // Fulfillment specific metrics
-      const pendingFulfillment = orders.filter((o: any) => o.status === "processing" || o.status === "ready_to_ship").length;
-      const awaitingPickup = orders.filter((o: any) => o.status === "label_created" || o.status === "pickup_scheduled").length;
+      // Real-time Fulfillment Operational Queues (Lifetime, independent of date filter, matches Order Management tabs)
+      const pendingFulfillment = allEverOrders.filter((o: any) => ["processing", "in_production", "ready_to_ship"].includes(o.status)).length;
+      const awaitingPickup = allEverOrders.filter((o: any) => ["label_created", "pickup_scheduled"].includes(o.status)).length;
+
+      // Filter customer profiles (excluding admins/staff)
+      const customerProfiles = (profiles.data || []).filter((p: any) => p.user_id && customerUserIds.has(p.user_id));
 
       setStats({
         activeBatches: batches.count || 0,
@@ -133,9 +178,9 @@ const Dashboard = () => {
         shippingCollected,
         shippingPaid,
         netRevenue,
-        totalOrders: orders.length,
+        totalOrders: validOrders.length,
         totalPurchasingClients: uniqueClients,
-        totalRegisteredUsers: profiles.data?.length || 0,
+        totalRegisteredUsers: customerProfiles.length,
         pendingFulfillment,
         awaitingPickup
       });
@@ -176,7 +221,7 @@ const Dashboard = () => {
         dailyOrders[formattedKey] = 0;
       });
 
-      orders.forEach((o: any) => {
+      validOrders.forEach((o: any) => {
         const date = format(new Date(o.created_at), 'MMM dd');
         if (dailyOrders[date] !== undefined) {
           dailyOrders[date] += 1;
@@ -387,7 +432,12 @@ const Dashboard = () => {
           <div className="flex flex-col md:flex-row justify-between w-full md:items-center gap-6">
              {/* Net Revenue Highlights */}
              <div className="flex-1">
-               <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Net Revenue</h3>
+               <div className="flex items-center gap-2 mb-2">
+                 <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Net Revenue</h3>
+                 <Badge variant="outline" className="text-[11px] font-semibold bg-white/80 dark:bg-slate-800/80 border-slate-300 text-slate-700 dark:text-slate-200">
+                   {periodLabel}
+                 </Badge>
+               </div>
                <div className="flex items-baseline gap-2">
                  <span className={cn(
                    "text-4xl font-extrabold transition-colors duration-500",
@@ -397,7 +447,7 @@ const Dashboard = () => {
                  </span>
                </div>
                <p className="text-sm text-slate-500 mt-2 max-w-xs">
-                 Actual margin after separating gross product sales entirely from your shipping carrier costs and collected shipping fees.
+                 Actual margin for <strong className="text-slate-700 dark:text-slate-300">{periodLabel}</strong> after separating gross product sales entirely from shipping costs.
                </p>
              </div>
 
@@ -406,18 +456,22 @@ const Dashboard = () => {
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase opacity-80">Gross Sales</p>
                   <p className="text-lg font-semibold">${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <span className="text-[10px] text-muted-foreground block">{periodLabel}</span>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase opacity-80">Products (No Ship)</p>
                   <p className="text-lg font-semibold">${stats.productRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <span className="text-[10px] text-muted-foreground block">{periodLabel}</span>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase opacity-80">Ship Collected</p>
                   <p className="text-lg font-semibold">${stats.shippingCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <span className="text-[10px] text-muted-foreground block">{periodLabel}</span>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase opacity-80">Ship Labels Paid</p>
                   <p className="text-lg font-semibold text-rose-500">-${stats.shippingPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <span className="text-[10px] text-muted-foreground block">{periodLabel}</span>
                 </div>
              </div>
           </div>
@@ -430,7 +484,10 @@ const Dashboard = () => {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Orders Placed</CardTitle>
+                    <div>
+                      <CardTitle className="text-sm font-medium">Orders Placed</CardTitle>
+                      <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium block mt-0.5">{periodLabel}</span>
+                    </div>
                     <ShoppingCart className="h-5 w-5 text-blue-600" />
                 </CardHeader>
                 <CardContent>
@@ -439,7 +496,10 @@ const Dashboard = () => {
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Purchasing Customers</CardTitle>
+                    <div>
+                      <CardTitle className="text-sm font-medium">Purchasing Customers</CardTitle>
+                      <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium block mt-0.5">{periodLabel}</span>
+                    </div>
                     <Users className="h-5 w-5 text-purple-600" />
                 </CardHeader>
                 <CardContent>
@@ -449,14 +509,20 @@ const Dashboard = () => {
                     </p>
                 </CardContent>
             </Card>
-            <Card>
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/10">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Registered (No Purchase)</CardTitle>
-                    <UserPlus className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <CardTitle className="text-sm font-medium">Registered (No Purchase)</CardTitle>
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium block mt-0.5">Lifetime Total</span>
+                    </div>
+                    <UserPlus className="h-5 w-5 text-amber-600" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{Math.max(0, stats.totalRegisteredUsers - stats.totalPurchasingClients)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Opportunities to convert</p>
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">{unconvertedUsers.length}</div>
+                        <UnconvertedUsersDialog users={unconvertedUsers} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Opportunities to convert (0 lifetime purchases)</p>
                 </CardContent>
             </Card>
           </div>
@@ -534,8 +600,8 @@ const Dashboard = () => {
         <RevenueTrendChart data={revenueData} periodLabel={periodLabel} />
         <OrderVolumeTrendChart data={orderVolumeData} periodLabel={periodLabel} />
         <OrderStatusChart data={statusData} />
-        <TopProductsList products={topProducts} />
-        <TopCustomersList customers={topCustomers} />
+        <TopProductsList products={topProducts} periodLabel={periodLabel} />
+        <TopCustomersList customers={topCustomers} periodLabel={periodLabel} />
       </div>
 
       <Card className="mt-8">

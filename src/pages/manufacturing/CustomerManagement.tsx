@@ -161,13 +161,19 @@ const CustomerManagement = () => {
                 });
             }
 
-            // Group orders by user_id
+            // Group orders by user_id and by customer_email (for guest checkouts)
             const ordersByUser: Record<string, OrderHistoryItem[]> = {};
+            const ordersByEmail: Record<string, OrderHistoryItem[]> = {};
             if (ordersData) {
                 ordersData.forEach(order => {
                     if (order.user_id) {
                         if (!ordersByUser[order.user_id]) ordersByUser[order.user_id] = [];
                         ordersByUser[order.user_id].push(order);
+                    }
+                    if (order.customer_email) {
+                        const mailKey = order.customer_email.toLowerCase();
+                        if (!ordersByEmail[mailKey]) ordersByEmail[mailKey] = [];
+                        ordersByEmail[mailKey].push(order);
                     }
                 });
             }
@@ -176,7 +182,14 @@ const CustomerManagement = () => {
             const customers = usersData
                 .filter((user: any) => user.role === 'customer' && user.email !== 'hidden.admin@dev.com')
                 .map((user: any) => {
-                    const userOrders = ordersByUser[user.id] || [];
+                    const ordersById = ordersByUser[user.id] || [];
+                    const ordersByMail = user.email ? (ordersByEmail[user.email.toLowerCase()] || []) : [];
+                    
+                    // Deduplicate orders by id
+                    const userOrdersMap = new Map<string, OrderHistoryItem>();
+                    [...ordersById, ...ordersByMail].forEach(o => userOrdersMap.set(o.id, o));
+                    const userOrders = Array.from(userOrdersMap.values());
+
                     const validOrders = userOrders.filter(o => 
                         o.status !== 'cancelled' && 
                         o.status !== 'failed' && 

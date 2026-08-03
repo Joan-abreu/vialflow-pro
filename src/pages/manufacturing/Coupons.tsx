@@ -74,6 +74,7 @@ interface Coupon {
     is_referral: boolean;
     one_use_per_user: boolean;
     restricted_to_user_ids: string[] | null;
+    restricted_to_emails?: string[] | null;
     created_at: string;
 }
 
@@ -754,6 +755,7 @@ const Coupons = () => {
                                                 discountDetails={coupon.type === 'percentage' ? `${coupon.value}% off ${coupon.target}` : `$${coupon.value.toFixed(2)} off ${coupon.target}`}
                                                 expiresAt={coupon.expires_at ? format(new Date(coupon.expires_at), "MMM d, yyyy") : undefined}
                                                 restrictedToUserIds={coupon.restricted_to_user_ids}
+                                                restrictedToEmails={coupon.restricted_to_emails}
                                                 trigger={
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" title="Send to Customers">
                                                         <Mail className="h-4 w-4" />

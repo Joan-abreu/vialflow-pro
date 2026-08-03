@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
     Dialog, 
@@ -49,17 +49,27 @@ interface SendCouponDialogProps {
     discountDetails: string;
     expiresAt?: string;
     restrictedToUserIds?: string[] | null;
+    restrictedToEmails?: string[] | null;
     trigger?: React.ReactNode;
 }
 
-export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restrictedToUserIds, trigger }: SendCouponDialogProps) => {
+export const SendCouponDialog = ({ 
+    couponCode, 
+    discountDetails, 
+    expiresAt, 
+    restrictedToUserIds, 
+    restrictedToEmails,
+    trigger 
+}: SendCouponDialogProps) => {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [fetchingCustomers, setFetchingCustomers] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+    const [customAddedEmails, setCustomAddedEmails] = useState<string[]>([]);
     const [personalNote, setPersonalNote] = useState("");
+    const hasInitializedRef = useRef(false);
 
     const fetchCustomers = async () => {
         try {
@@ -99,15 +109,70 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
 
     const [customEmail, setCustomEmail] = useState("");
 
-    // Auto-select restricted email addresses if passed in restrictedToUserIds
+    const allRestrictedEmails = useMemo(() => {
+        const fromUserIds = (restrictedToUserIds || []).filter(r => r.includes("@")).map(e => e.toLowerCase());
+        const fromEmails = (restrictedToEmails || []).map(e => e.toLowerCase());
+        return Array.from(new Set([...fromUserIds, ...fromEmails]));
+    }, [restrictedToUserIds, restrictedToEmails]);
+
+    const allRestrictedUserIds = useMemo(() => {
+        return (restrictedToUserIds || []).filter(r => !r.includes("@"));
+    }, [restrictedToUserIds]);
+
+    const isRestrictedCoupon = (allRestrictedUserIds.length > 0 || allRestrictedEmails.length > 0);
+
+    const allCustomers = useMemo(() => {
+        const list = [...customers];
+
+        // Synthesize guest customer objects for restricted emails not in registered customers list
+        allRestrictedEmails.forEach(email => {
+            if (!list.some(c => c.email.toLowerCase() === email)) {
+                list.push({
+                    id: `guest-${email}`,
+                    display_name: "Guest Customer",
+                    full_name: "Guest Customer",
+                    email: email,
+                    role: "guest"
+                });
+            }
+        });
+
+        // Synthesize guest customer objects for manually added custom emails
+        customAddedEmails.forEach(email => {
+            if (!list.some(c => c.email.toLowerCase() === email)) {
+                list.push({
+                    id: `guest-${email}`,
+                    display_name: "Guest Customer",
+                    full_name: "Guest Customer",
+                    email: email,
+                    role: "guest"
+                });
+            }
+        });
+
+        return list;
+    }, [customers, allRestrictedEmails, customAddedEmails]);
+
+    // Auto-select restricted email addresses / user IDs when dialog opens
     useEffect(() => {
-        if (open && restrictedToUserIds && restrictedToUserIds.length > 0) {
-            const emailRestrictions = restrictedToUserIds.filter(r => r.includes("@"));
-            if (emailRestrictions.length > 0) {
-                setSelectedEmails(prev => Array.from(new Set([...prev, ...emailRestrictions])));
+        if (!open) {
+            hasInitializedRef.current = false;
+            setSelectedEmails([]);
+            setCustomAddedEmails([]);
+            return;
+        }
+
+        if (open && !hasInitializedRef.current && !fetchingCustomers) {
+            hasInitializedRef.current = true;
+            if (isRestrictedCoupon) {
+                const targetEmails = customers
+                    .filter(c => allRestrictedUserIds.includes(c.id) || allRestrictedEmails.includes(c.email.toLowerCase()))
+                    .map(c => c.email);
+
+                setSelectedEmails(Array.from(new Set([...targetEmails, ...allRestrictedEmails])));
             }
         }
-    }, [open, restrictedToUserIds]);
+    }, [open, fetchingCustomers, customers, isRestrictedCoupon, allRestrictedUserIds, allRestrictedEmails]);
 
     const handleAddCustomEmail = () => {
         const e = customEmail.trim().toLowerCase();
@@ -119,17 +184,21 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
             toast.error("Email already selected");
             return;
         }
+        setCustomAddedEmails(prev => Array.from(new Set([...prev, e])));
         setSelectedEmails(prev => [...prev, e]);
         setCustomEmail("");
         toast.success(`Added ${e} to recipients`);
     };
 
     const filteredCustomers = useMemo(() => {
-        let result = customers;
+        let result = allCustomers;
         
-        // Filter by restricted users if applicable (supporting both user IDs and email addresses)
-        if (restrictedToUserIds && restrictedToUserIds.length > 0) {
-            result = result.filter(c => restrictedToUserIds.includes(c.id) || restrictedToUserIds.includes(c.email?.toLowerCase()));
+        // Filter by restricted users/emails if coupon is restricted
+        if (isRestrictedCoupon) {
+            result = result.filter(c => 
+                allRestrictedUserIds.includes(c.id) || 
+                allRestrictedEmails.includes(c.email.toLowerCase())
+            );
         }
 
         if (!searchQuery) return result;
@@ -138,13 +207,16 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
             c.email.toLowerCase().includes(query) || 
             (c.full_name || c.display_name || "").toLowerCase().includes(query)
         );
-    }, [customers, searchQuery, restrictedToUserIds]);
+    }, [allCustomers, searchQuery, isRestrictedCoupon, allRestrictedUserIds, allRestrictedEmails]);
 
     const toggleSelectAll = () => {
-        if (selectedEmails.length === filteredCustomers.length) {
-            setSelectedEmails([]);
+        const filteredEmails = filteredCustomers.map(c => c.email);
+        const allFilteredAreSelected = filteredEmails.length > 0 && filteredEmails.every(e => selectedEmails.includes(e));
+
+        if (allFilteredAreSelected) {
+            setSelectedEmails(prev => prev.filter(e => !filteredEmails.includes(e)));
         } else {
-            setSelectedEmails(filteredCustomers.map(c => c.email));
+            setSelectedEmails(prev => Array.from(new Set([...prev, ...filteredEmails])));
         }
     };
 
@@ -325,7 +397,9 @@ export const SendCouponDialog = ({ couponCode, discountDetails, expiresAt, restr
                                                     <TableCell className="py-2">
                                                         <Badge variant="outline" className={cn(
                                                             "text-[10px] capitalize",
-                                                            customer.role === 'admin' ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                                                            customer.role === 'admin' ? "bg-amber-50 text-amber-700 border-amber-200" : 
+                                                            customer.role === 'guest' ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                                            "bg-blue-50 text-blue-700 border-blue-200"
                                                         )}>
                                                             {customer.role}
                                                         </Badge>

@@ -138,7 +138,7 @@ const Account = () => {
                     )
                 )
             `)
-            .eq("user_id", user.id)
+            .or(user.email ? `user_id.eq.${user.id},customer_email.ilike.${user.email}` : `user_id.eq.${user.id}`)
             .order("created_at", { ascending: false });
 
         if (!error && data) {

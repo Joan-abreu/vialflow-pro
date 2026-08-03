@@ -46,6 +46,7 @@ import CopyCell from "@/components/CopyCell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface OrderItem {
     id: string;
@@ -625,7 +626,8 @@ const OrderManagement = () => {
             order.customer_email?.toLowerCase().includes(query) ||
             order.customer_profile?.full_name?.toLowerCase().includes(query) ||
             order.status.toLowerCase().includes(query) ||
-            (order.tracking_number && order.tracking_number.toLowerCase().includes(query))
+            (order.tracking_number && order.tracking_number.toLowerCase().includes(query)) ||
+            order.applied_coupons?.some(c => c.toLowerCase().includes(query))
         );
 
         const matchesShipments = order.order_shipments?.some(shipment => 
@@ -878,8 +880,22 @@ const OrderManagement = () => {
                             ) : (
                                 filteredOrders
                                     ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                    .map((order) => (
-                                        <TableRow key={order.id} className={selectedOrderIds.includes(order.id) ? "bg-muted/30" : ""}>
+                                    .map((order) => {
+                                        const hasCoupon = Boolean(
+                                            (order.applied_coupons && order.applied_coupons.length > 0) ||
+                                            (order.product_discount || 0) > 0 ||
+                                            (order.shipping_discount || 0) > 0
+                                        );
+                                        const couponCode = order.applied_coupons && order.applied_coupons.length > 0 ? order.applied_coupons[0] : null;
+
+                                        return (
+                                        <TableRow 
+                                            key={order.id} 
+                                            className={cn(
+                                                selectedOrderIds.includes(order.id) && "bg-muted/30",
+                                                hasCoupon && !selectedOrderIds.includes(order.id) && "bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/70"
+                                            )}
+                                        >
                                             <TableCell className="w-10">
                                                 <Checkbox
                                                     checked={selectedOrderIds.includes(order.id)}
@@ -888,11 +904,21 @@ const OrderManagement = () => {
                                                 />
                                             </TableCell>
                                             <TableCell className="font-mono text-xs whitespace-nowrap">
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 flex-wrap">
                                                     <span>#{order.id.slice(0, 8)}</span>
                                                     {order.order_items?.some(item => item.is_bulk) && (
                                                         <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0 font-bold uppercase">
                                                             Bulk
+                                                        </Badge>
+                                                    )}
+                                                    {hasCoupon && (
+                                                        <Badge 
+                                                            variant="outline" 
+                                                            className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700 text-[9px] px-1.5 py-0 font-bold flex items-center gap-1 uppercase"
+                                                            title={order.applied_coupons?.length ? `Cupones aplicables: ${order.applied_coupons.join(", ")}` : 'Descuento aplicado'}
+                                                        >
+                                                            <Tag className="w-2.5 h-2.5" />
+                                                            {couponCode || 'Cupón'}
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -960,7 +986,15 @@ const OrderManagement = () => {
                                                     {order.status.replace(/_/g, " ")}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right">${order.total_amount.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="font-semibold">${order.total_amount.toFixed(2)}</div>
+                                                {hasCoupon && (
+                                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1 mt-0.5" title={order.applied_coupons?.join(", ") || "Descuento aplicado"}>
+                                                        <Tag className="w-2.5 h-2.5" />
+                                                        <span>{couponCode || 'Cupón'}</span>
+                                                    </div>
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1">
                                                     <Button
@@ -1123,7 +1157,8 @@ const OrderManagement = () => {
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    ))
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>

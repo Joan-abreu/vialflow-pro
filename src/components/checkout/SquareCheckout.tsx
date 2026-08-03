@@ -247,6 +247,8 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
             // 2. Create Order in Supabase
             const customerEmail = addressState.email || user?.email || "";
+            const couponCodes = appliedDiscounts?.map((d: any) => d.code).filter(Boolean) || [];
+            const productDiscount = appliedDiscounts?.reduce((sum: number, d: any) => sum + (d.discount_amount || d.amount || 0), 0) || 0;
 
             const { data: order, error: orderError } = await supabase
                 .from("orders")
@@ -261,7 +263,9 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     shipping_service_code: shippingServiceCode || null,
                     shipping_carrier: shippingCarrier || null,
                     estimated_days: estimatedDays ? parseInt(String(estimatedDays)) : null,
-                    tax: tax || 0
+                    tax: tax || 0,
+                    applied_coupons: couponCodes,
+                    product_discount: productDiscount
                 })
                 .select()
                 .single();

@@ -3,7 +3,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import SquareCheckout from "@/components/checkout/SquareCheckout";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,6 +333,36 @@ const Checkout = () => {
 
     return (
         <div className="container py-12">
+            <div className="bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 mb-8 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div className="w-full">
+                    <h3 className="font-semibold">Purchases Temporarily Unavailable</h3>
+                    <p className="text-sm mt-1 mb-3">
+                        We are currently transitioning to a new payment processor and cannot accept orders directly on our site at this moment. We apologize for the inconvenience and appreciate your patience.
+                    </p>
+                    <div className="bg-background/80 p-4 rounded-md border border-destructive/20 mt-2">
+                        <p className="text-sm font-medium mb-3 text-foreground">You can still purchase our 10ml and 30ml 2-Packs directly on Walmart:</p>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Button asChild variant="outline" className="border-[#0071ce] text-[#0071ce] hover:bg-[#0071ce] hover:text-white">
+                                <a href="https://www.walmart.com/browse/0?facet=brand:Liv+Well+Research+Labs" target="_blank" rel="noreferrer">
+                                    Shop All on Walmart
+                                </a>
+                            </Button>
+                            <Button asChild variant="outline" className="border-[#0071ce] text-[#0071ce] hover:bg-[#0071ce] hover:text-white">
+                                <a href="https://www.walmart.com/ip/Glass-Vials-for-Water-Solution-2-x-30-ML/20573568655" target="_blank" rel="noreferrer">
+                                    30ml 2-Pack
+                                </a>
+                            </Button>
+                            <Button asChild variant="outline" className="border-[#0071ce] text-[#0071ce] hover:bg-[#0071ce] hover:text-white">
+                                <a href="https://www.walmart.com/ip/Glass-Vials-for-Water-Solution-2-x-30-ML/20653753377" target="_blank" rel="noreferrer">
+                                    10ml 2-Pack
+                                </a>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <h1 className="text-3xl font-bold">Checkout</h1>
                 

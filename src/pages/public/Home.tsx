@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
 import { getBaseSalesCount } from "@/utils/salesCount";
 
+import { getSEOConfig } from "@/config/seoConfig";
+
 const Home = () => {
     const { data: userVipStatus } = useQuery({
         queryKey: ["user-vip-status"],
@@ -128,11 +130,13 @@ const Home = () => {
         }
     });
 
+    const seo = getSEOConfig("home");
+
     return (
         <div className="flex flex-col min-h-screen">
             <SEO
-                title="Home"
-                description="Ultra-Pure Reconstitution Solutions and Bacteriostatic Water for Laboratory Research. High purity, lab-verified products with fast shipping."
+                title={seo.title}
+                description={seo.description}
             />
             {/* Hero Section */}
             <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-primary/5 to-background">

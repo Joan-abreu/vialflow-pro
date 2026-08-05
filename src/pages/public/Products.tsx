@@ -9,6 +9,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { getBaseSalesCount } from "@/utils/salesCount";
 import SEO from "@/components/SEO";
+import { getSEOConfig } from "@/config/seoConfig";
 import { useEffect } from "react";
 import {
     Select,
@@ -206,9 +207,11 @@ const Products = () => {
         }
     });
 
+    const seo = getSEOConfig("products-catalog");
+
     return (
         <div className="container py-12">
-            <SEO title="Products" description="Browse our complete catalog of ultra-pure reconstitution solutions." />
+            <SEO title={seo.title} description={seo.description} />
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Our Products</h1>

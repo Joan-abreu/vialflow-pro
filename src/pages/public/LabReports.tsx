@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Download, FileText, Search, ShieldCheck, HelpCircle } from "lucide-react";
 import SEO from "@/components/SEO";
+import { getSEOConfig } from "@/config/seoConfig";
 
 interface Product {
     id: string;
@@ -54,11 +55,13 @@ const LabReports = () => {
         return matchesSearch;
     });
 
+    const seo = getSEOConfig("lab-reports");
+
     return (
         <div className="container py-12 md:py-20 max-w-4xl min-h-[70vh]">
             <SEO 
-                title="Lab Reports & COAs" 
-                description="View third-party independent laboratory test results and Certificates of Analysis (COAs) for our bacteriostatic water and reconstitution solutions."
+                title={seo.title} 
+                description={seo.description}
             />
 
             <div className="space-y-10">

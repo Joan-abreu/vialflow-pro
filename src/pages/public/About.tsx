@@ -1,10 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import SEO from "@/components/SEO";
+import { getSEOConfig } from "@/config/seoConfig";
 
 const About = () => {
+    const seo = getSEOConfig("about");
     return (
         <div className="container py-12">
-            <SEO title="About Us" description="About Liv Well Research Labs - Ultra-pure reconstitution solutions." />
+            <SEO title={seo.title} description={seo.description} />
             <div className="max-w-4xl mx-auto space-y-12">
                 <div className="text-center space-y-4">
                     <h1 className="text-4xl font-bold tracking-tight">About Liv Well Research Labs</h1>

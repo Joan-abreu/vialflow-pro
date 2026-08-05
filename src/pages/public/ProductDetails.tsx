@@ -15,6 +15,7 @@ import { getBaseSalesCount } from "@/utils/salesCount";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getSEOConfig } from "@/config/seoConfig";
 
 interface ProductWithVariants {
     id: string;
@@ -29,6 +30,7 @@ interface ProductWithVariants {
     variants: ProductVariant[];
     sales_count?: number;
     is_private?: boolean;
+    slug?: string;
 }
 
 const ProductDetails = () => {
@@ -204,6 +206,7 @@ const ProductDetails = () => {
 
             return {
                 id: productData.id,
+                slug: productData.slug,
                 name: productData.name,
                 description: productData.description,
                 rich_description: (productData as any).rich_description,
@@ -351,9 +354,11 @@ const ProductDetails = () => {
         );
     }
 
+    const seoInfo = getSEOConfig(product?.slug || id, product?.name, product?.description);
+
     return (
         <div className="container py-12 md:py-20">
-            {product && <SEO title={product.name} description={product.description || undefined} image={product.image_url || undefined} />}
+            {product && <SEO title={seoInfo.title} description={seoInfo.description} image={product.image_url || undefined} />}
             {product?.is_private && (
                 <Helmet>
                     <meta name="robots" content="noindex, nofollow" />

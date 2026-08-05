@@ -17,8 +17,7 @@ const SEO = ({
     type = "website",
     noindex = false
 }: SEOProps) => {
-    const siteTitle = "Liv Well Research Labs";
-    const fullTitle = `${title} | ${siteTitle}`;
+    const fullTitle = title;
 
     return (
         <Helmet>

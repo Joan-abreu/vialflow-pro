@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, User, Menu, LogOut, X } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -13,7 +13,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
+import ResearcherVerificationModal from "@/components/public/ResearcherVerificationModal";
 
 const CartIcon = () => {
     const { cartCount, isAnimating } = useCart();
@@ -44,6 +44,12 @@ const PublicLayoutContent = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const [isVerified, setIsVerified] = useState<boolean>(() => {
+        return sessionStorage.getItem("researcher_verified") === "true";
+    });
+    const [isWaterPage, setIsWaterPage] = useState<boolean>(false);
 
     useEffect(() => {
         const checkAdmin = async () => {
@@ -63,6 +69,53 @@ const PublicLayoutContent = () => {
         checkAdmin();
     }, [user]);
 
+    useEffect(() => {
+        const checkWaterRoute = async () => {
+            const searchParams = new URLSearchParams(location.search);
+            const categoryParam = searchParams.get("category")?.toLowerCase() || "";
+
+            // Check if user is on /products?category=water or similar reconstitution solution category
+            if (location.pathname === "/products" && (categoryParam.includes("water") || categoryParam.includes("reconstitution"))) {
+                setIsWaterPage(true);
+                return;
+            }
+
+            // Check if user is on a product details page (/products/:id or /products/:slug)
+            if (location.pathname.startsWith("/products/") && location.pathname !== "/products") {
+                const idOrSlug = location.pathname.split("/products/")[1];
+                if (idOrSlug) {
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+                    let query = supabase.from("products").select("name, category_id, product_categories(name)" as any);
+                    if (isUuid) {
+                        query = query.eq("id", idOrSlug);
+                    } else {
+                        query = query.eq("slug", idOrSlug);
+                    }
+
+                    const { data } = await query.maybeSingle();
+                    if (data) {
+                        const categoryName = (data.product_categories as any)?.name?.toLowerCase() || (data as any)?.category?.toLowerCase() || "";
+                        const productName = (data as any)?.name?.toLowerCase() || "";
+                        if (
+                            categoryName.includes("water") || 
+                            categoryName.includes("reconstitution") ||
+                            productName.includes("bacteriostatic") ||
+                            productName.includes("sterile water") ||
+                            productName.includes("reconstitution")
+                        ) {
+                            setIsWaterPage(true);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            setIsWaterPage(false);
+        };
+
+        checkWaterRoute();
+    }, [location.pathname, location.search]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate("/");
@@ -70,6 +123,10 @@ const PublicLayoutContent = () => {
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
+            <ResearcherVerificationModal
+                isOpen={!isVerified && !isWaterPage}
+                onVerify={() => setIsVerified(true)}
+            />
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <div className="flex items-center gap-6">

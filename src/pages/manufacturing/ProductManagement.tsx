@@ -761,14 +761,14 @@ const ProductManagement = () => {
             onDragEnd={handleDragEnd}
         >
             <div className="space-y-6">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold">Product Management</h1>
-                        <p className="text-muted-foreground mt-2">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Product Management</h1>
+                        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
                             Manage your product catalog, variants, and categories.
                         </p>
                     </div>
-                    <div className="flex gap-2 text-sm sm:text-base">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto text-sm sm:text-base">
                         <ManageVialTypesDialog />
                         <ManageCategoriesDialog />
                         <Dialog open={isProductDialogOpen} onOpenChange={(open) => {
@@ -781,11 +781,11 @@ const ProductManagement = () => {
                             }
                         }}>
                             <DialogTrigger asChild>
-                                <Button>
+                                <Button className="w-full sm:w-auto">
                                     <Plus className="mr-2 h-4 w-4" /> Add Product
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+                            <DialogContent className="max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                                 <DialogHeader>
                                     <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
                                     <DialogDescription>
@@ -941,7 +941,7 @@ const ProductManagement = () => {
                         setVariantSaleType("individual");
                     }
                 }}>
-                    <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-[95vw] sm:max-w-[550px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                         <DialogHeader>
                             <DialogTitle>{editingVariant ? "Edit Variant" : "Add Variant"}</DialogTitle>
                             <DialogDescription>
@@ -971,7 +971,7 @@ const ProductManagement = () => {
                                 <Label htmlFor="sku">SKU (Optional)</Label>
                                 <Input id="sku" name="sku" defaultValue={editingVariant?.sku || ""} placeholder="SKU-001" />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="price">Price</Label>
                                     <Input id="price" name="price" type="number" step="0.01" defaultValue={editingVariant?.price} required />
@@ -980,7 +980,7 @@ const ProductManagement = () => {
                                     <Label htmlFor="stock_quantity">Stock</Label>
                                     <Input id="stock_quantity" name="stock_quantity" type="number" defaultValue={editingVariant?.stock_quantity} required />
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2 sm:col-span-2">
                                     <Label htmlFor="low_stock_threshold">Alert Threshold</Label>
                                     <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={editingVariant?.low_stock_threshold ?? 10} required />
                                 </div>
@@ -997,7 +997,7 @@ const ProductManagement = () => {
                                 />
                                 <p className="text-xs text-muted-foreground">Maximum quantity customers can purchase online (leave empty for unlimited)</p>
                             </div>
-                            <div className="col-span-2 space-y-2">
+                            <div className="space-y-2">
                                 <Label htmlFor="weight">Weight (lbs)</Label>
                                 <Input
                                     id="weight"
@@ -1011,7 +1011,7 @@ const ProductManagement = () => {
                                 />
                                 <p className="text-xs text-muted-foreground">Weight of the item as listed (e.g., 1 vial weight for singles, 2 vials weight for a 2-Pack, or 100 vials weight for Bulk 100x Pack).</p>
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="dimension_length">Length (in)</Label>
                                     <Input id="dimension_length" name="dimension_length" type="number" step="0.1" defaultValue={editingVariant?.dimension_length || ""} placeholder="0" />
@@ -1058,7 +1058,7 @@ const ProductManagement = () => {
                                     />
                                     <Label htmlFor="bulk_only" className="text-xs font-normal">Enforce Bulk-Only (Hides Retail options for this variant)</Label>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="bulk_price">Bulk Price / Unit</Label>
                                         <Input 
@@ -1097,7 +1097,7 @@ const ProductManagement = () => {
 
                             <div className="border-t pt-4 space-y-4">
                                 <h4 className="font-semibold text-sm text-primary">Standard Box Configuration (For Shipping Split)</h4>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div className="space-y-2">
                                         <Label htmlFor="box_length">Box Length (in)</Label>
                                         <Input 
@@ -1132,7 +1132,7 @@ const ProductManagement = () => {
                                         />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="box_weight">Box Weight (lbs)</Label>
                                         <Input 
@@ -1184,8 +1184,8 @@ const ProductManagement = () => {
                     </DialogContent>
                 </Dialog>
 
-                <div className="border rounded-lg">
-                    <Table>
+                <div className="border rounded-lg overflow-x-auto max-w-full">
+                    <Table className="min-w-[800px]">
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-12"></TableHead>
@@ -1291,9 +1291,9 @@ const ProductManagement = () => {
                                                 {isExpanded && variants.length > 0 && (
                                                     <TableRow>
                                                         <TableCell colSpan={8} className="bg-muted/50 p-0">
-                                                            <div className="p-4">
+                                                            <div className="p-2 sm:p-4 overflow-x-auto">
                                                                 <h4 className="font-semibold mb-3 text-sm">Variants</h4>
-                                                                <Table>
+                                                                <Table className="min-w-[700px]">
                                                                     <TableHeader>
                                                                         <TableRow>
                                                                             <TableHead className="w-10"></TableHead>

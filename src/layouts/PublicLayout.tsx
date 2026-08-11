@@ -37,7 +37,22 @@ const CartIcon = () => {
     );
 };
 
-const checkIsWaterRouteSync = (pathname: string, search: string): boolean => {
+const EXEMPT_PATHS = [
+    "/terms",
+    "/privacy",
+    "/returns",
+    "/sds",
+    "/lab-reports",
+    "/about",
+    "/contact",
+];
+
+const checkIsExemptRouteSync = (pathname: string, search: string): boolean => {
+    const lowerPath = pathname.toLowerCase();
+    if (EXEMPT_PATHS.some(path => lowerPath === path || lowerPath.startsWith(path + "/"))) {
+        return true;
+    }
+
     const searchParams = new URLSearchParams(search);
     const categoryParam = searchParams.get("category")?.toLowerCase() || "";
 
@@ -76,7 +91,7 @@ const PublicLayoutContent = () => {
     });
 
     const [isWaterPage, setIsWaterPage] = useState<boolean>(() => {
-        return checkIsWaterRouteSync(window.location.pathname, window.location.search);
+        return checkIsExemptRouteSync(window.location.pathname, window.location.search);
     });
     const [isCheckingRoute, setIsCheckingRoute] = useState<boolean>(false);
 
@@ -100,9 +115,9 @@ const PublicLayoutContent = () => {
 
     useEffect(() => {
         const checkWaterRoute = async () => {
-            // Instant synchronous check first (zero delay)
-            const isSyncWater = checkIsWaterRouteSync(location.pathname, location.search);
-            if (isSyncWater) {
+            // Instant synchronous check for exempt pages & water routes
+            const isSyncExempt = checkIsExemptRouteSync(location.pathname, location.search);
+            if (isSyncExempt) {
                 setIsWaterPage(true);
                 setIsCheckingRoute(false);
                 return;

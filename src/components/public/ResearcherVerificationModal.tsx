@@ -226,6 +226,7 @@ export const ResearcherVerificationModal: React.FC<ResearcherVerificationModalPr
           <Link
             to="/terms"
             target="_blank"
+            rel="noopener noreferrer"
             className="text-[11px] text-slate-600 hover:text-primary inline-flex items-center gap-1 font-semibold transition-colors"
           >
             View Full Terms & Conditions

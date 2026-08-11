@@ -39,12 +39,6 @@ const CartIcon = () => {
 
 const EXEMPT_PATHS = [
     "/terms",
-    "/privacy",
-    "/returns",
-    "/sds",
-    "/lab-reports",
-    "/about",
-    "/contact",
 ];
 
 const checkIsExemptRouteSync = (pathname: string, search: string): boolean => {

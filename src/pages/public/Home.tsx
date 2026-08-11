@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, Truck, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,21 +142,26 @@ const Home = () => {
             <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                 <div className="container px-4 md:px-6 relative z-10">
                     <div className="flex flex-col items-center text-center space-y-8">
+                        <Link to="/products?category=peptides" className="inline-flex items-center gap-2 bg-primary/10 hover:bg-primary/15 border border-primary/20 transition-all rounded-full px-4 py-1.5 text-xs md:text-sm font-semibold text-primary shadow-sm group">
+                            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+                            <span>NOW AVAILABLE: Premium Research Peptides</span>
+                            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                        </Link>
                         <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
-                            Ultra-Pure Reconstitution Solutions & <span className="text-primary">Bacteriostatic Water</span>
+                            Ultra-Pure Reconstitution Solutions & <span className="text-primary">Research Peptides</span>
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                            Liv Well Research Labs provides high-purity, laboratory-grade reconstitution solutions and sterile water for scientific research.
+                            Liv Well Research Labs provides high-purity, laboratory-grade reconstitution solutions, sterile water, and research peptides for scientific research.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <Link to="/products">
-                                <Button size="lg" className="h-12 px-8 text-lg">
-                                    Shop Products <ArrowRight className="ml-2 h-5 w-5" />
+                            <Link to="/products?category=peptides">
+                                <Button size="lg" className="h-12 px-8 text-lg font-bold shadow-md">
+                                    Explore Peptides <ArrowRight className="ml-2 h-5 w-5" />
                                 </Button>
                             </Link>
-                            <Link to="/about">
+                            <Link to="/products">
                                 <Button variant="outline" size="lg" className="h-12 px-8 text-lg">
-                                    Learn More
+                                    All Products
                                 </Button>
                             </Link>
                         </div>

@@ -155,17 +155,23 @@ const Products = () => {
                         shape: v.vial_type.shape,
                     },
                 })).sort((a: any, b: any) => a.position - b.position)
-            })).filter(product => {
-                if (isVip) return true;
-                return !product.name.toLowerCase().includes('peptide') &&
-                       !(product.category?.toLowerCase().includes('peptide'));
-            });
+            }));
         },
     });
 
     const filteredProducts = productsWithVariants?.filter(product => {
         const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = selectedCategory ? product.category === selectedCategory : true;
+        const targetCategory = selectedCategory?.toLowerCase();
+        const productCategory = product.category?.toLowerCase() || "";
+
+        let matchesCategory = true;
+        if (targetCategory) {
+            if (targetCategory === "peptides" || targetCategory.includes("peptide")) {
+                matchesCategory = productCategory.includes("peptide");
+            } else {
+                matchesCategory = productCategory === targetCategory;
+            }
+        }
         return matchesSearch && matchesCategory;
     });
 
@@ -198,12 +204,7 @@ const Products = () => {
             }
                 
             const { data } = await catQuery;
-            return (data || [])
-                .map((c: any) => c.name)
-                .filter((name: string) => {
-                    if (isVip) return true;
-                    return !name.toLowerCase().includes('peptide');
-                });
+            return (data || []).map((c: any) => c.name);
         }
     });
 
@@ -212,7 +213,7 @@ const Products = () => {
     return (
         <div className="container py-12">
             <SEO title={seo.title} description={seo.description} />
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Our Products</h1>
                     <p className="text-muted-foreground">Browse our complete catalog of ultra-pure reconstitution solutions.</p>
@@ -248,42 +249,47 @@ const Products = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8">
-                {/* Sidebar Filters */}
-                <div className="hidden md:block space-y-6">
-                    <div>
-                        <h3 className="font-semibold mb-4">Categories</h3>
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    id="cat-all"
-                                    name="category"
-                                    className="rounded border-gray-300"
-                                    checked={selectedCategory === null}
-                                    onChange={() => setSelectedCategory(null)}
-                                />
-                                <label htmlFor="cat-all" className="text-sm cursor-pointer hover:text-primary transition-colors">All Products</label>
-                            </div>
-                            {categories?.map((category: string) => (
-                                <div key={category} className="flex items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        id={`cat-${category}`}
-                                        name="category"
-                                        className="rounded border-gray-300"
-                                        checked={selectedCategory === category}
-                                        onChange={() => setSelectedCategory(category)}
-                                    />
-                                    <label htmlFor={`cat-${category}`} className="text-sm cursor-pointer hover:text-primary transition-colors">{category}</label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+            {/* Mobile & Desktop Horizontal Category Pills Bar */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-8 scrollbar-none border-b border-border/40">
+                <button
+                    onClick={() => setSelectedCategory(null)}
+                    className={`px-4 py-2 rounded-full text-xs md:text-sm font-semibold shrink-0 transition-all ${
+                        selectedCategory === null
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                >
+                    All Products
+                </button>
+                {categories?.map((category: string) => {
+                    const isCatActive = selectedCategory === category || 
+                        (selectedCategory?.toLowerCase() === category.toLowerCase()) ||
+                        (selectedCategory?.toLowerCase().includes("peptide") && category.toLowerCase().includes("peptide"));
+                    return (
+                        <button
+                            key={category}
+                            onClick={() => setSelectedCategory(category)}
+                            className={`px-4 py-2 rounded-full text-xs md:text-sm font-semibold shrink-0 transition-all flex items-center gap-1.5 ${
+                                isCatActive
+                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                    : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                        >
+                            <span>{category}</span>
+                            {category.toLowerCase().includes("peptide") && (
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
+                                    isCatActive ? "bg-amber-400 text-slate-900" : "bg-amber-500 text-white"
+                                }`}>
+                                    NEW
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
 
-                {/* Product Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Product Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {isError ? (
                         <div className="col-span-full text-center py-12 bg-red-50 rounded-lg border border-red-100">
                             <p className="text-red-500 mb-4 font-medium">Failed to load products. Please try again.</p>
@@ -392,7 +398,6 @@ const Products = () => {
                         })()
                     )}
                 </div>
-            </div>
         </div>
     );
 };

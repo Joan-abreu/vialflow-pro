@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus, ArrowRight, Sparkles } from "lucide-react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
@@ -709,6 +709,30 @@ const ProductDetails = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Research Peptides Promotion Banner for Ad Traffic */}
+                        <div className="bg-gradient-to-br from-primary/10 via-emerald-500/10 to-teal-500/15 border-2 border-primary/25 rounded-2xl p-5 md:p-6 shadow-sm space-y-4">
+                            <div className="flex items-center gap-2">
+                                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-wider">
+                                    <Sparkles className="h-3 w-3 mr-1" /> NOW AVAILABLE
+                                </Badge>
+                                <span className="text-xs text-primary font-bold uppercase tracking-wider">Expanded Catalog</span>
+                            </div>
+                            <div className="space-y-1.5">
+                                <h3 className="text-lg md:text-xl font-bold tracking-tight text-foreground">
+                                    Looking for Research Peptides? 🧪
+                                </h3>
+                                <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
+                                    Pair your reconstitution solution with our newly launched line of high-purity research peptides. Available for immediate shipping.
+                                </p>
+                            </div>
+                            <Link to="/products?category=peptides" className="inline-block w-full">
+                                <Button className="w-full font-bold shadow-sm group h-11 text-sm">
+                                    Browse Peptides Catalog
+                                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                </Button>
+                            </Link>
                         </div>
                     </div>
                 </div>

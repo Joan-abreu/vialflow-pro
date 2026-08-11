@@ -1,6 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, User, Menu, LogOut, X } from "lucide-react";
+import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
@@ -43,6 +43,7 @@ const PublicLayoutContent = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
+    const [showPeptideBanner, setShowPeptideBanner] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -70,6 +71,28 @@ const PublicLayoutContent = () => {
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
+            {/* Top Peptide Announcement Banner */}
+            {showPeptideBanner && (
+                <div className="bg-primary text-primary-foreground py-2.5 px-4 text-center text-xs md:text-sm font-medium flex items-center justify-center relative shadow-sm z-50">
+                    <div className="flex items-center gap-2 flex-wrap justify-center pr-6">
+                        <span className="inline-flex items-center gap-1 bg-white/20 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse">
+                            <Sparkles className="h-3 w-3" /> NEW RELEASE
+                        </span>
+                        <span>🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!</span>
+                        <Link to="/products?category=peptides" className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white">
+                            Shop Peptides <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                    </div>
+                    <button 
+                        onClick={() => setShowPeptideBanner(false)} 
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-full transition-colors"
+                        title="Dismiss announcement"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <div className="flex items-center gap-6">
@@ -79,6 +102,10 @@ const PublicLayoutContent = () => {
                         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
                             <Link to="/products" className="transition-colors hover:text-primary">
                                 Products
+                            </Link>
+                            <Link to="/products?category=peptides" className="transition-colors hover:text-primary flex items-center gap-1.5 text-primary font-semibold">
+                                <span>Peptides</span>
+                                <span className="bg-amber-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full uppercase leading-none">New</span>
                             </Link>
                             <Link to="/lab-reports" className="transition-colors hover:text-primary">
                                 Lab Reports
@@ -152,6 +179,10 @@ const PublicLayoutContent = () => {
                                     </Link>
                                     <Link to="/products" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Products
+                                    </Link>
+                                    <Link to="/products?category=peptides" onClick={() => setMobileMenuOpen(false)} className="text-lg font-semibold text-primary flex items-center gap-2">
+                                        <span>Peptides</span>
+                                        <span className="bg-amber-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">New</span>
                                     </Link>
                                     <Link to="/lab-reports" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Lab Reports

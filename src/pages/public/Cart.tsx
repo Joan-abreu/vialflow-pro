@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,6 +89,26 @@ const Cart = () => {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Peptide Cross-Sell Banner */}
+                        <div className="bg-gradient-to-r from-primary/10 via-emerald-500/10 to-teal-500/15 border border-primary/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">
+                                        <Sparkles className="h-3 w-3 mr-1" /> NEW RELEASE
+                                    </Badge>
+                                    <h4 className="font-bold text-sm">Research Peptides Now Available</h4>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Complete your lab research order with our newly released ultra-pure research peptides line.
+                                </p>
+                            </div>
+                            <Link to="/products?category=peptides" className="shrink-0 w-full sm:w-auto">
+                                <Button size="sm" variant="outline" className="w-full sm:w-auto border-primary text-primary hover:bg-primary/5 font-semibold text-xs h-9">
+                                    Browse Peptides <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                                </Button>
+                            </Link>
+                        </div>
+
                         {/* Cart Items */}
                         {items.map((item) => (
                             <div key={item.variant.id} className="flex gap-4 p-4 bg-card border rounded-lg">

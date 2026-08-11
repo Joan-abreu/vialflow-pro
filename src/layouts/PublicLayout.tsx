@@ -37,6 +37,31 @@ const CartIcon = () => {
     );
 };
 
+const checkIsWaterRouteSync = (pathname: string, search: string): boolean => {
+    const searchParams = new URLSearchParams(search);
+    const categoryParam = searchParams.get("category")?.toLowerCase() || "";
+
+    if (categoryParam.includes("water") || categoryParam.includes("reconstitution")) {
+        return true;
+    }
+
+    if (pathname.startsWith("/products/") && pathname !== "/products") {
+        const idOrSlug = pathname.split("/products/")[1]?.toLowerCase() || "";
+        if (
+            idOrSlug.includes("water") ||
+            idOrSlug.includes("reconstitution") ||
+            idOrSlug.includes("bacteriostatic") ||
+            idOrSlug.includes("bac-water") ||
+            idOrSlug.includes("sterile") ||
+            idOrSlug.includes("solution")
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
 const PublicLayoutContent = () => {
     const { session } = useAuth();
     const user = session?.user ?? null;
@@ -49,7 +74,11 @@ const PublicLayoutContent = () => {
     const [isVerified, setIsVerified] = useState<boolean>(() => {
         return sessionStorage.getItem("researcher_verified") === "true";
     });
-    const [isWaterPage, setIsWaterPage] = useState<boolean>(false);
+
+    const [isWaterPage, setIsWaterPage] = useState<boolean>(() => {
+        return checkIsWaterRouteSync(window.location.pathname, window.location.search);
+    });
+    const [isCheckingRoute, setIsCheckingRoute] = useState<boolean>(false);
 
     useEffect(() => {
         const checkAdmin = async () => {
@@ -71,12 +100,11 @@ const PublicLayoutContent = () => {
 
     useEffect(() => {
         const checkWaterRoute = async () => {
-            const searchParams = new URLSearchParams(location.search);
-            const categoryParam = searchParams.get("category")?.toLowerCase() || "";
-
-            // Check if user is on /products?category=water or similar reconstitution solution category
-            if (location.pathname === "/products" && (categoryParam.includes("water") || categoryParam.includes("reconstitution"))) {
+            // Instant synchronous check first (zero delay)
+            const isSyncWater = checkIsWaterRouteSync(location.pathname, location.search);
+            if (isSyncWater) {
                 setIsWaterPage(true);
+                setIsCheckingRoute(false);
                 return;
             }
 
@@ -84,6 +112,7 @@ const PublicLayoutContent = () => {
             if (location.pathname.startsWith("/products/") && location.pathname !== "/products") {
                 const idOrSlug = location.pathname.split("/products/")[1];
                 if (idOrSlug) {
+                    setIsCheckingRoute(true);
                     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
                     let query = supabase.from("products").select("name, category_id, product_categories(name)" as any);
                     if (isUuid) {
@@ -104,13 +133,16 @@ const PublicLayoutContent = () => {
                             productName.includes("reconstitution")
                         ) {
                             setIsWaterPage(true);
+                            setIsCheckingRoute(false);
                             return;
                         }
                     }
+                    setIsCheckingRoute(false);
                 }
             }
 
             setIsWaterPage(false);
+            setIsCheckingRoute(false);
         };
 
         checkWaterRoute();
@@ -124,7 +156,7 @@ const PublicLayoutContent = () => {
     return (
         <div className="min-h-screen flex flex-col bg-background">
             <ResearcherVerificationModal
-                isOpen={!isVerified && !isWaterPage}
+                isOpen={!isVerified && !isWaterPage && !isCheckingRoute}
                 onVerify={() => setIsVerified(true)}
             />
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

@@ -37,7 +37,8 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import {
     DndContext,
@@ -323,6 +324,29 @@ const ProductManagement = () => {
             return data as VialType[];
         },
     });
+
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+
+    const filteredProducts = React.useMemo(() => {
+        if (!products) return [];
+        const query = searchTerm.trim().toLowerCase();
+        return products.filter((product) => {
+            const matchesCategory =
+                selectedCategoryFilter === "all" ||
+                product.category_id === selectedCategoryFilter;
+
+            if (!matchesCategory) return false;
+            if (!query) return true;
+
+            const nameMatch = product.name.toLowerCase().includes(query);
+            const categoryMatch = product.product_categories?.name?.toLowerCase().includes(query);
+            const descMatch = product.description?.toLowerCase().includes(query);
+            const variantSkuMatch = (variantsMap?.[product.id] || []).some(v => v.sku?.toLowerCase().includes(query));
+
+            return nameMatch || categoryMatch || descMatch || variantSkuMatch;
+        });
+    }, [products, searchTerm, selectedCategoryFilter, variantsMap]);
 
     // Product mutations
     const createProductMutation = useMutation({
@@ -1184,6 +1208,56 @@ const ProductManagement = () => {
                     </DialogContent>
                 </Dialog>
 
+                {/* Search and Category Filter Toolbar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-sm">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by product name, SKU, or description..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="pl-9 pr-8 h-10 bg-background"
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setCurrentPage(1);
+                                }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={selectedCategoryFilter}
+                            onChange={(e) => {
+                                setSelectedCategoryFilter(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                        >
+                            <option value="all">All Categories</option>
+                            {categories?.map((cat) => (
+                                <option key={cat.id} value={cat.id}>
+                                    {cat.name}
+                                </option>
+                            ))}
+                        </select>
+                        {(searchTerm || selectedCategoryFilter !== "all") && (
+                            <Badge variant="secondary" className="h-10 px-3 flex items-center font-semibold text-xs shrink-0">
+                                {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                            </Badge>
+                        )}
+                    </div>
+                </div>
+
                 <div className="border rounded-lg overflow-x-auto max-w-full">
                     <Table className="min-w-[800px]">
                         <TableHeader>
@@ -1205,18 +1279,18 @@ const ProductManagement = () => {
                                         Loading products...
                                     </TableCell>
                                 </TableRow>
-                            ) : products?.length === 0 ? (
+                            ) : filteredProducts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="text-center py-8">
-                                        No products found.
+                                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                        No products found matching your search criteria.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                products
-                                    ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                filteredProducts
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((product) => {
                                         const variants = variantsMap?.[product.id] || [];
-                                        const isExpanded = expandedProducts.has(product.id);
+                                        const isExpanded = expandedProducts.has(product.id) || (searchTerm.trim() !== "" && variants.some(v => v.sku?.toLowerCase().includes(searchTerm.trim().toLowerCase())));
 
                                         return (
                                             <React.Fragment key={product.id}>
@@ -1336,12 +1410,12 @@ const ProductManagement = () => {
                     </Table>
                 </div>
 
-                {!isLoading && products && products.length > 0 && (
+                {!isLoading && filteredProducts && filteredProducts.length > 0 && (
                     <DataTablePagination
                         currentPage={currentPage}
-                        totalPages={Math.ceil(products.length / itemsPerPage)}
+                        totalPages={Math.ceil(filteredProducts.length / itemsPerPage)}
                         onPageChange={setCurrentPage}
-                        totalItems={products.length}
+                        totalItems={filteredProducts.length}
                     />
                 )}
 

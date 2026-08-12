@@ -436,53 +436,71 @@ const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Mobile header */}
-      <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-card px-4 md:hidden">
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-56 p-0">
-            <div className="flex h-full flex-col">
-              <div className="flex h-16 items-center border-b px-6">
-                <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
-              </div>
-              <nav className="flex-1 space-y-1 px-3 py-4">
-                <NavigationLinks />
-              </nav>
-              <div className="border-t">
-                {userName && (
-                  <div className="px-3 py-3 border-b">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-                        <User className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{userName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+      <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-2 border-b bg-card px-3 sm:px-4 md:hidden">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="flex-shrink-0">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <div className="flex h-full flex-col">
+                <div className="flex h-16 items-center justify-between border-b px-6">
+                  <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
+                </div>
+                <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
+                  <Link
+                    to="/"
+                    target="_blank"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors mb-4 border border-primary/20"
+                  >
+                    <Store className="h-5 w-5 text-primary" />
+                    <span className="flex-1 font-semibold">View Store</span>
+                  </Link>
+                  <NavigationLinks />
+                </nav>
+                <div className="border-t">
+                  {userName && (
+                    <div className="px-3 py-3 border-b">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{userName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                        </div>
                       </div>
                     </div>
+                  )}
+                  <div className="p-3">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      <LogOut className="mr-3 h-5 w-5" />
+                      Sign Out
+                    </Button>
                   </div>
-                )}
-                <div className="p-3">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      handleSignOut();
-                      setMobileMenuOpen(false);
-                    }}
-                  >
-                    <LogOut className="mr-3 h-5 w-5" />
-                    Sign Out
-                  </Button>
                 </div>
               </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-        <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>
+            </SheetContent>
+          </Sheet>
+          <h1 className="text-lg font-bold text-primary truncate">VialFlow Pro</h1>
+        </div>
+
+        <Link to="/" target="_blank" title="Go to Public Storefront" className="flex-shrink-0">
+          <Button variant="outline" size="sm" className="h-8 text-xs px-2.5 gap-1.5 bg-background/80 hover:bg-accent hover:text-accent-foreground border-border/80 font-medium">
+            <Store className="h-4 w-4 text-primary" />
+            <span>View Store</span>
+          </Button>
+        </Link>
       </header>
 
       <SidebarProvider>

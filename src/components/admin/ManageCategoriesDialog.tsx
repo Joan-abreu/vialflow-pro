@@ -186,7 +186,7 @@ export function ManageCategoriesDialog() {
             <DialogTrigger asChild>
                 <Button variant="outline">Manage Categories</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <DialogHeader>
                     <DialogTitle>Product Categories</DialogTitle>
                     <DialogDescription>
@@ -222,7 +222,7 @@ export function ManageCategoriesDialog() {
                                     checked={newCategoryIsPrivate}
                                     onCheckedChange={setNewCategoryIsPrivate}
                                 />
-                                <span className="text-sm font-normal text-muted-foreground">Hide from public and search engines</span>
+                                <span className="text-xs sm:text-sm font-normal text-muted-foreground">Hide from public and search engines</span>
                             </div>
                         </div>
                         <div className="grid w-full items-center gap-1.5 mt-2">
@@ -256,8 +256,8 @@ export function ManageCategoriesDialog() {
                         </div>
                     </form>
 
-                    <div className="border rounded-md max-h-[300px] overflow-y-auto">
-                        <Table>
+                    <div className="border rounded-md max-h-[300px] overflow-x-auto overflow-y-auto">
+                        <Table className="min-w-[480px]">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[60px]">Order</TableHead>

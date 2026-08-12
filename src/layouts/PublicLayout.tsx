@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -13,7 +13,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
+import ResearcherVerificationModal from "@/components/public/ResearcherVerificationModal";
 
 const CartIcon = () => {
     const { cartCount, isAnimating } = useCart();
@@ -37,6 +37,40 @@ const CartIcon = () => {
     );
 };
 
+const EXEMPT_PATHS = [
+    "/terms",
+];
+
+const checkIsExemptRouteSync = (pathname: string, search: string): boolean => {
+    const lowerPath = pathname.toLowerCase();
+    if (EXEMPT_PATHS.some(path => lowerPath === path || lowerPath.startsWith(path + "/"))) {
+        return true;
+    }
+
+    const searchParams = new URLSearchParams(search);
+    const categoryParam = searchParams.get("category")?.toLowerCase() || "";
+
+    if (categoryParam.includes("water") || categoryParam.includes("reconstitution")) {
+        return true;
+    }
+
+    if (pathname.startsWith("/products/") && pathname !== "/products") {
+        const idOrSlug = pathname.split("/products/")[1]?.toLowerCase() || "";
+        if (
+            idOrSlug.includes("water") ||
+            idOrSlug.includes("reconstitution") ||
+            idOrSlug.includes("bacteriostatic") ||
+            idOrSlug.includes("bac-water") ||
+            idOrSlug.includes("sterile") ||
+            idOrSlug.includes("solution")
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
 const PublicLayoutContent = () => {
     const { session } = useAuth();
     const user = session?.user ?? null;
@@ -45,6 +79,16 @@ const PublicLayoutContent = () => {
     const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
     const [showPeptideBanner, setShowPeptideBanner] = useState(true);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const [isVerified, setIsVerified] = useState<boolean>(() => {
+        return sessionStorage.getItem("researcher_verified") === "true";
+    });
+
+    const [isWaterPage, setIsWaterPage] = useState<boolean>(() => {
+        return checkIsExemptRouteSync(window.location.pathname, window.location.search);
+    });
+    const [isCheckingRoute, setIsCheckingRoute] = useState<boolean>(false);
 
     useEffect(() => {
         const checkAdmin = async () => {
@@ -63,6 +107,56 @@ const PublicLayoutContent = () => {
 
         checkAdmin();
     }, [user]);
+
+    useEffect(() => {
+        const checkWaterRoute = async () => {
+            // Instant synchronous check for exempt pages & water routes
+            const isSyncExempt = checkIsExemptRouteSync(location.pathname, location.search);
+            if (isSyncExempt) {
+                setIsWaterPage(true);
+                setIsCheckingRoute(false);
+                return;
+            }
+
+            // Check if user is on a product details page (/products/:id or /products/:slug)
+            if (location.pathname.startsWith("/products/") && location.pathname !== "/products") {
+                const idOrSlug = location.pathname.split("/products/")[1];
+                if (idOrSlug) {
+                    setIsCheckingRoute(true);
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+                    let query = supabase.from("products").select("name, category_id, product_categories(name)" as any);
+                    if (isUuid) {
+                        query = query.eq("id", idOrSlug);
+                    } else {
+                        query = query.eq("slug", idOrSlug);
+                    }
+
+                    const { data } = await query.maybeSingle();
+                    if (data) {
+                        const categoryName = (data.product_categories as any)?.name?.toLowerCase() || (data as any)?.category?.toLowerCase() || "";
+                        const productName = (data as any)?.name?.toLowerCase() || "";
+                        if (
+                            categoryName.includes("water") || 
+                            categoryName.includes("reconstitution") ||
+                            productName.includes("bacteriostatic") ||
+                            productName.includes("sterile water") ||
+                            productName.includes("reconstitution")
+                        ) {
+                            setIsWaterPage(true);
+                            setIsCheckingRoute(false);
+                            return;
+                        }
+                    }
+                    setIsCheckingRoute(false);
+                }
+            }
+
+            setIsWaterPage(false);
+            setIsCheckingRoute(false);
+        };
+
+        checkWaterRoute();
+    }, [location.pathname, location.search]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -93,6 +187,10 @@ const PublicLayoutContent = () => {
                 </div>
             )}
 
+            <ResearcherVerificationModal
+                isOpen={!isVerified && !isWaterPage && !isCheckingRoute}
+                onVerify={() => setIsVerified(true)}
+            />
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <div className="flex items-center gap-6">

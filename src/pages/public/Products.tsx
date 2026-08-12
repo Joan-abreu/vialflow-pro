@@ -126,7 +126,7 @@ const Products = () => {
                 default_pack_size: product.default_pack_size,
                 is_private: product.is_private,
                 position: product.position || 0,
-                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private, product.name),
+                sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private, product.name, product.product_categories?.name),
                 variants: product.variants.map((v: any) => ({
                     id: v.id,
                     product_id: v.product_id,

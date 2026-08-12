@@ -403,9 +403,18 @@ const Products = () => {
                                             <span className="font-bold text-slate-600">{product.sales_count}+</span> bought in past month
                                         </p>
                                         {product.description && (
-                                            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                                                 {product.description}
                                             </p>
+                                        )}
+                                        {product.variants && product.variants.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mb-4">
+                                                {product.variants.map((v) => (
+                                                    <Badge key={v.id} variant="secondary" className="text-[10px] px-2 py-0.5 font-semibold bg-muted/80 text-foreground">
+                                                        {v.vial_type?.name || v.sku}
+                                                    </Badge>
+                                                ))}
+                                            </div>
                                         )}
                                         <div className="mt-auto pt-4 border-t border-border/50 flex items-center justify-between">
                                             <div className="flex flex-col">

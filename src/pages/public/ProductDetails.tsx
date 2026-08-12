@@ -469,6 +469,36 @@ const ProductDetails = () => {
                     </div>
 
                     <div className="space-y-6 pt-6 border-t">
+                        {/* Variant / Dosage Selector (e.g. 10mg, 30mg, 60mg) */}
+                        {product && product.variants && product.variants.length > 1 && (
+                            <div className="space-y-3">
+                                <label className="block text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+                                    Select Dosage / Option
+                                </label>
+                                <div className="flex flex-wrap gap-3">
+                                    {product.variants.map((v) => {
+                                        const isSelected = v.id === selectedVariantId;
+                                        const labelName = v.vial_type?.name || (v.sku ? `SKU: ${v.sku}` : `Option`);
+                                        return (
+                                            <button
+                                                key={v.id}
+                                                type="button"
+                                                onClick={() => setSelectedVariantId(v.id)}
+                                                className={`flex flex-col items-center justify-center px-5 py-3 rounded-xl border-2 transition-all min-w-[100px] ${
+                                                    isSelected
+                                                        ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm ring-2 ring-primary/20'
+                                                        : 'border-border hover:border-primary/50 text-foreground bg-background'
+                                                }`}
+                                            >
+                                                <span className="text-base font-bold">{labelName}</span>
+                                                <span className="text-xs opacity-80">${v.price.toFixed(2)}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Purchase Mode (Retail vs Bulk) */}
                         {selectedVariant && selectedVariant.bulk_price && !selectedVariant.bulk_only && (
                             <div className="space-y-3">

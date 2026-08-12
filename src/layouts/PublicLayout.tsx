@@ -330,13 +330,15 @@ const PublicLayoutContent = () => {
                         <div className="space-y-4 md:col-span-1">
                             <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
                             <p className="text-sm text-muted-foreground">
-                                Ultra-pure reconstitution solutions and bacteriostatic water.
+                                Direct laboratory manufacturer of ultra-pure reconstitution solutions and bacteriostatic water, and supplier of research peptides.
                             </p>
                         </div>
                         <div>
                             <h4 className="font-semibold mb-4">Shop</h4>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-                                <li><Link to="/products?category=water">Water & Reconstitution Solutions</Link></li>
+                                <li><Link to="/products?category=water">BAC Water & Reconstitution Solutions</Link></li>
+                                <li><Link to="/products?category=peptides">Research Peptides</Link></li>
+                                <li><Link to="/products?category=Bulk Orders">Wholesale & Bulk Orders</Link></li>
                                 <li><Link to="/products">All Products</Link></li>
                             </ul>
                         </div>

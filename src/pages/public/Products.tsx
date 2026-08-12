@@ -46,9 +46,7 @@ const Products = () => {
     const { addToCart } = useCart();
 
     useEffect(() => {
-        if (categoryParam) {
-            setSelectedCategory(categoryParam);
-        }
+        setSelectedCategory(categoryParam || null);
     }, [categoryParam]);
 
     const { data: userVipStatus } = useQuery({
@@ -163,13 +161,30 @@ const Products = () => {
         const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
         const targetCategory = selectedCategory?.toLowerCase();
         const productCategory = product.category?.toLowerCase() || "";
+        const productName = product.name?.toLowerCase() || "";
 
         let matchesCategory = true;
         if (targetCategory) {
             if (targetCategory === "peptides" || targetCategory.includes("peptide")) {
-                matchesCategory = productCategory.includes("peptide");
+                matchesCategory = productCategory.includes("peptide") || productName.includes("peptide");
+            } else if (
+                targetCategory === "water" ||
+                targetCategory.includes("water") ||
+                targetCategory.includes("bac") ||
+                targetCategory.includes("reconstitution")
+            ) {
+                matchesCategory =
+                    productCategory.includes("water") ||
+                    productCategory.includes("reconstitution") ||
+                    productCategory.includes("solution") ||
+                    productName.includes("water") ||
+                    productName.includes("bacteriostatic") ||
+                    productName.includes("reconstitution");
             } else {
-                matchesCategory = productCategory === targetCategory;
+                matchesCategory =
+                    productCategory === targetCategory ||
+                    productCategory.includes(targetCategory) ||
+                    targetCategory.includes(productCategory);
             }
         }
         return matchesSearch && matchesCategory;
@@ -252,7 +267,10 @@ const Products = () => {
             {/* Mobile & Desktop Horizontal Category Pills Bar */}
             <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-8 scrollbar-none border-b border-border/40">
                 <button
-                    onClick={() => setSelectedCategory(null)}
+                    onClick={() => {
+                        setSelectedCategory(null);
+                        navigate("/products");
+                    }}
                     className={`px-4 py-2 rounded-full text-xs md:text-sm font-semibold shrink-0 transition-all ${
                         selectedCategory === null
                             ? "bg-primary text-primary-foreground shadow-sm"
@@ -262,13 +280,21 @@ const Products = () => {
                     All Products
                 </button>
                 {categories?.map((category: string) => {
+                    const catLower = category.toLowerCase();
+                    const selLower = selectedCategory?.toLowerCase() || "";
                     const isCatActive = selectedCategory === category || 
-                        (selectedCategory?.toLowerCase() === category.toLowerCase()) ||
-                        (selectedCategory?.toLowerCase().includes("peptide") && category.toLowerCase().includes("peptide"));
+                        (selLower === catLower) ||
+                        (selLower.includes("peptide") && catLower.includes("peptide")) ||
+                        ((selLower.includes("water") || selLower.includes("bac") || selLower.includes("reconstitution")) &&
+                         (catLower.includes("water") || catLower.includes("reconstitution")));
+
                     return (
                         <button
                             key={category}
-                            onClick={() => setSelectedCategory(category)}
+                            onClick={() => {
+                                setSelectedCategory(category);
+                                navigate(`/products?category=${encodeURIComponent(category)}`);
+                            }}
                             className={`px-4 py-2 rounded-full text-xs md:text-sm font-semibold shrink-0 transition-all flex items-center gap-1.5 ${
                                 isCatActive
                                     ? "bg-primary text-primary-foreground shadow-sm"

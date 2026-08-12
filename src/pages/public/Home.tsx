@@ -144,19 +144,24 @@ const Home = () => {
                     <div className="flex flex-col items-center text-center space-y-8">
                         <Link to="/products?category=peptides" className="inline-flex items-center gap-2 bg-primary/10 hover:bg-primary/15 border border-primary/20 transition-all rounded-full px-4 py-1.5 text-xs md:text-sm font-semibold text-primary shadow-sm group">
                             <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
-                            <span>NOW AVAILABLE: Premium Research Peptides</span>
+                            <span>DIRECT BAC WATER MANUFACTURER: Premium Research Peptides & Solutions</span>
                             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                         </Link>
                         <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
-                            Ultra-Pure Reconstitution Solutions & <span className="text-primary">Research Peptides</span>
+                            <span className="text-primary">Direct Manufacturer of</span> Ultra-Pure Reconstitution Solutions & <span className="text-primary">Research Peptides</span>
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                            Liv Well Research Labs provides high-purity, laboratory-grade reconstitution solutions, sterile water, and research peptides for scientific research.
+                            Liv Well Research Labs is a direct manufacturer of high-purity laboratory reconstitution solutions and sterile water, and a premier supplier of research peptides for scientific research.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to="/products?category=peptides">
                                 <Button size="lg" className="h-12 px-8 text-lg font-bold shadow-md">
                                     Explore Peptides <ArrowRight className="ml-2 h-5 w-5" />
+                                </Button>
+                            </Link>
+                            <Link to="/products?category=water">
+                                <Button variant="secondary" size="lg" className="h-12 px-8 text-lg font-bold shadow-sm">
+                                    Explore BAC Water <ArrowRight className="ml-2 h-5 w-5" />
                                 </Button>
                             </Link>
                             <Link to="/products">
@@ -177,22 +182,22 @@ const Home = () => {
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <CheckCircle2 className="h-6 w-6" />
                             </div>
-                            <h3 className="text-xl font-bold mb-2">99.9% Sterility & Quality</h3>
-                            <p className="text-muted-foreground">Every batch is processed under strict quality controls and sterile-filtered for absolute reliability.</p>
+                            <h3 className="text-xl font-bold mb-2">Direct BAC Water Manufacturer</h3>
+                            <p className="text-muted-foreground">Our reconstitution solutions are manufactured directly in-house under strict quality controls and sterile-filtered for absolute reliability.</p>
                         </div>
                         <div className="flex flex-col items-center text-center p-6 bg-card rounded-xl shadow-sm border">
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <Truck className="h-6 w-6" />
                             </div>
                             <h3 className="text-xl font-bold mb-2">Fast & Secure Shipping</h3>
-                            <p className="text-muted-foreground">Expedited shipping options and secure, protective packaging to ensure your orders arrive safely.</p>
+                            <p className="text-muted-foreground">Factory-direct expedited shipping options and protective packaging to ensure safe delivery.</p>
                         </div>
                         <div className="flex flex-col items-center text-center p-6 bg-card rounded-xl shadow-sm border">
                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                 <ShieldCheck className="h-6 w-6" />
                             </div>
-                            <h3 className="text-xl font-bold mb-2">Lab Verified</h3>
-                            <p className="text-muted-foreground">Third-party lab reports confirming pH, benzyl alcohol concentration, and sterility available.</p>
+                            <h3 className="text-xl font-bold mb-2">Lab Verified Quality</h3>
+                            <p className="text-muted-foreground">Third-party lab reports confirming pH, benzyl alcohol concentration, purity, and sterility available.</p>
                         </div>
                     </div>
                 </div>
@@ -266,13 +271,13 @@ const Home = () => {
                             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-20 -translate-y-20" />
                             <div className="space-y-4 max-w-2xl text-left">
                                 <Badge className="bg-primary/15 hover:bg-primary/20 text-primary border-0 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
-                                    Wholesale & B2B Solutions
+                                    Direct Manufacturer Wholesale & B2B
                                 </Badge>
                                 <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                                    Need Wholesale Vials? We Do Bulk Orders
+                                    Buy Direct from the Manufacturer: Wholesale & Bulk Orders
                                 </h2>
                                 <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
-                                    Get commercial-grade pricing on large orders. We offer custom printed labels professionally applied, tray packaging, custom split shipping coordinates, and bulk priority fulfillment for laboratory research.
+                                    Cut out the middleman and get direct manufacturer pricing on large volume orders. We offer custom printed labels professionally applied, tray packaging, custom split shipping coordinates, and priority bulk fulfillment for laboratory research facilities.
                                 </p>
                             </div>
                             <div className="flex-shrink-0 w-full md:w-auto">

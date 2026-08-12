@@ -6,24 +6,24 @@ export interface PageSEO {
 export const SEO_CONFIG: Record<string, PageSEO> = {
     // Static Pages
     "home": {
-        title: "Laboratory-Grade Bacteriostatic Water | Liv Well Research Labs",
-        description: "Shop ultra-pure bacteriostatic water and laboratory-grade reconstitution solutions. Third-party lab tested, sterile-filtered, and fast shipping for research use."
+        title: "Direct BAC Water Manufacturer & Research Peptides | Liv Well Research Labs",
+        description: "Direct manufacturer of ultra-pure bacteriostatic water and laboratory-grade reconstitution solutions, and premier supplier of research peptides. Third-party lab tested, fast shipping."
     },
     "lab-reports": {
         title: "Lab Reports & COAs | Liv Well Research Labs",
         description: "Access third-party lab reports and Certificates of Analysis (COAs) verifying sterility, pH, and benzyl alcohol concentration for our research solutions."
     },
     "about": {
-        title: "About Liv Well Research Labs | Laboratory Solutions",
-        description: "Learn about Liv Well Research Labs and our commitment to producing high-purity laboratory-grade bacteriostatic water and reconstitution solutions."
+        title: "About Liv Well Research Labs | Direct BAC Water Manufacturer",
+        description: "Learn about Liv Well Research Labs, a direct US manufacturer of high-purity laboratory-grade bacteriostatic water and reconstitution solutions, and supplier of research peptides."
     },
     "contact": {
         title: "Contact Liv Well Research Labs",
         description: "Contact Liv Well Research Labs for product questions, wholesale inquiries, laboratory support, or general assistance with your research solution orders."
     },
     "products-catalog": {
-        title: "Laboratory Reconstitution Solutions & Bac Water",
-        description: "Browse laboratory-grade bacteriostatic water and sterile reconstitution solutions available in multiple vial sizes for scientific research applications."
+        title: "Reconstitution Solutions Manufacturer & Peptides Catalog",
+        description: "Browse factory-direct bacteriostatic water, sterile reconstitution solutions, and laboratory research peptides."
     },
 
     // Individual Product Pages (mapped by product slug)

@@ -571,7 +571,7 @@ const Account = () => {
                                                             <div className="flex-1">
                                                                 <p className="font-medium">{product?.name || "Unknown Product"}</p>
                                                                 <p className="text-sm text-muted-foreground">
-                                                                    {variant?.vial_type?.capacity_ml}ml{variant?.vial_type?.color ? ` - ${variant?.vial_type?.color}` : ''}{variant?.vial_type?.shape ? ` - ${variant?.vial_type?.shape}` : ''}
+                                                                    {variant?.vial_type?.name || (variant?.vial_type?.capacity_ml ? `${variant.vial_type.capacity_ml}ml` : '')}{variant?.vial_type?.color ? ` - ${variant?.vial_type?.color}` : ''}{variant?.vial_type?.shape ? ` - ${variant?.vial_type?.shape}` : ''}
                                                                     {variant?.pack_size && variant.pack_size > 1 ? ` (${variant.pack_size}x Pack)` : ''}
                                                                 </p>
                                                                 <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>

@@ -121,7 +121,7 @@ const OrderConfirmation = () => {
                                     <div>
                                         <p className="font-medium">{item.variant.product.name}</p>
                                         <p className="text-sm text-muted-foreground">
-                                            {item.variant.vial_type.capacity_ml}ml{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''} • Qty: {item.quantity}
+                                            {item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}ml`}{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''} • Qty: {item.quantity}
                                         </p>
                                     </div>
                                 </div>

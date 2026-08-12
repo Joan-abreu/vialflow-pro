@@ -170,7 +170,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
                     </div>
                 )}
             </TableCell>
-            <TableCell>{variant.vial_type.capacity_ml}ml{variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}{variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}</TableCell>
+            <TableCell>{variant.vial_type.name || `${variant.vial_type.capacity_ml}ml`}{variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}{variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''}</TableCell>
             <TableCell>
                 <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium capitalize">{variant.pack_size > 1 ? 'Pack' : 'Individual'}</span>
@@ -940,7 +940,7 @@ const ProductManagement = () => {
                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 This action cannot be undone. This will permanently delete the variant
-                                "{deletingVariant?.vial_type.capacity_ml}ml{deletingVariant?.vial_type.color ? ` - ${deletingVariant?.vial_type.color}` : ''}{deletingVariant?.vial_type.shape ? ` - ${deletingVariant?.vial_type.shape}` : ''} - {deletingVariant?.sku || 'No SKU'}" and all its data.
+                                "{deletingVariant?.vial_type.name || `${deletingVariant?.vial_type.capacity_ml}ml`}{deletingVariant?.vial_type.color ? ` - ${deletingVariant?.vial_type.color}` : ''}{deletingVariant?.vial_type.shape ? ` - ${deletingVariant?.vial_type.shape}` : ''} - {deletingVariant?.sku || 'No SKU'}" and all its data.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

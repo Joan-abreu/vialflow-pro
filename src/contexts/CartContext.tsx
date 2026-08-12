@@ -163,7 +163,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 return newItems;
             } else {
                 const labelText = is_bulk ? ` (Bulk - ${with_labels ? 'With Labels' : 'Unlabeled'})` : '';
-                toast.success(`Added ${variant.product.name} (${variant.vial_type.capacity_ml}ml${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''})${labelText} to cart`);
+                const sizeLabel = variant.vial_type.name || `${variant.vial_type.capacity_ml}ml`;
+                toast.success(`Added ${variant.product.name} (${sizeLabel}${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''})${labelText} to cart`);
                 return [...currentItems, { 
                     variant, 
                     quantity, 

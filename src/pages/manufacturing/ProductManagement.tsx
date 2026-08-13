@@ -609,9 +609,9 @@ const ProductManagement = () => {
         const formData = new FormData(e.currentTarget);
         const skuValue = formData.get("sku") as string;
 
-        const bulkPriceVal = formData.get("bulk_price") ? parseFloat(formData.get("bulk_price") as string) : null;
-        const bulkMinQtyVal = formData.get("bulk_min_qty") ? parseInt(formData.get("bulk_min_qty") as string) : null;
-        const bulkLabelFeeVal = formData.get("bulk_label_fee") ? parseFloat(formData.get("bulk_label_fee") as string) : null;
+        const bulkPriceVal = formData.get("bulk_price") && formData.get("bulk_price") !== "" ? parseFloat(formData.get("bulk_price") as string) : null;
+        const bulkMinQtyVal = formData.get("bulk_min_qty") && formData.get("bulk_min_qty") !== "" ? parseInt(formData.get("bulk_min_qty") as string) : 100;
+        const bulkLabelFeeVal = formData.get("bulk_label_fee") && formData.get("bulk_label_fee") !== "" ? parseFloat(formData.get("bulk_label_fee") as string) : 0.15;
         const isBulkOnly = formData.get("bulk_only") === "on";
 
         // Extract box config fields

@@ -409,16 +409,22 @@ const Products = () => {
                                         )}
                                         {product.variants && product.variants.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mb-4">
-                                                {product.variants.map((v) => (
-                                                    <Badge key={v.id} variant="secondary" className="text-[10px] px-2 py-0.5 font-semibold bg-muted/80 text-foreground">
-                                                        {v.vial_type?.name || v.sku}
-                                                    </Badge>
-                                                ))}
+                                                {product.variants.map((v) => {
+                                                    const rawName = v.vial_type?.name || v.sku || "";
+                                                    const cleanName = rawName.replace(/\s+(Tall|Short)\s+Vial/gi, "").replace(/\s+Vial/gi, "").trim();
+                                                    return (
+                                                        <Badge key={v.id} variant="secondary" className="text-[10px] px-2 py-0.5 font-semibold bg-muted/80 text-foreground">
+                                                            {cleanName}
+                                                        </Badge>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                         <div className="mt-auto pt-4 border-t border-border/50 flex items-center justify-between">
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Starting at</span>
+                                                {product.variants && product.variants.length > 1 && (
+                                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Starting at</span>
+                                                )}
                                                 <p className="text-2xl font-black text-foreground antialiased tracking-tight">
                                                     ${getLowestPrice(product.variants).toFixed(2)}
                                                 </p>

@@ -478,7 +478,8 @@ const ProductDetails = () => {
                                 <div className="flex flex-wrap gap-3">
                                     {product.variants.map((v) => {
                                         const isSelected = v.id === selectedVariantId;
-                                        const labelName = v.vial_type?.name || (v.sku ? `SKU: ${v.sku}` : `Option`);
+                                        const rawName = v.vial_type?.name || (v.sku ? `SKU: ${v.sku}` : `Option`);
+                                        const labelName = rawName.replace(/\s+(Tall|Short)\s+Vial/gi, "").replace(/\s+Vial/gi, "").trim();
                                         return (
                                             <button
                                                 key={v.id}

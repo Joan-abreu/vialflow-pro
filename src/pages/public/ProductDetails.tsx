@@ -182,6 +182,7 @@ const ProductDetails = () => {
                 max_online_quantity: v.max_online_quantity,
                 weight: v.weight,
                 image_url: v.image_url,
+                images: v.images || [],
                 pack_size: v.pack_size || 1,
                 bulk_price: v.bulk_price ? Number(v.bulk_price) : null,
                 bulk_min_qty: v.bulk_min_qty || 100,
@@ -328,10 +329,15 @@ const ProductDetails = () => {
         }
     };
 
-    const images = [
-        ...(selectedVariant?.image_url ? [selectedVariant.image_url] : []),
-        ...(product?.images?.filter(img => img !== selectedVariant?.image_url) || [product?.image_url].filter(Boolean))
-    ];
+    const variantImages = selectedVariant?.images && selectedVariant.images.length > 0
+        ? selectedVariant.images
+        : (selectedVariant?.image_url ? [selectedVariant.image_url] : []);
+
+    const productFallbackImages = product?.images && product.images.length > 0
+        ? product.images
+        : (product?.image_url ? [product.image_url] : []);
+
+    const images = variantImages.length > 0 ? variantImages : productFallbackImages;
 
     if (isLoading) {
         return (

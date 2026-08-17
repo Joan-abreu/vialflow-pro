@@ -480,6 +480,7 @@ export type Database = {
           bulk_min_qty: number
           bulk_label_fee: number
           bulk_only: boolean
+          images: string[] | null
         }
         Insert: {
           created_at?: string
@@ -502,6 +503,7 @@ export type Database = {
           bulk_min_qty?: number
           bulk_label_fee?: number
           bulk_only?: boolean
+          images?: string[] | null
         }
         Update: {
           created_at?: string
@@ -524,6 +526,7 @@ export type Database = {
           bulk_min_qty?: number
           bulk_label_fee?: number
           bulk_only?: boolean
+          images?: string[] | null
         }
         Relationships: [
           {

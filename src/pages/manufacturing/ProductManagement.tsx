@@ -103,6 +103,7 @@ interface ProductVariant {
     dimension_height: number | null;
     low_stock_threshold: number;
     image_url: string | null;
+    images?: string[];
     bulk_price: number | null;
     bulk_min_qty: number | null;
     bulk_label_fee: number | null;
@@ -221,6 +222,7 @@ const ProductManagement = () => {
     const [productImageUrl, setProductImageUrl] = useState<string>("");
     const [productImages, setProductImages] = useState<string[]>([]);
     const [variantImageUrl, setVariantImageUrl] = useState<string>("");
+    const [variantImages, setVariantImages] = useState<string[]>([]);
     const [variantSaleType, setVariantSaleType] = useState<string>("individual");
     const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
     const [deletingVariant, setDeletingVariant] = useState<ProductVariant | null>(null);
@@ -293,6 +295,7 @@ const ProductManagement = () => {
                     dimension_height: v.dimension_height,
                     low_stock_threshold: v.low_stock_threshold || 10,
                     image_url: v.image_url,
+                    images: v.images || [],
                     bulk_price: v.bulk_price,
                     bulk_min_qty: v.bulk_min_qty,
                     bulk_label_fee: v.bulk_label_fee,
@@ -586,7 +589,7 @@ const ProductManagement = () => {
             name: formData.get("name") as string,
             description: formData.get("description") as string,
             category_id: formData.get("category_id") as string || null,
-            image_url: productImages[0] || productImageUrl || null,
+            image_url: productImages[0] || null,
             images: productImages,
             rich_description: richTextDescription,
             is_active: formData.get("is_active") === "on",
@@ -638,7 +641,8 @@ const ProductManagement = () => {
             dimension_height: parseFloat(formData.get("dimension_height") as string) || 0,
             low_stock_threshold: parseInt(formData.get("low_stock_threshold") as string) || 10,
             is_published: formData.get("is_published") === "on",
-            image_url: variantImageUrl || null,
+            image_url: variantImages[0] || variantImageUrl || null,
+            images: variantImages,
             bulk_price: bulkPriceVal,
             bulk_min_qty: bulkMinQtyVal,
             bulk_label_fee: bulkLabelFeeVal,
@@ -666,8 +670,11 @@ const ProductManagement = () => {
 
     const handleEditProduct = (product: Product) => {
         setEditingProduct(product);
+        const initialImages = product.images && product.images.length > 0
+            ? product.images
+            : (product.image_url ? [product.image_url] : []);
         setProductImageUrl(product.image_url || "");
-        setProductImages(product.images || []);
+        setProductImages(initialImages);
         setRichTextDescription(product.rich_description || product.description || "");
         setIsProductDialogOpen(true);
     };
@@ -686,6 +693,8 @@ const ProductManagement = () => {
     const handleAddVariant = (productId: string) => {
         setSelectedProductId(productId);
         setEditingVariant(null);
+        setVariantImageUrl("");
+        setVariantImages([]);
         setVariantSaleType("individual");
         setIsVariantDialogOpen(true);
     };
@@ -693,7 +702,9 @@ const ProductManagement = () => {
     const handleEditVariant = (variant: ProductVariant) => {
         setSelectedProductId(variant.product_id);
         setEditingVariant(variant);
+        const initialImages = variant.images && variant.images.length > 0 ? variant.images : (variant.image_url ? [variant.image_url] : []);
         setVariantImageUrl(variant.image_url || "");
+        setVariantImages(initialImages);
         setVariantSaleType(variant.pack_size > 1 ? "pack" : "individual");
         setIsVariantDialogOpen(true);
     };
@@ -867,7 +878,10 @@ const ProductManagement = () => {
                                     <div className="space-y-4 pt-4 border-t">
                                         <MultiImageUpload
                                             urls={productImages}
-                                            onUpload={setProductImages}
+                                            onUpload={(urls) => {
+                                                setProductImages(urls);
+                                                setProductImageUrl(urls[0] || "");
+                                            }}
                                         />
                                     </div>
 
@@ -962,6 +976,7 @@ const ProductManagement = () => {
                         setEditingVariant(null);
                         setSelectedProductId(null);
                         setVariantImageUrl("");
+                        setVariantImages([]);
                         setVariantSaleType("individual");
                     }
                 }}>
@@ -1184,11 +1199,14 @@ const ProductManagement = () => {
                             </div>
                             {/* ------------------------------------------- */}
 
-                            <div className="space-y-2">
-                                <Label htmlFor="variant_image">Variant Image (Optional)</Label>
-                                <ImageUpload
-                                    existingUrl={variantImageUrl}
-                                    onUpload={setVariantImageUrl}
+                            <div className="space-y-4 pt-4 border-t">
+                                <Label htmlFor="variant_images">Variant Images Gallery (Optional)</Label>
+                                <MultiImageUpload
+                                    urls={variantImages}
+                                    onUpload={(urls) => {
+                                        setVariantImages(urls);
+                                        setVariantImageUrl(urls[0] || "");
+                                    }}
                                 />
                             </div>
                             <div className="flex items-center space-x-2">

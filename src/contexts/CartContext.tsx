@@ -24,6 +24,7 @@ export interface ProductVariant {
     dimension_width?: number | null;
     dimension_height?: number | null;
     image_url: string | null;
+    images?: string[];
     pack_size: number;
     position?: number;
     bulk_price?: number | null;

@@ -53,7 +53,10 @@ const handler = async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     if (existingProfileEmail) {
-      return new Response(JSON.stringify({ error: "Email already registered. Please use a different email or sign in." }), {
+      return new Response(JSON.stringify({ 
+        error: "This email address is already registered. Please sign in or use a different email.",
+        code: "email_exists"
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -88,6 +91,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (createError) {
       console.error("[Register User] Create Error:", createError);
+      const isEmailExists = 
+        createError?.code === "email_exists" ||
+        createError?.message?.toLowerCase().includes("already been registered") ||
+        createError?.message?.toLowerCase().includes("already registered") ||
+        createError?.message?.toLowerCase().includes("user already exists");
+
+      if (isEmailExists) {
+        return new Response(JSON.stringify({ 
+          error: "This email address is already registered. Please sign in or use a different email.",
+          code: "email_exists" 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       return new Response(JSON.stringify({ error: createError.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -162,7 +181,20 @@ const handler = async (req: Request): Promise<Response> => {
 
   } catch (error: any) {
     console.error("[Register User] Fatal Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "An unexpected error occurred during registration" }), {
+    const isEmailExists = 
+      error?.code === "email_exists" ||
+      error?.message?.toLowerCase().includes("already been registered") ||
+      error?.message?.toLowerCase().includes("already registered") ||
+      error?.message?.toLowerCase().includes("user already exists");
+
+    const message = isEmailExists
+      ? "This email address is already registered. Please sign in or use a different email."
+      : (error?.message || "An error occurred during registration");
+
+    return new Response(JSON.stringify({ 
+      error: message, 
+      code: isEmailExists ? "email_exists" : error?.code 
+    }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

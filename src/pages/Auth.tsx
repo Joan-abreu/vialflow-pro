@@ -45,13 +45,32 @@ const Auth = () => {
       });
 
       if (funcError || data?.error) {
-        throw new Error(funcError?.message || data?.error || "Error creating account");
+        let errorMessage = data?.error;
+        if (funcError) {
+          try {
+            const errorBody = await funcError.context?.json();
+            if (errorBody?.error) {
+              errorMessage = errorBody.error;
+            } else if (errorBody?.message) {
+              errorMessage = errorBody.message;
+            }
+          } catch (_) {}
+          if (!errorMessage) {
+            errorMessage = funcError.message;
+          }
+        }
+        throw new Error(errorMessage || "Error creating account");
       }
 
       toast.success("Account created! Please check your email to confirm your account.");
     } catch (err: any) {
       console.error("Error creating account:", err);
-      toast.error(err.message || "Failed to create account. Please try again.");
+      const msg = err.message || "Failed to create account. Please try again.";
+      if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("email_exists") || msg.includes("User already exists")) {
+        toast.error("This email address is already registered. Please sign in or use a different email.");
+      } else {
+        toast.error(msg);
+      }
     }
 
     setLoading(false);

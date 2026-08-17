@@ -34,10 +34,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[Register User] Creating user: ${email}`);
 
-    // 1. Check if user already exists (optional, but good practice)
+    // 1. Check if user already exists (optional check)
     const { data: existingUser } = await supabase.auth.admin.listUsers();
-    if (existingUser?.users.find(u => u.email === email)) {
-        return new Response(JSON.stringify({ error: "User already exists" }), {
+    if (existingUser?.users.some(u => u.email?.toLowerCase() === email?.trim().toLowerCase())) {
+        return new Response(JSON.stringify({ 
+            error: "This email address is already registered. Please sign in or use a different email.",
+            code: "email_exists"
+        }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -56,6 +59,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (createError) {
       console.error("[Register User] Create Error:", createError);
+      const isEmailExists = 
+        createError?.code === "email_exists" ||
+        createError?.message?.toLowerCase().includes("already been registered") ||
+        createError?.message?.toLowerCase().includes("already registered") ||
+        createError?.message?.toLowerCase().includes("user already exists");
+
+      if (isEmailExists) {
+        return new Response(JSON.stringify({ 
+          error: "This email address is already registered. Please sign in or use a different email.",
+          code: "email_exists" 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       throw createError;
     }
 
@@ -129,8 +148,21 @@ const handler = async (req: Request): Promise<Response> => {
 
   } catch (error: any) {
     console.error("[Register User] Fatal Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    const isEmailExists = 
+      error?.code === "email_exists" ||
+      error?.message?.toLowerCase().includes("already been registered") ||
+      error?.message?.toLowerCase().includes("already registered") ||
+      error?.message?.toLowerCase().includes("user already exists");
+
+    const message = isEmailExists
+      ? "This email address is already registered. Please sign in or use a different email."
+      : (error?.message || "An error occurred during registration");
+
+    return new Response(JSON.stringify({ 
+      error: message, 
+      code: isEmailExists ? "email_exists" : error?.code 
+    }), {
+      status: isEmailExists ? 400 : (error?.status && error.status >= 400 && error.status < 600 ? error.status : 400),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

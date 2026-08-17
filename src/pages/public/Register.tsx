@@ -82,14 +82,33 @@ const Register = () => {
             });
 
             if (funcError || data?.error) {
-                throw new Error(funcError?.message || data?.error || "Error during registration");
+                let errorMessage = data?.error;
+                if (funcError) {
+                    try {
+                        const errorBody = await funcError.context?.json();
+                        if (errorBody?.error) {
+                            errorMessage = errorBody.error;
+                        } else if (errorBody?.message) {
+                            errorMessage = errorBody.message;
+                        }
+                    } catch (_) {}
+                    if (!errorMessage) {
+                        errorMessage = funcError.message;
+                    }
+                }
+                throw new Error(errorMessage || "Error during registration");
             }
 
             toast.success("Registration successful! Please check your email to verify your account.");
             navigate("/login");
         } catch (error: any) {
             console.error("Registration error:", error);
-            toast.error(error.message || "Error registering");
+            const msg = error.message || "Error registering";
+            if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("email_exists") || msg.includes("User already exists")) {
+                toast.error("This email address is already registered. Please sign in or use a different email.");
+            } else {
+                toast.error(msg);
+            }
         } finally {
             setLoading(false);
         }

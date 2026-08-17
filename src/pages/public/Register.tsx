@@ -82,7 +82,20 @@ const Register = () => {
             });
 
             if (funcError || data?.error) {
-                throw new Error(funcError?.message || data?.error || "Error during registration");
+                let errorMsg = data?.error;
+                if (funcError) {
+                    errorMsg = funcError.message;
+                    if (funcError.context) {
+                        try {
+                            const errorBody = await funcError.context.clone().json();
+                            if (errorBody?.error) errorMsg = errorBody.error;
+                            else if (errorBody?.message) errorMsg = errorBody.message;
+                        } catch {
+                            // Fallback if response body is not JSON
+                        }
+                    }
+                }
+                throw new Error(errorMsg || "Error during registration");
             }
 
             toast.success("Registration successful! Please check your email to verify your account.");

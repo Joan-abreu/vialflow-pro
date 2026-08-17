@@ -45,7 +45,20 @@ const Auth = () => {
       });
 
       if (funcError || data?.error) {
-        throw new Error(funcError?.message || data?.error || "Error creating account");
+        let errorMsg = data?.error;
+        if (funcError) {
+          errorMsg = funcError.message;
+          if (funcError.context) {
+            try {
+              const errorBody = await funcError.context.clone().json();
+              if (errorBody?.error) errorMsg = errorBody.error;
+              else if (errorBody?.message) errorMsg = errorBody.message;
+            } catch {
+              // Fallback if response body is not JSON
+            }
+          }
+        }
+        throw new Error(errorMsg || "Error creating account");
       }
 
       toast.success("Account created! Please check your email to confirm your account.");

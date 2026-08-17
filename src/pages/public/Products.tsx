@@ -363,7 +363,10 @@ const Products = () => {
                                 >
                                     <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                                         {(() => {
-                                            const displayImage = product.image_url || product.variants.find(v => v.image_url)?.image_url;
+                                             const displayImage = product.image_url ||
+                                                 (product.images && product.images.length > 0 ? product.images[0] : null) ||
+                                                 product.variants?.find((v: any) => (v.images && v.images.length > 0) || v.image_url)?.images?.[0] ||
+                                                 product.variants?.find((v: any) => v.image_url)?.image_url;
                                             const packSize = product.default_pack_size || 
                                                            (product.variants.length > 0 && product.variants.every(v => v.pack_size === product.variants[0].pack_size) 
                                                             ? product.variants[0].pack_size 

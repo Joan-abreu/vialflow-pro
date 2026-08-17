@@ -38,7 +38,7 @@ const Home = () => {
                 .from("product_variants" as any)
                 .select(`
                     *,
-                    product:products!inner(id, slug, name, description, image_url, is_published, position, is_private, product_categories(name)),
+                    product:products!inner(id, slug, name, description, image_url, images, is_published, position, is_private, product_categories(name)),
                     vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
@@ -68,13 +68,16 @@ const Home = () => {
             const grouped: Record<string, any> = {};
             (data as any[])?.forEach((variant: any) => {
                 const productId = variant.product.id;
+                const variantImg = (variant.images && variant.images.length > 0 ? variant.images[0] : null) || variant.image_url;
+                const productImg = variant.product.image_url || (variant.product.images && variant.product.images.length > 0 ? variant.product.images[0] : null);
+
                 if (!grouped[productId]) {
                     grouped[productId] = {
                         id: productId,
                         slug: variant.product.slug,
                         name: variant.product.name,
                         description: variant.product.description,
-                        image_url: variant.product.image_url,
+                        image_url: productImg || variantImg || null,
                         category: variant.product.product_categories?.name || null,
                         price: variant.price,
                         capacity_ml: variant.vial_type.capacity_ml,
@@ -86,7 +89,9 @@ const Home = () => {
                     };
                 } else {
                     grouped[productId].variants.push(variant);
-                    // Keep the lowest price
+                    if (!grouped[productId].image_url && variantImg) {
+                        grouped[productId].image_url = variantImg;
+                    }
                     if (variant.price < grouped[productId].price) {
                         grouped[productId].price = variant.price;
                     }

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
@@ -445,6 +445,10 @@ const Layout = ({ children }: LayoutProps) => {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Navigation Menu</SheetTitle>
+                <SheetDescription>Manufacturing management navigation links</SheetDescription>
+              </SheetHeader>
               <div className="flex h-full flex-col">
                 <div className="flex h-16 items-center justify-between border-b px-6">
                   <h1 className="text-xl font-bold text-primary">VialFlow Pro</h1>

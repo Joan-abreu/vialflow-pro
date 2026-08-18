@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -271,7 +271,11 @@ const PublicLayoutContent = () => {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="right">
-                                <nav className="flex flex-col gap-4 mt-8">
+                                <SheetHeader className="text-left pb-4 border-b">
+                                    <SheetTitle className="text-xl font-bold text-primary">Liv Well Research Labs</SheetTitle>
+                                    <SheetDescription className="sr-only">Mobile navigation menu</SheetDescription>
+                                </SheetHeader>
+                                <nav className="flex flex-col gap-4 mt-6">
                                     <Link to="/" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Home
                                     </Link>

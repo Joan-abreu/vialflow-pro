@@ -184,6 +184,9 @@ export function TrackingDialog({
                             </Badge>
                         )}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Live shipment status and tracking details for {trackingNumber}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">

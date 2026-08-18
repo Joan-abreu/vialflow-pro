@@ -836,6 +836,7 @@ export const ShipmentBoxesDialog = ({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Box Details #{selectedBoxDetail?.box_number}</DialogTitle>
+            <DialogDescription className="sr-only">Detailed breakdown of box specifications and tracking numbers</DialogDescription>
           </DialogHeader>
           {selectedBoxDetail && (
             <Table>

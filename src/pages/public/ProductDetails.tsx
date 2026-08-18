@@ -11,11 +11,12 @@ import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";
-import { getBaseSalesCount } from "@/utils/salesCount";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getSEOConfig } from "@/config/seoConfig";
+import ProductShippingPerks from "@/components/public/ProductShippingPerks";
+import { getBaseSalesCount } from "@/utils/salesCount";
 
 interface ProductWithVariants {
     id: string;
@@ -91,24 +92,73 @@ const ProductDetails = () => {
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ["product-with-variants", id],
+        staleTime: 0,
         queryFn: async () => {
             if (!id) throw new Error("Product ID or Slug is required");
+            const cleanId = id.trim();
+
+            console.log(`[ProductDetails] Initiating lookup for: "${cleanId}"`);
 
             // Check if id is a valid UUID
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
 
-            let query = supabase.from("products").select("*, product_categories(name, is_private)");
+            let productData: any = null;
+            let productError: any = null;
 
             if (isUuid) {
-                query = query.eq("id", id);
+                const res = await supabase
+                    .from("products")
+                    .select("*, product_categories(name, is_private)")
+                    .eq("id", cleanId)
+                    .maybeSingle();
+                productData = res.data;
+                productError = res.error;
             } else {
-                query = query.eq("slug", id);
+                // 1. Try exact slug match
+                const res = await supabase
+                    .from("products")
+                    .select("*, product_categories(name, is_private)")
+                    .ilike("slug", cleanId)
+                    .maybeSingle();
+                productData = res.data;
+                productError = res.error;
+
+                // 2. Fallback: try partial slug match
+                if (!productData && !productError) {
+                    const normalized = cleanId.replace(/[^a-zA-Z0-9]/g, "");
+                    const altRes = await supabase
+                        .from("products")
+                        .select("*, product_categories(name, is_private)")
+                        .or(`slug.ilike.%${cleanId}%,slug.ilike.%${normalized}%`)
+                        .limit(1)
+                        .maybeSingle();
+                    if (altRes.data) productData = altRes.data;
+                }
+
+                // 3. Fallback: try product name match
+                if (!productData && !productError) {
+                    const searchName = cleanId.replace(/-/g, " ");
+                    const nameRes = await supabase
+                        .from("products")
+                        .select("*, product_categories(name, is_private)")
+                        .ilike("name", `%${searchName}%`)
+                        .limit(1)
+                        .maybeSingle();
+                    if (nameRes.data) productData = nameRes.data;
+                }
             }
 
-            const { data: productData, error: productError } = await query.single();
+            if (productError) {
+                console.error("[ProductDetails] Database error fetching product:", productError);
+                throw productError;
+            }
 
-            if (productError) throw productError;
-            if (!productData) throw new Error("Product not found");
+            if (!productData) {
+                console.warn(`[ProductDetails] No product found in database matching "${cleanId}"`);
+                throw new Error("Product not found");
+            }
+
+            console.log(`[ProductDetails] Successfully loaded product "${productData.name}" (id: ${productData.id}, slug: ${productData.slug})`);
 
             // Check user authentication role for admin previews
             const { data: { session } } = await supabase.auth.getSession();
@@ -122,13 +172,15 @@ const ProductDetails = () => {
                 isAdmin = userRole?.role === "admin" || userRole?.role === "manager" || userRole?.role === "staff";
             }
 
-            // Check if product is published
-            if (!productData.is_published && !isAdmin) {
-                throw new Error("Product not found"); // Hide unpublished products from public
+            // Check if product is published (only block if explicitly false)
+            if (productData.is_published === false && !isAdmin) {
+                console.warn(`[ProductDetails] Product "${productData.name}" is marked as draft/unpublished.`);
+                throw new Error("Product not found");
             }
 
-            // Check VIP access for private products
-            const isProductPrivate = productData.is_private || (productData as any).product_categories?.is_private;
+            // Check VIP access for private products (only if product is explicitly marked private)
+            const isProductPrivate = productData.is_private === true;
+
             if (isProductPrivate && !isAdmin) {
                 let hasAccess = false;
                 if (session?.user?.id) {
@@ -141,44 +193,52 @@ const ProductDetails = () => {
                 }
                 
                 if (!hasAccess) {
-                    throw new Error("Product not found"); // Triggers the generic 404 UI
+                    console.warn(`[ProductDetails] Access denied to private VIP product "${productData.name}".`);
+                    throw new Error("Product not found");
                 }
             }
 
-            // Fetch variants
-            let variantsQuery = supabase
-                .from("product_variants")
-                .select(`
-                    *,
-                    vial_type:vial_types(name, capacity_ml, color, shape)
-                `)
-                .eq("product_id", productData.id);
+            // Fetch variants safely matching Products.tsx query
+            let variantsData: any[] = [];
+            try {
+                const { data, error: vErr } = await supabase
+                    .from("product_variants")
+                    .select(`
+                        *,
+                        vial_type:vial_types(name, capacity_ml, color, shape)
+                    `)
+                    .eq("product_id", productData.id);
 
-            // If not admin/staff, only fetch published variants
-            if (!isAdmin) {
-                variantsQuery = variantsQuery.eq("is_published", true);
+                if (!vErr && data) {
+                    variantsData = data;
+                } else if (vErr) {
+                    console.warn("[ProductDetails] Non-fatal error fetching variants:", vErr);
+                }
+            } catch (err) {
+                console.warn("[ProductDetails] Exception fetching variants:", err);
             }
 
-            const { data: variantsData, error: variantsError } = await variantsQuery.order('position', { ascending: true });
-
-            if (variantsError) throw variantsError;
-
             // Fetch real sales count for this product
-            const { data: orderItems } = await supabase
-                .from("order_items")
-                .select("quantity")
-                .eq("product_id", productData.id);
+            let realSales = 0;
+            try {
+                const { data: orderItems } = await supabase
+                    .from("order_items")
+                    .select("quantity")
+                    .eq("product_id", productData.id);
+                realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+            } catch (e) {
+                console.warn("[ProductDetails] Non-fatal error fetching sales count:", e);
+            }
 
-            const realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
             const salesCount = realSales + getBaseSalesCount(productData.id, productData.is_private, productData.name, (productData as any).product_categories?.name || productData.category);
 
-            const variants: ProductVariant[] = (variantsData as any[])?.map((v: any) => ({
+            let variants: ProductVariant[] = (variantsData || []).map((v: any) => ({
                 id: v.id,
                 product_id: v.product_id,
                 vial_type_id: v.vial_type_id,
-                sku: v.sku,
-                price: v.price,
-                stock_quantity: v.stock_quantity,
+                sku: v.sku || '',
+                price: Number(v.price) || 0,
+                stock_quantity: v.stock_quantity ?? 999,
                 max_online_quantity: v.max_online_quantity,
                 weight: v.weight,
                 image_url: v.image_url,
@@ -193,17 +253,53 @@ const ProductDetails = () => {
                     slug: productData.slug,
                     image_url: productData.image_url,
                     description: productData.description,
-                    category: productData.category,
+                    category: (productData as any).product_categories?.name || productData.category,
                     is_private: productData.is_private || false,
                 },
                 vial_type: {
-                    name: v.vial_type.name,
-                    capacity_ml: v.vial_type.capacity_ml,
-                    color: v.vial_type.color,
-                    shape: v.vial_type.shape,
+                    name: v.vial_type?.name || 'Standard',
+                    capacity_ml: v.vial_type?.capacity_ml || 10,
+                    color: v.vial_type?.color || 'Clear',
+                    shape: v.vial_type?.shape || 'Round',
                 },
-            })) || [];
+            }));
 
+            // Fallback if product has no variants in product_variants
+            if (variants.length === 0) {
+                variants = [{
+                    id: productData.id,
+                    product_id: productData.id,
+                    vial_type_id: null,
+                    sku: productData.slug || productData.id.slice(0, 8),
+                    price: (productData as any).price ? Number((productData as any).price) : 0,
+                    stock_quantity: (productData as any).stock_quantity ?? 999,
+                    max_online_quantity: null,
+                    weight: null,
+                    image_url: productData.image_url,
+                    images: (productData as any).images || [],
+                    pack_size: productData.default_pack_size || 1,
+                    bulk_price: null,
+                    bulk_min_qty: 100,
+                    bulk_label_fee: 0.15,
+                    bulk_only: false,
+                    product: {
+                        name: productData.name,
+                        slug: productData.slug,
+                        image_url: productData.image_url,
+                        description: productData.description,
+                        category: (productData as any).product_categories?.name || productData.category,
+                        is_private: productData.is_private || false,
+                    },
+                    vial_type: {
+                        name: 'Standard',
+                        capacity_ml: 10,
+                        color: 'Clear',
+                        shape: 'Round',
+                    },
+                }];
+            }
+
+            console.log(`[ProductDetails] Returning complete product object for "${productData.name}" with ${variants.length} variant(s).`);
 
             return {
                 id: productData.id,
@@ -222,6 +318,14 @@ const ProductDetails = () => {
             } as ProductWithVariants;
         },
         enabled: !!id,
+    });
+
+    console.log("[ProductDetails] Render state:", {
+        id,
+        isLoading,
+        hasProduct: !!product,
+        variantsCount: product?.variants?.length,
+        errorMessage: error instanceof Error ? error.message : String(error || "")
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
@@ -713,40 +817,8 @@ const ProductDetails = () => {
                             </Button>
                         </div>
 
-                        {/* Product Features */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 border-t">
-                            <div className="flex items-start gap-3">
-                                <div className="bg-primary/10 p-2 rounded-lg">
-                                    <Check className="h-5 w-5 text-primary" />
-                                </div>
-                                <div>
-                                    <div className="font-medium">In Stock</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        Available and ready to ship
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <div className="bg-primary/10 p-2 rounded-lg">
-                                    <Truck className="h-5 w-5 text-primary" />
-                                </div>
-                                <div>
-                                    <div className="font-medium">Fast Shipping</div>
-                                    <div className="text-sm text-muted-foreground">Fast and reliable delivery</div>
-                                </div>
-                            </div>
-                            <div className="flex items-start gap-3 sm:col-span-2">
-                                <div className="bg-primary/10 p-2 rounded-lg">
-                                    <ShieldCheck className="h-5 w-5 text-primary" />
-                                </div>
-                                <div>
-                                    <div className="font-medium">Quality Guaranteed</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        All products are tested and certified
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Trust & Shipping Perks */}
+                        <ProductShippingPerks className="mt-2" freeShippingThreshold={100} />
 
                         {/* Research Peptides Promotion Banner for Ad Traffic */}
                         <div className="bg-gradient-to-br from-primary/10 via-emerald-500/10 to-teal-500/15 border-2 border-primary/25 rounded-2xl p-5 md:p-6 shadow-sm space-y-4">

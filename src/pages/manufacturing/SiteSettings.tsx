@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Select,
     SelectContent,
@@ -16,8 +17,9 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle } from "lucide-react";
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
+import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
 
 const TIMEZONES = [
     { value: "America/New_York", label: "Eastern Time (ET / New York)" },
@@ -49,6 +51,7 @@ const SiteSettings = () => {
     const [saving, setSaving] = useState(false);
     const [savingResearchAck, setSavingResearchAck] = useState(false);
     const [savingShipping, setSavingShipping] = useState(false);
+    const [savingGateways, setSavingGateways] = useState(false);
 
     // Shipping & Cutoff Settings
     const [cutoffHour, setCutoffHour] = useState<number>(DEFAULT_SHIPPING_CONFIG.cutoffHour);
@@ -60,6 +63,30 @@ const SiteSettings = () => {
     const [deliveryMaxDays, setDeliveryMaxDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.max);
     const [shipsSaturday, setShipsSaturday] = useState<boolean>(DEFAULT_SHIPPING_CONFIG.shipsOnSaturday);
     const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState<PaymentMethodKey[]>(DEFAULT_SHIPPING_CONFIG.acceptedPaymentMethods);
+
+    // Payment Processors & Failover Settings
+    const [activeGateway, setActiveGateway] = useState<PaymentGatewayProvider>(DEFAULT_PAYMENT_SETTINGS.activeProvider);
+    const [backupGateway, setBackupGateway] = useState<PaymentGatewayProvider>(DEFAULT_PAYMENT_SETTINGS.backupProvider);
+    const [autoFailover, setAutoFailover] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.autoFailoverEnabled);
+    const [failThreshold, setFailThreshold] = useState<number>(DEFAULT_PAYMENT_SETTINGS.failThreshold);
+    const [squareAppId, setSquareAppId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.square.appId);
+    const [squareLocationId, setSquareLocationId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.square.locationId);
+    const [squareEnv, setSquareEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.square.environment);
+    const [stripePublishableKey, setStripePublishableKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.stripe.publishableKey);
+    const [authNetApiLoginId, setAuthNetApiLoginId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.authorizenet.apiLoginId);
+    const [authNetClientKey, setAuthNetClientKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.authorizenet.clientKey);
+    const [authNetEnv, setAuthNetEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.authorizenet.environment);
+    const [cloverMerchantId, setCloverMerchantId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.clover.merchantId);
+    const [cloverApiToken, setCloverApiToken] = useState<string>(DEFAULT_PAYMENT_SETTINGS.clover.apiToken);
+    const [cloverEnv, setCloverEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.clover.environment);
+    const [nmiSecurityKey, setNmiSecurityKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.nmi.securityKey);
+    const [nmiTokenKey, setNmiTokenKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.nmi.tokenizationKey);
+    const [paypalClientId, setPaypalClientId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.paypal.clientId);
+    const [paypalEnv, setPaypalEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.paypal.environment);
+    const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
+    const [zelleName, setZelleName] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleName || "");
+    const [cashAppTag, setCashAppTag] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.cashAppTag || "");
+    const [manualInstructions, setManualInstructions] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.instructions || "");
 
     useEffect(() => {
         fetchSettings();
@@ -81,7 +108,18 @@ const SiteSettings = () => {
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
                     "shipping_ships_saturday",
-                    "shipping_payment_methods"
+                    "shipping_payment_methods",
+                    "payment_active_provider",
+                    "payment_backup_provider",
+                    "payment_auto_failover",
+                    "payment_fail_threshold",
+                    "payment_square_config",
+                    "payment_stripe_config",
+                    "payment_authorizenet_config",
+                    "payment_clover_config",
+                    "payment_nmi_config",
+                    "payment_paypal_config",
+                    "payment_manual_config"
                 ]);
 
             if (error) throw error;
@@ -98,6 +136,19 @@ const SiteSettings = () => {
                 const maxDays = data.find((s: any) => s.key === "shipping_delivery_max_days");
                 const sat = data.find((s: any) => s.key === "shipping_ships_saturday");
                 const pm = data.find((s: any) => s.key === "shipping_payment_methods");
+
+                // Gateways
+                const activeP = data.find((s: any) => s.key === "payment_active_provider");
+                const backupP = data.find((s: any) => s.key === "payment_backup_provider");
+                const autoFail = data.find((s: any) => s.key === "payment_auto_failover");
+                const failT = data.find((s: any) => s.key === "payment_fail_threshold");
+                const squareCfg = data.find((s: any) => s.key === "payment_square_config");
+                const stripeCfg = data.find((s: any) => s.key === "payment_stripe_config");
+                const authNetCfg = data.find((s: any) => s.key === "payment_authorizenet_config");
+                const cloverCfg = data.find((s: any) => s.key === "payment_clover_config");
+                const nmiCfg = data.find((s: any) => s.key === "payment_nmi_config");
+                const paypalCfg = data.find((s: any) => s.key === "payment_paypal_config");
+                const manualCfg = data.find((s: any) => s.key === "payment_manual_config");
 
                 if (maintenance) setMaintenanceMode(maintenance.value === "true");
                 if (researchAck) setRequireResearchAck(researchAck.value === "true");
@@ -118,6 +169,71 @@ const SiteSettings = () => {
                     } catch (e) {
                         console.warn("Error parsing payment methods from DB:", e);
                     }
+                }
+
+                if (activeP) setActiveGateway(activeP.value as PaymentGatewayProvider);
+                if (backupP) setBackupGateway(backupP.value as PaymentGatewayProvider);
+                if (autoFail) setAutoFailover(autoFail.value === "true");
+                if (failT) setFailThreshold(Number(failT.value));
+
+                if (squareCfg?.value) {
+                    try {
+                        const sq = JSON.parse(squareCfg.value);
+                        if (sq.appId) setSquareAppId(sq.appId);
+                        if (sq.locationId) setSquareLocationId(sq.locationId);
+                        if (sq.environment) setSquareEnv(sq.environment);
+                    } catch (e) {}
+                }
+
+                if (stripeCfg?.value) {
+                    try {
+                        const st = JSON.parse(stripeCfg.value);
+                        if (st.publishableKey) setStripePublishableKey(st.publishableKey);
+                    } catch (e) {}
+                }
+
+                if (authNetCfg?.value) {
+                    try {
+                        const an = JSON.parse(authNetCfg.value);
+                        if (an.apiLoginId) setAuthNetApiLoginId(an.apiLoginId);
+                        if (an.clientKey) setAuthNetClientKey(an.clientKey);
+                        if (an.environment) setAuthNetEnv(an.environment);
+                    } catch (e) {}
+                }
+
+                if (cloverCfg?.value) {
+                    try {
+                        const cl = JSON.parse(cloverCfg.value);
+                        if (cl.merchantId) setCloverMerchantId(cl.merchantId);
+                        if (cl.apiToken) setCloverApiToken(cl.apiToken);
+                        if (cl.environment) setCloverEnv(cl.environment);
+                    } catch (e) {}
+                }
+
+                if (nmiCfg?.value) {
+                    try {
+                        const nm = JSON.parse(nmiCfg.value);
+                        if (nm.securityKey) setNmiSecurityKey(nm.securityKey);
+                        if (nm.tokenizationKey) setNmiTokenKey(nm.tokenizationKey);
+                    } catch (e) {}
+                }
+
+                if (paypalCfg?.value) {
+                    try {
+                        const pp = JSON.parse(paypalCfg.value);
+                        if (pp.clientId) setPaypalClientId(pp.clientId);
+                        if (pp.environment) setPaypalEnv(pp.environment);
+                    } catch (e) {}
+                }
+
+                if (manualCfg?.value) {
+                    try {
+                        const mn = JSON.parse(manualCfg.value);
+                        if (mn.zelleEmail) setZelleEmail(mn.zelleEmail);
+                        if (mn.zelleName) setZelleName(mn.zelleName);
+                        if (mn.cashAppTag) setCashAppTag(mn.cashAppTag);
+                        if (mn.instructions) setManualInstructions(mn.instructions);
+                    } catch (e) {}
                 }
             }
         } catch (error: any) {
@@ -212,6 +328,80 @@ const SiteSettings = () => {
 
     const handleClearAllPayments = () => {
         setAcceptedPaymentMethods([]);
+    };
+
+    const handleSaveGateways = async () => {
+        setSavingGateways(true);
+        const now = new Date().toISOString();
+
+        try {
+            const squareConfig = JSON.stringify({
+                appId: squareAppId,
+                locationId: squareLocationId,
+                environment: squareEnv
+            });
+
+            const stripeConfig = JSON.stringify({
+                publishableKey: stripePublishableKey
+            });
+
+            const authNetConfig = JSON.stringify({
+                apiLoginId: authNetApiLoginId,
+                clientKey: authNetClientKey,
+                environment: authNetEnv
+            });
+
+            const cloverConfig = JSON.stringify({
+                merchantId: cloverMerchantId,
+                apiToken: cloverApiToken,
+                environment: cloverEnv
+            });
+
+            const nmiConfig = JSON.stringify({
+                securityKey: nmiSecurityKey,
+                tokenizationKey: nmiTokenKey
+            });
+
+            const paypalConfig = JSON.stringify({
+                clientId: paypalClientId,
+                environment: paypalEnv
+            });
+
+            const manualConfig = JSON.stringify({
+                zelleEmail,
+                zelleName,
+                cashAppTag,
+                instructions: manualInstructions
+            });
+
+            const updates = [
+                { key: "payment_active_provider", value: activeGateway, updated_at: now },
+                { key: "payment_backup_provider", value: backupGateway, updated_at: now },
+                { key: "payment_auto_failover", value: String(autoFailover), updated_at: now },
+                { key: "payment_fail_threshold", value: String(failThreshold), updated_at: now },
+                { key: "payment_square_config", value: squareConfig, updated_at: now },
+                { key: "payment_stripe_config", value: stripeConfig, updated_at: now },
+                { key: "payment_authorizenet_config", value: authNetConfig, updated_at: now },
+                { key: "payment_clover_config", value: cloverConfig, updated_at: now },
+                { key: "payment_nmi_config", value: nmiConfig, updated_at: now },
+                { key: "payment_paypal_config", value: paypalConfig, updated_at: now },
+                { key: "payment_manual_config", value: manualConfig, updated_at: now },
+            ];
+
+            for (const item of updates) {
+                const { error } = await supabase
+                    .from("app_settings" as any)
+                    .upsert(item);
+                if (error) throw error;
+            }
+
+            toast.success("Online Payment Processors & Failover settings saved successfully!");
+        } catch (error: any) {
+            console.error("Error saving payment gateway settings:", error);
+            toast.error("Failed to save payment processor settings");
+        } finally {
+            setSavingGateways(false);
+        }
     };
 
     const handleSaveShippingSettings = async () => {
@@ -317,7 +507,398 @@ const SiteSettings = () => {
                     </CardContent>
                 </Card>
 
-                {/* 3. Shipping & Cutoff Time Configuration */}
+                {/* 3. Online Payment Processors & Failover Routing */}
+                <Card>
+                    <CardHeader className="space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-primary">
+                                <CreditCard className="h-5 w-5" />
+                                <CardTitle className="text-xl">Online Payment Processors & Failover Routing (Anti-Baneo)</CardTitle>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Active Gateway:</span>
+                                <Badge className={`uppercase text-xs font-bold ${
+                                    activeGateway === 'square' ? 'bg-black text-white dark:bg-white dark:text-black' :
+                                    activeGateway === 'stripe' ? 'bg-indigo-600 text-white' :
+                                    activeGateway === 'authorizenet' ? 'bg-blue-700 text-white' :
+                                    activeGateway === 'clover' ? 'bg-emerald-700 text-white' :
+                                    activeGateway === 'nmi' ? 'bg-slate-800 text-white' :
+                                    activeGateway === 'paypal' ? 'bg-blue-600 text-white' :
+                                    'bg-purple-600 text-white'
+                                }`}>
+                                    🟢 {activeGateway}
+                                </Badge>
+                            </div>
+                        </div>
+                        <CardDescription>
+                            Manage active payment providers, configure backup gateways, and enable automatic failover if a processor account is restricted or unavailable.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {/* Gateway Routing Selectors */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-4 rounded-xl border bg-muted/20">
+                            <div className="space-y-2">
+                                <Label htmlFor="activeGateway" className="font-semibold flex items-center gap-2">
+                                    <Zap className="h-4 w-4 text-emerald-600" />
+                                    Active Online Processor (Primary)
+                                </Label>
+                                <Select value={activeGateway} onValueChange={(val: any) => setActiveGateway(val)}>
+                                    <SelectTrigger id="activeGateway" className="bg-background">
+                                        <SelectValue placeholder="Select active processor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
+                                        <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
+                                        <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
+                                        <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
+                                        <SelectItem value="clover">Clover (Merchant API)</SelectItem>
+                                        <SelectItem value="paypal">PayPal (Wallet & Checkout)</SelectItem>
+                                        <SelectItem value="manual">Direct P2P / Manual (Zelle / Cash App)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    All customer checkouts will currently be routed through this payment processor.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="backupGateway" className="font-semibold flex items-center gap-2">
+                                    <RefreshCw className="h-4 w-4 text-primary" />
+                                    Backup Failover Processor
+                                </Label>
+                                <Select value={backupGateway} onValueChange={(val: any) => setBackupGateway(val)}>
+                                    <SelectTrigger id="backupGateway" className="bg-background">
+                                        <SelectValue placeholder="Select backup processor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
+                                        <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
+                                        <SelectItem value="clover">Clover (Merchant API)</SelectItem>
+                                        <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
+                                        <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
+                                        <SelectItem value="paypal">PayPal (Wallet & Checkout)</SelectItem>
+                                        <SelectItem value="manual">Direct P2P / Manual (Zelle / Cash App)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    Emergency failover gateway used automatically if the primary processor encounters restrictions.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Auto Failover Toggle */}
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Automatic Processor Failover</Label>
+                                    <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 font-bold">Recommended</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Automatically switches live checkout traffic to the backup processor if critical authentication or account suspension errors are detected.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={autoFailover}
+                                onCheckedChange={setAutoFailover}
+                            />
+                        </div>
+
+                        {/* Gateway Credentials Tabs */}
+                        <div className="space-y-3 pt-2">
+                            <Label className="font-semibold text-sm">Processor Credentials & Keys</Label>
+                            <Tabs defaultValue="square" className="w-full">
+                                <TabsList className="grid grid-cols-7 w-full">
+                                    <TabsTrigger value="square" className="text-[11px] px-1">Square</TabsTrigger>
+                                    <TabsTrigger value="stripe" className="text-[11px] px-1">Stripe</TabsTrigger>
+                                    <TabsTrigger value="nmi" className="text-[11px] px-1">NMI</TabsTrigger>
+                                    <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
+                                    <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
+                                    <TabsTrigger value="paypal" className="text-[11px] px-1">PayPal</TabsTrigger>
+                                    <TabsTrigger value="manual" className="text-[11px] px-1">Zelle/P2P</TabsTrigger>
+                                </TabsList>
+
+                                {/* Square Settings */}
+                                <TabsContent value="square" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="sqAppId" className="text-xs">Application ID</Label>
+                                            <Input
+                                                id="sqAppId"
+                                                value={squareAppId}
+                                                onChange={(e) => setSquareAppId(e.target.value)}
+                                                placeholder="sandbox-sq0idb-..."
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="sqLocId" className="text-xs">Location ID</Label>
+                                            <Input
+                                                id="sqLocId"
+                                                value={squareLocationId}
+                                                onChange={(e) => setSquareLocationId(e.target.value)}
+                                                placeholder="L... (Location ID)"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="sqEnv" className="text-xs">Square Environment</Label>
+                                            <Select value={squareEnv} onValueChange={(val: any) => setSquareEnv(val)}>
+                                                <SelectTrigger id="sqEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                                                    <SelectItem value="production">Production (Live)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: Private access tokens (<code>SQUARE_ACCESS_TOKEN</code>) are securely managed in Supabase Edge Functions.
+                                    </p>
+                                </TabsContent>
+
+                                {/* Stripe Settings */}
+                                <TabsContent value="stripe" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="stPk" className="text-xs">Stripe Publishable Key</Label>
+                                        <Input
+                                            id="stPk"
+                                            value={stripePublishableKey}
+                                            onChange={(e) => setStripePublishableKey(e.target.value)}
+                                            placeholder="pk_live_... or pk_test_..."
+                                        />
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: Stripe Secret Key (<code>STRIPE_SECRET_KEY</code>) is stored in Supabase Edge Functions secrets.
+                                    </p>
+                                </TabsContent>
+
+                                {/* NMI Settings */}
+                                <TabsContent value="nmi" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="nmiSecKey" className="text-xs">NMI Private Security Key</Label>
+                                            <Input
+                                                id="nmiSecKey"
+                                                value={nmiSecurityKey}
+                                                onChange={(e) => setNmiSecurityKey(e.target.value)}
+                                                placeholder="e.g. 2F822rw294856175640ab50..."
+                                                type="password"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="nmiTokKey" className="text-xs">Public Tokenization Key (Collect.js)</Label>
+                                            <Input
+                                                id="nmiTokKey"
+                                                value={nmiTokenKey}
+                                                onChange={(e) => setNmiTokenKey(e.target.value)}
+                                                placeholder="e.g. 5x7F9... (Optional)"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: Supports multi-MID accounts and automatic MID load balancing.
+                                    </p>
+                                </TabsContent>
+
+                                {/* Authorize.Net Settings */}
+                                <TabsContent value="authorizenet" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="anLoginId" className="text-xs">API Login ID</Label>
+                                            <Input
+                                                id="anLoginId"
+                                                value={authNetApiLoginId}
+                                                onChange={(e) => setAuthNetApiLoginId(e.target.value)}
+                                                placeholder="e.g. 5KP6uZZ5"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="anClientKey" className="text-xs">Public Client Key</Label>
+                                            <Input
+                                                id="anClientKey"
+                                                value={authNetClientKey}
+                                                onChange={(e) => setAuthNetClientKey(e.target.value)}
+                                                placeholder="e.g. 5FcB6nx7..."
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="anEnv" className="text-xs">Authorize.Net Environment</Label>
+                                            <Select value={authNetEnv} onValueChange={(val: any) => setAuthNetEnv(val)}>
+                                                <SelectTrigger id="anEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                                                    <SelectItem value="production">Production (Live)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: The secret <code>AUTHORIZENET_TRANSACTION_KEY</code> is securely kept in Supabase Edge Functions.
+                                    </p>
+                                </TabsContent>
+
+                                {/* Clover Settings */}
+                                <TabsContent value="clover" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="clovMid" className="text-xs">Clover Merchant ID (mId)</Label>
+                                            <Input
+                                                id="clovMid"
+                                                value={cloverMerchantId}
+                                                onChange={(e) => setCloverMerchantId(e.target.value)}
+                                                placeholder="e.g. ABC123XYZ456"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="clovToken" className="text-xs">Clover API / Public Token</Label>
+                                            <Input
+                                                id="clovToken"
+                                                value={cloverApiToken}
+                                                onChange={(e) => setCloverApiToken(e.target.value)}
+                                                placeholder="e.g. clv_..."
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="clovEnv" className="text-xs">Clover Environment</Label>
+                                            <Select value={cloverEnv} onValueChange={(val: any) => setCloverEnv(val)}>
+                                                <SelectTrigger id="clovEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                                                    <SelectItem value="production">Production (Live)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: Private API keys (<code>CLOVER_API_KEY</code>) are managed securely in Supabase Edge Functions.
+                                    </p>
+                                </TabsContent>
+
+                                {/* PayPal Settings */}
+                                <TabsContent value="paypal" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="ppClientId" className="text-xs">PayPal Client ID</Label>
+                                            <Input
+                                                id="ppClientId"
+                                                value={paypalClientId}
+                                                onChange={(e) => setPaypalClientId(e.target.value)}
+                                                placeholder="e.g. AeA123..."
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="ppEnv" className="text-xs">PayPal Environment</Label>
+                                            <Select value={paypalEnv} onValueChange={(val: any) => setPaypalEnv(val)}>
+                                                <SelectTrigger id="ppEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                                                    <SelectItem value="production">Production (Live)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </TabsContent>
+
+                                {/* Manual / Zelle Settings */}
+                                <TabsContent value="manual" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="zEmail" className="text-xs">Zelle Recipient Email</Label>
+                                            <Input
+                                                id="zEmail"
+                                                value={zelleEmail}
+                                                onChange={(e) => setZelleEmail(e.target.value)}
+                                                placeholder="payments@livwelllabs.com"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="zName" className="text-xs">Zelle Account Name</Label>
+                                            <Input
+                                                id="zName"
+                                                value={zelleName}
+                                                onChange={(e) => setZelleName(e.target.value)}
+                                                placeholder="Liv Well Labs LLC"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="cTag" className="text-xs">Cash App $Cashtag</Label>
+                                            <Input
+                                                id="cTag"
+                                                value={cashAppTag}
+                                                onChange={(e) => setCashAppTag(e.target.value)}
+                                                placeholder="$LivWellLabs"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-1.5">
+                                            <Label htmlFor="mInst" className="text-xs">Customer Instructions</Label>
+                                            <Input
+                                                id="mInst"
+                                                value={manualInstructions}
+                                                onChange={(e) => setManualInstructions(e.target.value)}
+                                                placeholder="Please include your Order ID in the payment memo..."
+                                            />
+                                        </div>
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
+                        </div>
+
+                        {/* Universal Webhook Endpoint Info */}
+                        <div className="p-4 rounded-xl border bg-muted/30 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="space-y-0.5">
+                                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Universal Webhook Endpoint URL</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Paste this URL in your gateway merchant dashboards (Square, Stripe, Authorize.Net, Clover, NMI, PayPal) to receive real-time payment, refund, and dispute updates.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const webhookUrl = `${supabase.supabaseUrl}/functions/v1/universal-payment-webhook`;
+                                        navigator.clipboard.writeText(webhookUrl);
+                                        toast.success("Webhook URL copied to clipboard!");
+                                    }}
+                                    className="text-xs font-medium"
+                                >
+                                    Copy Webhook URL
+                                </Button>
+                            </div>
+                            <code className="block p-2 rounded bg-background border text-xs text-primary font-mono select-all break-all">
+                                {supabase.supabaseUrl}/functions/v1/universal-payment-webhook
+                            </code>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <Button 
+                                onClick={handleSaveGateways}
+                                disabled={savingGateways}
+                                className="font-bold min-w-[200px]"
+                            >
+                                {savingGateways ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving Processors...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Gateway Settings
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 4. Shipping & Cutoff Time Configuration */}
                 <Card>
                     <CardHeader className="space-y-1">
                         <div className="flex items-center gap-2 text-primary">

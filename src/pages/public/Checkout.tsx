@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import SquareCheckout from "@/components/checkout/SquareCheckout";
+import UniversalCheckout from "@/components/checkout/UniversalCheckout";
 import { Loader2, LogIn, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -397,7 +397,7 @@ const Checkout = () => {
                             </p>
                         </div>
 
-                        <SquareCheckout
+                        <UniversalCheckout
                             amount={totalAmount}
                             shippingCost={displayShipping}
                             shippingService={shippingService}

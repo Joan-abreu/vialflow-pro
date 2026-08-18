@@ -30,7 +30,8 @@ export const ProductShippingPerks = ({
                     "shipping_free_threshold",
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
-                    "shipping_ships_saturday"
+                    "shipping_ships_saturday",
+                    "shipping_payment_methods"
                 ]);
             return (data as Array<{ key: string; value: string }>) || [];
         },
@@ -48,6 +49,19 @@ export const ProductShippingPerks = ({
             const minDays = dbSettings.find(s => s.key === "shipping_delivery_min_days");
             const maxDays = dbSettings.find(s => s.key === "shipping_delivery_max_days");
             const sat = dbSettings.find(s => s.key === "shipping_ships_saturday");
+            const pm = dbSettings.find(s => s.key === "shipping_payment_methods");
+
+            let parsedPM: PaymentMethodKey[] | undefined;
+            if (pm && pm.value) {
+                try {
+                    const parsed = JSON.parse(pm.value);
+                    if (Array.isArray(parsed)) {
+                        parsedPM = parsed;
+                    }
+                } catch (e) {
+                    console.warn("Error parsing payment methods from DB:", e);
+                }
+            }
 
             dbConfig = {
                 ...(hour ? { cutoffHour: Number(hour.value) } : {}),
@@ -62,6 +76,7 @@ export const ProductShippingPerks = ({
                     }
                 } : {}),
                 ...(sat ? { shipsOnSaturday: sat.value === "true" } : {}),
+                ...(parsedPM ? { acceptedPaymentMethods: parsedPM } : {}),
             };
         }
 
@@ -276,48 +291,92 @@ export const ProductShippingPerks = ({
                 </div>
 
                 {/* Payment Brand Icons */}
-                <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
-                    {/* Visa */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <svg className="h-3 w-auto fill-[#1A1F71] dark:fill-white" viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M14.453 0.234L9.467 11.758H6.208L3.785 2.734C3.637 2.164 3.504 1.945 3.066 1.707C2.348 1.32 1.102 0.957 0 0.719L0.078 0.234H5.406C6.094 0.234 6.711 0.691 6.863 1.48L8.188 8.496L11.453 0.234H14.453ZM27.07 7.965C27.086 4.938 22.883 4.773 22.914 3.414C22.926 3.004 23.316 2.559 24.215 2.441C24.66 2.383 25.895 2.332 27.242 2.953L27.785 0.441C27.043 0.172 26.074 0 24.871 0C21.848 0 19.723 1.609 19.703 3.902C19.676 5.602 21.238 6.551 22.402 7.117C23.598 7.699 24.004 8.074 23.996 8.598C23.984 9.398 23.031 9.754 22.148 9.77C20.602 9.789 19.703 9.352 18.988 9.016L18.426 11.648C19.18 11.992 20.578 12.285 22.023 12.305C25.234 12.305 27.051 10.719 27.07 7.965ZM35.086 11.758H37.711L35.418 0.234H33.004C32.449 0.234 31.984 0.559 31.781 1.055L27.148 11.758H30.344L30.984 10.012H34.887L35.086 11.758ZM31.867 7.617L33.211 3.902L33.988 7.617H31.867ZM19.246 0.234L16.711 11.758H13.676L16.211 0.234H19.246Z"/>
-                        </svg>
-                    </div>
+                {config.acceptedPaymentMethods && config.acceptedPaymentMethods.length > 0 && (
+                    <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
+                        {/* Visa */}
+                        {config.acceptedPaymentMethods.includes("visa") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="Visa">
+                                <svg className="h-3 w-auto fill-[#1A1F71] dark:fill-white" viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M14.453 0.234L9.467 11.758H6.208L3.785 2.734C3.637 2.164 3.504 1.945 3.066 1.707C2.348 1.32 1.102 0.957 0 0.719L0.078 0.234H5.406C6.094 0.234 6.711 0.691 6.863 1.48L8.188 8.496L11.453 0.234H14.453ZM27.07 7.965C27.086 4.938 22.883 4.773 22.914 3.414C22.926 3.004 23.316 2.559 24.215 2.441C24.66 2.383 25.895 2.332 27.242 2.953L27.785 0.441C27.043 0.172 26.074 0 24.871 0C21.848 0 19.723 1.609 19.703 3.902C19.676 5.602 21.238 6.551 22.402 7.117C23.598 7.699 24.004 8.074 23.996 8.598C23.984 9.398 23.031 9.754 22.148 9.77C20.602 9.789 19.703 9.352 18.988 9.016L18.426 11.648C19.18 11.992 20.578 12.285 22.023 12.305C25.234 12.305 27.051 10.719 27.07 7.965ZM35.086 11.758H37.711L35.418 0.234H33.004C32.449 0.234 31.984 0.559 31.781 1.055L27.148 11.758H30.344L30.984 10.012H34.887L35.086 11.758ZM31.867 7.617L33.211 3.902L33.988 7.617H31.867ZM19.246 0.234L16.711 11.758H13.676L16.211 0.234H19.246Z"/>
+                                </svg>
+                            </div>
+                        )}
 
-                    {/* Mastercard */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <svg className="h-3.5 w-auto" viewBox="0 0 32 20" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="12" height="12" x="4" y="4" rx="6" fill="#EB001B"/>
-                            <rect width="12" height="12" x="16" y="4" rx="6" fill="#F79E1B"/>
-                            <path d="M16 5.86a6 6 0 0 0-2.14 4.14A6 6 0 0 0 16 14.14a6 6 0 0 0 2.14-4.14A6 6 0 0 0 16 5.86Z" fill="#FF5F00"/>
-                        </svg>
-                    </div>
+                        {/* Mastercard */}
+                        {config.acceptedPaymentMethods.includes("mastercard") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="Mastercard">
+                                <svg className="h-3.5 w-auto" viewBox="0 0 32 20" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="12" height="12" x="4" y="4" rx="6" fill="#EB001B"/>
+                                    <rect width="12" height="12" x="16" y="4" rx="6" fill="#F79E1B"/>
+                                    <path d="M16 5.86a6 6 0 0 0-2.14 4.14A6 6 0 0 0 16 14.14a6 6 0 0 0 2.14-4.14A6 6 0 0 0 16 5.86Z" fill="#FF5F00"/>
+                                </svg>
+                            </div>
+                        )}
 
-                    {/* American Express */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <span className="text-[9px] font-black tracking-tighter text-[#006FCF] dark:text-[#3894E6]">AMEX</span>
-                    </div>
+                        {/* American Express */}
+                        {config.acceptedPaymentMethods.includes("amex") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="American Express">
+                                <span className="text-[9px] font-black tracking-tighter text-[#006FCF] dark:text-[#3894E6]">AMEX</span>
+                            </div>
+                        )}
 
-                    {/* Discover */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <span className="text-[9px] font-black tracking-tight text-[#FF6000]">DISCOVER</span>
-                    </div>
+                        {/* Discover */}
+                        {config.acceptedPaymentMethods.includes("discover") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="Discover">
+                                <span className="text-[9px] font-black tracking-tight text-[#FF6000]">DISCOVER</span>
+                            </div>
+                        )}
 
-                    {/* Apple Pay */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <svg className="h-3 w-auto fill-foreground" viewBox="0 0 36 15" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4.53 4.22c-.37.45-.96.79-1.57.74-.08-.6.18-1.22.52-1.63.37-.46.99-.78 1.54-.78.07.61-.13 1.22-.49 1.67zm1.54 2.27c-.85-.05-1.57.48-1.98.48-.41 0-1.02-.45-1.69-.44-.87.01-1.68.51-2.12 1.29-.91 1.56-.23 3.89.65 5.16.43.62.95 1.31 1.62 1.28.64-.02.89-.42 1.66-.42.77 0 .99.42 1.67.4.69-.01 1.13-.62 1.55-1.24.49-.71.69-1.4.7-1.44-.02-.01-1.34-.51-1.35-2.04-.01-1.28 1.05-1.89 1.1-1.92-.6-.88-1.53-.98-1.8-.99v-.16zm6.83-2.16h-3.41v10.42h1.66v-3.79h1.75c2.4 0 3.79-1.37 3.79-3.32 0-1.93-1.39-3.31-3.79-3.31zm-.17 5.18h-1.58v-3.73h1.58c1.37 0 2.14.73 2.14 1.87s-.77 1.86-2.14 1.86zm7.74 1.48c-1.49 0-2.55 1.09-2.55 2.57 0 1.49 1.07 2.58 2.58 2.58.82 0 1.53-.37 1.94-.96v.84h1.54v-5.91c0-1.74-1.29-2.73-3.19-2.73-1.62 0-2.88.94-2.98 2.28h1.49c.14-.59.73-.97 1.49-.97 1.01 0 1.65.51 1.65 1.44v.66l-2.02.2zm.29 3.84c-.79 0-1.39-.47-1.39-1.18 0-.71.61-1.16 1.42-1.16h1.7v.75c-.24.95-.98 1.59-1.73 1.59zm9.05-5.32l-1.86 5.13-1.87-5.13h-1.78l2.84 7.02-1.62 3.65h1.72l4.88-10.67h-2.31z"/>
-                        </svg>
-                    </div>
+                        {/* Apple Pay */}
+                        {config.acceptedPaymentMethods.includes("apple_pay") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="Apple Pay">
+                                <svg className="h-3 w-auto fill-foreground" viewBox="0 0 36 15" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4.53 4.22c-.37.45-.96.79-1.57.74-.08-.6.18-1.22.52-1.63.37-.46.99-.78 1.54-.78.07.61-.13 1.22-.49 1.67zm1.54 2.27c-.85-.05-1.57.48-1.98.48-.41 0-1.02-.45-1.69-.44-.87.01-1.68.51-2.12 1.29-.91 1.56-.23 3.89.65 5.16.43.62.95 1.31 1.62 1.28.64-.02.89-.42 1.66-.42.77 0 .99.42 1.67.4.69-.01 1.13-.62 1.55-1.24.49-.71.69-1.4.7-1.44-.02-.01-1.34-.51-1.35-2.04-.01-1.28 1.05-1.89 1.1-1.92-.6-.88-1.53-.98-1.8-.99v-.16zm6.83-2.16h-3.41v10.42h1.66v-3.79h1.75c2.4 0 3.79-1.37 3.79-3.32 0-1.93-1.39-3.31-3.79-3.31zm-.17 5.18h-1.58v-3.73h1.58c1.37 0 2.14.73 2.14 1.87s-.77 1.86-2.14 1.86zm7.74 1.48c-1.49 0-2.55 1.09-2.55 2.57 0 1.49 1.07 2.58 2.58 2.58.82 0 1.53-.37 1.94-.96v.84h1.54v-5.91c0-1.74-1.29-2.73-3.19-2.73-1.62 0-2.88.94-2.98 2.28h1.49c.14-.59.73-.97 1.49-.97 1.01 0 1.65.51 1.65 1.44v.66l-2.02.2zm.29 3.84c-.79 0-1.39-.47-1.39-1.18 0-.71.61-1.16 1.42-1.16h1.7v.75c-.24.95-.98 1.59-1.73 1.59zm9.05-5.32l-1.86 5.13-1.87-5.13h-1.78l2.84 7.02-1.62 3.65h1.72l4.88-10.67h-2.31z"/>
+                                </svg>
+                            </div>
+                        )}
 
-                    {/* Google Pay */}
-                    <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs">
-                        <svg className="h-3 w-auto" viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M19.5 8.1v4.8h-1.6V1.3h4.3c1.2 0 2.2.4 3 1.2.8.8 1.2 1.8 1.2 3 0 1.2-.4 2.2-1.2 3-.8.8-1.8 1.2-3 1.2h-2.7v-1.6zm0-5.2v3.6h2.8c.8 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.8s-.3-1.3-.8-1.8c-.5-.5-1.1-.8-1.9-.8h-2.8v1.6zm10.7 7.7c-1.3 0-2.3-.4-3-1.3-.7-.9-1.1-2-1.1-3.3s.4-2.4 1.1-3.3c.7-.9 1.7-1.3 3-1.3 1.3 0 2.3.4 3 1.3.7.9 1.1 2 1.1 3.3s-.4 2.4-1.1 3.3c-.7.9-1.7 1.3-3 1.3zm0-1.4c.8 0 1.5-.3 2-1 .5-.6.8-1.4.8-2.3s-.3-1.7-.8-2.3c-.5-.6-1.2-1-2-1s-1.5.3-2 1c-.5.6-.8 1.4-.8 2.3s.3 1.7.8 2.3c.5.6 1.2 1 2 1zm10.6-6.1l-5.4 12.4h-1.7l2-4.4-3.6-8h1.8l2.6 6.1 2.5-6.1h1.8z" fill="currentColor"/>
-                            <path d="M7.4 6.8v2.4h5.8c-.2 1.3-.8 2.4-1.9 3.2-1 1-2.4 1.5-3.9 1.5-3.2 0-5.8-2.6-5.8-5.8s2.6-5.8 5.8-5.8c1.6 0 3.1.6 4.2 1.7l1.7-1.7C11.8.8 9.7 0 7.4 0 3.3 0 0 3.3 0 7.4s3.3 7.4 7.4 7.4c2.2 0 4.1-.7 5.6-2.2 1.5-1.5 2.3-3.6 2.3-6.2 0-.6-.1-1.2-.2-1.6H7.4z" fill="#4285F4"/>
-                        </svg>
+                        {/* Google Pay */}
+                        {config.acceptedPaymentMethods.includes("google_pay") && (
+                            <div className="h-6 px-2 bg-background border border-border rounded flex items-center justify-center shadow-2xs" title="Google Pay">
+                                <svg className="h-3 w-auto" viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19.5 8.1v4.8h-1.6V1.3h4.3c1.2 0 2.2.4 3 1.2.8.8 1.2 1.8 1.2 3 0 1.2-.4 2.2-1.2 3-.8.8-1.8 1.2-3 1.2h-2.7v-1.6zm0-5.2v3.6h2.8c.8 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.8s-.3-1.3-.8-1.8c-.5-.5-1.1-.8-1.9-.8h-2.8v1.6zm10.7 7.7c-1.3 0-2.3-.4-3-1.3-.7-.9-1.1-2-1.1-3.3s.4-2.4 1.1-3.3c.7-.9 1.7-1.3 3-1.3 1.3 0 2.3.4 3 1.3.7.9 1.1 2 1.1 3.3s-.4 2.4-1.1 3.3c-.7.9-1.7 1.3-3 1.3zm0-1.4c.8 0 1.5-.3 2-1 .5-.6.8-1.4.8-2.3s-.3-1.7-.8-2.3c-.5-.6-1.2-1-2-1s-1.5.3-2 1c-.5.6-.8 1.4-.8 2.3s.3 1.7.8 2.3c.5.6 1.2 1 2 1zm10.6-6.1l-5.4 12.4h-1.7l2-4.4-3.6-8h1.8l2.6 6.1 2.5-6.1h1.8z" fill="currentColor"/>
+                                    <path d="M7.4 6.8v2.4h5.8c-.2 1.3-.8 2.4-1.9 3.2-1 1-2.4 1.5-3.9 1.5-3.2 0-5.8-2.6-5.8-5.8s2.6-5.8 5.8-5.8c1.6 0 3.1.6 4.2 1.7l1.7-1.7C11.8.8 9.7 0 7.4 0 3.3 0 0 3.3 0 7.4s3.3 7.4 7.4 7.4c2.2 0 4.1-.7 5.6-2.2 1.5-1.5 2.3-3.6 2.3-6.2 0-.6-.1-1.2-.2-1.6H7.4z" fill="#4285F4"/>
+                                </svg>
+                            </div>
+                        )}
+
+                        {/* Zelle */}
+                        {config.acceptedPaymentMethods.includes("zelle") && (
+                            <div className="h-6 px-2 bg-[#7414CA]/10 border border-[#7414CA]/30 rounded flex items-center justify-center gap-1 shadow-2xs" title="Zelle">
+                                <span className="text-[10px] font-black text-[#7414CA] dark:text-[#A855F7] tracking-tight">zelle</span>
+                            </div>
+                        )}
+
+                        {/* Cash App */}
+                        {config.acceptedPaymentMethods.includes("cashapp") && (
+                            <div className="h-6 px-2 bg-[#00D632]/10 border border-[#00D632]/30 rounded flex items-center justify-center gap-0.5 shadow-2xs" title="Cash App">
+                                <span className="text-[10px] font-black text-[#00D632] dark:text-[#22C55E]">$</span>
+                                <span className="text-[9px] font-bold text-[#00A827] dark:text-[#4ADE80]">Cash App</span>
+                            </div>
+                        )}
+
+                        {/* Venmo */}
+                        {config.acceptedPaymentMethods.includes("venmo") && (
+                            <div className="h-6 px-2 bg-[#008CFF]/10 border border-[#008CFF]/30 rounded flex items-center justify-center shadow-2xs" title="Venmo">
+                                <span className="text-[10px] font-black text-[#008CFF] dark:text-[#38BDF8] italic">venmo</span>
+                            </div>
+                        )}
+
+                        {/* Bitcoin / Crypto */}
+                        {config.acceptedPaymentMethods.includes("crypto") && (
+                            <div className="h-6 px-2 bg-[#F7931A]/10 border border-[#F7931A]/30 rounded flex items-center justify-center gap-1 shadow-2xs" title="Crypto / Bitcoin">
+                                <span className="text-[10px] font-black text-[#F7931A]">₿</span>
+                                <span className="text-[9px] font-bold text-[#B46709] dark:text-[#FBBF24]">Crypto</span>
+                            </div>
+                        )}
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

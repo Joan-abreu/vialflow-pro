@@ -1,3 +1,15 @@
+export type PaymentMethodKey = 
+    | "visa"
+    | "mastercard"
+    | "amex"
+    | "discover"
+    | "apple_pay"
+    | "google_pay"
+    | "zelle"
+    | "cashapp"
+    | "venmo"
+    | "crypto";
+
 export interface StoreShippingConfig {
     /** Cutoff hour in 24h format in the designated timezone (e.g. 15 = 3:00 PM) */
     cutoffHour: number;
@@ -16,6 +28,8 @@ export interface StoreShippingConfig {
     };
     /** Whether shipping fulfillment happens on Saturdays */
     shipsOnSaturday: boolean;
+    /** List of payment method keys to display in trust badge */
+    acceptedPaymentMethods: PaymentMethodKey[];
 }
 
 export const DEFAULT_SHIPPING_CONFIG: StoreShippingConfig = {
@@ -29,4 +43,5 @@ export const DEFAULT_SHIPPING_CONFIG: StoreShippingConfig = {
         max: 4,
     },
     shipsOnSaturday: false,
+    acceptedPaymentMethods: ["visa", "mastercard", "amex", "discover", "apple_pay", "google_pay"],
 };

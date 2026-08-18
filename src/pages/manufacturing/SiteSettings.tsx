@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
     Select,
     SelectContent,
@@ -14,8 +16,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck } from "lucide-react";
-import { DEFAULT_SHIPPING_CONFIG } from "@/config/shippingConfig";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square } from "lucide-react";
+import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 
 const TIMEZONES = [
     { value: "America/New_York", label: "Eastern Time (ET / New York)" },
@@ -24,6 +26,19 @@ const TIMEZONES = [
     { value: "America/Los_Angeles", label: "Pacific Time (PT / Los Angeles)" },
     { value: "America/Anchorage", label: "Alaska Time (AKT)" },
     { value: "Pacific/Honolulu", label: "Hawaii Time (HT)" },
+];
+
+const AVAILABLE_PAYMENT_METHODS: { id: PaymentMethodKey; label: string; sublabel: string; color: string }[] = [
+    { id: "visa", label: "Visa", sublabel: "Credit / Debit Cards", color: "text-[#1A1F71] dark:text-blue-400 font-bold" },
+    { id: "mastercard", label: "Mastercard", sublabel: "Credit / Debit Cards", color: "text-[#EB001B] dark:text-red-400 font-bold" },
+    { id: "amex", label: "American Express (AMEX)", sublabel: "Credit Cards", color: "text-[#006FCF] dark:text-sky-400 font-black" },
+    { id: "discover", label: "Discover", sublabel: "Credit Cards", color: "text-[#FF6000] font-bold" },
+    { id: "apple_pay", label: "Apple Pay", sublabel: "Mobile Wallet", color: "text-foreground font-semibold" },
+    { id: "google_pay", label: "Google Pay", sublabel: "Mobile Wallet", color: "text-blue-600 dark:text-blue-400 font-semibold" },
+    { id: "zelle", label: "Zelle", sublabel: "Direct Bank Transfer", color: "text-purple-600 dark:text-purple-400 font-bold" },
+    { id: "cashapp", label: "Cash App", sublabel: "Direct P2P", color: "text-emerald-600 dark:text-emerald-400 font-bold" },
+    { id: "venmo", label: "Venmo", sublabel: "Direct P2P", color: "text-sky-500 font-bold" },
+    { id: "crypto", label: "Bitcoin / Crypto", sublabel: "BTC, ETH, USDT", color: "text-amber-600 dark:text-amber-400 font-bold" },
 ];
 
 const SiteSettings = () => {
@@ -44,6 +59,7 @@ const SiteSettings = () => {
     const [deliveryMinDays, setDeliveryMinDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.min);
     const [deliveryMaxDays, setDeliveryMaxDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.max);
     const [shipsSaturday, setShipsSaturday] = useState<boolean>(DEFAULT_SHIPPING_CONFIG.shipsOnSaturday);
+    const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState<PaymentMethodKey[]>(DEFAULT_SHIPPING_CONFIG.acceptedPaymentMethods);
 
     useEffect(() => {
         fetchSettings();
@@ -64,7 +80,8 @@ const SiteSettings = () => {
                     "shipping_free_threshold",
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
-                    "shipping_ships_saturday"
+                    "shipping_ships_saturday",
+                    "shipping_payment_methods"
                 ]);
 
             if (error) throw error;
@@ -80,6 +97,7 @@ const SiteSettings = () => {
                 const minDays = data.find((s: any) => s.key === "shipping_delivery_min_days");
                 const maxDays = data.find((s: any) => s.key === "shipping_delivery_max_days");
                 const sat = data.find((s: any) => s.key === "shipping_ships_saturday");
+                const pm = data.find((s: any) => s.key === "shipping_payment_methods");
 
                 if (maintenance) setMaintenanceMode(maintenance.value === "true");
                 if (researchAck) setRequireResearchAck(researchAck.value === "true");
@@ -91,6 +109,16 @@ const SiteSettings = () => {
                 if (minDays) setDeliveryMinDays(Number(minDays.value));
                 if (maxDays) setDeliveryMaxDays(Number(maxDays.value));
                 if (sat) setShipsSaturday(sat.value === "true");
+                if (pm && pm.value) {
+                    try {
+                        const parsed = JSON.parse(pm.value);
+                        if (Array.isArray(parsed)) {
+                            setAcceptedPaymentMethods(parsed);
+                        }
+                    } catch (e) {
+                        console.warn("Error parsing payment methods from DB:", e);
+                    }
+                }
             }
         } catch (error: any) {
             console.error("Error fetching settings:", error);
@@ -164,6 +192,28 @@ const SiteSettings = () => {
         setCutoffDisplayLabel(`${displayH}${displayM} ${ampm} ${tzCode}`);
     };
 
+    const handleTogglePaymentMethod = (methodId: PaymentMethodKey) => {
+        setAcceptedPaymentMethods(prev => {
+            if (prev.includes(methodId)) {
+                return prev.filter(m => m !== methodId);
+            } else {
+                return [...prev, methodId];
+            }
+        });
+    };
+
+    const handleSelectAllPayments = () => {
+        setAcceptedPaymentMethods(AVAILABLE_PAYMENT_METHODS.map(m => m.id));
+    };
+
+    const handleSelectDefaultCards = () => {
+        setAcceptedPaymentMethods(["visa", "mastercard", "amex", "discover", "apple_pay", "google_pay"]);
+    };
+
+    const handleClearAllPayments = () => {
+        setAcceptedPaymentMethods([]);
+    };
+
     const handleSaveShippingSettings = async () => {
         setSavingShipping(true);
         const now = new Date().toISOString();
@@ -178,6 +228,7 @@ const SiteSettings = () => {
                 { key: "shipping_delivery_min_days", value: String(deliveryMinDays), updated_at: now },
                 { key: "shipping_delivery_max_days", value: String(deliveryMaxDays), updated_at: now },
                 { key: "shipping_ships_saturday", value: String(shipsSaturday), updated_at: now },
+                { key: "shipping_payment_methods", value: JSON.stringify(acceptedPaymentMethods), updated_at: now },
             ];
 
             for (const item of updates) {
@@ -190,7 +241,7 @@ const SiteSettings = () => {
             // Invalidate cache so all storefront badges update instantly
             queryClient.invalidateQueries({ queryKey: ['shipping_app_settings'] });
 
-            toast.success("Shipping & Cutoff Time settings saved successfully!");
+            toast.success("Shipping & Payment settings saved successfully!");
         } catch (error: any) {
             console.error("Error saving shipping settings:", error);
             toast.error("Failed to save shipping settings");
@@ -453,6 +504,103 @@ const SiteSettings = () => {
                                 checked={shipsSaturday}
                                 onCheckedChange={setShipsSaturday}
                             />
+                        </div>
+
+                        {/* 4. Accepted Payment Badges */}
+                        <div className="space-y-4 pt-4 border-t">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-base font-semibold flex items-center gap-2">
+                                        <CreditCard className="h-5 w-5 text-primary" />
+                                        Accepted Payment Badges (Product Page Trust Section)
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Check the payment methods you accept to display their official badges in the product perks section.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs h-8 px-2.5"
+                                        onClick={handleSelectDefaultCards}
+                                    >
+                                        Cards & Wallets
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs h-8 px-2.5"
+                                        onClick={handleSelectAllPayments}
+                                    >
+                                        Select All
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-xs h-8 px-2"
+                                        onClick={handleClearAllPayments}
+                                    >
+                                        Clear
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+                                {AVAILABLE_PAYMENT_METHODS.map((pm) => {
+                                    const isChecked = acceptedPaymentMethods.includes(pm.id);
+                                    return (
+                                        <div
+                                            key={pm.id}
+                                            onClick={() => handleTogglePaymentMethod(pm.id)}
+                                            className={`flex items-start space-x-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                                                isChecked
+                                                    ? 'bg-primary/5 border-primary/50 shadow-xs'
+                                                    : 'bg-card border-border/60 hover:border-border opacity-70 hover:opacity-100'
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                id={`pm-${pm.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => handleTogglePaymentMethod(pm.id)}
+                                                className="mt-0.5"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <Label 
+                                                    htmlFor={`pm-${pm.id}`} 
+                                                    className={`cursor-pointer text-xs sm:text-sm ${pm.color} block truncate`}
+                                                >
+                                                    {pm.label}
+                                                </Label>
+                                                <p className="text-[11px] text-muted-foreground truncate">
+                                                    {pm.sublabel}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="rounded-lg bg-muted/40 p-3 flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Active Badges:</span>
+                                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                    {acceptedPaymentMethods.length === 0 ? (
+                                        <span className="text-muted-foreground italic">No badges selected</span>
+                                    ) : (
+                                        acceptedPaymentMethods.map(id => {
+                                            const item = AVAILABLE_PAYMENT_METHODS.find(m => m.id === id);
+                                            return (
+                                                <Badge key={id} variant="secondary" className="text-[10px] uppercase font-bold py-0.5">
+                                                    {item?.label || id}
+                                                </Badge>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex justify-end pt-2">

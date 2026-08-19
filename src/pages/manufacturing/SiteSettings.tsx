@@ -513,7 +513,7 @@ const SiteSettings = () => {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="flex items-center gap-2 text-primary">
                                 <CreditCard className="h-5 w-5" />
-                                <CardTitle className="text-xl">Online Payment Processors & Failover Routing (Anti-Baneo)</CardTitle>
+                                <CardTitle className="text-xl">Online Payment Processors & Failover Routing (Anti-Ban)</CardTitle>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">Active Gateway:</span>

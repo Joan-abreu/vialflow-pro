@@ -14,6 +14,8 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Link, useNavigate } from "react-router-dom";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider, PaymentGatewaysSettings } from "@/config/paymentGateways";
+import { SmartCreditCardForm } from "./SmartCreditCardForm";
+
 
 interface UniversalCheckoutProps {
     amount: number;
@@ -732,7 +734,7 @@ const UniversalCheckout = ({
                     apiLoginId: gatewaySettings.authorizenet.apiLoginId,
                     merchantId: gatewaySettings.clover.merchantId,
                     nmiSecurityKey: gatewaySettings.nmi.securityKey,
-                    cardDetails: (activeProvider === "nmi" || activeProvider === "clover") ? cardData : undefined,
+                    cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :
                         activeProvider === "authorizenet" ? gatewaySettings.authorizenet.environment === "production" :
@@ -1537,7 +1539,30 @@ const UniversalCheckout = ({
                                         )}
                                     </Button>
                                 </div>
+                            ) : (activeProvider === "manual_terminal" || activeProvider === "offline_card") ? (
+                                /* Case H: Smart Manual Virtual Terminal / Offline Card Processing Form */
+                                <SmartCreditCardForm
+                                    cardData={cardData}
+                                    onChange={setCardData}
+                                    onSubmit={handleProcessPayment}
+                                    loading={loading}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabledReason={
+                                        isCalculating
+                                            ? "Calculating Shipping..."
+                                            : !shippingService || shippingCost === undefined
+                                                ? "Select Shipping Method"
+                                                : requireResearchAck && (!ackResearch || !ackTerms)
+                                                    ? "Acknowledge terms to pay"
+                                                    : undefined
+                                    }
+                                    amount={amount}
+                                    instructions={gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing."}
+                                    submitButtonText={`Submit Order ($${amount.toFixed(2)})`}
+                                />
                             ) : (
+
+
                                 /* Case H: Manual / P2P / Zelle / Cash App */
                                 <div className="space-y-4 text-left">
                                     <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">

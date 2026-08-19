@@ -487,25 +487,44 @@ serve(async (req) => {
             });
         }
 
-        // 8. Manual / P2P Processing (Zelle / Cash App / Venmo / Wire)
-        if (provider === "manual") {
-            await supabase.from("orders").update({
-                status: "pending_payment",
-                payment_method: "manual_p2p",
-                payment_intent_id: manualReference || `MANUAL-${orderId.slice(0, 8)}`,
-                applied_coupons,
-            }).eq("id", orderId);
+        // 9. Manual Virtual Terminal / Offline Card Vault Processing
+        if (provider === "manual_terminal" || provider === "offline_card") {
+            const vaultRes = await fetch(`${supabaseUrl}/functions/v1/vault-card-payment`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    action: "encrypt_and_save",
+                    orderId: orderId,
+                    cardPayload: cardDetails || {
+                        cardNumber: body.cardNumber || sourceId,
+                        expMonth: body.expMonth,
+                        expYear: body.expYear,
+                        cvv: body.cvv,
+                        cardholderName: body.cardholderName,
+                        billingZip: body.billingZip
+                    }
+                })
+            });
+
+            const vaultData = await vaultRes.json();
+            if (!vaultRes.ok || vaultData.error) {
+                throw new Error(vaultData.error || "Failed to vault card for offline manual terminal processing");
+            }
 
             return new Response(JSON.stringify({
                 success: true,
-                status: "PENDING_CONFIRMATION",
-                provider: "manual",
-                message: "Order placed in pending payment state"
+                status: "PENDING_MANUAL_CHARGE",
+                provider: "manual_terminal",
+                message: "Order placed in pending payment state for admin virtual terminal processing"
             }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 status: 200,
             });
         }
+
 
         throw new Error(`Unsupported payment provider: ${provider}`);
 

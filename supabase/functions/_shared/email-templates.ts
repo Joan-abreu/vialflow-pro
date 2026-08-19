@@ -732,3 +732,158 @@ export function getSignupConfirmationEmail(data: {
     return getEmailTemplate(content);
 }
 
+export function getPaymentPendingEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    items?: any[];
+    totalAmount?: number;
+    currency?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const formattedTotal = data.totalAmount != null ? `$${data.totalAmount.toFixed(2)}` : '';
+
+    const itemsListHtml = (data.items && data.items.length > 0) ? `
+        <div style="margin: 25px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                <thead>
+                    <tr style="background-color: #f9fafb;">
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: left;">Item</th>
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: center;">Qty</th>
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.items.map((item: any) => `
+                        <tr>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">${item.name || item.title || 'Product'}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity || 1}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    ` : '';
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Order #${displayNum} Received — Payment Processing ⏳</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName || 'Valued Customer'},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            We've received your order! Your payment is currently being verified and processed by our billing department. You will receive a confirmation email with your itemized receipt as soon as the transaction is completed.
+        </p>
+        
+        <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #92400e; font-weight: 600;">Status: Payment Pending Review</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #b45309;">Order Reference: <strong>#${displayNum}</strong> ${formattedTotal ? `| Total: <strong>${formattedTotal}</strong>` : ''}</p>
+        </div>
+
+        ${itemsListHtml}
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 25px;">
+            If you need to make changes to your order or have questions regarding billing, please reply directly to this email or contact our support team.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getPaymentConfirmedEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    items?: any[];
+    totalAmount?: number;
+    currency?: string;
+    cardBrand?: string;
+    last4?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const formattedTotal = data.totalAmount != null ? `$${data.totalAmount.toFixed(2)}` : '';
+    const paymentCardText = data.last4 ? `Paid via ${data.cardBrand || 'Card'} ending in ****${data.last4}` : 'Payment Verified';
+
+    const itemsListHtml = (data.items && data.items.length > 0) ? `
+        <div style="margin: 25px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                <thead>
+                    <tr style="background-color: #f9fafb;">
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: left;">Item</th>
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: center;">Qty</th>
+                        <th style="padding: 12px 16px; font-size: 14px; color: #374151; text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.items.map((item: any) => `
+                        <tr>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">${item.name || item.title || 'Product'}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity || 1}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    ` : '';
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Payment Successful — Order #${displayNum} Confirmed! 🎉</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName || 'Valued Customer'},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Good news! Your payment ${formattedTotal ? `of <strong>${formattedTotal}</strong>` : ''} has been successfully processed (${paymentCardText}). Your order is now approved and moving to fulfillment.
+        </p>
+        
+        <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #065f46; font-weight: 600;">Status: Payment Confirmed & Order Approved</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #047857;">Order Number: <strong>#${displayNum}</strong> | ${paymentCardText}</p>
+        </div>
+
+        ${itemsListHtml}
+
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-top: 25px;">
+            You will receive a follow-up email with your tracking details as soon as your parcel ships.
+        </p>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getPaymentDeclinedEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    reason?: string;
+    retryUrl?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const reasonText = data.reason || "The card was declined by the issuing bank or contains invalid billing details.";
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Action Required: Payment Issue for Order #${displayNum} ⚠️</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName || 'Valued Customer'},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            We attempted to process payment for your order <strong>#${displayNum}</strong>, but the transaction could not be completed.
+        </p>
+        
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #991b1b; font-weight: 600;">Decline Reason:</p>
+            <p style="margin: 4px 0 0 0; font-size: 14px; color: #b91c1c;">${reasonText}</p>
+        </div>
+
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Please contact your bank or reply to this email to provide an updated payment method so we can finalize and dispatch your order promptly.
+        </p>
+
+        ${data.retryUrl ? `
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="${data.retryUrl}" class="button" style="color: white !important;">Update Payment Method</a>
+            </div>
+        ` : ''}
+    `;
+    return getEmailTemplate(content);
+}
+
+

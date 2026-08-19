@@ -601,6 +601,7 @@ const SiteSettings = () => {
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
                                         <SelectItem value="paypal">PayPal (Wallet & Checkout)</SelectItem>
                                         <SelectItem value="manual">Direct P2P / Manual (Zelle / Cash App)</SelectItem>
+                                        <SelectItem value="manual_terminal">Manual Virtual Terminal (Offline Card Processing)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
@@ -625,6 +626,7 @@ const SiteSettings = () => {
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
                                         <SelectItem value="paypal">PayPal (Wallet & Checkout)</SelectItem>
                                         <SelectItem value="manual">Direct P2P / Manual (Zelle / Cash App)</SelectItem>
+                                        <SelectItem value="manual_terminal">Manual Virtual Terminal (Offline Card Processing)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <p className="text-xs text-muted-foreground">

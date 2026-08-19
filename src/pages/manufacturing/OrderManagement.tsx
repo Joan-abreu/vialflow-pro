@@ -38,15 +38,17 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock } from "lucide-react";
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
+import { VirtualTerminalModal } from "@/components/admin/VirtualTerminalModal";
 import CopyCell from "@/components/CopyCell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 
 interface OrderItem {
     id: string;
@@ -124,6 +126,8 @@ const OrderManagement = () => {
     const [showShippingDialog, setShowShippingDialog] = useState(false);
     const [activeTab, setActiveTab] = useState("all");
     const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string, status: string } | null>(null);
+    const [selectedVirtualTerminalOrder, setSelectedVirtualTerminalOrder] = useState<Order | null>(null);
+    const [isVirtualTerminalOpen, setIsVirtualTerminalOpen] = useState(false);
     const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -982,9 +986,16 @@ const OrderManagement = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant="secondary" className={getStatusColor(order.status)}>
-                                                    {order.status.replace(/_/g, " ")}
-                                                </Badge>
+                                                {order.payment_method === 'manual_terminal' && order.status === 'pending_payment' ? (
+                                                    <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/40 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
+                                                        <Lock className="w-3 h-3 text-amber-600" />
+                                                        Pending Manual Charge
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="secondary" className={getStatusColor(order.status)}>
+                                                        {order.status.replace(/_/g, " ")}
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="font-semibold">${order.total_amount.toFixed(2)}</div>
@@ -996,7 +1007,22 @@ const OrderManagement = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 flex-wrap">
+                                                    {(order.payment_method === 'manual_terminal' || order.status === 'pending_payment') && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 px-2 text-[11px] font-bold bg-amber-500/10 text-amber-800 border-amber-300 hover:bg-amber-500/20 flex items-center gap-1"
+                                                            onClick={() => {
+                                                                setSelectedVirtualTerminalOrder(order);
+                                                                setIsVirtualTerminalOpen(true);
+                                                            }}
+                                                            title="Process Card via Virtual Terminal"
+                                                        >
+                                                            <Lock className="h-3 w-3 text-amber-600" />
+                                                            Process Card
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -1656,7 +1682,20 @@ const OrderManagement = () => {
                     </div>
                 </div>
             )}
+
+            {/* Virtual Terminal Modal */}
+            {selectedVirtualTerminalOrder && (
+                <VirtualTerminalModal
+                    open={isVirtualTerminalOpen}
+                    onOpenChange={setIsVirtualTerminalOpen}
+                    order={selectedVirtualTerminalOrder}
+                    onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                />
+            )}
         </div>
+
+
+
 
         <style>{`
             @media print {

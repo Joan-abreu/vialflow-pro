@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { getOrderConfirmationEmail, getAdminNotificationEmail, getOrderStatusUpdateEmail } from "../_shared/email-templates.ts";
+import { 
+  getOrderConfirmationEmail, 
+  getAdminNotificationEmail, 
+  getOrderStatusUpdateEmail,
+  getPaymentPendingEmail,
+  getPaymentConfirmedEmail,
+  getPaymentDeclinedEmail
+} from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_SALES_EMAIL = Deno.env.get("FROM_SALES_EMAIL") || "Liv Well Research Labs <sales@livwellresearchlabs.com>";
@@ -23,9 +30,12 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   order_id: string;
-  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered";
+  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined";
   status_details?: string;
   status_date?: string;
+  reason?: string;
+  card_brand?: string;
+  last_4?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -349,6 +359,78 @@ const handler = async (req: Request): Promise<Response> => {
         statusDate: status_date,
       });
     }
+
+    // PAYMENT PENDING EMAIL
+    else if (type === "payment_pending") {
+      if (!customerEmail) {
+        throw new Error("No customer email available");
+      }
+
+      emailTo = [customerEmail];
+      subject = `Order Received — Payment Processing #${order.id.slice(0, 8)}`;
+
+      const items = (order.order_items || []).map((item: any) => ({
+        name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+        quantity: item.quantity,
+        price: item.price_at_time || 0
+      }));
+
+      htmlContent = getPaymentPendingEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        items,
+        totalAmount: order.total_amount,
+      });
+    }
+
+    // PAYMENT CONFIRMED EMAIL
+    else if (type === "payment_confirmed") {
+      if (!customerEmail) {
+        throw new Error("No customer email available");
+      }
+
+      emailTo = [customerEmail];
+      subject = `Payment Successful — Order #${order.id.slice(0, 8)} Confirmed!`;
+
+      const items = (order.order_items || []).map((item: any) => ({
+        name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+        quantity: item.quantity,
+        price: item.price_at_time || 0
+      }));
+
+      const payloadReq = await req.clone().json().catch(() => ({}));
+
+      htmlContent = getPaymentConfirmedEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        items,
+        totalAmount: order.total_amount,
+        cardBrand: payloadReq.card_brand || "Card",
+        last4: payloadReq.last_4,
+      });
+    }
+
+    // PAYMENT DECLINED EMAIL
+    else if (type === "payment_declined") {
+      if (!customerEmail) {
+        throw new Error("No customer email available");
+      }
+
+      emailTo = [customerEmail];
+      subject = `Action Required: Payment Issue for Order #${order.id.slice(0, 8)}`;
+
+      const payloadReq = await req.clone().json().catch(() => ({}));
+
+      htmlContent = getPaymentDeclinedEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        reason: payloadReq.reason || status_details || "Payment declined by issuing bank",
+      });
+    }
+
 
     // Send using Resend
     const res = await fetch("https://api.resend.com/emails", {

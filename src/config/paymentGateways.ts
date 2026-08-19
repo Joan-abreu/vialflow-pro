@@ -5,7 +5,9 @@ export type PaymentGatewayProvider =
     | "clover"
     | "nmi"
     | "paypal"
-    | "manual";
+    | "manual"
+    | "manual_terminal"
+    | "offline_card";
 
 export interface SquareGatewayConfig {
     appId: string;
@@ -48,6 +50,12 @@ export interface ManualPaymentConfig {
     instructions?: string;
 }
 
+export interface ManualTerminalConfig {
+    enabled: boolean;
+    title: string;
+    instructions: string;
+}
+
 export interface PaymentGatewaysSettings {
     activeProvider: PaymentGatewayProvider;
     backupProvider: PaymentGatewayProvider;
@@ -60,6 +68,7 @@ export interface PaymentGatewaysSettings {
     nmi: NMIGatewayConfig;
     paypal: PayPalGatewayConfig;
     manual: ManualPaymentConfig;
+    manual_terminal: ManualTerminalConfig;
 }
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
@@ -99,4 +108,10 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         cashAppTag: "$LivWellLabs",
         instructions: "Please include your Order ID in the payment memo. Your order will be processed immediately upon receipt.",
     },
+    manual_terminal: {
+        enabled: true,
+        title: "Manual Virtual Terminal / Phone Order",
+        instructions: "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.",
+    }
 };
+

@@ -48,8 +48,10 @@ const SiteSettings = () => {
     const [loading, setLoading] = useState(true);
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
+    const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingResearchAck, setSavingResearchAck] = useState(false);
+    const [savingRequireLogin, setSavingRequireLogin] = useState(false);
     const [savingShipping, setSavingShipping] = useState(false);
     const [savingGateways, setSavingGateways] = useState(false);
 
@@ -100,6 +102,7 @@ const SiteSettings = () => {
                 .in("key", [
                     "maintenance_mode", 
                     "require_research_acknowledgment",
+                    "require_login_for_checkout",
                     "shipping_cutoff_hour",
                     "shipping_cutoff_minute",
                     "shipping_timezone",
@@ -127,6 +130,7 @@ const SiteSettings = () => {
             if (data) {
                 const maintenance = data.find((s: any) => s.key === "maintenance_mode");
                 const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
+                const requireLogin = data.find((s: any) => s.key === "require_login_for_checkout");
                 const hour = data.find((s: any) => s.key === "shipping_cutoff_hour");
                 const min = data.find((s: any) => s.key === "shipping_cutoff_minute");
                 const tz = data.find((s: any) => s.key === "shipping_timezone");
@@ -152,6 +156,7 @@ const SiteSettings = () => {
 
                 if (maintenance) setMaintenanceMode(maintenance.value === "true");
                 if (researchAck) setRequireResearchAck(researchAck.value === "true");
+                if (requireLogin) setRequireLoginForCheckout(requireLogin.value === "true");
                 if (hour) setCutoffHour(Number(hour.value));
                 if (min) setCutoffMinute(Number(min.value));
                 if (tz) setTimeZone(tz.value);
@@ -291,6 +296,31 @@ const SiteSettings = () => {
             setRequireResearchAck(!checked); // Revert UI on error
         } finally {
             setSavingResearchAck(false);
+        }
+    };
+
+    const handleRequireLoginToggle = async (checked: boolean) => {
+        setRequireLoginForCheckout(checked);
+        setSavingRequireLogin(true);
+
+        try {
+            const { error } = await supabase
+                .from("app_settings" as any)
+                .upsert({
+                    key: "require_login_for_checkout",
+                    value: String(checked),
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) throw error;
+
+            toast.success(`Checkout login requirement ${checked ? "enabled" : "disabled"}`);
+        } catch (error: any) {
+            console.error("Error saving settings:", error);
+            toast.error("Failed to save settings");
+            setRequireLoginForCheckout(!checked); // Revert UI on error
+        } finally {
+            setSavingRequireLogin(false);
         }
     };
 
@@ -502,6 +532,23 @@ const SiteSettings = () => {
                                 checked={requireResearchAck}
                                 onCheckedChange={handleResearchAckToggle}
                                 disabled={savingResearchAck}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Require Account / Login to Checkout</Label>
+                                    <Badge variant="outline" className="text-[10px] text-primary bg-primary/10 font-bold">Recommended</Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    When enabled, customers must sign in or create an account before completing their order. When disabled, guest checkout without password is permitted.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={requireLoginForCheckout}
+                                onCheckedChange={handleRequireLoginToggle}
+                                disabled={savingRequireLogin}
                             />
                         </div>
                     </CardContent>

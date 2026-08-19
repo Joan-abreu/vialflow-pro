@@ -104,30 +104,53 @@ const OrderConfirmation = () => {
                         </div>
                     </div>
                     <div className="p-6 space-y-6">
-                        {order.order_items.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-16 w-16 bg-muted rounded-md overflow-hidden border">
-                                        {item.variant.product.image_url ? (
-                                            <img
-                                                src={item.variant.product.image_url}
-                                                alt={item.variant.product.name}
-                                                className="h-full w-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">Img</div>
-                                        )}
+                        {order.order_items.map((item: any) => {
+                            const displayImage = item.variant?.image_url || (item.variant?.images && item.variant.images[0]) || item.variant?.product?.image_url;
+                            const isPeptide = item.variant?.product?.category?.toLowerCase().includes("peptide") || item.variant?.vial_type?.name?.toLowerCase().includes("mg");
+
+                            return (
+                                <div key={item.id} className="flex justify-between items-center">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-16 w-16 bg-muted rounded-md overflow-hidden border flex items-center justify-center flex-shrink-0">
+                                            {displayImage ? (
+                                                <img
+                                                    src={displayImage}
+                                                    alt={item.variant?.product?.name || "Product"}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <Package className="h-6 w-6 text-muted-foreground/50" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-sm text-foreground">{item.variant?.product?.name || "Product"}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {isPeptide ? (
+                                                    <>
+                                                        <span>{item.variant?.vial_type?.name || `${item.variant?.vial_type?.capacity_ml}mg`}</span>
+                                                        {item.variant?.pack_size > 1 ? (
+                                                            <span className="font-medium text-foreground"> ({item.variant.pack_size}x Pack)</span>
+                                                        ) : (
+                                                            <span> (Single Vial)</span>
+                                                        )}
+                                                        <span> • Qty: {item.quantity}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>{item.variant?.vial_type?.name || `${item.variant?.vial_type?.capacity_ml}ml`}</span>
+                                                        {item.variant?.vial_type?.color && <span> - {item.variant.vial_type.color}</span>}
+                                                        {item.variant?.vial_type?.shape && <span> - {item.variant.vial_type.shape}</span>}
+                                                        {item.variant?.pack_size > 1 && <span> ({item.variant.pack_size}x Pack)</span>}
+                                                        <span> • Qty: {item.quantity}</span>
+                                                    </>
+                                                )}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-medium">{item.variant.product.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}ml`}{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''} • Qty: {item.quantity}
-                                        </p>
-                                    </div>
+                                    <p className="font-medium text-sm">${(item.price_at_time * item.quantity).toFixed(2)}</p>
                                 </div>
-                                <p className="font-medium">${(item.price_at_time * item.quantity).toFixed(2)}</p>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                         <div className="border-t pt-4 mt-4 space-y-2">
                             <div className="flex justify-between text-sm">

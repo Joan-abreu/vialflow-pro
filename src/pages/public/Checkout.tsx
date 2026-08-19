@@ -3,7 +3,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import UniversalCheckout from "@/components/checkout/UniversalCheckout";
-import { Loader2, LogIn, AlertTriangle } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle, Package } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,10 +54,27 @@ const Checkout = () => {
     const [validationResult, setValidationResult] = useState<any>(null);
     const [showValidationModal, setShowValidationModal] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
+    const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
 
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
     const checkoutStartedRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        const fetchLoginSetting = async () => {
+            try {
+                const { data } = await supabase
+                    .from("app_settings" as any)
+                    .select("value")
+                    .eq("key", "require_login_for_checkout")
+                    .maybeSingle();
+                if (data && data.value !== undefined) {
+                    setRequireLoginForCheckout(data.value === "true");
+                }
+            } catch (e) {}
+        };
+        fetchLoginSetting();
+    }, []);
 
     useEffect(() => {
         if (!checkoutStartedRef.current && items.length > 0) {
@@ -93,6 +110,11 @@ const Checkout = () => {
     }, [shippingService]);
 
     const validateAndProceed = async () => {
+        if (requireLoginForCheckout && !session) {
+            toast.error("Please sign in or create an account to proceed.");
+            return;
+        }
+
         if (!currentAddress) return;
         
         // Strict Full Name check
@@ -309,7 +331,10 @@ const Checkout = () => {
     };
 
     const canGoNext = () => {
-        if (step === 'address') return true; // Always active as requested
+        if (step === 'address') {
+            if (requireLoginForCheckout && !session) return false;
+            return true;
+        }
         if (step === 'shipping') return !!shippingService && !isCalculatingShipping;
         return false;
     };
@@ -370,7 +395,9 @@ const Checkout = () => {
                 <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-full px-4 border">
                     <div className={`flex items-center gap-2 ${step === 'address' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step === 'address' ? 'bg-primary text-white' : 'bg-muted border'}`}>1</span>
-                        <span className="hidden sm:inline">Address</span>
+                        <span className="hidden sm:inline">
+                            {requireLoginForCheckout && !session ? "Account & Address" : "Address"}
+                        </span>
                     </div>
                     <div className="w-4 h-px bg-border"></div>
                     <div className={`flex items-center gap-2 ${step === 'shipping' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
@@ -389,9 +416,17 @@ const Checkout = () => {
                     {/* Main Checkout Area */}
                     <div className="bg-card border rounded-lg p-6 shadow-sm">
                         <div className="mb-6 border-b pb-4">
-                            <h2 className="text-xl font-semibold capitalize">{step} Details</h2>
+                            <h2 className="text-xl font-semibold">
+                                {step === 'address' 
+                                    ? (requireLoginForCheckout && !session ? "Account & Delivery" : "Address Details")
+                                    : step === 'shipping' ? "Shipping Details" : "Payment Details"}
+                            </h2>
                             <p className="text-sm text-muted-foreground">
-                                {step === 'address' && "Provide your delivery information."}
+                                {step === 'address' && (
+                                    requireLoginForCheckout && !session 
+                                        ? "Sign in or create an account to proceed with your order." 
+                                        : "Provide your delivery information."
+                                )}
                                 {step === 'shipping' && "Choose how you want your items delivered."}
                                 {step === 'payment' && "Enter your payment details to complete the order."}
                             </p>
@@ -507,28 +542,49 @@ const Checkout = () => {
                     <div className="bg-muted/30 rounded-lg p-6">
                         <h2 className="text-xl font-semibold mb-4">Order Review</h2>
                         <div className="space-y-4">
-                            {items.map((item) => (
-                                <div key={item.variant.id} className="flex justify-between items-center">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-12 w-12 bg-background rounded border flex items-center justify-center overflow-hidden flex-shrink-0">
-                                            {item.variant.product.image_url ? (
-                                                <img src={item.variant.product.image_url} alt={item.variant.product.name} className="h-full w-full object-cover" />
-                                            ) : (
-                                                <span className="text-[10px]">Img</span>
-                                            )}
+                            {items.map((item) => {
+                                const displayImage = item.variant.image_url || (item.variant.images && item.variant.images[0]) || item.variant.product.image_url;
+                                const isPeptide = item.variant.product.category?.toLowerCase().includes("peptide") || item.variant.vial_type?.name?.toLowerCase().includes("mg");
+
+                                return (
+                                    <div key={item.variant.id} className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-12 w-12 bg-background rounded-md border flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                                                {displayImage ? (
+                                                    <img src={displayImage} alt={item.variant.product.name} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <Package className="h-5 w-5 text-muted-foreground/60" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-sm text-foreground">{item.variant.product.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {isPeptide ? (
+                                                        <>
+                                                            <span>{item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}mg`}</span>
+                                                            {item.variant.pack_size > 1 ? (
+                                                                <span className="font-medium text-foreground"> ({item.variant.pack_size}x Pack)</span>
+                                                            ) : (
+                                                                <span> (Single Vial)</span>
+                                                            )}
+                                                            <span> • Qty: {item.quantity}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>{item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}ml`}</span>
+                                                            {item.variant.vial_type.color && <span> - {item.variant.vial_type.color}</span>}
+                                                            {item.variant.vial_type.shape && <span> - {item.variant.vial_type.shape}</span>}
+                                                            {item.variant.pack_size > 1 && <span> ({item.variant.pack_size}x Pack)</span>}
+                                                            <span> • Qty: {item.quantity}</span>
+                                                        </>
+                                                    )}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-sm">{item.variant.product.name}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}ml`}{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''}
-                                                {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
-                                                {' '}- Qty: {item.quantity}
-                                            </p>
-                                        </div>
+                                        <span className="font-semibold text-sm">${(item.variant.price * item.quantity).toFixed(2)}</span>
                                     </div>
-                                    <span className="font-medium">${(item.variant.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                            ))}
+                                );
+                            })}
 
                             <div className="border-t pt-4 space-y-2">
                                 <div className="flex justify-between text-sm">

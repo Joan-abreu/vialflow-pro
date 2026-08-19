@@ -90,10 +90,22 @@ const AppRoutes = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(true);
 
-    // Intercept hash fragment for password recovery if Supabase falls back to root URL
+    // Intercept hash fragment for password recovery & email confirmation if Supabase falls back to root URL
     useEffect(() => {
-        if (window.location.hash.includes("type=recovery") && window.location.pathname !== "/reset-password") {
-            window.location.replace("/reset-password" + window.location.hash);
+        const hash = window.location.hash;
+        if (hash) {
+            if (hash.includes("type=recovery") && window.location.pathname !== "/reset-password") {
+                window.location.replace("/reset-password" + hash);
+            } else if (
+                (hash.includes("type=signup") || 
+                 hash.includes("type=email_change") || 
+                 hash.includes("type=invite") || 
+                 (hash.includes("access_token=") && !hash.includes("type=recovery"))) &&
+                window.location.pathname !== "/auth/confirm" &&
+                window.location.pathname !== "/reset-password"
+            ) {
+                window.location.replace("/auth/confirm" + hash);
+            }
         }
     }, [location]);
 

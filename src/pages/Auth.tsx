@@ -28,8 +28,17 @@ const Auth = () => {
     checkSession();
   }, [navigate]);
 
+  const isValidPhone = (phoneStr: string) => {
+    const phoneRegex = /^\(\d{3}\)\s\d{3}-\d{4}$/;
+    return phoneRegex.test(phoneStr);
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidPhone(phone)) {
+      toast.error("Please enter a valid phone number (example: (305) 555-1234)");
+      return;
+    }
     setLoading(true);
 
     // Custom registration flow via Edge Function to bypass SMTP limits
@@ -171,9 +180,21 @@ const Auth = () => {
                   <Input
                     id="signup-phone"
                     type="tel"
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="(305) 555-1234"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, "");
+                      let formatted = raw;
+
+                      if (raw.length > 3 && raw.length <= 6) {
+                        formatted = `(${raw.slice(0, 3)}) ${raw.slice(3)}`;
+                      } else if (raw.length > 6) {
+                        formatted = `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6, 10)}`;
+                      }
+
+                      setPhone(formatted);
+                    }}
+                    maxLength={14}
                     required
                   />
                 </div>

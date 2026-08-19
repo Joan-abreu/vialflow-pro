@@ -18,6 +18,7 @@ interface RegisterRequest {
   fullName: string;
   phone: string;
   redirectTo?: string;
+  autoConfirm?: boolean;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -34,9 +35,9 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { email, password, fullName, phone, redirectTo }: RegisterRequest = await req.json();
+    const { email, password, fullName, phone, redirectTo, autoConfirm }: RegisterRequest = await req.json();
 
-    console.log(`[Register User] Creating user: ${email}`);
+    console.log(`[Register User] Creating user: ${email} (autoConfirm: ${!!autoConfirm})`);
 
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Email and password are required" }), {
@@ -79,10 +80,11 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // 2. Create the user via Admin API
+    const shouldConfirm = autoConfirm === true;
     const { data: userData, error: createError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: shouldConfirm,
       user_metadata: {
         full_name: fullName,
         phone: phone

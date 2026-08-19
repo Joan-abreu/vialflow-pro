@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, AlertTriangle, CreditCard as CardIcon, ShieldCheck, CheckCircle2, Lock } from "lucide-react";
+import { Loader2, AlertTriangle, CreditCard as CardIcon, ShieldCheck, CheckCircle2, Lock, Eye, EyeOff, User, LogIn, UserPlus, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentForm, CreditCard as SquareCreditCard } from "react-square-web-payments-sdk";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -154,7 +155,7 @@ const UniversalCheckout = ({
     const { items, clearCart } = useCart();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [saveAddress, setSaveAddress] = useState(false);
+    const [saveAddress, setSaveAddress] = useState(true);
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
@@ -190,6 +191,16 @@ const UniversalCheckout = ({
         country: "US"
     });
 
+    // Inline Auth State (When Account is Required)
+    const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
+    const [authTab, setAuthTab] = useState<"signin" | "register">("signin");
+    const [authEmail, setAuthEmail] = useState("");
+    const [authPassword, setAuthPassword] = useState("");
+    const [authFullName, setAuthFullName] = useState("");
+    const [authPhone, setAuthPhone] = useState("");
+    const [showAuthPassword, setShowAuthPassword] = useState(false);
+    const [authSubmitting, setAuthSubmitting] = useState(false);
+
     // 1. Fetch site settings & payment gateway configuration
     useEffect(() => {
         const fetchSettings = async () => {
@@ -199,6 +210,7 @@ const UniversalCheckout = ({
                     .select("key, value")
                     .in("key", [
                         "require_research_acknowledgment",
+                        "require_login_for_checkout",
                         "payment_active_provider",
                         "payment_backup_provider",
                         "payment_auto_failover",
@@ -214,6 +226,7 @@ const UniversalCheckout = ({
 
                 if (data && data.length > 0) {
                     const ack = data.find(s => s.key === "require_research_acknowledgment");
+                    const reqLogin = data.find(s => s.key === "require_login_for_checkout");
                     const activeP = data.find(s => s.key === "payment_active_provider");
                     const backupP = data.find(s => s.key === "payment_backup_provider");
                     const autoFail = data.find(s => s.key === "payment_auto_failover");
@@ -227,6 +240,7 @@ const UniversalCheckout = ({
                     const manualCfg = data.find(s => s.key === "payment_manual_config");
 
                     if (ack) setRequireResearchAck(ack.value === "true");
+                    if (reqLogin) setRequireLoginForCheckout(reqLogin.value === "true");
                     
                     const newProvider = (activeP?.value as PaymentGatewayProvider) || DEFAULT_PAYMENT_SETTINGS.activeProvider;
                     setActiveProvider(newProvider);
@@ -276,31 +290,214 @@ const UniversalCheckout = ({
                     .from('profiles')
                     .select('*')
                     .eq('user_id', user.id)
-                    .single();
+                    .maybeSingle();
 
-                if (isMounted && profile) {
-                    setProfile(profile);
-                    setAddressState(prev => {
-                        const next = {
-                            ...prev,
-                            full_name: prev.full_name || profile.full_name || "",
-                            email: user.email || "",
-                            line1: prev.line1 || profile.shipping_address_line1 || "",
-                            line2: prev.line2 || profile.shipping_address_line2 || "",
-                            city: prev.city || profile.shipping_city || "",
-                            state: prev.state || profile.shipping_state || "",
-                            postal_code: prev.postal_code || profile.shipping_postal_code || "",
-                            country: "US"
-                        };
-                        if (onAddressChange) onAddressChange(next);
-                        return next;
-                    });
+                let lastOrderAddress: any = null;
+                // If profile doesn't have shipping address, check the user's most recent order
+                if (!profile?.shipping_address_line1 && !profile?.address_line1) {
+                    const { data: lastOrder } = await supabase
+                        .from('orders')
+                        .select('customer_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (lastOrder) lastOrderAddress = lastOrder;
+                }
+
+                if (isMounted) {
+                    if (profile) setProfile(profile);
+
+                    const savedFullName = profile?.full_name || lastOrderAddress?.customer_name || user.user_metadata?.full_name || "";
+                    const savedLine1 = profile?.shipping_address_line1 || profile?.address_line1 || lastOrderAddress?.shipping_address_line1 || "";
+                    const savedLine2 = profile?.shipping_address_line2 || profile?.address_line2 || lastOrderAddress?.shipping_address_line2 || "";
+                    const savedCity = profile?.shipping_city || profile?.city || lastOrderAddress?.shipping_city || "";
+                    const savedState = profile?.shipping_state || profile?.state || lastOrderAddress?.shipping_state || "";
+                    const savedZip = profile?.shipping_postal_code || profile?.postal_code || lastOrderAddress?.shipping_postal_code || "";
+
+                    const savedAddress = {
+                        full_name: savedFullName,
+                        email: user.email || "",
+                        line1: savedLine1,
+                        line2: savedLine2,
+                        city: savedCity,
+                        state: savedState,
+                        postal_code: savedZip,
+                        country: "US"
+                    };
+
+                    setAddressState(savedAddress);
+                    if (onAddressChange && (savedLine1 || savedFullName)) {
+                        onAddressChange(savedAddress);
+                    }
                 }
             }
         };
         fetchUserAndProfile();
         return () => { isMounted = false; };
     }, []);
+
+    const handleInlineSignIn = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!authEmail || !authPassword) {
+            toast.error("Please enter your email and password.");
+            return;
+        }
+        setAuthSubmitting(true);
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: authEmail.trim(),
+                password: authPassword,
+            });
+            if (error) throw error;
+            if (data.user) {
+                setUser(data.user);
+                toast.success("Signed in successfully!");
+
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', data.user.id)
+                    .maybeSingle();
+
+                let lastOrderAddress: any = null;
+                if (!profile?.shipping_address_line1 && !profile?.address_line1) {
+                    const { data: lastOrder } = await supabase
+                        .from('orders')
+                        .select('customer_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country')
+                        .eq('user_id', data.user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (lastOrder) lastOrderAddress = lastOrder;
+                }
+
+                if (profile) setProfile(profile);
+
+                const savedFullName = profile?.full_name || lastOrderAddress?.customer_name || data.user.user_metadata?.full_name || "";
+                const savedLine1 = profile?.shipping_address_line1 || profile?.address_line1 || lastOrderAddress?.shipping_address_line1 || "";
+                const savedLine2 = profile?.shipping_address_line2 || profile?.address_line2 || lastOrderAddress?.shipping_address_line2 || "";
+                const savedCity = profile?.shipping_city || profile?.city || lastOrderAddress?.shipping_city || "";
+                const savedState = profile?.shipping_state || profile?.state || lastOrderAddress?.shipping_state || "";
+                const savedZip = profile?.shipping_postal_code || profile?.postal_code || lastOrderAddress?.shipping_postal_code || "";
+
+                const savedAddress = {
+                    full_name: savedFullName,
+                    email: data.user.email || "",
+                    line1: savedLine1,
+                    line2: savedLine2,
+                    city: savedCity,
+                    state: savedState,
+                    postal_code: savedZip,
+                    country: "US"
+                };
+
+                setAddressState(savedAddress);
+                if (onAddressChange) onAddressChange(savedAddress);
+            }
+        } catch (err: any) {
+            console.error("Sign in error:", err);
+            toast.error(err.message || "Invalid email or password.");
+        } finally {
+            setAuthSubmitting(false);
+        }
+    };
+
+    const isValidPhone = (phoneStr: string) => {
+        const phoneRegex = /^\(\d{3}\)\s\d{3}-\d{4}$/;
+        return phoneRegex.test(phoneStr);
+    };
+
+    const handleInlineRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!authEmail || !authPassword || !authFullName || !authPhone) {
+            toast.error("Please fill in all required fields.");
+            return;
+        }
+
+        if (!isValidPhone(authPhone)) {
+            toast.error("Please enter a valid phone number (example: (305) 555-1234)");
+            return;
+        }
+
+        setAuthSubmitting(true);
+        try {
+            const { data, error: funcError } = await supabase.functions.invoke('register-user', {
+                body: {
+                    email: authEmail.trim(),
+                    password: authPassword,
+                    fullName: authFullName.trim(),
+                    phone: authPhone.trim(),
+                    autoConfirm: true,
+                    redirectTo: `${window.location.origin}/checkout`
+                }
+            });
+
+            if (funcError || data?.error) {
+                let errorMessage = data?.error;
+                if (funcError) {
+                    try {
+                        const errorBody = await funcError.context?.clone().json();
+                        if (errorBody?.error) {
+                            errorMessage = errorBody.error;
+                        } else if (errorBody?.message) {
+                            errorMessage = errorBody.message;
+                        }
+                    } catch (_) {}
+                    if (!errorMessage) {
+                        errorMessage = funcError.message;
+                    }
+                }
+
+                if (
+                    errorMessage?.includes("already registered") ||
+                    errorMessage?.includes("email_exists") ||
+                    errorMessage?.includes("User already exists")
+                ) {
+                    toast.info("This email is already registered. Please enter your password to sign in.");
+                    setAuthTab("signin");
+                    return;
+                }
+
+                throw new Error(errorMessage || "Registration failed");
+            }
+
+            // Auto sign in immediately
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                email: authEmail.trim(),
+                password: authPassword,
+            });
+
+            if (signInError) {
+                toast.success("Account created! Please sign in with your password to continue.");
+                setAuthTab("signin");
+            } else if (signInData.user) {
+                setUser(signInData.user);
+                toast.success("Account created & signed in!");
+                setAddressState(prev => {
+                    const next = {
+                        ...prev,
+                        full_name: authFullName.trim(),
+                        email: authEmail.trim(),
+                    };
+                    if (onAddressChange) onAddressChange(next);
+                    return next;
+                });
+            }
+        } catch (err: any) {
+            console.error("Register error:", err);
+            toast.error(err.message || "Failed to create account.");
+        } finally {
+            setAuthSubmitting(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        toast.info("Signed out. Please sign in or create an account to proceed.");
+    };
 
     // Dynamically load Accept.js if Authorize.Net is active
     useEffect(() => {
@@ -431,6 +628,13 @@ const UniversalCheckout = ({
             await supabase
                 .from('profiles')
                 .update({
+                    full_name: addressState.full_name || undefined,
+                    address_line1: addressState.line1,
+                    address_line2: addressState.line2,
+                    city: addressState.city,
+                    state: addressState.state,
+                    postal_code: addressState.postal_code,
+                    country: addressState.country,
                     shipping_address_line1: addressState.line1,
                     shipping_address_line2: addressState.line2,
                     shipping_city: addressState.city,
@@ -636,124 +840,308 @@ const UniversalCheckout = ({
 
     const squareAppId = gatewaySettings.square.appId || import.meta.env.VITE_SQUARE_APP_ID || "sandbox-sq0idb-your-app-id";
     const squareLocationId = gatewaySettings.square.locationId || import.meta.env.VITE_SQUARE_LOCATION_ID || "sandbox-location-id";
-
     return (
         <div className="space-y-6">
             <CardContent className="space-y-6 px-0">
                 {!hideAddress && (
-                    /* Custom Address Collection */
+                    /* Custom Address Collection / Auth Guard */
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-foreground/80">Shipping Address</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2 space-y-1.5">
-                                <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                    Full Name <span className="text-destructive">*</span>
-                                </Label>
-                                <Input 
-                                    id="full_name" 
-                                    placeholder="John Doe" 
-                                    name="full_name" 
-                                    value={addressState.full_name} 
-                                    onChange={handleAddressInputChange} 
-                                    required 
-                                    autoComplete="name" 
-                                />
-                            </div>
-                            {!user && (
-                                <div className="md:col-span-2 space-y-1.5">
-                                    <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                        Email Address <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Input 
-                                        id="email" 
-                                        type="email" 
-                                        placeholder="john@example.com" 
-                                        name="email" 
-                                        value={addressState.email} 
-                                        onChange={handleAddressInputChange} 
-                                        required 
-                                        autoComplete="email" 
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">We'll send your receipt and tracking info here.</p>
+                        {requireLoginForCheckout && !user ? (
+                            <div className="border-2 border-primary/20 rounded-xl p-5 bg-card shadow-sm space-y-4 animate-in fade-in-50 duration-300">
+                                <div className="flex items-center gap-3 border-b pb-3">
+                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                                        <Lock className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-base text-foreground">Sign In or Create Account to Continue</h3>
+                                        <p className="text-xs text-muted-foreground">
+                                            An account is required to place an order and track your shipping updates in real time.
+                                        </p>
+                                    </div>
                                 </div>
-                            )}
-                            <div className="md:col-span-2 space-y-1.5">
-                                <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                    Address Line 1 <span className="text-destructive">*</span>
-                                </Label>
-                                <Input 
-                                    id="line1" 
-                                    name="line1"
-                                    value={addressState.line1}
-                                    onChange={(e) => handleStreetManualChange(e.target.value)}
-                                    required 
-                                    autoComplete="address-line1" 
-                                />
+
+                                <Tabs value={authTab} onValueChange={(v: any) => setAuthTab(v)} className="w-full">
+                                    <TabsList className="grid grid-cols-2 w-full mb-4">
+                                        <TabsTrigger value="signin" className="flex items-center gap-1.5 text-xs font-semibold py-2">
+                                            <LogIn className="h-3.5 w-3.5" /> Sign In (Existing)
+                                        </TabsTrigger>
+                                        <TabsTrigger value="register" className="flex items-center gap-1.5 text-xs font-semibold py-2">
+                                            <UserPlus className="h-3.5 w-3.5" /> Create Account (New)
+                                        </TabsTrigger>
+                                    </TabsList>
+
+                                    {/* Sign In Tab */}
+                                    <TabsContent value="signin" className="space-y-4 mt-0">
+                                        <form onSubmit={handleInlineSignIn} className="space-y-3">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="checkout-signin-email" className="text-xs font-medium">Email Address</Label>
+                                                <Input
+                                                    id="checkout-signin-email"
+                                                    type="email"
+                                                    placeholder="john@example.com"
+                                                    value={authEmail}
+                                                    onChange={(e) => setAuthEmail(e.target.value)}
+                                                    required
+                                                    autoComplete="email"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="flex justify-between items-center">
+                                                    <Label htmlFor="checkout-signin-password" text-xs font-medium>Password</Label>
+                                                    <Link to="/auth" className="text-[11px] text-primary hover:underline">Forgot password?</Link>
+                                                </div>
+                                                <div className="relative">
+                                                    <Input
+                                                        id="checkout-signin-password"
+                                                        type={showAuthPassword ? "text" : "password"}
+                                                        placeholder="••••••••"
+                                                        value={authPassword}
+                                                        onChange={(e) => setAuthPassword(e.target.value)}
+                                                        required
+                                                        autoComplete="current-password"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAuthPassword(!showAuthPassword)}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                        aria-label={showAuthPassword ? "Hide password" : "Show password"}
+                                                    >
+                                                        {showAuthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <Button 
+                                                type="submit" 
+                                                disabled={authSubmitting} 
+                                                className="w-full font-bold shadow-md hover:shadow-lg transition-all"
+                                            >
+                                                {authSubmitting ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                        Signing in...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <LogIn className="h-4 w-4 mr-2" />
+                                                        Sign In & Continue to Checkout
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </form>
+                                    </TabsContent>
+
+                                    {/* Register Tab */}
+                                    <TabsContent value="register" className="space-y-4 mt-0">
+                                        <form onSubmit={handleInlineRegister} className="space-y-3">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="checkout-reg-name" className="text-xs font-medium">Full Name</Label>
+                                                <Input
+                                                    id="checkout-reg-name"
+                                                    placeholder="John Doe"
+                                                    value={authFullName}
+                                                    onChange={(e) => setAuthFullName(e.target.value)}
+                                                    required
+                                                    autoComplete="name"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <Label htmlFor="checkout-reg-email" className="text-xs font-medium">Email Address</Label>
+                                                    <Input
+                                                        id="checkout-reg-email"
+                                                        type="email"
+                                                        placeholder="john@example.com"
+                                                        value={authEmail}
+                                                        onChange={(e) => setAuthEmail(e.target.value)}
+                                                        required
+                                                        autoComplete="email"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label htmlFor="checkout-reg-phone" className="text-xs font-medium">Phone Number</Label>
+                                                    <Input
+                                                        id="checkout-reg-phone"
+                                                        type="tel"
+                                                        placeholder="(305) 555-1234"
+                                                        value={authPhone}
+                                                        onChange={(e) => {
+                                                            const raw = e.target.value.replace(/\D/g, "");
+                                                            let formatted = raw;
+
+                                                            if (raw.length > 3 && raw.length <= 6) {
+                                                                formatted = `(${raw.slice(0, 3)}) ${raw.slice(3)}`;
+                                                            } else if (raw.length > 6) {
+                                                                formatted = `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6, 10)}`;
+                                                            }
+
+                                                            setAuthPhone(formatted);
+                                                        }}
+                                                        maxLength={14}
+                                                        required
+                                                        autoComplete="tel"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="checkout-reg-password" text-xs font-medium>Create Password</Label>
+                                                <div className="relative">
+                                                    <Input
+                                                        id="checkout-reg-password"
+                                                        type={showAuthPassword ? "text" : "password"}
+                                                        placeholder="Minimum 6 characters"
+                                                        value={authPassword}
+                                                        onChange={(e) => setAuthPassword(e.target.value)}
+                                                        required
+                                                        minLength={6}
+                                                        autoComplete="new-password"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAuthPassword(!showAuthPassword)}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                        aria-label={showAuthPassword ? "Hide password" : "Show password"}
+                                                    >
+                                                        {showAuthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <Button 
+                                                type="submit" 
+                                                disabled={authSubmitting} 
+                                                className="w-full font-bold shadow-md hover:shadow-lg transition-all"
+                                            >
+                                                {authSubmitting ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                        Creating Account...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <UserPlus className="h-4 w-4 mr-2" />
+                                                        Create Account & Continue
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </form>
+                                    </TabsContent>
+                                </Tabs>
                             </div>
-                            <div className="md:col-span-2 space-y-1.5">
-                                <Label htmlFor="line2" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                    Suite / Apt (Optional)
-                                </Label>
-                                <Input 
-                                    id="line2" 
-                                    placeholder="Suite 400" 
-                                    name="line2" 
-                                    value={addressState.line2} 
-                                    onChange={handleAddressInputChange} 
-                                    autoComplete="address-line2" 
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="city" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">City</Label>
-                                <Input 
-                                    id="city" 
-                                    placeholder="San Francisco" 
-                                    name="city" 
-                                    value={addressState.city} 
-                                    onChange={handleAddressInputChange} 
-                                    required 
-                                    autoComplete="address-level2" 
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="state" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">State</Label>
-                                <Input 
-                                    id="state" 
-                                    placeholder="CA" 
-                                    name="state" 
-                                    value={addressState.state} 
-                                    onChange={handleAddressInputChange} 
-                                    required 
-                                    autoComplete="address-level1" 
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="postal_code" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ZIP Code</Label>
-                                <Input 
-                                    id="postal_code" 
-                                    placeholder="94103" 
-                                    name="postal_code" 
-                                    value={addressState.postal_code} 
-                                    onChange={handleAddressInputChange} 
-                                    required 
-                                    autoComplete="postal-code" 
-                                />
-                            </div>
-                            <div className="space-y-1.5 opacity-70">
-                                <Label htmlFor="country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</Label>
-                                <Input id="country" value="US" readOnly className="bg-muted cursor-not-allowed" />
-                            </div>
-                        </div>
-                        {user && (
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox 
-                                    id="save-address" 
-                                    checked={saveAddress} 
-                                    onCheckedChange={(c) => setSaveAddress(c as boolean)} 
-                                />
-                                <Label htmlFor="save-address" className="text-sm text-muted-foreground font-normal cursor-pointer select-none">
-                                    Save this address for future orders
-                                </Label>
+                        ) : (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-semibold text-foreground/80">Shipping Address</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                            Full Name <span className="text-destructive">*</span>
+                                        </Label>
+                                        <Input 
+                                            id="full_name" 
+                                            placeholder="John Doe" 
+                                            name="full_name" 
+                                            value={addressState.full_name} 
+                                            onChange={handleAddressInputChange} 
+                                            required 
+                                            autoComplete="name" 
+                                        />
+                                    </div>
+                                    {!user && (
+                                        <div className="md:col-span-2 space-y-1.5">
+                                            <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                                Email Address <span className="text-destructive">*</span>
+                                            </Label>
+                                            <Input 
+                                                id="email" 
+                                                type="email" 
+                                                placeholder="john@example.com" 
+                                                name="email" 
+                                                value={addressState.email} 
+                                                onChange={handleAddressInputChange} 
+                                                required 
+                                                autoComplete="email" 
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">We'll send your receipt and tracking info here.</p>
+                                        </div>
+                                    )}
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <Label htmlFor="line1" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                            Address Line 1 <span className="text-destructive">*</span>
+                                        </Label>
+                                        <Input 
+                                            id="line1" 
+                                            name="line1" 
+                                            placeholder="123 Market St"
+                                            value={addressState.line1} 
+                                            onChange={(e) => handleStreetManualChange(e.target.value)} 
+                                            required 
+                                            autoComplete="address-line1" 
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2 space-y-1.5">
+                                        <Label htmlFor="line2" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                            Suite / Apt (Optional)
+                                        </Label>
+                                        <Input 
+                                            id="line2" 
+                                            placeholder="Suite 400" 
+                                            name="line2" 
+                                            value={addressState.line2} 
+                                            onChange={handleAddressInputChange} 
+                                            autoComplete="address-line2" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="city" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">City</Label>
+                                        <Input 
+                                            id="city" 
+                                            placeholder="San Francisco" 
+                                            name="city" 
+                                            value={addressState.city} 
+                                            onChange={handleAddressInputChange} 
+                                            required 
+                                            autoComplete="address-level2" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="state" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">State</Label>
+                                        <Input 
+                                            id="state" 
+                                            placeholder="CA" 
+                                            name="state" 
+                                            value={addressState.state} 
+                                            onChange={handleAddressInputChange} 
+                                            required 
+                                            autoComplete="address-level1" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="postal_code" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ZIP Code</Label>
+                                        <Input 
+                                            id="postal_code" 
+                                            placeholder="94103" 
+                                            name="postal_code" 
+                                            value={addressState.postal_code} 
+                                            onChange={handleAddressInputChange} 
+                                            required 
+                                            autoComplete="postal-code" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 opacity-70">
+                                        <Label htmlFor="country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</Label>
+                                        <Input id="country" value="US" readOnly className="bg-muted cursor-not-allowed" />
+                                    </div>
+                                </div>
+                                {user && (
+                                    <div className="flex items-center space-x-2 pt-2">
+                                        <Checkbox 
+                                            id="save-address" 
+                                            checked={saveAddress} 
+                                            onCheckedChange={(c) => setSaveAddress(c as boolean)} 
+                                        />
+                                        <Label htmlFor="save-address" className="text-sm text-muted-foreground font-normal cursor-pointer select-none">
+                                            Save this address for future orders
+                                        </Label>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

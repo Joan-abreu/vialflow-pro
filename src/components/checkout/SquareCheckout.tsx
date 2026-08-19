@@ -36,7 +36,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
     const { items } = useCart();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [saveAddress, setSaveAddress] = useState(false);
+    const [saveAddress, setSaveAddress] = useState(true);
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
@@ -95,24 +95,43 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .from('profiles')
                     .select('*')
                     .eq('user_id', user.id)
-                    .single();
+                    .maybeSingle();
+
+                let lastOrderAddress: any = null;
+                if (!profile?.shipping_address_line1 && !profile?.address_line1) {
+                    const { data: lastOrder } = await supabase
+                        .from('orders')
+                        .select('customer_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (lastOrder) lastOrderAddress = lastOrder;
+                }
 
                 if (isMounted) {
                     setProfile(profile);
+                    const savedFullName = profile?.full_name || lastOrderAddress?.customer_name || user.user_metadata?.full_name || "";
+                    const savedLine1 = profile?.shipping_address_line1 || profile?.address_line1 || lastOrderAddress?.shipping_address_line1 || "";
+                    const savedLine2 = profile?.shipping_address_line2 || profile?.address_line2 || lastOrderAddress?.shipping_address_line2 || "";
+                    const savedCity = profile?.shipping_city || profile?.city || lastOrderAddress?.shipping_city || "";
+                    const savedState = profile?.shipping_state || profile?.state || lastOrderAddress?.shipping_state || "";
+                    const savedZip = profile?.shipping_postal_code || profile?.postal_code || lastOrderAddress?.shipping_postal_code || "";
+
                     const savedAddress = {
-                        full_name: profile?.full_name || "",
+                        full_name: savedFullName,
                         email: user.email || "",
-                        line1: profile?.address_line1 || "",
-                        line2: profile?.address_line2 || "",
-                        city: profile?.city || "",
-                        state: profile?.state || "",
-                        postal_code: profile?.postal_code || "",
-                        country: normalizeCountry(profile?.country || 'US'),
+                        line1: savedLine1,
+                        line2: savedLine2,
+                        city: savedCity,
+                        state: savedState,
+                        postal_code: savedZip,
+                        country: normalizeCountry(profile?.country || lastOrderAddress?.shipping_country || 'US'),
                     };
                     setAddressState(savedAddress);
 
                     // Notify parent immediately if we have a saved address
-                    if (profile?.address_line1 && onAddressChange) {
+                    if ((savedLine1 || savedFullName) && onAddressChange) {
                         onAddressChange(savedAddress);
                     }
                 }
@@ -237,6 +256,12 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                         state: addressState.state,
                         postal_code: addressState.postal_code,
                         country: addressState.country,
+                        shipping_address_line1: addressState.line1,
+                        shipping_address_line2: addressState.line2,
+                        shipping_city: addressState.city,
+                        shipping_state: addressState.state,
+                        shipping_postal_code: addressState.postal_code,
+                        shipping_country: addressState.country,
                     })
                     .eq('user_id', user.id);
 

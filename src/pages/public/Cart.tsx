@@ -129,8 +129,23 @@ const Cart = () => {
                                                 <h3 className="font-semibold">{item.variant.product.name}</h3>
                                             </Link>
                                             <p className="text-sm text-muted-foreground">
-                                                {item.variant.vial_type.name || `${item.variant.vial_type.capacity_ml}ml`}{item.variant.vial_type.color ? ` - ${item.variant.vial_type.color}` : ''}{item.variant.vial_type.shape ? ` - ${item.variant.vial_type.shape}` : ''}
-                                                {item.variant.pack_size > 1 && ` (${item.variant.pack_size}x Pack)`}
+                                                {(item.variant.product.category?.toLowerCase().includes("peptide") || item.variant.vial_type?.name?.toLowerCase().includes("mg")) ? (
+                                                    <>
+                                                        <span>{item.variant.vial_type?.name || `${item.variant.vial_type?.capacity_ml}mg`}</span>
+                                                        {item.variant.pack_size > 1 ? (
+                                                            <span className="font-medium text-foreground"> ({item.variant.pack_size}x Pack)</span>
+                                                        ) : (
+                                                            <span> (Single Vial)</span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>{item.variant.vial_type?.name || `${item.variant.vial_type?.capacity_ml}ml`}</span>
+                                                        {item.variant.vial_type?.color && <span> - {item.variant.vial_type.color}</span>}
+                                                        {item.variant.vial_type?.shape && <span> - {item.variant.vial_type.shape}</span>}
+                                                        {item.variant.pack_size > 1 && <span> ({item.variant.pack_size}x Pack)</span>}
+                                                    </>
+                                                )}
                                             </p>
                                             {item.is_bulk && (
                                                 <div className="flex gap-2 mt-1">

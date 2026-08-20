@@ -2,49 +2,54 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Package, Truck, MapPin, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, Package, Truck, MapPin, UserPlus, ShieldCheck, UploadCloud, Copy, FileText, Clock, AlertTriangle, FileCheck, RefreshCw, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { UploadPaymentProofDialog } from "@/components/checkout/UploadPaymentProofDialog";
+
 
 const OrderConfirmation = () => {
     const { orderId } = useParams();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
     const { clearCart } = useCart();
     const { session } = useAuth();
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const fetchOrder = async () => {
-            if (!orderId) return;
+    const fetchOrder = async () => {
+        if (!orderId) return;
 
-            const { data, error } = await supabase
-                .from("orders")
-                .select(`
+        const { data, error } = await supabase
+            .from("orders")
+            .select(`
+      *,
+      order_items (
+        *,
+        variant:product_variants (
           *,
-          order_items (
-            *,
-            variant:product_variants (
-              *,
-              product:products (name, image_url),
-              vial_type:vial_types(name, capacity_ml, color, shape)
-            )
-          )
-        `)
-                .eq("id", orderId)
-                .single();
+          product:products (name, image_url),
+          vial_type:vial_types(name, capacity_ml, color, shape)
+        )
+      )
+    `)
+            .eq("id", orderId)
+            .single();
 
-            if (!error && data) {
-                setOrder(data);
-            }
-            setLoading(false);
-        };
+        if (!error && data) {
+            setOrder(data);
+        }
+        setLoading(false);
+    };
 
+    useEffect(() => {
         fetchOrder();
         // Clear cart when order confirmation loads
         clearCart();
     }, [orderId]);
+
 
     if (loading) {
         return (
@@ -89,9 +94,137 @@ const OrderConfirmation = () => {
                 </div>
             </div>
 
+            {/* P2P Direct Payment Section */}
+            {(() => {
+                const isP2P = Boolean(order.p2p_provider || ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].includes(order.payment_method));
+                const providerLabel = (order.p2p_provider || (order.payment_method === 'manual' ? 'Zelle / Venmo / Cash App' : order.payment_method) || 'P2P').toUpperCase();
+                const p2pStatus = order.p2p_status || 'pending_submission';
+
+                if (!isP2P) return null;
+
+                const isPendingVerification = p2pStatus === 'pending_verification';
+                const isVerified = p2pStatus === 'verified';
+                const isRejected = p2pStatus === 'payment_rejected' || p2pStatus === 'rejected';
+
+                return (
+                    <div className={`mb-8 rounded-2xl border-2 p-6 shadow-md transition-all text-left relative overflow-hidden ${
+                        isVerified
+                            ? 'border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-background'
+                            : isPendingVerification
+                            ? 'border-purple-500/50 bg-gradient-to-br from-purple-500/15 via-indigo-500/10 to-background'
+                            : isRejected
+                            ? 'border-rose-500/50 bg-gradient-to-br from-rose-500/15 via-red-500/10 to-background'
+                            : 'border-amber-500/50 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-background'
+                    }`}>
+                        {/* Status Header */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-3 rounded-xl flex items-center justify-center ${
+                                    isVerified ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
+                                    isPendingVerification ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' :
+                                    isRejected ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' :
+                                    'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                                }`}>
+                                    {isVerified ? <CheckCircle2 className="h-6 w-6" /> :
+                                     isPendingVerification ? <Clock className="h-6 w-6 animate-pulse" /> :
+                                     isRejected ? <AlertTriangle className="h-6 w-6" /> :
+                                     <UploadCloud className="h-6 w-6 animate-bounce" />}
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="font-extrabold text-lg text-foreground">
+                                            ⚡ P2P Payment ({providerLabel})
+                                        </h2>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {isVerified
+                                            ? "Your receipt has been verified and approved by our team!"
+                                            : isPendingVerification
+                                            ? "Receipt received! Our team is reviewing your transaction screenshot."
+                                            : isRejected
+                                            ? "Your receipt submission was rejected. Please re-upload a valid proof."
+                                            : "Please upload your payment screenshot below to begin verification."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Status Badge */}
+                            <Badge className={`font-black text-xs px-3.5 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 shrink-0 ${
+                                isVerified ? 'bg-emerald-600 text-white' :
+                                isPendingVerification ? 'bg-purple-600 text-white animate-pulse' :
+                                isRejected ? 'bg-rose-600 text-white' :
+                                'bg-amber-600 text-white'
+                            }`}>
+                                {isPendingVerification && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
+                                {isVerified ? '✓ Payment Verified' :
+                                 isPendingVerification ? '⏳ Receipt Pending Verification' :
+                                 isRejected ? '❌ Receipt Rejected' :
+                                 '📤 Proof Upload Required'}
+                            </Badge>
+                        </div>
+
+                        {/* Rejection Alert */}
+                        {order.p2p_rejection_reason && (
+                            <div className="mt-4 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-900 dark:text-rose-200 text-xs flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-bold">Rejection Reason:</span> {order.p2p_rejection_reason}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action & Info Row */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4">
+                            <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Mandatory Payment Memo
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-mono text-base font-black text-foreground bg-background/80 px-2.5 py-1 rounded border border-border">
+                                        #{order.id.slice(0, 8).toUpperCase()}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <Button
+                                type="button"
+                                className={`font-extrabold gap-2 text-xs h-11 px-6 shadow-md transition-all ${
+                                    isVerified
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                        : isPendingVerification
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                        : 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse'
+                                }`}
+                                onClick={() => setIsUploadDialogOpen(true)}
+                            >
+                                {isPendingVerification ? (
+                                    <>
+                                        <RefreshCw className="h-4 w-4" />
+                                        Update / Re-upload Receipt
+                                    </>
+                                ) : isVerified ? (
+                                    <>
+                                        <FileCheck className="h-4 w-4" />
+                                        View Uploaded Receipt
+                                    </>
+                                ) : (
+                                    <>
+                                        <UploadCloud className="h-4 w-4" />
+                                        Upload Payment Proof
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+
             <div className="grid gap-8">
                 {/* Order Details Card */}
                 <div className="bg-card border rounded-lg overflow-hidden shadow-sm">
+
                     <div className="bg-muted/30 p-6 border-b">
                         <div className="flex justify-between items-center">
                             <h2 className="font-semibold flex items-center gap-2">
@@ -262,8 +395,23 @@ const OrderConfirmation = () => {
                     </div>
                 </div>
             )}
+
+            {order && (
+                <UploadPaymentProofDialog
+                    open={isUploadDialogOpen}
+                    onOpenChange={setIsUploadDialogOpen}
+                    orderId={order.id}
+                    orderNumber={`#${order.id.slice(0, 8).toUpperCase()}`}
+                    totalAmount={order.total_amount}
+                    p2pProvider={order.p2p_provider || order.payment_method}
+                    onProofUploaded={() => {
+                        fetchOrder();
+                    }}
+                />
+            )}
         </div>
     );
 };
+
 
 export default OrderConfirmation;

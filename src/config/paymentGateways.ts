@@ -50,10 +50,24 @@ export interface ManualPaymentConfig {
     instructions?: string;
 }
 
-export interface ManualTerminalConfig {
+export interface P2PMethodConfig {
+
     enabled: boolean;
-    title: string;
+    qrCodeUrl: string;
+    handle: string; // Zelle email/phone, Venmo @username, CashApp $cashtag
+    recipientName: string;
     instructions: string;
+    deepLinkUrl?: string;
+}
+
+export interface P2PPaymentSettings {
+    enabled: boolean;
+    verificationSlaHours: number; // default 24
+    maxProofResubmissions: number; // default 2
+    maxP2POrderAmount: number; // default 2500
+    zelle: P2PMethodConfig;
+    venmo: P2PMethodConfig;
+    cashapp: P2PMethodConfig;
 }
 
 export interface PaymentGatewaysSettings {
@@ -69,6 +83,7 @@ export interface PaymentGatewaysSettings {
     paypal: PayPalGatewayConfig;
     manual: ManualPaymentConfig;
     manual_terminal: ManualTerminalConfig;
+    p2p: P2PPaymentSettings;
 }
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
@@ -112,6 +127,39 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         enabled: true,
         title: "Manual Virtual Terminal / Phone Order",
         instructions: "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.",
+    },
+    p2p: {
+        enabled: true,
+        verificationSlaHours: 24,
+        maxProofResubmissions: 2,
+        maxP2POrderAmount: 2500,
+        zelle: {
+            enabled: true,
+            qrCodeUrl: "",
+            handle: "payments@livwelllabs.com",
+            recipientName: "Liv Well Research Labs Inc.",
+            instructions: "Scan the Zelle QR code or send payment to our email handle. Put your ORDER # in the memo field."
+        },
+
+
+        venmo: {
+            enabled: true,
+            qrCodeUrl: "",
+            handle: "@livholdinggroupinc",
+            recipientName: "Liv Holding Group Inc",
+            instructions: "Scan the Venmo QR code or send to @livholdinggroupinc. Put your ORDER # in the note.",
+            deepLinkUrl: "https://venmo.com/livholdinggroupinc"
+        },
+
+        cashapp: {
+            enabled: true,
+            qrCodeUrl: "",
+            handle: "$LivWellLabs",
+            recipientName: "Liv Well Labs",
+            instructions: "Scan Cash App QR or send to $LivWellLabs. Include your ORDER # in the payment note.",
+            deepLinkUrl: "https://cash.app/$LivWellLabs"
+        }
     }
 };
+
 

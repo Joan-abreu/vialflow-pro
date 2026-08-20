@@ -15,6 +15,9 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import { Link, useNavigate } from "react-router-dom";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider, PaymentGatewaysSettings } from "@/config/paymentGateways";
 import { SmartCreditCardForm } from "./SmartCreditCardForm";
+import { P2PPaymentDisplay } from "./P2PPaymentDisplay";
+import { UploadPaymentProofDialog } from "./UploadPaymentProofDialog";
+
 
 
 interface UniversalCheckoutProps {
@@ -169,7 +172,9 @@ const UniversalCheckout = ({
     const [activeProvider, setActiveProvider] = useState<PaymentGatewayProvider>("square");
     const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
     const [manualReference, setManualReference] = useState("");
+    const [draftOrderMemo] = useState(() => `#ORD-${Math.random().toString(36).substring(2, 7).toUpperCase()}`);
     const paypalContainerRef = useRef<HTMLDivElement>(null);
+
     const [paypalSdkLoaded, setPaypalSdkLoaded] = useState(false);
 
     // Generic Card Form State (Authorize.Net, Clover, NMI)
@@ -202,6 +207,8 @@ const UniversalCheckout = ({
     const [authPhone, setAuthPhone] = useState("");
     const [showAuthPassword, setShowAuthPassword] = useState(false);
     const [authSubmitting, setAuthSubmitting] = useState(false);
+    const [selectedP2PMethod, setSelectedP2PMethod] = useState<"zelle" | "venmo" | "cashapp">("zelle");
+
 
     // 1. Fetch site settings & payment gateway configuration
     useEffect(() => {
@@ -223,7 +230,8 @@ const UniversalCheckout = ({
                         "payment_clover_config",
                         "payment_nmi_config",
                         "payment_paypal_config",
-                        "payment_manual_config"
+                        "payment_manual_config",
+                        "payment_p2p_config"
                     ]);
 
                 if (data && data.length > 0) {
@@ -240,12 +248,20 @@ const UniversalCheckout = ({
                     const nmiCfg = data.find(s => s.key === "payment_nmi_config");
                     const paypalCfg = data.find(s => s.key === "payment_paypal_config");
                     const manualCfg = data.find(s => s.key === "payment_manual_config");
+                    const p2pCfg = data.find(s => s.key === "payment_p2p_config");
 
                     if (ack) setRequireResearchAck(ack.value === "true");
                     if (reqLogin) setRequireLoginForCheckout(reqLogin.value === "true");
                     
                     const newProvider = (activeP?.value as PaymentGatewayProvider) || DEFAULT_PAYMENT_SETTINGS.activeProvider;
                     setActiveProvider(newProvider);
+
+                    const parsedManual = manualCfg?.value ? JSON.parse(manualCfg.value) : {};
+                    const parsedP2P = p2pCfg?.value ? JSON.parse(p2pCfg.value) : {};
+
+                    const zelleIsOn = typeof parsedManual.zelleEnabled === "boolean" ? parsedManual.zelleEnabled : (typeof parsedP2P.zelle?.enabled === "boolean" ? parsedP2P.zelle.enabled : true);
+                    const venmoIsOn = typeof parsedManual.venmoEnabled === "boolean" ? parsedManual.venmoEnabled : (typeof parsedP2P.venmo?.enabled === "boolean" ? parsedP2P.venmo.enabled : true);
+                    const cashAppIsOn = typeof parsedManual.cashAppEnabled === "boolean" ? parsedManual.cashAppEnabled : (typeof parsedP2P.cashapp?.enabled === "boolean" ? parsedP2P.cashapp.enabled : true);
 
                     setGatewaySettings(prev => ({
                         ...prev,
@@ -259,9 +275,41 @@ const UniversalCheckout = ({
                         clover: cloverCfg?.value ? { ...prev.clover, ...JSON.parse(cloverCfg.value) } : prev.clover,
                         nmi: nmiCfg?.value ? { ...prev.nmi, ...JSON.parse(nmiCfg.value) } : prev.nmi,
                         paypal: paypalCfg?.value ? { ...prev.paypal, ...JSON.parse(paypalCfg.value) } : prev.paypal,
-                        manual: manualCfg?.value ? { ...prev.manual, ...JSON.parse(manualCfg.value) } : prev.manual,
+                        manual: { ...prev.manual, ...parsedManual },
+                        p2p: {
+                            ...prev.p2p,
+                            ...parsedP2P,
+                            enabled: zelleIsOn || venmoIsOn || cashAppIsOn,
+                            zelle: {
+                                ...prev.p2p.zelle,
+                                ...(parsedP2P.zelle || {}),
+                                enabled: zelleIsOn,
+                                handle: parsedManual.zelleEmail || parsedP2P.zelle?.handle || prev.p2p.zelle.handle,
+                                recipientName: parsedManual.zelleName || parsedP2P.zelle?.recipientName || prev.p2p.zelle.recipientName,
+                                qrCodeUrl: parsedManual.zelleQrUrl || parsedP2P.zelle?.qrCodeUrl || prev.p2p.zelle.qrCodeUrl,
+                                instructions: parsedManual.instructions || parsedP2P.zelle?.instructions || prev.p2p.zelle.instructions
+                            },
+                            venmo: {
+                                ...prev.p2p.venmo,
+                                ...(parsedP2P.venmo || {}),
+                                enabled: venmoIsOn,
+                                handle: parsedManual.venmoUser || parsedP2P.venmo?.handle || prev.p2p.venmo.handle,
+                                qrCodeUrl: parsedManual.venmoQrUrl || parsedP2P.venmo?.qrCodeUrl || prev.p2p.venmo.qrCodeUrl,
+                                instructions: parsedManual.instructions || parsedP2P.venmo?.instructions || prev.p2p.venmo.instructions
+                            },
+                            cashapp: {
+                                ...prev.p2p.cashapp,
+                                ...(parsedP2P.cashapp || {}),
+                                enabled: cashAppIsOn,
+                                handle: parsedManual.cashAppTag || parsedP2P.cashapp?.handle || prev.p2p.cashapp.handle,
+                                qrCodeUrl: parsedManual.cashAppQrUrl || parsedP2P.cashapp?.qrCodeUrl || prev.p2p.cashapp.qrCodeUrl,
+                                instructions: parsedManual.instructions || parsedP2P.cashapp?.instructions || prev.p2p.cashapp.instructions
+                            }
+                        }
                     }));
+
                 }
+
             } catch (err) {
                 console.error("Error fetching payment settings:", err);
             }
@@ -627,46 +675,63 @@ const UniversalCheckout = ({
         let orderUserId = user?.id || null;
 
         if (user && saveAddress) {
-            await supabase
-                .from('profiles')
-                .update({
-                    full_name: addressState.full_name || undefined,
-                    address_line1: addressState.line1,
-                    address_line2: addressState.line2,
-                    city: addressState.city,
-                    state: addressState.state,
-                    postal_code: addressState.postal_code,
-                    country: addressState.country,
-                    shipping_address_line1: addressState.line1,
-                    shipping_address_line2: addressState.line2,
-                    shipping_city: addressState.city,
-                    shipping_state: addressState.state,
-                    shipping_postal_code: addressState.postal_code,
-                    shipping_country: addressState.country
-                })
-                .eq('user_id', user.id);
+            try {
+                await supabase
+                    .from('profiles')
+                    .update({
+                        full_name: addressState.full_name || undefined,
+                        address_line1: addressState.line1,
+                        address_line2: addressState.line2,
+                        city: addressState.city,
+                        state: addressState.state,
+                        postal_code: addressState.postal_code,
+                        country: addressState.country
+                    })
+                    .eq('user_id', user.id);
+            } catch (e) {
+                console.warn("Could not update user profile address:", e);
+            }
         }
+
 
         const orderData = {
             user_id: orderUserId,
             customer_email: user ? user.email : addressState.email,
             status: "pending",
             total_amount: amount,
+            tax: tax,
             tax_amount: tax,
             shipping_cost: shippingCost,
+
             shipping_service: shippingService,
             shipping_service_code: shippingServiceCode || null,
             shipping_carrier: shippingCarrier || null,
-            estimated_delivery_days: estimatedDays || null,
+            estimated_delivery_days: estimatedDays ? String(estimatedDays) : null,
+            customer_name: addressState.full_name,
+
             shipping_address_line1: addressState.line1,
             shipping_address_line2: addressState.line2,
             shipping_city: addressState.city,
             shipping_state: addressState.state,
             shipping_postal_code: addressState.postal_code,
             shipping_country: addressState.country,
-            customer_name: addressState.full_name,
+            shipping_address: {
+                full_name: addressState.full_name,
+                email: addressState.email,
+                line1: addressState.line1,
+                line2: addressState.line2,
+                city: addressState.city,
+                state: addressState.state,
+                postal_code: addressState.postal_code,
+                country: addressState.country,
+                phone: addressState.phone || null
+            },
             payment_method: activeProvider,
+            payment_gateway: activeProvider,
+            payment_provider: activeProvider,
         };
+
+
 
         const { data: order, error: orderError } = await supabase
             .from("orders")
@@ -690,9 +755,12 @@ const UniversalCheckout = ({
                 product_id: item.variant.product_id,
                 quantity: item.quantity,
                 unit_price: itemPrice,
+                price_at_time: itemPrice,
                 custom_label_url: item.custom_label_url || null,
+                custom_label_image_url: item.custom_label_url || null,
                 custom_label_instructions: item.custom_label_instructions || null,
             };
+
         });
 
         const { error: itemsError } = await supabase
@@ -782,7 +850,8 @@ const UniversalCheckout = ({
 
             clearCart();
             toast.success("Order placed successfully!");
-            navigate(`/order-success/${orderId}`);
+            navigate(`/order-confirmation/${orderId}`);
+
         } catch (error: any) {
             console.error("Payment execution error:", error);
             toast.error(error.message || "Failed to process payment");
@@ -889,7 +958,7 @@ const UniversalCheckout = ({
                                             </div>
                                             <div className="space-y-1.5">
                                                 <div className="flex justify-between items-center">
-                                                    <Label htmlFor="checkout-signin-password" text-xs font-medium>Password</Label>
+                                                    <Label htmlFor="checkout-signin-password" className="text-xs font-medium">Password</Label>
                                                     <Link to="/auth" className="text-[11px] text-primary hover:underline">Forgot password?</Link>
                                                 </div>
                                                 <div className="relative">
@@ -985,7 +1054,7 @@ const UniversalCheckout = ({
                                                 </div>
                                             </div>
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="checkout-reg-password" text-xs font-medium>Create Password</Label>
+                                                <Label htmlFor="checkout-reg-password" className="text-xs font-medium">Create Password</Label>
                                                 <div className="relative">
                                                     <Input
                                                         id="checkout-reg-password"
@@ -1565,52 +1634,24 @@ const UniversalCheckout = ({
 
                                 /* Case H: Manual / P2P / Zelle / Cash App */
                                 <div className="space-y-4 text-left">
-                                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
-                                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                                            <CheckCircle2 className="h-4 w-4 text-primary" />
-                                            Direct Transfer / P2P Payment Instructions
-                                        </div>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">
-                                            {gatewaySettings.manual.instructions || "Please submit your payment using one of the methods below and include your name or Order ID in the payment memo."}
-                                        </p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
-                                            {gatewaySettings.manual.zelleEmail && (
-                                                <div className="p-2.5 rounded bg-background border">
-                                                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Zelle Recipient</span>
-                                                    <strong className="text-purple-600 dark:text-purple-400">{gatewaySettings.manual.zelleEmail}</strong>
-                                                    {gatewaySettings.manual.zelleName && <span className="text-muted-foreground block text-[10px]">({gatewaySettings.manual.zelleName})</span>}
-                                                </div>
-                                            )}
-                                            {gatewaySettings.manual.cashAppTag && (
-                                                <div className="p-2.5 rounded bg-background border">
-                                                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Cash App</span>
-                                                    <strong className="text-emerald-600 dark:text-emerald-400">{gatewaySettings.manual.cashAppTag}</strong>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <P2PPaymentDisplay
+                                        orderMemoCode={draftOrderMemo}
+                                        amount={amount}
 
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="manualRef" className="text-xs font-medium">
-                                            Payment Reference / Confirmation Memo (Optional)
-                                        </Label>
-                                        <Input
-                                            id="manualRef"
-                                            placeholder="e.g. Zelle transaction ID or Cash App username"
-                                            value={manualReference}
-                                            onChange={(e) => setManualReference(e.target.value)}
-                                        />
-                                    </div>
+                                        selectedMethod={selectedP2PMethod}
+                                        onSelectMethod={setSelectedP2PMethod}
+                                        settings={gatewaySettings.p2p}
+                                    />
 
                                     <Button
-                                        className="w-full py-6 text-base font-bold shadow-md"
+                                        className="w-full py-6 text-base font-bold shadow-md bg-purple-600 hover:bg-purple-700 text-white"
                                         disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading}
                                         onClick={() => handleProcessPayment()}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                Submitting Order...
+                                                Creating Order & Displaying Proof Upload...
                                             </>
                                         ) : isCalculating ? (
                                             "Calculating Shipping..."
@@ -1619,10 +1660,11 @@ const UniversalCheckout = ({
                                         ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
                                             "Acknowledge terms to submit"
                                         ) : (
-                                            `Confirm & Place Order ($${amount.toFixed(2)})`
+                                            `Place Order & Pay via ${selectedP2PMethod.toUpperCase()} ($${amount.toFixed(2)})`
                                         )}
                                     </Button>
                                 </div>
+
                             )}
                         </div>
                     </div>

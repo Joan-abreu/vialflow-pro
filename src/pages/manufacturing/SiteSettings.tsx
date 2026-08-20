@@ -17,7 +17,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon } from "lucide-react";
+
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
 
@@ -85,10 +86,49 @@ const SiteSettings = () => {
     const [nmiTokenKey, setNmiTokenKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.nmi.tokenizationKey);
     const [paypalClientId, setPaypalClientId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.paypal.clientId);
     const [paypalEnv, setPaypalEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.paypal.environment);
+    const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
     const [zelleName, setZelleName] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleName || "");
+    const [zelleQrUrl, setZelleQrUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.qrCodeUrl || "");
+    const [venmoEnabled, setVenmoEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.venmo.enabled ?? true);
     const [cashAppTag, setCashAppTag] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.cashAppTag || "");
+    const [cashAppQrUrl, setCashAppQrUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.p2p.cashapp.qrCodeUrl || "");
+    const [cashAppEnabled, setCashAppEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.cashapp.enabled ?? true);
+    const [venmoUser, setVenmoUser] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.venmoUser || "@livholdinggroupinc");
+    const [venmoQrUrl, setVenmoQrUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.p2p.venmo.qrCodeUrl || "");
     const [manualInstructions, setManualInstructions] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.instructions || "");
+    const [uploadingQr, setUploadingQr] = useState<string | null>(null);
+
+
+    const handleQrImageUpload = async (provider: "zelle" | "venmo" | "cashapp", file: File) => {
+        if (!file) return;
+        setUploadingQr(provider);
+        try {
+            const ext = file.name.split('.').pop() || 'png';
+            const fileName = `${provider}_qr_${Date.now()}.${ext}`;
+            const { error: uploadErr } = await supabase.storage
+                .from("p2p-qr-codes")
+                .upload(fileName, file, { upsert: true });
+
+            if (uploadErr) throw uploadErr;
+
+            const { data } = supabase.storage
+                .from("p2p-qr-codes")
+                .getPublicUrl(fileName);
+
+            if (data?.publicUrl) {
+                if (provider === "zelle") setZelleQrUrl(data.publicUrl);
+                else if (provider === "venmo") setVenmoQrUrl(data.publicUrl);
+                else if (provider === "cashapp") setCashAppQrUrl(data.publicUrl);
+                toast.success(`${provider.toUpperCase()} QR Code image uploaded!`);
+            }
+        } catch (err: any) {
+            console.error("Error uploading QR code:", err);
+            toast.error(err.message || "Failed to upload QR Code image.");
+        } finally {
+            setUploadingQr(null);
+        }
+    };
 
     useEffect(() => {
         fetchSettings();
@@ -100,6 +140,7 @@ const SiteSettings = () => {
                 .from("app_settings" as any)
                 .select("*")
                 .in("key", [
+
                     "maintenance_mode", 
                     "require_research_acknowledgment",
                     "require_login_for_checkout",
@@ -234,12 +275,20 @@ const SiteSettings = () => {
                 if (manualCfg?.value) {
                     try {
                         const mn = JSON.parse(manualCfg.value);
+                        if (typeof mn.zelleEnabled === "boolean") setZelleEnabled(mn.zelleEnabled);
                         if (mn.zelleEmail) setZelleEmail(mn.zelleEmail);
                         if (mn.zelleName) setZelleName(mn.zelleName);
+                        if (mn.zelleQrUrl) setZelleQrUrl(mn.zelleQrUrl);
+                        if (typeof mn.venmoEnabled === "boolean") setVenmoEnabled(mn.venmoEnabled);
+                        if (mn.venmoUser) setVenmoUser(mn.venmoUser);
+                        if (mn.venmoQrUrl) setVenmoQrUrl(mn.venmoQrUrl);
+                        if (typeof mn.cashAppEnabled === "boolean") setCashAppEnabled(mn.cashAppEnabled);
                         if (mn.cashAppTag) setCashAppTag(mn.cashAppTag);
+                        if (mn.cashAppQrUrl) setCashAppQrUrl(mn.cashAppQrUrl);
                         if (mn.instructions) setManualInstructions(mn.instructions);
                     } catch (e) {}
                 }
+
             }
         } catch (error: any) {
             console.error("Error fetching settings:", error);
@@ -398,11 +447,29 @@ const SiteSettings = () => {
             });
 
             const manualConfig = JSON.stringify({
+                zelleEnabled,
                 zelleEmail,
                 zelleName,
+                zelleQrUrl,
+                venmoEnabled,
+                venmoUser,
+                venmoQrUrl,
+                cashAppEnabled,
                 cashAppTag,
+                cashAppQrUrl,
                 instructions: manualInstructions
             });
+
+            const p2pConfig = JSON.stringify({
+                enabled: zelleEnabled || venmoEnabled || cashAppEnabled,
+                verificationSlaHours: 24,
+                maxProofResubmissions: 2,
+                maxP2POrderAmount: 2500,
+                zelle: { enabled: zelleEnabled, qrCodeUrl: zelleQrUrl, handle: zelleEmail, recipientName: zelleName, instructions: manualInstructions },
+                venmo: { enabled: venmoEnabled, qrCodeUrl: venmoQrUrl, handle: venmoUser, recipientName: "Liv Holding Group Inc", instructions: manualInstructions },
+                cashapp: { enabled: cashAppEnabled, qrCodeUrl: cashAppQrUrl, handle: cashAppTag, recipientName: "Liv Well Labs", instructions: manualInstructions }
+            });
+
 
             const updates = [
                 { key: "payment_active_provider", value: activeGateway, updated_at: now },
@@ -416,6 +483,8 @@ const SiteSettings = () => {
                 { key: "payment_nmi_config", value: nmiConfig, updated_at: now },
                 { key: "payment_paypal_config", value: paypalConfig, updated_at: now },
                 { key: "payment_manual_config", value: manualConfig, updated_at: now },
+                { key: "payment_p2p_config", value: p2pConfig, updated_at: now },
+
             ];
 
             for (const item of updates) {
@@ -663,7 +732,8 @@ const SiteSettings = () => {
                                     <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
                                     <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
                                     <TabsTrigger value="paypal" className="text-[11px] px-1">PayPal</TabsTrigger>
-                                    <TabsTrigger value="manual" className="text-[11px] px-1">Zelle/P2P</TabsTrigger>
+                                    <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">⚡ P2P Direct Payments</TabsTrigger>
+
                                 </TabsList>
 
                                 {/* Square Settings */}
@@ -854,47 +924,383 @@ const SiteSettings = () => {
                                     </div>
                                 </TabsContent>
 
-                                {/* Manual / Zelle Settings */}
+                                {/* Manual / Zelle / P2P Settings */}
                                 <TabsContent value="manual" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <Label htmlFor="zEmail" className="text-xs">Zelle Recipient Email</Label>
-                                            <Input
-                                                id="zEmail"
-                                                value={zelleEmail}
-                                                onChange={(e) => setZelleEmail(e.target.value)}
-                                                placeholder="payments@livwelllabs.com"
-                                            />
+                                    <div className="space-y-4">
+                                        <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg text-xs space-y-1">
+                                            <strong className="text-purple-700 dark:text-purple-300 font-bold block">P2P Payments (Zelle, Venmo, Cash App) & Anti-Fraud Security</strong>
+                                            <p className="text-muted-foreground text-[11px]">
+                                                Upload QR Code image URLs, handles, and set security SLA limits for proof verification.
+                                            </p>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <Label htmlFor="zName" className="text-xs">Zelle Account Name</Label>
-                                            <Input
-                                                id="zName"
-                                                value={zelleName}
-                                                onChange={(e) => setZelleName(e.target.value)}
-                                                placeholder="Liv Well Labs LLC"
-                                            />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {/* Zelle */}
+                                            <div className={`p-3 border rounded-lg space-y-2 bg-background transition-opacity ${!zelleEnabled ? 'opacity-60' : ''}`}>
+                                                <div className="flex items-center justify-between pb-1 border-b">
+                                                    <Label className="font-bold text-xs text-purple-600 block">Zelle Settings</Label>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`text-[10px] font-bold ${zelleEnabled ? 'text-purple-600' : 'text-muted-foreground'}`}>
+                                                            {zelleEnabled ? "Enabled" : "Disabled"}
+                                                        </span>
+                                                        <Switch
+                                                            checked={zelleEnabled}
+                                                            onCheckedChange={setZelleEnabled}
+                                                            className="data-[state=checked]:bg-purple-600 scale-90"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="zEmail" className="text-[11px]">Zelle Email / Phone</Label>
+                                                    <Input
+                                                        id="zEmail"
+                                                        value={zelleEmail}
+                                                        onChange={(e) => setZelleEmail(e.target.value)}
+                                                        placeholder="payments@livwelllabs.com"
+                                                        className="text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="zName" className="text-[11px]">Account Name</Label>
+                                                    <Input
+                                                        id="zName"
+                                                        value={zelleName}
+                                                        onChange={(e) => setZelleName(e.target.value)}
+                                                        placeholder="Liv Well Labs LLC"
+                                                        className="text-xs"
+                                                    />
+                                                </div>
+                                                {/* Zelle QR Upload & Clear Card */}
+                                                <div className="space-y-1.5 pt-1">
+                                                    <Label className="text-[11px] font-semibold block">Zelle QR Code Image</Label>
+                                                    {zelleQrUrl ? (
+                                                        <div className="relative border rounded-lg p-2 bg-muted/10 flex flex-col items-center justify-center space-y-2">
+                                                            <div className="w-28 h-28 border rounded-md p-1 bg-white flex items-center justify-center overflow-hidden shadow-sm">
+                                                                <img src={zelleQrUrl} alt="Zelle QR" className="w-full h-full object-contain" />
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 w-full">
+                                                                <label className="flex-1">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full h-7 text-[11px] gap-1 cursor-pointer font-medium"
+                                                                        disabled={uploadingQr === "zelle"}
+                                                                        onClick={() => document.getElementById("zelle-qr-file-change")?.click()}
+                                                                    >
+                                                                        {uploadingQr === "zelle" ? <Loader2 className="h-3 w-3 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                        Change Image
+                                                                    </Button>
+                                                                    <input
+                                                                        id="zelle-qr-file-change"
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) handleQrImageUpload("zelle", file);
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] gap-1 px-2.5 font-medium"
+                                                                    onClick={() => setZelleQrUrl("")}
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Clear
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="border-2 border-dashed border-muted-foreground/30 hover:border-purple-500/50 rounded-lg p-3 bg-purple-500/5 hover:bg-purple-500/10 transition-all flex flex-col items-center justify-center text-center space-y-1.5">
+                                                            <div className="p-2 bg-purple-500/10 rounded-full text-purple-600">
+                                                                <UploadCloud className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-bold text-foreground">Upload Zelle QR Image</p>
+                                                                <p className="text-[10px] text-muted-foreground">PNG, JPG, WEBP &lt; 5MB</p>
+                                                            </div>
+                                                            <label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="default"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] font-bold gap-1 bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-sm"
+                                                                    disabled={uploadingQr === "zelle"}
+                                                                    onClick={() => document.getElementById("zelle-qr-file-new")?.click()}
+                                                                >
+                                                                    {uploadingQr === "zelle" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                    Upload Image
+                                                                </Button>
+                                                                <input
+                                                                    id="zelle-qr-file-new"
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) handleQrImageUpload("zelle", file);
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                    <Input
+                                                        placeholder="Or paste QR Image URL..."
+                                                        value={zelleQrUrl}
+                                                        onChange={(e) => setZelleQrUrl(e.target.value)}
+                                                        className="text-[11px] h-7 font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Venmo */}
+                                            <div className={`p-3 border rounded-lg space-y-2 bg-background transition-opacity ${!venmoEnabled ? 'opacity-60' : ''}`}>
+                                                <div className="flex items-center justify-between pb-1 border-b">
+                                                    <Label className="font-bold text-xs text-blue-600 block">Venmo Settings</Label>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`text-[10px] font-bold ${venmoEnabled ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                                                            {venmoEnabled ? "Enabled" : "Disabled"}
+                                                        </span>
+                                                        <Switch
+                                                            checked={venmoEnabled}
+                                                            onCheckedChange={setVenmoEnabled}
+                                                            className="data-[state=checked]:bg-blue-600 scale-90"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="vUser" className="text-[11px]">Venmo Username</Label>
+                                                    <Input
+                                                        id="vUser"
+                                                        value={venmoUser}
+                                                        onChange={(e) => setVenmoUser(e.target.value)}
+                                                        placeholder="@LivWellLabs"
+                                                        className="text-xs"
+                                                    />
+                                                </div>
+                                                {/* Venmo QR Upload & Clear Card */}
+                                                <div className="space-y-1.5 pt-1">
+                                                    <Label className="text-[11px] font-semibold block">Venmo QR Code Image</Label>
+                                                    {venmoQrUrl ? (
+                                                        <div className="relative border rounded-lg p-2 bg-muted/10 flex flex-col items-center justify-center space-y-2">
+                                                            <div className="w-28 h-28 border rounded-md p-1 bg-white flex items-center justify-center overflow-hidden shadow-sm">
+                                                                <img src={venmoQrUrl} alt="Venmo QR" className="w-full h-full object-contain" />
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 w-full">
+                                                                <label className="flex-1">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full h-7 text-[11px] gap-1 cursor-pointer font-medium"
+                                                                        disabled={uploadingQr === "venmo"}
+                                                                        onClick={() => document.getElementById("venmo-qr-file-change")?.click()}
+                                                                    >
+                                                                        {uploadingQr === "venmo" ? <Loader2 className="h-3 w-3 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                        Change Image
+                                                                    </Button>
+                                                                    <input
+                                                                        id="venmo-qr-file-change"
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) handleQrImageUpload("venmo", file);
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] gap-1 px-2.5 font-medium"
+                                                                    onClick={() => setVenmoQrUrl("")}
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Clear
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="border-2 border-dashed border-muted-foreground/30 hover:border-blue-500/50 rounded-lg p-3 bg-blue-500/5 hover:bg-blue-500/10 transition-all flex flex-col items-center justify-center text-center space-y-1.5">
+                                                            <div className="p-2 bg-blue-500/10 rounded-full text-blue-600">
+                                                                <UploadCloud className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-bold text-foreground">Upload Venmo QR Image</p>
+                                                                <p className="text-[10px] text-muted-foreground">PNG, JPG, WEBP &lt; 5MB</p>
+                                                            </div>
+                                                            <label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="default"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] font-bold gap-1 bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-sm"
+                                                                    disabled={uploadingQr === "venmo"}
+                                                                    onClick={() => document.getElementById("venmo-qr-file-new")?.click()}
+                                                                >
+                                                                    {uploadingQr === "venmo" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                    Upload Image
+                                                                </Button>
+                                                                <input
+                                                                    id="venmo-qr-file-new"
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) handleQrImageUpload("venmo", file);
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                    <Input
+                                                        placeholder="Or paste QR Image URL..."
+                                                        value={venmoQrUrl}
+                                                        onChange={(e) => setVenmoQrUrl(e.target.value)}
+                                                        className="text-[11px] h-7 font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Cash App */}
+                                            <div className={`p-3 border rounded-lg space-y-2 bg-background transition-opacity ${!cashAppEnabled ? 'opacity-60' : ''}`}>
+                                                <div className="flex items-center justify-between pb-1 border-b">
+                                                    <Label className="font-bold text-xs text-emerald-600 block">Cash App Settings</Label>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`text-[10px] font-bold ${cashAppEnabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                                                            {cashAppEnabled ? "Enabled" : "Disabled"}
+                                                        </span>
+                                                        <Switch
+                                                            checked={cashAppEnabled}
+                                                            onCheckedChange={setCashAppEnabled}
+                                                            className="data-[state=checked]:bg-emerald-600 scale-90"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="cTag" className="text-[11px]">Cash App $Cashtag</Label>
+                                                    <Input
+                                                        id="cTag"
+                                                        value={cashAppTag}
+                                                        onChange={(e) => setCashAppTag(e.target.value)}
+                                                        placeholder="$LivWellLabs"
+                                                        className="text-xs"
+                                                    />
+                                                </div>
+                                                {/* Cash App QR Upload & Clear Card */}
+                                                <div className="space-y-1.5 pt-1">
+                                                    <Label className="text-[11px] font-semibold block">Cash App QR Code Image</Label>
+                                                    {cashAppQrUrl ? (
+                                                        <div className="relative border rounded-lg p-2 bg-muted/10 flex flex-col items-center justify-center space-y-2">
+                                                            <div className="w-28 h-28 border rounded-md p-1 bg-white flex items-center justify-center overflow-hidden shadow-sm">
+                                                                <img src={cashAppQrUrl} alt="Cash App QR" className="w-full h-full object-contain" />
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 w-full">
+                                                                <label className="flex-1">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full h-7 text-[11px] gap-1 cursor-pointer font-medium"
+                                                                        disabled={uploadingQr === "cashapp"}
+                                                                        onClick={() => document.getElementById("cashapp-qr-file-change")?.click()}
+                                                                    >
+                                                                        {uploadingQr === "cashapp" ? <Loader2 className="h-3 w-3 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                        Change Image
+                                                                    </Button>
+                                                                    <input
+                                                                        id="cashapp-qr-file-change"
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) handleQrImageUpload("cashapp", file);
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] gap-1 px-2.5 font-medium"
+                                                                    onClick={() => setCashAppQrUrl("")}
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Clear
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="border-2 border-dashed border-muted-foreground/30 hover:border-emerald-500/50 rounded-lg p-3 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all flex flex-col items-center justify-center text-center space-y-1.5">
+                                                            <div className="p-2 bg-emerald-500/10 rounded-full text-emerald-600">
+                                                                <UploadCloud className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-bold text-foreground">Upload Cash App QR Image</p>
+                                                                <p className="text-[10px] text-muted-foreground">PNG, JPG, WEBP &lt; 5MB</p>
+                                                            </div>
+                                                            <label>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="default"
+                                                                    size="sm"
+                                                                    className="h-7 text-[11px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm"
+                                                                    disabled={uploadingQr === "cashapp"}
+                                                                    onClick={() => document.getElementById("cashapp-qr-file-new")?.click()}
+                                                                >
+                                                                    {uploadingQr === "cashapp" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                                                    Upload Image
+                                                                </Button>
+                                                                <input
+                                                                    id="cashapp-qr-file-new"
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) handleQrImageUpload("cashapp", file);
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                    <Input
+                                                        placeholder="Or paste QR Image URL..."
+                                                        value={cashAppQrUrl}
+                                                        onChange={(e) => setCashAppQrUrl(e.target.value)}
+                                                        className="text-[11px] h-7 font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+
                                         </div>
+
+
+
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="cTag" className="text-xs">Cash App $Cashtag</Label>
-                                            <Input
-                                                id="cTag"
-                                                value={cashAppTag}
-                                                onChange={(e) => setCashAppTag(e.target.value)}
-                                                placeholder="$LivWellLabs"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2 space-y-1.5">
-                                            <Label htmlFor="mInst" className="text-xs">Customer Instructions</Label>
+                                            <Label htmlFor="mInst" className="text-xs font-semibold">General Customer Instructions</Label>
                                             <Input
                                                 id="mInst"
                                                 value={manualInstructions}
                                                 onChange={(e) => setManualInstructions(e.target.value)}
                                                 placeholder="Please include your Order ID in the payment memo..."
+                                                className="text-xs"
                                             />
                                         </div>
                                     </div>
                                 </TabsContent>
+
                             </Tabs>
                         </div>
 

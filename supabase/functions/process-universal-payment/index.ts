@@ -525,8 +525,69 @@ serve(async (req) => {
             });
         }
 
+        // 10. Direct P2P Payment Processing (Zelle, Venmo, Cash App, Manual)
+
+        if (provider === "manual" || provider === "p2p" || provider === "zelle" || provider === "venmo" || provider === "cashapp") {
+            let productDiscount = 0;
+            let shippingDiscount = 0;
+            if (discounts && Array.isArray(discounts)) {
+                discounts.forEach((d: any) => {
+                    if (d.target === 'shipping') {
+                        shippingDiscount += Number(d.amount);
+                    } else {
+                        productDiscount += Number(d.amount);
+                    }
+                });
+            }
+
+            await supabase.from("orders").update({
+                status: "pending_payment",
+                p2p_status: "pending_submission",
+                payment_method: provider,
+                payment_gateway: provider,
+                applied_coupons,
+                product_discount: productDiscount,
+                shipping_discount: shippingDiscount
+            }).eq("id", orderId);
+
+            const sendEmail = async (type: string) => {
+                try {
+                    await fetch(`${supabaseUrl}/functions/v1/send-system-notification`, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${supabaseServiceRoleKey}`,
+                            "apikey": supabaseServiceRoleKey,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            type: type,
+                            data: { order_id: orderId },
+                            related_id: orderId
+                        }),
+                    });
+                } catch (e) {
+                    console.error(`Failed to send email notification ${type}:`, e);
+                }
+            };
+
+            await Promise.allSettled([
+                sendEmail("order_confirmation"),
+                sendEmail("admin_order_notification")
+            ]);
+
+            return new Response(JSON.stringify({
+                success: true,
+                status: "PENDING_P2P_PAYMENT",
+                provider: provider,
+                message: "P2P order created successfully and awaiting payment proof submission"
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
 
         throw new Error(`Unsupported payment provider: ${provider}`);
+
 
     } catch (error: any) {
         console.error("Universal Payment Processing Error:", error);

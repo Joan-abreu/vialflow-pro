@@ -38,11 +38,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck } from "lucide-react";
+
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import { VirtualTerminalModal } from "@/components/admin/VirtualTerminalModal";
+import { P2PVerificationModal } from "@/components/admin/P2PVerificationModal";
+import { UploadPaymentProofDialog } from "@/components/checkout/UploadPaymentProofDialog";
+
 import CopyCell from "@/components/CopyCell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
@@ -128,7 +132,12 @@ const OrderManagement = () => {
     const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string, status: string } | null>(null);
     const [selectedVirtualTerminalOrder, setSelectedVirtualTerminalOrder] = useState<Order | null>(null);
     const [isVirtualTerminalOpen, setIsVirtualTerminalOpen] = useState(false);
+    const [selectedP2POrder, setSelectedP2POrder] = useState<Order | null>(null);
+    const [isP2PModalOpen, setIsP2PModalOpen] = useState(false);
+    const [selectedUploadProofOrder, setSelectedUploadProofOrder] = useState<Order | null>(null);
+    const [isUploadProofModalOpen, setIsUploadProofModalOpen] = useState(false);
     const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
+
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -986,7 +995,22 @@ const OrderManagement = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                {order.payment_method === 'manual_terminal' && order.status === 'pending_payment' ? (
+                                                {(order as any).p2p_status === 'pending_verification' ? (
+                                                    <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-400 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap animate-pulse">
+                                                        <ShieldCheck className="w-3 h-3 text-purple-600" />
+                                                        P2P Pending Verification
+                                                    </Badge>
+                                                ) : (order as any).p2p_submission_count >= 2 && order.status === 'payment_failed' ? (
+                                                    <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-400 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
+                                                        <AlertTriangle className="w-3 h-3 text-red-600" />
+                                                        Requires Manual Intervention
+                                                    </Badge>
+                                                ) : (order as any).p2p_status === 'rejected' ? (
+                                                    <Badge variant="outline" className="bg-orange-500/10 text-orange-700 border-orange-400 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
+                                                        <XCircle className="w-3 h-3 text-orange-600" />
+                                                        P2P Rejected (Re-uploading)
+                                                    </Badge>
+                                                ) : order.payment_method === 'manual_terminal' && order.status === 'pending_payment' ? (
                                                     <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/40 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
                                                         <Lock className="w-3 h-3 text-amber-600" />
                                                         Pending Manual Charge
@@ -1008,7 +1032,22 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1 flex-wrap">
-                                                    {(order.payment_method === 'manual_terminal' || order.status === 'pending_payment') && (
+                                                    {((order as any).p2p_status === 'pending_verification' || (order as any).p2p_proof_url || order.payment_method === 'manual') && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 px-2 text-[11px] font-bold bg-purple-500/10 text-purple-800 border-purple-300 hover:bg-purple-500/20 flex items-center gap-1"
+                                                            onClick={() => {
+                                                                setSelectedP2POrder(order);
+                                                                setIsP2PModalOpen(true);
+                                                            }}
+                                                            title="Verify P2P Payment Receipt"
+                                                        >
+                                                            <ShieldCheck className="h-3 w-3 text-purple-600" />
+                                                            Verify P2P
+                                                        </Button>
+                                                    )}
+                                                    {(order.payment_method === 'manual_terminal' || (order.status === 'pending_payment' && !(order as any).p2p_status)) && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -1023,6 +1062,7 @@ const OrderManagement = () => {
                                                             Process Card
                                                         </Button>
                                                     )}
+
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -1692,7 +1732,31 @@ const OrderManagement = () => {
                     onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
                 />
             )}
+
+            {/* P2P Verification Modal */}
+            {selectedP2POrder && (
+                <P2PVerificationModal
+                    open={isP2PModalOpen}
+                    onOpenChange={setIsP2PModalOpen}
+                    order={selectedP2POrder}
+                    onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                />
+            )}
+
+            {/* Upload Payment Proof Dialog */}
+            {selectedUploadProofOrder && (
+                <UploadPaymentProofDialog
+                    open={isUploadProofModalOpen}
+                    onOpenChange={setIsUploadProofModalOpen}
+                    orderId={selectedUploadProofOrder.id}
+                    orderNumber={selectedUploadProofOrder.id.slice(0, 8).toUpperCase()}
+                    totalAmount={selectedUploadProofOrder.total_amount}
+                    p2pProvider={(selectedUploadProofOrder as any).p2p_provider || "zelle"}
+                    onProofUploaded={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                />
+            )}
         </div>
+
 
 
 

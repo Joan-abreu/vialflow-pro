@@ -130,6 +130,8 @@ const handler = async (req: Request): Promise<Response> => {
                 price: item.quantity * item.price_at_time
             }));
 
+            const paymentMethodLabel = order.p2p_provider || order.payment_method || (order.p2p_status ? 'P2P Direct' : undefined);
+
             if (type === "order_confirmation") {
                 if (!customerEmail) {
                     console.error(`[Notification Error] No customer email found for order ${orderId}`);
@@ -145,6 +147,7 @@ const handler = async (req: Request): Promise<Response> => {
                     shipping: order.shipping_cost || 0,
                     total: order.total_amount,
                     coupons: order.applied_coupons,
+                    paymentMethod: paymentMethodLabel,
                 });
                 finalRecipients = [customerEmail];
             } else if (type === "order_status_update") {
@@ -158,7 +161,11 @@ const handler = async (req: Request): Promise<Response> => {
                 });
                 finalRecipients = [customerEmail!];
             } else if (type === "admin_order_notification") {
-                subject = `🎉 New Order Received #${orderNumber}`;
+                const isP2P = Boolean(order.p2p_provider || ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].includes(order.payment_method));
+                subject = isP2P 
+                    ? `🔔 [ADMIN ALERT] New P2P Order #${orderNumber} (${(order.p2p_provider || order.payment_method || 'P2P').toUpperCase()})`
+                    : `🎉 [ADMIN ALERT] New Order Received #${orderNumber}`;
+
                 htmlContent = getAdminNotificationEmail({
                     orderNumber,
                     customerName,
@@ -169,11 +176,13 @@ const handler = async (req: Request): Promise<Response> => {
                     shippingCost: order.shipping_cost,
                     shippingCarrier: order.shipping_carrier,
                     shippingService: order.shipping_service,
-                    coupons: order.applied_coupons
+                    coupons: order.applied_coupons,
+                    paymentMethod: paymentMethodLabel,
                 });
                 finalRecipients = ADMIN_EMAILS;
             }
             break;
+
         }
       case "low_stock_alert":
         subject = `⚠️ Low Stock Alert: ${data.productName}`;

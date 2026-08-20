@@ -6,7 +6,10 @@ import {
   getOrderStatusUpdateEmail,
   getPaymentPendingEmail,
   getPaymentConfirmedEmail,
-  getPaymentDeclinedEmail
+  getPaymentDeclinedEmail,
+  getAdminP2PReceiptAlertEmail,
+  getP2PRejectionNoticeEmail,
+  getP2PMaxRetriesExceededEmail
 } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -30,13 +33,14 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   order_id: string;
-  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined";
+  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined" | "admin_p2p_receipt_alert" | "p2p_rejection_notice" | "p2p_max_retries_exceeded";
   status_details?: string;
   status_date?: string;
   reason?: string;
   card_brand?: string;
   last_4?: string;
 }
+
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -431,8 +435,64 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    // ADMIN P2P RECEIPT ALERT EMAIL
+    else if (type === "admin_p2p_receipt_alert") {
+      emailTo = ADMIN_EMAILS.length > 0 ? ADMIN_EMAILS : ["sales@livwellresearchlabs.com"];
+      subject = `🔔 New P2P Receipt Uploaded — Order #${order.id.slice(0, 8)}`;
+
+      htmlContent = getAdminP2PReceiptAlertEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        customerEmail: customerEmail,
+        p2pProvider: order.p2p_provider || "P2P",
+        declaredAmount: order.p2p_declared_amount || order.total_amount,
+        totalAmount: order.total_amount,
+      });
+    }
+
+    // P2P REJECTION NOTICE EMAIL
+    else if (type === "p2p_rejection_notice") {
+      if (!customerEmail) {
+        throw new Error("No customer email available");
+      }
+
+      emailTo = [customerEmail];
+      subject = `Verification Issue for Order #${order.id.slice(0, 8)} ⚠️`;
+
+      const payloadReq = await req.clone().json().catch(() => ({}));
+
+      htmlContent = getP2PRejectionNoticeEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        reason: payloadReq.reason || order.p2p_rejection_reason || "Payment proof mismatch or illegible receipt",
+        reuploadUrl: `https://livwellresearchlabs.com/order-confirmation?order_id=${order.id}`
+      });
+    }
+
+    // P2P MAX RETRIES EXCEEDED EMAIL
+    else if (type === "p2p_max_retries_exceeded") {
+      if (!customerEmail) {
+        throw new Error("No customer email available");
+      }
+
+      emailTo = [customerEmail];
+      subject = `Payment Assistance Required — Order #${order.id.slice(0, 8)}`;
+
+      const payloadReq = await req.clone().json().catch(() => ({}));
+
+      htmlContent = getP2PMaxRetriesExceededEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        reason: payloadReq.reason || order.p2p_rejection_reason,
+      });
+    }
+
 
     // Send using Resend
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

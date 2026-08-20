@@ -207,6 +207,7 @@ export function getOrderConfirmationEmail(orderData: {
     total: number;
     trackingUrl?: string;
     coupons?: string[];
+    paymentMethod?: string;
 }): string {
     const itemsHtml = orderData.items.map(item => `
         <tr>
@@ -215,6 +216,8 @@ export function getOrderConfirmationEmail(orderData: {
             <td style="text-align: right;">$${item.price.toFixed(2)}</td>
         </tr>
     `).join('');
+
+    const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
 
     const content = `
         <h1 style="color: #111827; margin-top: 0;">Order Confirmed!</h1>
@@ -229,6 +232,20 @@ export function getOrderConfirmationEmail(orderData: {
             <p style="margin: 0; font-size: 14px; color: #6b7280;">Order Number</p>
             <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 600; color: #111827;">#${orderData.orderNumber}</p>
         </div>
+
+        ${orderData.paymentMethod ? `
+            <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; padding: 14px 18px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 12px; font-weight: 700; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.05em;">Payment Method</p>
+                <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 700; color: #581c87;">
+                    ${isP2P ? `⚡ P2P Direct Payment (${orderData.paymentMethod.toUpperCase()})` : orderData.paymentMethod}
+                </p>
+                ${isP2P ? `
+                    <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b21a8; line-height: 1.4;">
+                        If you haven't uploaded your payment screenshot yet, please visit your Order Confirmation page to upload your proof for instant verification.
+                    </p>
+                ` : ''}
+            </div>
+        ` : ''}
 
         <h2 style="color: #111827; font-size: 18px; margin-top: 30px;">Order Details</h2>
         <table>
@@ -290,6 +307,7 @@ export function getAdminNotificationEmail(orderData: {
     shippingCarrier?: string;
     shippingService?: string;
     coupons?: string[];
+    paymentMethod?: string;
 }): string {
     const itemsHtml = orderData.items.map(item => `
         <tr>
@@ -299,16 +317,32 @@ export function getAdminNotificationEmail(orderData: {
         </tr>
     `).join('');
 
+    const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
+
     const content = `
-        <h1 style="color: #111827; margin-top: 0;">🎉 New Order Received</h1>
+        <h1 style="color: #111827; margin-top: 0;">🎉 New Order Received (Admin Notification)</h1>
         <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
-            A new order has been placed and requires processing.
+            A new customer order has been placed on the site.
         </p>
         
         <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; font-size: 14px; color: #6b7280;">Order Number</p>
             <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 600; color: #111827;">#${orderData.orderNumber}</p>
         </div>
+
+        ${orderData.paymentMethod ? `
+            <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; padding: 14px 18px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 12px; font-weight: 700; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.05em;">Payment Method</p>
+                <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 700; color: #581c87;">
+                    ${isP2P ? `⚡ P2P Direct Payment (${orderData.paymentMethod.toUpperCase()})` : orderData.paymentMethod}
+                </p>
+                ${isP2P ? `
+                    <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b21a8; line-height: 1.4;">
+                        <strong>Action Required:</strong> Check Order Management in admin dashboard to verify customer's P2P receipt once uploaded.
+                    </p>
+                ` : ''}
+            </div>
+        ` : ''}
 
         <h2 style="color: #111827; font-size: 18px;">Customer Information</h2>
         <p style="font-size: 15px; line-height: 1.6; color: #4b5563;">
@@ -885,5 +919,99 @@ export function getPaymentDeclinedEmail(data: {
     `;
     return getEmailTemplate(content);
 }
+
+export function getAdminP2PReceiptAlertEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    customerEmail?: string;
+    p2pProvider?: string;
+    declaredAmount?: number;
+    totalAmount?: number;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const providerName = (data.p2pProvider || "P2P").toUpperCase();
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">🔔 New P2P Receipt Uploaded — Order #${displayNum}</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            A customer has uploaded a payment receipt for order <strong>#${displayNum}</strong> paid via <strong>${providerName}</strong>.
+        </p>
+        
+        <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; border-left: 4px solid #9333ea; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #6b21a8; font-weight: 700;">Action Required: Verification Pending</p>
+            <p style="margin: 6px 0 0 0; font-size: 13px; color: #581c87;">Customer: <strong>${data.customerName || 'N/A'} (${data.customerEmail || 'N/A'})</strong></p>
+            <p style="margin: 2px 0 0 0; font-size: 13px; color: #581c87;">Declared Paid: <strong>$${data.declaredAmount != null ? data.declaredAmount.toFixed(2) : 'N/A'}</strong> (Order Total: <strong>$${data.totalAmount != null ? data.totalAmount.toFixed(2) : 'N/A'}</strong>)</p>
+        </div>
+
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="https://livwellresearchlabs.com/manufacturing/orders" class="button" style="color: white !important; background-color: #9333ea;">Review Receipt in Admin Dashboard</a>
+        </div>
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getP2PRejectionNoticeEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    reason?: string;
+    reuploadUrl?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const reasonText = data.reason || "The receipt uploaded was illegible, incomplete, or the payment amount did not match.";
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Verification Issue: Order #${displayNum} ⚠️</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName || 'Valued Customer'},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            We reviewed the payment proof for order <strong>#${displayNum}</strong>, but were unable to verify your payment.
+        </p>
+        
+        <div style="background-color: #fff7ed; border: 1px solid #ffedd5; border-left: 4px solid #f97316; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #9a3412; font-weight: 700;">Reason:</p>
+            <p style="margin: 4px 0 0 0; font-size: 14px; color: #c2410c;">${reasonText}</p>
+        </div>
+
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Please ensure the payment was sent to our correct handle with your <strong>ORDER #${displayNum}</strong> in the memo, and re-upload a clear screenshot of your transaction confirmation.
+        </p>
+
+        ${data.reuploadUrl ? `
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="${data.reuploadUrl}" class="button" style="color: white !important;">Re-upload Payment Proof</a>
+            </div>
+        ` : ''}
+    `;
+    return getEmailTemplate(content);
+}
+
+export function getP2PMaxRetriesExceededEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    reason?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+
+    const content = `
+        <h1 style="color: #111827; margin-top: 0;">Payment Assistance Required — Order #${displayNum}</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Hi ${data.customerName || 'Valued Customer'},
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
+            Maximum payment verification attempts have been reached for order <strong>#${displayNum}</strong>.
+        </p>
+        
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #991b1b; font-weight: 700;">Status: Verification Suspended</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #b91c1c;">Please contact our billing support team at <a href="mailto:sales@livwellresearchlabs.com" style="color: #ef4444; font-weight: bold;">sales@livwellresearchlabs.com</a> to finalize your order.</p>
+        </div>
+    `;
+    return getEmailTemplate(content);
+}
+
 
 

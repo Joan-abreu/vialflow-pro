@@ -202,6 +202,8 @@ const AppRoutes = () => {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/auth/confirm" element={<EmailConfirmation />} />
                     <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+                    <Route path="/order-success/:orderId" element={<OrderConfirmation />} />
+
                     <Route path="/about" element={<About />} />
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/account" element={<Account />} />

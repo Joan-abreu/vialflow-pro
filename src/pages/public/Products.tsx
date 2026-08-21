@@ -127,7 +127,7 @@ const Products = () => {
                 is_private: product.is_private,
                 position: product.position || 0,
                 sales_count: (salesMap[product.id] || 0) + getBaseSalesCount(product.id, product.is_private, product.name, product.product_categories?.name),
-                variants: product.variants.map((v: any) => ({
+                variants: (product.variants || []).map((v: any) => ({
                     id: v.id,
                     product_id: v.product_id,
                     vial_type_id: v.vial_type_id,
@@ -147,12 +147,33 @@ const Products = () => {
                         is_private: product.is_private,
                     },
                     vial_type: {
-                        name: v.vial_type.name,
-                        capacity_ml: v.vial_type.capacity_ml,
-                        color: v.vial_type.color,
-                        shape: v.vial_type.shape,
+                        name: v.vial_type?.name || 'Standard',
+                        capacity_ml: v.vial_type?.capacity_ml || 10,
+                        color: v.vial_type?.color || 'Clear',
+                        shape: v.vial_type?.shape || 'Round',
                     },
-                })).sort((a: any, b: any) => a.position - b.position)
+                })).sort((a: any, b: any) => {
+                    const posA = a.position ?? 0;
+                    const posB = b.position ?? 0;
+                    if (posA !== posB) return posA - posB;
+
+                    const capA = a.vial_type?.capacity_ml ?? 0;
+                    const capB = b.vial_type?.capacity_ml ?? 0;
+                    if (capA !== capB && capA > 0 && capB > 0) return capA - capB;
+
+                    const getNum = (item: any) => {
+                        const str = `${item.vial_type?.name || ''} ${item.sku || ''}`;
+                        const m = str.match(/(\d+(?:\.\d+)?)\s*(?:mg|ml|g|mcg|pack|pk|units?)/i) || str.match(/\b(\d+(?:\.\d+)?)\b/);
+                        return m ? parseFloat(m[1]) : 0;
+                    };
+                    const numA = getNum(a);
+                    const numB = getNum(b);
+                    if (numA !== numB && numA > 0 && numB > 0) return numA - numB;
+
+                    if ((a.pack_size || 1) !== (b.pack_size || 1)) return (a.pack_size || 1) - (b.pack_size || 1);
+
+                    return (a.price || 0) - (b.price || 0);
+                })
             }));
         },
     });

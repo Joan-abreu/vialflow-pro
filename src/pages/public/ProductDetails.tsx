@@ -207,7 +207,8 @@ const ProductDetails = () => {
                         *,
                         vial_type:vial_types(name, capacity_ml, color, shape)
                     `)
-                    .eq("product_id", productData.id);
+                    .eq("product_id", productData.id)
+                    .order("position", { ascending: true });
 
                 if (!vErr && data) {
                     variantsData = data;
@@ -244,6 +245,7 @@ const ProductDetails = () => {
                 image_url: v.image_url,
                 images: v.images || [],
                 pack_size: v.pack_size || 1,
+                position: v.position ?? 0,
                 bulk_price: v.bulk_price ? Number(v.bulk_price) : null,
                 bulk_min_qty: v.bulk_min_qty || 100,
                 bulk_label_fee: v.bulk_label_fee ? Number(v.bulk_label_fee) : 0.15,
@@ -262,7 +264,33 @@ const ProductDetails = () => {
                     color: v.vial_type?.color || 'Clear',
                     shape: v.vial_type?.shape || 'Round',
                 },
-            }));
+            })).sort((a, b) => {
+                // 1. Sort by position if distinct
+                const posA = a.position ?? 0;
+                const posB = b.position ?? 0;
+                if (posA !== posB) return posA - posB;
+
+                // 2. Numerical capacity / dosage
+                const capA = a.vial_type?.capacity_ml ?? 0;
+                const capB = b.vial_type?.capacity_ml ?? 0;
+                if (capA !== capB && capA > 0 && capB > 0) return capA - capB;
+
+                // 3. Extract numbers from dosage name or sku (e.g. 10mg vs 30mg vs 60mg)
+                const getNum = (item: any) => {
+                    const str = `${item.vial_type?.name || ''} ${item.sku || ''}`;
+                    const m = str.match(/(\d+(?:\.\d+)?)\s*(?:mg|ml|g|mcg|pack|pk|units?)/i) || str.match(/\b(\d+(?:\.\d+)?)\b/);
+                    return m ? parseFloat(m[1]) : 0;
+                };
+                const numA = getNum(a);
+                const numB = getNum(b);
+                if (numA !== numB && numA > 0 && numB > 0) return numA - numB;
+
+                // 4. Pack size
+                if ((a.pack_size || 1) !== (b.pack_size || 1)) return (a.pack_size || 1) - (b.pack_size || 1);
+
+                // 5. Price
+                return (a.price || 0) - (b.price || 0);
+            });
 
             // Fallback if product has no variants in product_variants
             if (variants.length === 0) {

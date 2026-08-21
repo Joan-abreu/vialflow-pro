@@ -13,6 +13,7 @@ const authNetTransactionKey = Deno.env.get("AUTHORIZENET_TRANSACTION_KEY") || ""
 const cloverPrivateToken = Deno.env.get("CLOVER_API_KEY") || "";
 const nmiSecurityKeyEnv = Deno.env.get("NMI_SECURITY_KEY") || "";
 const paypalSecretEnv = Deno.env.get("PAYPAL_CLIENT_SECRET") || "";
+const tagadaApiKeyEnv = Deno.env.get("TAGADAPAY_API_KEY") || "";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,9 @@ serve(async (req) => {
             apiLoginId,
             merchantId,
             nmiSecurityKey,
+            storeId,
+            paymentFlowId,
+            tagadaApiKey,
             cardDetails,
             isProduction = false,
             items,
@@ -301,6 +305,105 @@ serve(async (req) => {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 status: 200,
             });
+        }
+
+        // 3.5. TagadaPay Processing (Tokenized BasisTheory Card & 3DS Gateway)
+        if (provider === "tagadapay") {
+            const effectiveApiKey = tagadaApiKey || tagadaApiKeyEnv;
+            if (!effectiveApiKey) {
+                throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY).");
+            }
+
+            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagada.io/api/public/v1";
+            const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
+
+            let paymentInstrumentId = sourceId;
+
+            // If sourceId is a base64 TagadaToken, create the payment instrument first
+            if (sourceId && (sourceId.startsWith("ey") || sourceId.length > 50)) {
+                const firstName = shippingAddress?.firstName || customerEmail?.split("@")[0] || "Customer";
+                const lastName = shippingAddress?.lastName || "Order";
+
+                const instrumentRes = await fetch(`${tagadaBaseUrl}/payment-instruments/create-from-token`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${effectiveApiKey}`,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        tagadaToken: sourceId,
+                        storeId: storeId,
+                        customerData: {
+                            email: customerEmail,
+                            firstName,
+                            lastName
+                        }
+                    })
+                });
+
+                const instrumentData = await instrumentRes.json();
+                if (!instrumentRes.ok || (!instrumentData.paymentInstrument?.id && !instrumentData.id)) {
+                    const errMsg = instrumentData.message || instrumentData.error || "Failed to create Tagada payment instrument";
+                    throw new Error(errMsg);
+                }
+
+                paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
+            }
+
+            const processPayload: any = {
+                amount: amountInCents,
+                currency: (currency || "USD").toUpperCase(),
+                storeId: storeId,
+                paymentInstrumentId: paymentInstrumentId,
+                initiatedBy: "customer",
+                mode: "purchase"
+            };
+
+            if (paymentFlowId) {
+                processPayload.paymentFlowId = paymentFlowId;
+            }
+
+            const payRes = await fetch(`${tagadaBaseUrl}/payments/process`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${effectiveApiKey}`,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(processPayload)
+            });
+
+            const payData = await payRes.json();
+            const payment = payData.payment || payData;
+
+            if (payRes.ok && (payment.status === "succeeded" || payment.status === "COMPLETED" || payment.status === "paid")) {
+                await completeSuccessfulOrder("tagadapay", payment.id || "");
+                return new Response(JSON.stringify({
+                    success: true,
+                    status: "COMPLETED",
+                    provider: "tagadapay",
+                    paymentId: payment.id,
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200,
+                });
+            } else if (payRes.ok && payment.requireAction === "threeds_auth") {
+                return new Response(JSON.stringify({
+                    success: false,
+                    status: "PENDING_3DS",
+                    provider: "tagadapay",
+                    requireAction: "threeds_auth",
+                    requireActionData: payment.requireActionData || payment,
+                    paymentId: payment.id
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200,
+                });
+            } else {
+                const errMsg = payment.error || payData.message || payData.error || `Tagada transaction ${payment.status || "declined"}`;
+                throw new Error(errMsg);
+            }
         }
 
         // 4. Authorize.Net Processing (Accept.js Tokenized Charge)
@@ -601,7 +704,10 @@ serve(async (req) => {
             errMessage.includes("INVALID_ACCESS_TOKEN") ||
             errMessage.includes("Authentication Failed") ||
             errMessage.includes("Security Key Invalid") ||
-            errMessage.includes("Merchant disabled");
+            errMessage.includes("Merchant disabled") ||
+            errMessage.includes("TAGADAPAY_API_KEY") ||
+            errMessage.includes("Invalid API Key") ||
+            errMessage.includes("Store not found");
 
         if (isCriticalAccountError) {
             console.warn("[Auto-Failover Alert] Critical payment gateway exception detected:", errMessage);

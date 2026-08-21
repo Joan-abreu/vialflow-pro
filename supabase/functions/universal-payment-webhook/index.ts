@@ -286,6 +286,46 @@ serve(async (req) => {
             });
         }
 
+        // -------------------------------------------------------------
+        // 7. TagadaPay Webhook Handler
+        // -------------------------------------------------------------
+        if (queryProvider === "tagadapay" || req.headers.get("x-tagada-signature") || req.headers.get("x-tagadapay-webhook")) {
+            const event = JSON.parse(bodyText);
+            const eventType = event?.type || event?.event;
+            const dataObj = event?.data?.payment || event?.data?.object || event?.data;
+
+            const orderId = dataObj?.metadata?.orderId || dataObj?.metadata?.order_id || dataObj?.referenceId || dataObj?.orderId;
+            const paymentId = dataObj?.id || dataObj?.paymentId;
+
+            if (eventType === "payment.succeeded" || eventType === "payment.created" || (eventType === "payment.updated" && (dataObj?.status === "succeeded" || dataObj?.status === "COMPLETED"))) {
+                if (orderId) {
+                    await markOrderAsPaid(orderId, "tagadapay", paymentId);
+                } else if (paymentId) {
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    if (order) await markOrderAsPaid(order.id, "tagadapay", paymentId);
+                }
+            } else if (eventType === "charge.refunded" || eventType === "payment.refunded") {
+                if (orderId) {
+                    await markOrderAsRefunded(orderId, "tagadapay");
+                } else if (paymentId) {
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    if (order) await markOrderAsRefunded(order.id, "tagadapay");
+                }
+            } else if (eventType === "charge.dispute.created" || eventType === "payment.disputed") {
+                if (orderId) {
+                    await markOrderAsDisputed(orderId, "tagadapay");
+                } else if (paymentId) {
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    if (order) await markOrderAsDisputed(order.id, "tagadapay");
+                }
+            }
+
+            return new Response(JSON.stringify({ received: true, provider: "tagadapay" }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
+
         // Fallback generic response
         return new Response(JSON.stringify({ received: true, message: "Webhook acknowledged" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },

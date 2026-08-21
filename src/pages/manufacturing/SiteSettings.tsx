@@ -86,6 +86,9 @@ const SiteSettings = () => {
     const [nmiTokenKey, setNmiTokenKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.nmi.tokenizationKey);
     const [paypalClientId, setPaypalClientId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.paypal.clientId);
     const [paypalEnv, setPaypalEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.paypal.environment);
+    const [tagadaStoreId, setTagadaStoreId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.storeId);
+    const [tagadaPaymentFlowId, setTagadaPaymentFlowId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.paymentFlowId || "");
+    const [tagadaEnv, setTagadaEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.tagadapay.environment);
     const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
     const [zelleName, setZelleName] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleName || "");
@@ -98,6 +101,37 @@ const SiteSettings = () => {
     const [venmoQrUrl, setVenmoQrUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.p2p.venmo.qrCodeUrl || "");
     const [manualInstructions, setManualInstructions] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.instructions || "");
     const [uploadingQr, setUploadingQr] = useState<string | null>(null);
+    const [isSyncingTagada, setIsSyncingTagada] = useState(false);
+    const [tagadaSyncResult, setTagadaSyncResult] = useState<any>(null);
+
+    const handleSyncTagadaProducts = async () => {
+        if (!tagadaStoreId) {
+            toast.error("Please configure and save a Store ID first.");
+            return;
+        }
+
+        setIsSyncingTagada(true);
+        setTagadaSyncResult(null);
+
+        try {
+            const { data, error } = await supabase.functions.invoke("sync-tagada-products", {
+                body: {
+                    storeId: tagadaStoreId,
+                }
+            });
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            setTagadaSyncResult(data);
+            toast.success(`Successfully synced ${data.successful || 0} of ${data.totalProducts || 0} products to Tagada CRM!`);
+        } catch (err: any) {
+            console.error("Sync error:", err);
+            toast.error(err.message || "Failed to sync products with Tagada CRM");
+        } finally {
+            setIsSyncingTagada(false);
+        }
+    };
 
 
     const handleQrImageUpload = async (provider: "zelle" | "venmo" | "cashapp", file: File) => {
@@ -163,6 +197,7 @@ const SiteSettings = () => {
                     "payment_clover_config",
                     "payment_nmi_config",
                     "payment_paypal_config",
+                    "payment_tagadapay_config",
                     "payment_manual_config"
                 ]);
 
@@ -193,6 +228,7 @@ const SiteSettings = () => {
                 const cloverCfg = data.find((s: any) => s.key === "payment_clover_config");
                 const nmiCfg = data.find((s: any) => s.key === "payment_nmi_config");
                 const paypalCfg = data.find((s: any) => s.key === "payment_paypal_config");
+                const tagadaCfg = data.find((s: any) => s.key === "payment_tagadapay_config");
                 const manualCfg = data.find((s: any) => s.key === "payment_manual_config");
 
                 if (maintenance) setMaintenanceMode(maintenance.value === "true");
@@ -269,6 +305,15 @@ const SiteSettings = () => {
                         const pp = JSON.parse(paypalCfg.value);
                         if (pp.clientId) setPaypalClientId(pp.clientId);
                         if (pp.environment) setPaypalEnv(pp.environment);
+                    } catch (e) {}
+                }
+
+                if (tagadaCfg?.value) {
+                    try {
+                        const tg = JSON.parse(tagadaCfg.value);
+                        if (tg.storeId) setTagadaStoreId(tg.storeId);
+                        if (tg.paymentFlowId !== undefined) setTagadaPaymentFlowId(tg.paymentFlowId);
+                        if (tg.environment) setTagadaEnv(tg.environment);
                     } catch (e) {}
                 }
 
@@ -446,6 +491,12 @@ const SiteSettings = () => {
                 environment: paypalEnv
             });
 
+            const tagadapayConfig = JSON.stringify({
+                storeId: tagadaStoreId,
+                paymentFlowId: tagadaPaymentFlowId,
+                environment: tagadaEnv
+            });
+
             const manualConfig = JSON.stringify({
                 zelleEnabled,
                 zelleEmail,
@@ -482,6 +533,7 @@ const SiteSettings = () => {
                 { key: "payment_clover_config", value: cloverConfig, updated_at: now },
                 { key: "payment_nmi_config", value: nmiConfig, updated_at: now },
                 { key: "payment_paypal_config", value: paypalConfig, updated_at: now },
+                { key: "payment_tagadapay_config", value: tagadapayConfig, updated_at: now },
                 { key: "payment_manual_config", value: manualConfig, updated_at: now },
                 { key: "payment_p2p_config", value: p2pConfig, updated_at: now },
 
@@ -636,6 +688,7 @@ const SiteSettings = () => {
                                 <Badge className={`uppercase text-xs font-bold ${
                                     activeGateway === 'square' ? 'bg-black text-white dark:bg-white dark:text-black' :
                                     activeGateway === 'stripe' ? 'bg-indigo-600 text-white' :
+                                    activeGateway === 'tagadapay' ? 'bg-emerald-600 text-white' :
                                     activeGateway === 'authorizenet' ? 'bg-blue-700 text-white' :
                                     activeGateway === 'clover' ? 'bg-emerald-700 text-white' :
                                     activeGateway === 'nmi' ? 'bg-slate-800 text-white' :
@@ -665,6 +718,7 @@ const SiteSettings = () => {
                                     <SelectContent>
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
                                         <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
+                                        <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
                                         <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
@@ -688,6 +742,7 @@ const SiteSettings = () => {
                                         <SelectValue placeholder="Select backup processor" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
                                         <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
@@ -725,14 +780,15 @@ const SiteSettings = () => {
                         <div className="space-y-3 pt-2">
                             <Label className="font-semibold text-sm">Processor Credentials & Keys</Label>
                             <Tabs defaultValue="square" className="w-full">
-                                <TabsList className="grid grid-cols-7 w-full">
+                                <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full">
                                     <TabsTrigger value="square" className="text-[11px] px-1">Square</TabsTrigger>
                                     <TabsTrigger value="stripe" className="text-[11px] px-1">Stripe</TabsTrigger>
+                                    <TabsTrigger value="tagadapay" className="text-[11px] px-1 font-semibold text-emerald-600 dark:text-emerald-400">TagadaPay</TabsTrigger>
                                     <TabsTrigger value="nmi" className="text-[11px] px-1">NMI</TabsTrigger>
                                     <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
                                     <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
                                     <TabsTrigger value="paypal" className="text-[11px] px-1">PayPal</TabsTrigger>
-                                    <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">⚡ P2P Direct Payments</TabsTrigger>
+                                    <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">⚡ P2P Direct</TabsTrigger>
 
                                 </TabsList>
 
@@ -788,6 +844,96 @@ const SiteSettings = () => {
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
                                         Note: Stripe Secret Key (<code>STRIPE_SECRET_KEY</code>) is stored in Supabase Edge Functions secrets.
+                                    </p>
+                                </TabsContent>
+
+                                {/* TagadaPay Settings */}
+                                <TabsContent value="tagadapay" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs space-y-1">
+                                        <strong className="text-emerald-700 dark:text-emerald-300 font-bold block">TagadaPay Multi-PSP Routing & BasisTheory 3DS Tokenization</strong>
+                                        <p className="text-muted-foreground text-[11px]">
+                                            Tokenizes credit cards securely with @tagadapay/core-js and executes charges server-side with dynamic gateway cascading.
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="tagadaStoreId" className="text-xs">Store ID</Label>
+                                            <Input
+                                                id="tagadaStoreId"
+                                                value={tagadaStoreId}
+                                                onChange={(e) => setTagadaStoreId(e.target.value)}
+                                                placeholder="e.g. store_abc123"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="tagadaFlowId" className="text-xs">Payment Flow ID (Optional)</Label>
+                                            <Input
+                                                id="tagadaFlowId"
+                                                value={tagadaPaymentFlowId}
+                                                onChange={(e) => setTagadaPaymentFlowId(e.target.value)}
+                                                placeholder="e.g. flow_xyz789 (Optional)"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="tagadaEnv" className="text-xs">Tagada Environment</Label>
+                                            <Select value={tagadaEnv} onValueChange={(val: any) => setTagadaEnv(val)}>
+                                                <SelectTrigger id="tagadaEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="sandbox">Sandbox / Development</SelectItem>
+                                                    <SelectItem value="production">Production (Live)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-muted/40 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 ${isSyncingTagada ? 'animate-spin' : ''}`} />
+                                                Kashu / Tagada CRM Product Sync
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Push all active products, vial variants, and pricing directly to TagadaPay CRM via <code>POST /products/create</code>.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            onClick={handleSyncTagadaProducts}
+                                            disabled={isSyncingTagada || !tagadaStoreId}
+                                            size="sm"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0"
+                                        >
+                                            {isSyncingTagada ? (
+                                                <>
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                                    Syncing Products...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                                                    Sync Catalog to Tagada
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+
+                                    {tagadaSyncResult && (
+                                        <div className="p-2.5 rounded-lg border bg-emerald-500/10 border-emerald-500/30 text-xs space-y-1">
+                                            <div className="font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                                                <span>Catalog Sync Complete</span>
+                                                <span className="text-[11px]">{tagadaSyncResult.successful} / {tagadaSyncResult.totalProducts} Succeeded</span>
+                                            </div>
+                                            {tagadaSyncResult.failed > 0 && (
+                                                <p className="text-[11px] text-amber-600">
+                                                    {tagadaSyncResult.failed} product(s) could not be synced. Check Edge Function logs for details.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Note: Secret API Bearer Token (<code>TAGADAPAY_API_KEY</code>) is stored securely in Supabase Edge Functions Secrets.
                                     </p>
                                 </TabsContent>
 

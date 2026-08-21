@@ -15,6 +15,7 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import { Link, useNavigate } from "react-router-dom";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider, PaymentGatewaysSettings } from "@/config/paymentGateways";
 import { SmartCreditCardForm } from "./SmartCreditCardForm";
+import { TagadaCheckout } from "./TagadaCheckout";
 import { P2PPaymentDisplay } from "./P2PPaymentDisplay";
 import { UploadPaymentProofDialog } from "./UploadPaymentProofDialog";
 
@@ -230,6 +231,7 @@ const UniversalCheckout = ({
                         "payment_clover_config",
                         "payment_nmi_config",
                         "payment_paypal_config",
+                        "payment_tagadapay_config",
                         "payment_manual_config",
                         "payment_p2p_config"
                     ]);
@@ -247,6 +249,7 @@ const UniversalCheckout = ({
                     const cloverCfg = data.find(s => s.key === "payment_clover_config");
                     const nmiCfg = data.find(s => s.key === "payment_nmi_config");
                     const paypalCfg = data.find(s => s.key === "payment_paypal_config");
+                    const tagadaCfg = data.find(s => s.key === "payment_tagadapay_config");
                     const manualCfg = data.find(s => s.key === "payment_manual_config");
                     const p2pCfg = data.find(s => s.key === "payment_p2p_config");
 
@@ -258,6 +261,7 @@ const UniversalCheckout = ({
 
                     const parsedManual = manualCfg?.value ? JSON.parse(manualCfg.value) : {};
                     const parsedP2P = p2pCfg?.value ? JSON.parse(p2pCfg.value) : {};
+                    const parsedTagada = tagadaCfg?.value ? JSON.parse(tagadaCfg.value) : {};
 
                     const zelleIsOn = typeof parsedManual.zelleEnabled === "boolean" ? parsedManual.zelleEnabled : (typeof parsedP2P.zelle?.enabled === "boolean" ? parsedP2P.zelle.enabled : true);
                     const venmoIsOn = typeof parsedManual.venmoEnabled === "boolean" ? parsedManual.venmoEnabled : (typeof parsedP2P.venmo?.enabled === "boolean" ? parsedP2P.venmo.enabled : true);
@@ -271,6 +275,7 @@ const UniversalCheckout = ({
                         failThreshold: failThresh ? Number(failThresh.value) : prev.failThreshold,
                         square: squareCfg?.value ? { ...prev.square, ...JSON.parse(squareCfg.value) } : prev.square,
                         stripe: stripeCfg?.value ? { ...prev.stripe, ...JSON.parse(stripeCfg.value) } : prev.stripe,
+                        tagadapay: { ...prev.tagadapay, ...parsedTagada },
                         authorizenet: authNetCfg?.value ? { ...prev.authorizenet, ...JSON.parse(authNetCfg.value) } : prev.authorizenet,
                         clover: cloverCfg?.value ? { ...prev.clover, ...JSON.parse(cloverCfg.value) } : prev.clover,
                         nmi: nmiCfg?.value ? { ...prev.nmi, ...JSON.parse(nmiCfg.value) } : prev.nmi,
@@ -802,9 +807,12 @@ const UniversalCheckout = ({
                     apiLoginId: gatewaySettings.authorizenet.apiLoginId,
                     merchantId: gatewaySettings.clover.merchantId,
                     nmiSecurityKey: gatewaySettings.nmi.securityKey,
+                    storeId: gatewaySettings.tagadapay.storeId || import.meta.env.VITE_TAGADAPAY_STORE_ID,
+                    paymentFlowId: gatewaySettings.tagadapay.paymentFlowId,
                     cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :
+                        activeProvider === "tagadapay" ? gatewaySettings.tagadapay.environment === "production" :
                         activeProvider === "authorizenet" ? gatewaySettings.authorizenet.environment === "production" :
                         activeProvider === "clover" ? gatewaySettings.clover.environment === "production" :
                         gatewaySettings.paypal.environment === "production",
@@ -843,14 +851,19 @@ const UniversalCheckout = ({
                     toast.error(`Primary payment processor temporarily unavailable. Switching to secure backup processor...`);
                     setActiveProvider(gatewaySettings.backupProvider);
                     setLoading(false);
-                    return;
+                    return result;
                 }
                 throw new Error(result.error || "Payment failed");
+            }
+
+            if (result.requireAction === "threeds_auth") {
+                return result;
             }
 
             clearCart();
             toast.success("Order placed successfully!");
             navigate(`/order-confirmation/${orderId}`);
+            return result;
 
         } catch (error: any) {
             console.error("Payment execution error:", error);
@@ -1339,6 +1352,26 @@ const UniversalCheckout = ({
                                         </SquareCreditCard>
                                     </PaymentForm>
                                 )
+                            ) : activeProvider === "tagadapay" ? (
+                                /* Case Tagada: TagadaPay Tokenized 3DS Card Checkout */
+                                <TagadaCheckout
+                                    amount={amount}
+                                    config={gatewaySettings.tagadapay}
+                                    loading={loading}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabledReason={
+                                        isCalculating
+                                            ? "Calculating Shipping..."
+                                            : !shippingService || shippingCost === undefined
+                                                ? "Select Shipping Method"
+                                                : requireResearchAck && (!ackResearch || !ackTerms)
+                                                    ? "Acknowledge terms to pay"
+                                                    : undefined
+                                    }
+                                    onTokenized={async (tagadaToken) => {
+                                        return await handleProcessPayment(tagadaToken);
+                                    }}
+                                />
                             ) : activeProvider === "stripe" ? (
                                 /* Case C: Stripe Elements */
                                 stripePromise && stripeClientSecret ? (

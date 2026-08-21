@@ -1,6 +1,7 @@
 export type PaymentGatewayProvider = 
     | "square" 
     | "stripe" 
+    | "tagadapay"
     | "authorizenet" 
     | "clover"
     | "nmi"
@@ -17,6 +18,13 @@ export interface SquareGatewayConfig {
 
 export interface StripeGatewayConfig {
     publishableKey: string;
+}
+
+export interface TagadaPayGatewayConfig {
+    storeId: string;
+    publicKey?: string;
+    paymentFlowId?: string;
+    environment: "sandbox" | "production";
 }
 
 export interface AuthorizeNetGatewayConfig {
@@ -41,6 +49,12 @@ export interface PayPalGatewayConfig {
     environment: "sandbox" | "production";
 }
 
+export interface ManualTerminalConfig {
+    enabled: boolean;
+    title?: string;
+    instructions?: string;
+}
+
 export interface ManualPaymentConfig {
     zelleEmail?: string;
     zelleName?: string;
@@ -51,7 +65,6 @@ export interface ManualPaymentConfig {
 }
 
 export interface P2PMethodConfig {
-
     enabled: boolean;
     qrCodeUrl: string;
     handle: string; // Zelle email/phone, Venmo @username, CashApp $cashtag
@@ -77,6 +90,7 @@ export interface PaymentGatewaysSettings {
     failThreshold: number;
     square: SquareGatewayConfig;
     stripe: StripeGatewayConfig;
+    tagadapay: TagadaPayGatewayConfig;
     authorizenet: AuthorizeNetGatewayConfig;
     clover: CloverGatewayConfig;
     nmi: NMIGatewayConfig;
@@ -98,6 +112,12 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
     },
     stripe: {
         publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "",
+    },
+    tagadapay: {
+        storeId: import.meta.env.VITE_TAGADAPAY_STORE_ID || "",
+        publicKey: import.meta.env.VITE_TAGADAPAY_PUBLIC_KEY || "",
+        paymentFlowId: "",
+        environment: "sandbox",
     },
     authorizenet: {
         apiLoginId: "",
@@ -140,8 +160,6 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
             recipientName: "Liv Well Research Labs Inc.",
             instructions: "Scan the Zelle QR code or send payment to our email handle. Put your ORDER # in the memo field."
         },
-
-
         venmo: {
             enabled: true,
             qrCodeUrl: "",
@@ -150,7 +168,6 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
             instructions: "Scan the Venmo QR code or send to @livholdinggroupinc. Put your ORDER # in the note.",
             deepLinkUrl: "https://venmo.com/livholdinggroupinc"
         },
-
         cashapp: {
             enabled: true,
             qrCodeUrl: "",

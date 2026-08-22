@@ -702,7 +702,7 @@ const UniversalCheckout = ({
         const orderData = {
             user_id: orderUserId,
             customer_email: user ? user.email : addressState.email,
-            status: "pending",
+            status: "pending_payment",
             total_amount: amount,
             tax: tax,
             tax_amount: tax,
@@ -802,13 +802,14 @@ const UniversalCheckout = ({
                     amount,
                     currency: "USD",
                     orderId,
+                    returnUrl: `${window.location.origin}/order-confirmation?orderId=${orderId}`,
                     customerEmail: user ? user.email : addressState.email,
                     locationId: gatewaySettings.square.locationId || import.meta.env.VITE_SQUARE_LOCATION_ID,
                     apiLoginId: gatewaySettings.authorizenet.apiLoginId,
                     merchantId: gatewaySettings.clover.merchantId,
                     nmiSecurityKey: gatewaySettings.nmi.securityKey,
                     storeId: gatewaySettings.tagadapay.storeId || import.meta.env.VITE_TAGADAPAY_STORE_ID,
-                    paymentFlowId: gatewaySettings.tagadapay.paymentFlowId,
+                    paymentFlowId: gatewaySettings.tagadapay.paymentFlowId || import.meta.env.VITE_TAGADAPAY_PAYMENT_FLOW_ID,
                     cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :

@@ -351,18 +351,31 @@ serve(async (req) => {
                 paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
             }
 
+            const defaultReturnUrl = (body.returnUrl && !body.returnUrl.includes("localhost") && !body.returnUrl.includes("127.0.0.1"))
+                ? body.returnUrl
+                : `https://livlifestyle.com/order-confirmation?orderId=${orderId}`;
+
             const processPayload: any = {
                 amount: amountInCents,
                 currency: (currency || "USD").toUpperCase(),
                 storeId: storeId,
                 paymentInstrumentId: paymentInstrumentId,
+                paymentMethod: "card",
                 initiatedBy: "customer",
-                mode: "purchase"
+                mode: "purchase",
+                returnUrl: defaultReturnUrl,
+                metadata: {
+                    orderId: orderId,
+                    customerEmail: customerEmail
+                }
             };
 
-            if (paymentFlowId) {
-                processPayload.paymentFlowId = paymentFlowId;
+            const effectivePaymentFlowId = paymentFlowId || Deno.env.get("TAGADAPAY_PAYMENT_FLOW_ID");
+            if (effectivePaymentFlowId) {
+                processPayload.paymentFlowId = effectivePaymentFlowId;
             }
+
+            console.log("👉 [TagadaPay] Sending Process Payload to TagadaPay:", JSON.stringify(processPayload, null, 2));
 
             const payRes = await fetch(`${tagadaBaseUrl}/payments/process`, {
                 method: "POST",
@@ -375,9 +388,13 @@ serve(async (req) => {
             });
 
             const payData = await payRes.json();
+            console.log("👈 [TagadaPay] Received Process Response:", JSON.stringify(payData, null, 2));
             const payment = payData.payment || payData;
 
-            if (payRes.ok && (payment.status === "succeeded" || payment.status === "COMPLETED" || payment.status === "paid")) {
+            const statusLower = String(payment.status || "").toLowerCase();
+            const isSuccessStatus = ["succeeded", "completed", "paid", "approved", "success", "captured"].includes(statusLower);
+
+            if (payRes.ok && isSuccessStatus) {
                 await completeSuccessfulOrder("tagadapay", payment.id || "");
                 return new Response(JSON.stringify({
                     success: true,

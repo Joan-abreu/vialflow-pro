@@ -146,6 +146,8 @@ const handler = async (req: Request): Promise<Response> => {
                     subtotal: order.total_amount - (order.shipping_cost || 0),
                     shipping: order.shipping_cost || 0,
                     total: order.total_amount,
+                    shippingService: order.shipping_service,
+                    shippingCarrier: order.shipping_carrier,
                     coupons: order.applied_coupons,
                     paymentMethod: paymentMethodLabel,
                 });

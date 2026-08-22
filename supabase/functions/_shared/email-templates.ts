@@ -205,6 +205,8 @@ export function getOrderConfirmationEmail(orderData: {
     subtotal: number;
     shipping: number;
     total: number;
+    shippingService?: string;
+    shippingCarrier?: string;
     trackingUrl?: string;
     coupons?: string[];
     paymentMethod?: string;
@@ -219,6 +221,10 @@ export function getOrderConfirmationEmail(orderData: {
 
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
 
+    const shippingMethodLabel = (orderData.shippingCarrier || orderData.shippingService)
+        ? `${orderData.shippingCarrier ? `${orderData.shippingCarrier} ` : ''}${orderData.shippingService || ''}`
+        : '';
+
     const content = `
         <h1 style="color: #111827; margin-top: 0;">Order Confirmed!</h1>
         <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
@@ -231,19 +237,22 @@ export function getOrderConfirmationEmail(orderData: {
         <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; font-size: 14px; color: #6b7280;">Order Number</p>
             <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 600; color: #111827;">#${orderData.orderNumber}</p>
+            ${shippingMethodLabel ? `
+                <p style="margin: 10px 0 0 0; font-size: 14px; color: #4b5563;">
+                    <strong>Shipping Method:</strong> ${shippingMethodLabel}
+                </p>
+            ` : ''}
         </div>
 
-        ${orderData.paymentMethod ? `
+        ${isP2P ? `
             <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; padding: 14px 18px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0; font-size: 12px; font-weight: 700; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.05em;">Payment Method</p>
                 <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 700; color: #581c87;">
-                    ${isP2P ? `⚡ P2P Direct Payment (${orderData.paymentMethod.toUpperCase()})` : orderData.paymentMethod}
+                    ⚡ P2P Direct Payment (${(orderData.paymentMethod || '').toUpperCase()})
                 </p>
-                ${isP2P ? `
-                    <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b21a8; line-height: 1.4;">
-                        If you haven't uploaded your payment screenshot yet, please visit your Order Confirmation page to upload your proof for instant verification.
-                    </p>
-                ` : ''}
+                <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b21a8; line-height: 1.4;">
+                    If you haven't uploaded your payment screenshot yet, please visit your Order Confirmation page to upload your proof for instant verification.
+                </p>
             </div>
         ` : ''}
 
@@ -263,7 +272,7 @@ export function getOrderConfirmationEmail(orderData: {
                     <td style="text-align: right; padding-top: 20px;">$${orderData.subtotal.toFixed(2)}</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="text-align: right;"><strong>Shipping:</strong></td>
+                    <td colspan="2" style="text-align: right;"><strong>Shipping ${shippingMethodLabel ? `(${shippingMethodLabel})` : ''}:</strong></td>
                     <td style="text-align: right;">$${orderData.shipping.toFixed(2)}</td>
                 </tr>
                 <tr class="total-row">

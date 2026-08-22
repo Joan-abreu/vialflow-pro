@@ -88,6 +88,7 @@ const SiteSettings = () => {
     const [paypalEnv, setPaypalEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.paypal.environment);
     const [tagadaStoreId, setTagadaStoreId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.storeId);
     const [tagadaPaymentFlowId, setTagadaPaymentFlowId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.paymentFlowId || "");
+    const [tagadaApiKey, setTagadaApiKey] = useState<string>("");
     const [tagadaEnv, setTagadaEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.tagadapay.environment);
     const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
@@ -117,6 +118,7 @@ const SiteSettings = () => {
             const { data, error } = await supabase.functions.invoke("sync-tagada-products", {
                 body: {
                     storeId: tagadaStoreId,
+                    apiKey: tagadaApiKey || undefined,
                 }
             });
 
@@ -130,6 +132,47 @@ const SiteSettings = () => {
             toast.error(err.message || "Failed to sync products with Tagada CRM");
         } finally {
             setIsSyncingTagada(false);
+        }
+    };
+
+    const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false);
+
+    const handleRegisterTagadaWebhook = async () => {
+        if (!tagadaStoreId) {
+            toast.error("Please configure and save a Store ID first.");
+            return;
+        }
+
+        setIsRegisteringWebhook(true);
+
+        try {
+            const { data, error } = await supabase.functions.invoke("sync-tagada-products", {
+                body: {
+                    action: "register_webhook",
+                    storeId: tagadaStoreId,
+                    apiKey: tagadaApiKey || undefined,
+                }
+            });
+
+            if (data?.error || data?.success === false) {
+                throw new Error(data.error || "Failed to register webhook");
+            }
+
+            if (error) {
+                let msg = error.message;
+                try {
+                    const ctx = await error.context?.json();
+                    if (ctx?.error) msg = ctx.error;
+                } catch (_) {}
+                throw new Error(msg);
+            }
+
+            toast.success(data?.message || "Webhook successfully registered in TagadaPay!");
+        } catch (err: any) {
+            console.error("Webhook registration error:", err);
+            toast.error(err.message || "Failed to register webhook in TagadaPay");
+        } finally {
+            setIsRegisteringWebhook(false);
         }
     };
 
@@ -855,7 +898,7 @@ const SiteSettings = () => {
                                             Tokenizes credit cards securely with @tagadapay/core-js and executes charges server-side with dynamic gateway cascading.
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <Label htmlFor="tagadaStoreId" className="text-xs">Store ID</Label>
                                             <Input
@@ -872,6 +915,16 @@ const SiteSettings = () => {
                                                 value={tagadaPaymentFlowId}
                                                 onChange={(e) => setTagadaPaymentFlowId(e.target.value)}
                                                 placeholder="e.g. flow_xyz789 (Optional)"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="tagadaApiKey" className="text-xs">API Key / Access Token (Optional)</Label>
+                                            <Input
+                                                id="tagadaApiKey"
+                                                type="password"
+                                                value={tagadaApiKey}
+                                                onChange={(e) => setTagadaApiKey(e.target.value)}
+                                                placeholder="e.g. tp_sk_live_... (Overrides env secret)"
                                             />
                                         </div>
                                         <div className="space-y-1.5">
@@ -913,6 +966,38 @@ const SiteSettings = () => {
                                                 <>
                                                     <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                                                     Sync Catalog to Tagada
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+
+                                    <div className="p-3 bg-muted/40 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                <ShieldCheck className={`h-3.5 w-3.5 text-emerald-600 ${isRegisteringWebhook ? 'animate-spin' : ''}`} />
+                                                Auto-Register TagadaPay Webhook
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Automatically registers <code>universal-payment-webhook?provider=tagadapay</code> in TagadaPay using stored API key.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            onClick={handleRegisterTagadaWebhook}
+                                            disabled={isRegisteringWebhook || !tagadaStoreId}
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-emerald-600/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 text-xs font-semibold shrink-0"
+                                        >
+                                            {isRegisteringWebhook ? (
+                                                <>
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                                    Registering Webhook...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ShieldCheck className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                                                    Auto-Register Webhook
                                                 </>
                                             )}
                                         </Button>

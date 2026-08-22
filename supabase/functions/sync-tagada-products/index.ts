@@ -58,6 +58,98 @@ serve(async (req) => {
             });
         }
 
+        // 1.5. Handle Auto-Register Webhook
+        if (body.action === "register_webhook") {
+            const webhookUrl = `${supabaseUrl}/functions/v1/universal-payment-webhook?provider=tagadapay`;
+            const candidateEndpoints = [
+                "https://app.tagadapay.com/api/tagadapay/v1/webhook_endpoints",
+                "https://api.tagadapay.io/api/tagadapay/v1/webhook_endpoints",
+                "https://api.tagada.io/api/tagadapay/v1/webhook_endpoints"
+            ];
+
+            let registered = false;
+            let resData: any = {};
+            const attemptLogs: string[] = [];
+
+            const payloadVariants = [
+                {
+                    url: webhookUrl,
+                    mode: "live",
+                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
+                },
+                {
+                    url: webhookUrl,
+                    ownerType: "store",
+                    ownerId: storeId ? storeId.trim() : undefined,
+                    mode: "live",
+                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
+                },
+                {
+                    url: webhookUrl,
+                    ownerType: "partner",
+                    mode: "live",
+                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
+                }
+            ];
+
+            const headerVariants = [
+                { "Authorization": `Bearer ${effectiveApiKey.trim()}`, "Content-Type": "application/json", "Accept": "application/json" },
+                { "x-partner-key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
+                { "x-api-key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
+                { "X-Partner-Key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
+                { "x-store-id": storeId ? storeId.trim() : "", "Authorization": `Bearer ${effectiveApiKey.trim()}`, "Content-Type": "application/json", "Accept": "application/json" }
+            ];
+
+            for (const ep of candidateEndpoints) {
+                if (registered) break;
+                for (const headers of headerVariants) {
+                    if (registered) break;
+                    for (const p of payloadVariants) {
+                        try {
+                            const res = await fetch(ep, {
+                                method: "POST",
+                                headers,
+                                body: JSON.stringify(p)
+                            });
+
+                            resData = await res.json().catch(() => ({}));
+                            if (res.ok || resData.id || resData.url || resData.success || res.status === 200 || res.status === 201) {
+                                registered = true;
+                                break;
+                            } else {
+                                const errStr = JSON.stringify(resData);
+                                attemptLogs.push(`HTTP ${res.status}: ${errStr}`);
+                            }
+                        } catch (e: any) {
+                            attemptLogs.push(`${ep}: ${e.message}`);
+                        }
+                    }
+                }
+            }
+
+            if (registered) {
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: "Webhook registered successfully in TagadaPay!",
+                    webhookUrl,
+                    data: resData
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200
+                });
+            } else {
+                const uniqueLogs = Array.from(new Set(attemptLogs)).slice(0, 3).join(" | ");
+                return new Response(JSON.stringify({
+                    success: false,
+                    error: `TagadaPay Registration Attempt Result: ${uniqueLogs || "No endpoint responded"}`,
+                    webhookUrl
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200
+                });
+            }
+        }
+
         // 2. Fetch all products and their variants from Supabase
         const { data: products, error: prodErr } = await supabase
             .from("products")

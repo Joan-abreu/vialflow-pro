@@ -116,7 +116,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
     tagadapay: {
         storeId: import.meta.env.VITE_TAGADAPAY_STORE_ID || "",
         publicKey: import.meta.env.VITE_TAGADAPAY_PUBLIC_KEY || "",
-        paymentFlowId: "",
+        paymentFlowId: import.meta.env.VITE_TAGADAPAY_PAYMENT_FLOW_ID || "",
         environment: "sandbox",
     },
     authorizenet: {

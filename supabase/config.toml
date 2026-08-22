@@ -32,3 +32,12 @@ verify_jwt = false
 
 [functions.create-square-payment]
 verify_jwt = false
+
+[functions.universal-payment-webhook]
+verify_jwt = false
+
+[functions.process-universal-payment]
+verify_jwt = false
+
+[functions.sync-tagada-products]
+verify_jwt = false

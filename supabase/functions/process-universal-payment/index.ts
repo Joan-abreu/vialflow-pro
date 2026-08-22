@@ -135,14 +135,39 @@ serve(async (req) => {
                 });
             }
 
-            await supabase.from("orders").update({
+            const updatePayload: any = {
                 status: "processing",
                 payment_method: providerName,
                 payment_intent_id: transactionId,
-                applied_coupons,
-                product_discount: productDiscount,
-                shipping_discount: shippingDiscount
-            }).eq("id", orderId);
+            };
+            if (applied_coupons) updatePayload.applied_coupons = applied_coupons;
+            if (productDiscount > 0) updatePayload.product_discount = productDiscount;
+            if (shippingDiscount > 0) updatePayload.shipping_discount = shippingDiscount;
+
+            console.log(`[OrderUpdate] Updating order ${orderId} to 'processing'...`, updatePayload);
+
+            const { data: updatedOrders, error: updateErr } = await supabase
+                .from("orders")
+                .update(updatePayload)
+                .eq("id", orderId)
+                .select();
+
+            if (updateErr) {
+                console.error("❌ Failed to update order status in Supabase DB with full payload:", updateErr);
+                // Fallback minimal update
+                const { error: fallbackErr } = await supabase
+                    .from("orders")
+                    .update({ status: "processing", payment_method: providerName, payment_intent_id: transactionId })
+                    .eq("id", orderId);
+
+                if (fallbackErr) {
+                    console.error("❌ Fallback order status update also failed:", fallbackErr);
+                } else {
+                    console.log("✅ Order status updated to 'processing' via fallback.");
+                }
+            } else {
+                console.log("✅ Order status successfully updated to 'processing' in Supabase DB:", updatedOrders);
+            }
 
             if (applied_coupons && Array.isArray(applied_coupons)) {
                 for (const code of applied_coupons) {
@@ -363,6 +388,7 @@ serve(async (req) => {
                 paymentMethod: "card",
                 initiatedBy: "customer",
                 mode: "purchase",
+                referenceId: orderId,
                 returnUrl: defaultReturnUrl,
                 metadata: {
                     orderId: orderId,

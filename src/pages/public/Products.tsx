@@ -380,7 +380,10 @@ const Products = () => {
                                 <div
                                     key={product.id}
                                     className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full"
-                                    onClick={() => navigate(`/products/${product.slug || product.id}`)}
+                                    onClick={() => navigate(
+                                        `/products/${product.slug || product.id}${selectedCategory ? `?fromCategory=${encodeURIComponent(selectedCategory)}` : ''}`,
+                                        { state: { fromCategory: selectedCategory } }
+                                    )}
                                 >
                                     <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                                         {(() => {

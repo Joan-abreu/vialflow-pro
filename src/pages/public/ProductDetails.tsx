@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import useEmblaCarousel from 'embla-carousel-react';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,8 @@ interface ProductWithVariants {
 const ProductDetails = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const location = useLocation();
     const { addToCart } = useCart();
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number | "">(1);
@@ -502,10 +504,24 @@ const ProductDetails = () => {
                     <meta name="robots" content="noindex, nofollow" />
                 </Helmet>
             )}
-            <Link to="/products" className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Products
-            </Link>
+
+            {(() => {
+                const activeCategory = searchParams.get("fromCategory") || location.state?.fromCategory || product?.category;
+                const categoryBackUrl = activeCategory ? `/products?category=${encodeURIComponent(activeCategory)}` : "/products";
+                
+                return (
+                    <Link to={categoryBackUrl} className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors text-sm font-medium">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        <span>Back to Products</span>
+                        {activeCategory && (
+                            <>
+                                <span className="mx-1.5 text-muted-foreground/50">/</span>
+                                <span className="font-bold text-foreground hover:text-primary transition-colors">{activeCategory}</span>
+                            </>
+                        )}
+                    </Link>
+                );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
                 {/* Product Image */}
@@ -557,9 +573,12 @@ const ProductDetails = () => {
                 <div className="flex flex-col justify-center space-y-8">
                     <div>
                         {product.category && (
-                            <div className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium mb-4">
+                            <Link 
+                                to={`/products?category=${encodeURIComponent(product.category)}`}
+                                className="inline-block px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium mb-4 transition-colors cursor-pointer"
+                            >
                                 {product.category}
-                            </div>
+                            </Link>
                         )}
                         <h1 className={`${
                             product.name.length > 70 

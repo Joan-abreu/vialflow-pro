@@ -1,7 +1,8 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles } from "lucide-react";
+import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles, Search } from "lucide-react";
 import { useState, useEffect } from "react";
+import GlobalSearchModal from "@/components/public/GlobalSearchModal";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -75,6 +76,7 @@ const PublicLayoutContent = () => {
     const { session } = useAuth();
     const user = session?.user ?? null;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
     const [showPeptideBanner, setShowPeptideBanner] = useState(true);
@@ -107,6 +109,17 @@ const PublicLayoutContent = () => {
 
         checkAdmin();
     }, [user]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+                e.preventDefault();
+                setIsSearchOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     useEffect(() => {
         const checkWaterRoute = async () => {
@@ -222,7 +235,18 @@ const PublicLayoutContent = () => {
                         </nav>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsSearchOpen(true)}
+                            className="relative hover:bg-primary/10 hover:text-primary transition-all duration-200"
+                            title="Search products (Ctrl+K or ⌘K)"
+                        >
+                            <Search className="h-5 w-5" />
+                            <span className="sr-only">Search</span>
+                        </Button>
+
                         <CartIcon />
 
                         {user ? (
@@ -295,6 +319,16 @@ const PublicLayoutContent = () => {
                                     <Link to="/contact" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Contact
                                     </Link>
+                                    <button 
+                                        onClick={() => {
+                                            setMobileMenuOpen(false);
+                                            setIsSearchOpen(true);
+                                        }} 
+                                        className="text-lg font-semibold text-left flex items-center gap-2 text-primary"
+                                    >
+                                        <Search className="h-5 w-5" />
+                                        <span>Search Catalog</span>
+                                    </button>
                                     <Link to="/cart" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Cart
                                     </Link>
@@ -322,6 +356,8 @@ const PublicLayoutContent = () => {
                         </Sheet>
                     </div>
                 </div>
+
+                <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
             </header>
 
             <main className="flex-1">

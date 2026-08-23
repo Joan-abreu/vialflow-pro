@@ -284,7 +284,7 @@ const Cart = () => {
                                 </Button>
                             )}
                             <p className="text-xs text-muted-foreground text-center mt-4">
-                                Secure checkout powered by Square
+                                Secure checkout powered by TagadaPay
                             </p>
                         </div>
                     </div>

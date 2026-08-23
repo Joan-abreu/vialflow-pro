@@ -49,7 +49,7 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
                 .select(`
                     id, slug, name, description, image_url, images, is_private,
                     product_categories(name),
-                    variants:product_variants(id, price, vial_type:vial_types(name))
+                    variants:product_variants(id, price, image_url, images, vial_type:vial_types(name))
                 `)
                 .eq("is_published", true)
                 .order("position", { ascending: true });
@@ -177,7 +177,8 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
                                         const categoryName = (product.product_categories as any)?.name;
                                         const displayImage = product.image_url ||
                                             (product.images && product.images.length > 0 ? product.images[0] : null) ||
-                                            product.variants?.[0]?.image_url;
+                                            product.variants?.find((v: any) => (v.images && v.images.length > 0) || v.image_url)?.images?.[0] ||
+                                            product.variants?.find((v: any) => v.image_url)?.image_url;
 
                                         // Calculate lowest price
                                         const prices = product.variants?.map((v: any) => v.price).filter((p: number) => p > 0) || [];
@@ -221,7 +222,9 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
                                                 <div className="flex items-center gap-3 shrink-0">
                                                     {lowestPrice > 0 && (
                                                         <div className="text-right">
-                                                            <span className="text-[10px] text-muted-foreground block font-medium">Starting at</span>
+                                                            {product.variants && product.variants.length > 1 && (
+                                                                <span className="text-[10px] text-muted-foreground block font-medium">Starting at</span>
+                                                            )}
                                                             <span className="text-base font-bold text-foreground">
                                                                 ${lowestPrice.toFixed(2)}
                                                             </span>

@@ -40,14 +40,18 @@ const Products = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const categoryParam = searchParams.get("category");
-    const [searchQuery, setSearchQuery] = useState("");
+    const searchUrlParam = searchParams.get("search");
+    const [searchQuery, setSearchQuery] = useState(searchUrlParam || "");
     const [selectedCategory, setSelectedCategory] = useState<string | null>(categoryParam || null);
     const [sortBy, setSortBy] = useState<string>("featured");
     const { addToCart } = useCart();
 
     useEffect(() => {
         setSelectedCategory(categoryParam || null);
-    }, [categoryParam]);
+        if (searchUrlParam !== null) {
+            setSearchQuery(searchUrlParam);
+        }
+    }, [categoryParam, searchUrlParam]);
 
     const { data: userVipStatus } = useQuery({
         queryKey: ["user-vip-status"],
@@ -179,7 +183,19 @@ const Products = () => {
     });
 
     const filteredProducts = productsWithVariants?.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const q = searchQuery.trim().toLowerCase();
+        let matchesSearch = true;
+        if (q) {
+            const inName = product.name?.toLowerCase().includes(q);
+            const inDesc = product.description?.toLowerCase().includes(q);
+            const inCat = product.category?.toLowerCase().includes(q);
+            const inVariants = product.variants?.some((v: any) => 
+                v.sku?.toLowerCase().includes(q) || 
+                v.vial_type?.name?.toLowerCase().includes(q)
+            );
+            matchesSearch = Boolean(inName || inDesc || inCat || inVariants);
+        }
+
         const targetCategory = selectedCategory?.toLowerCase();
         const productCategory = product.category?.toLowerCase() || "";
         const productName = product.name?.toLowerCase() || "";

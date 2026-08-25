@@ -1,4 +1,6 @@
 import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "@/contexts/CartContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,9 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
     disabledReason,
     onTokenized
 }) => {
+    const navigate = useNavigate();
+    const { clearCart } = useCart();
+
     const cardInputRef = useRef<HTMLInputElement>(null);
     const expInputRef = useRef<HTMLInputElement>(null);
     const cvvInputRef = useRef<HTMLInputElement>(null);
@@ -257,7 +262,13 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
             // 3. Process payment through universal edge function
             const paymentRes = await onTokenized(finalTagadaToken, finalRawToken);
 
-            // 4. If 3DS challenge is required by issuer:
+            // 4. If redirect is required (e.g. APM or Hosted 3DS):
+            if (paymentRes?.requireAction === "redirect" && paymentRes?.requireActionData?.redirectUrl) {
+                window.location.href = paymentRes.requireActionData.redirectUrl;
+                return;
+            }
+
+            // 5. If 3DS challenge is required by issuer:
             if (paymentRes?.requireAction === "threeds_auth" && paymentRes?.requireActionData?.metadata?.threedsSession) {
                 setThreedsActive(true);
                 const threedsSession = paymentRes.requireActionData.metadata.threedsSession;
@@ -274,6 +285,12 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
 
                 if (!challengeResult.success) {
                     throw new Error("3D Secure verification was cancelled or unsuccessful. Please try again.");
+                }
+
+                clearCart();
+                toast.success("Payment verified successfully! Your order has been placed.");
+                if (paymentRes.orderId) {
+                    navigate(`/order-confirmation/${paymentRes.orderId}`);
                 }
             }
 

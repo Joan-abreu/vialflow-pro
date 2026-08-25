@@ -857,8 +857,8 @@ const UniversalCheckout = ({
                 throw new Error(result.error || "Payment failed");
             }
 
-            if (result.requireAction === "threeds_auth") {
-                return result;
+            if (result.requireAction === "threeds_auth" || result.requireAction === "redirect") {
+                return { ...result, orderId };
             }
 
             clearCart();

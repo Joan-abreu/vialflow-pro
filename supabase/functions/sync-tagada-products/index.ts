@@ -62,42 +62,41 @@ serve(async (req) => {
         if (body.action === "register_webhook") {
             const webhookUrl = `${supabaseUrl}/functions/v1/universal-payment-webhook?provider=tagadapay`;
             const candidateEndpoints = [
-                "https://app.tagadapay.com/api/tagadapay/v1/webhook_endpoints",
-                "https://api.tagadapay.io/api/tagadapay/v1/webhook_endpoints",
-                "https://api.tagada.io/api/tagadapay/v1/webhook_endpoints"
+                "https://api.tagada.io/api/public/v1/webhooks",
+                "https://api.tagadapay.io/api/public/v1/webhooks",
+                "https://api.tagadapay.io/v1/webhook_endpoints",
+                "https://api.tagadapay.io/api/tagadapay/v1/webhook_endpoints"
             ];
 
             let registered = false;
             let resData: any = {};
             const attemptLogs: string[] = [];
 
+            const eventTypesSlash = [
+                "order/paid",
+                "order/created",
+                "order/refunded",
+                "order/failed",
+                "payment/succeeded",
+                "payment/failed",
+                "payment/refunded",
+                "payment/authorized",
+                "payment/rejected"
+            ];
+
             const payloadVariants = [
                 {
+                    storeId: storeId ? storeId.trim() : "store_54e87407e4ed",
                     url: webhookUrl,
-                    mode: "live",
-                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
-                },
-                {
-                    url: webhookUrl,
-                    ownerType: "store",
-                    ownerId: storeId ? storeId.trim() : undefined,
-                    mode: "live",
-                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
-                },
-                {
-                    url: webhookUrl,
-                    ownerType: "partner",
-                    mode: "live",
-                    enabledEvents: ["payment.succeeded", "payment.created", "payment.updated", "payment.refunded", "dispute.created"]
+                    eventTypes: eventTypesSlash,
+                    description: "Liv Well Production Webhook"
                 }
             ];
 
             const headerVariants = [
                 { "Authorization": `Bearer ${effectiveApiKey.trim()}`, "Content-Type": "application/json", "Accept": "application/json" },
                 { "x-partner-key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
-                { "x-api-key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
-                { "X-Partner-Key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" },
-                { "x-store-id": storeId ? storeId.trim() : "", "Authorization": `Bearer ${effectiveApiKey.trim()}`, "Content-Type": "application/json", "Accept": "application/json" }
+                { "x-api-key": effectiveApiKey.trim(), "Content-Type": "application/json", "Accept": "application/json" }
             ];
 
             for (const ep of candidateEndpoints) {
@@ -113,12 +112,12 @@ serve(async (req) => {
                             });
 
                             resData = await res.json().catch(() => ({}));
-                            if (res.ok || resData.id || resData.url || resData.success || res.status === 200 || res.status === 201) {
+                            if (res.ok || resData.id || resData.url || resData.signingSecret || resData.success || res.status === 200 || res.status === 201) {
                                 registered = true;
                                 break;
                             } else {
                                 const errStr = JSON.stringify(resData);
-                                attemptLogs.push(`HTTP ${res.status}: ${errStr}`);
+                                attemptLogs.push(`HTTP ${res.status} [${ep}]: ${errStr}`);
                             }
                         } catch (e: any) {
                             attemptLogs.push(`${ep}: ${e.message}`);

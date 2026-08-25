@@ -17,7 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check } from "lucide-react";
 
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
@@ -89,6 +89,8 @@ const SiteSettings = () => {
     const [tagadaStoreId, setTagadaStoreId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.storeId);
     const [tagadaPaymentFlowId, setTagadaPaymentFlowId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.tagadapay.paymentFlowId || "");
     const [tagadaApiKey, setTagadaApiKey] = useState<string>("");
+    const [showTagadaApiKey, setShowTagadaApiKey] = useState<boolean>(false);
+    const [copiedApiKey, setCopiedApiKey] = useState<boolean>(false);
     const [tagadaEnv, setTagadaEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.tagadapay.environment);
     const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
@@ -356,6 +358,7 @@ const SiteSettings = () => {
                         const tg = JSON.parse(tagadaCfg.value);
                         if (tg.storeId) setTagadaStoreId(tg.storeId);
                         if (tg.paymentFlowId !== undefined) setTagadaPaymentFlowId(tg.paymentFlowId);
+                        if (tg.apiKey) setTagadaApiKey(tg.apiKey);
                         if (tg.environment) setTagadaEnv(tg.environment);
                     } catch (e) {}
                 }
@@ -537,6 +540,7 @@ const SiteSettings = () => {
             const tagadapayConfig = JSON.stringify({
                 storeId: tagadaStoreId,
                 paymentFlowId: tagadaPaymentFlowId,
+                apiKey: tagadaApiKey,
                 environment: tagadaEnv
             });
 
@@ -918,14 +922,53 @@ const SiteSettings = () => {
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="tagadaApiKey" className="text-xs">API Key / Access Token (Optional)</Label>
-                                            <Input
-                                                id="tagadaApiKey"
-                                                type="password"
-                                                value={tagadaApiKey}
-                                                onChange={(e) => setTagadaApiKey(e.target.value)}
-                                                placeholder="e.g. tp_sk_live_... (Overrides env secret)"
-                                            />
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="tagadaApiKey" className="text-xs">API Key / Access Token (Optional)</Label>
+                                                {tagadaApiKey && (
+                                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                                        <Check className="h-3 w-3" /> Configured
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative flex items-center">
+                                                <Input
+                                                    id="tagadaApiKey"
+                                                    type={showTagadaApiKey ? "text" : "password"}
+                                                    value={tagadaApiKey}
+                                                    onChange={(e) => setTagadaApiKey(e.target.value)}
+                                                    placeholder="e.g. sk_crm_... or tp_sk_live_..."
+                                                    className="pr-16 font-mono text-xs"
+                                                />
+                                                <div className="absolute right-1 flex items-center gap-0.5">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                        onClick={() => setShowTagadaApiKey(!showTagadaApiKey)}
+                                                        title={showTagadaApiKey ? "Hide API Key" : "Show API Key"}
+                                                    >
+                                                        {showTagadaApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                    {tagadaApiKey && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(tagadaApiKey);
+                                                                setCopiedApiKey(true);
+                                                                toast.success("API key copied to clipboard!");
+                                                                setTimeout(() => setCopiedApiKey(false), 2000);
+                                                            }}
+                                                            title="Copy API Key"
+                                                        >
+                                                            {copiedApiKey ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="space-y-1.5">
                                             <Label htmlFor="tagadaEnv" className="text-xs">Tagada Environment</Label>

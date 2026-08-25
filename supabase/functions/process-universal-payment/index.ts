@@ -339,10 +339,11 @@ serve(async (req) => {
                 throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY).");
             }
 
-            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagada.io/api/public/v1";
+            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagadapay.io/api/public/v1";
             const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
 
             let paymentInstrumentId = sourceId;
+            let tagadaCustomerId: string | undefined = undefined;
 
             // If sourceId is a base64 TagadaToken, create the payment instrument first
             if (sourceId && (sourceId.startsWith("ey") || sourceId.length > 50)) {
@@ -374,6 +375,7 @@ serve(async (req) => {
                 }
 
                 paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
+                tagadaCustomerId = instrumentData.customer?.id || instrumentData.customerId;
             }
 
             const defaultReturnUrl = (body.returnUrl && !body.returnUrl.includes("localhost") && !body.returnUrl.includes("127.0.0.1"))
@@ -386,7 +388,6 @@ serve(async (req) => {
                 storeId: storeId,
                 paymentInstrumentId: paymentInstrumentId,
                 paymentMethod: "card",
-                initiatedBy: "customer",
                 mode: "purchase",
                 referenceId: orderId,
                 returnUrl: defaultReturnUrl,
@@ -395,6 +396,10 @@ serve(async (req) => {
                     customerEmail: customerEmail
                 }
             };
+
+            if (tagadaCustomerId) {
+                processPayload.customerId = tagadaCustomerId;
+            }
 
             const effectivePaymentFlowId = paymentFlowId || Deno.env.get("TAGADAPAY_PAYMENT_FLOW_ID");
             if (effectivePaymentFlowId) {
@@ -415,30 +420,56 @@ serve(async (req) => {
 
             const payData = await payRes.json();
             console.log("👈 [TagadaPay] Received Process Response:", JSON.stringify(payData, null, 2));
-            const payment = payData.payment || payData;
+            const payment = payData.payment || payData.data || payData;
 
-            const statusLower = String(payment.status || "").toLowerCase();
-            const isSuccessStatus = ["succeeded", "completed", "paid", "approved", "success", "captured"].includes(statusLower);
+            const statusLower = String(
+                payment.status || 
+                payData.status || 
+                payment.latest_charge?.status || 
+                payData.latest_charge?.status || 
+                ""
+            ).toLowerCase();
 
-            if (payRes.ok && isSuccessStatus) {
-                await completeSuccessfulOrder("tagadapay", payment.id || "");
+            const isSuccessStatus = 
+                payRes.ok && (
+                    ["succeeded", "completed", "paid", "approved", "success", "captured", "authorized", "processing"].includes(statusLower) ||
+                    payment.paid === true ||
+                    payData.paid === true ||
+                    payment.latest_charge?.paid === true ||
+                    payment.latest_charge?.captured === true ||
+                    payment.outcome?.seller_message === "Payment complete." ||
+                    payData.outcome?.seller_message === "Payment complete."
+                );
+
+            const resolvedPaymentId = 
+                payment.id || 
+                payData.id || 
+                payment.latest_charge?.id || 
+                payData.latest_charge?.id || 
+                payment.metadata?.payment_id || 
+                "";
+
+            if (isSuccessStatus) {
+                await completeSuccessfulOrder("tagadapay", resolvedPaymentId);
                 return new Response(JSON.stringify({
                     success: true,
                     status: "COMPLETED",
                     provider: "tagadapay",
-                    paymentId: payment.id,
+                    paymentId: resolvedPaymentId,
+                    orderId: orderId
                 }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                     status: 200,
                 });
-            } else if (payRes.ok && payment.requireAction === "threeds_auth") {
+            } else if (payRes.ok && (payment.requireAction === "threeds_auth" || payment.requireAction === "redirect")) {
                 return new Response(JSON.stringify({
                     success: false,
                     status: "PENDING_3DS",
                     provider: "tagadapay",
-                    requireAction: "threeds_auth",
+                    requireAction: payment.requireAction,
                     requireActionData: payment.requireActionData || payment,
-                    paymentId: payment.id
+                    paymentId: resolvedPaymentId,
+                    orderId: orderId
                 }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                     status: 200,

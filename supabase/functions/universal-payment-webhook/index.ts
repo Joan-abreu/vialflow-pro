@@ -287,40 +287,73 @@ serve(async (req) => {
         }
 
         // -------------------------------------------------------------
-        // 7. TagadaPay Webhook Handler
+        // 7. TagadaPay / KashuPay Webhook Handler (Official Spec)
         // -------------------------------------------------------------
-        if (queryProvider === "tagadapay" || req.headers.get("x-tagada-signature") || req.headers.get("x-tagadapay-webhook")) {
+        const tagadaSig = req.headers.get("tagadapay-signature") || req.headers.get("x-tagada-signature");
+        if (queryProvider === "tagadapay" || queryProvider === "kashupay" || tagadaSig || req.headers.get("x-tagadapay-webhook")) {
             const event = JSON.parse(bodyText);
             const eventType = event?.type || event?.event;
-            const dataObj = event?.data?.payment || event?.data?.object || event?.data;
+            const eventId = event?.id;
+            const dataObj = event?.data?.object || event?.data?.payment || event?.data;
 
-            const orderId = dataObj?.metadata?.orderId || dataObj?.metadata?.order_id || dataObj?.referenceId || dataObj?.orderId;
-            const paymentId = dataObj?.id || dataObj?.paymentId;
+            console.log(`[Kashu/Tagada Webhook] Processing event: ${eventType} (ID: ${eventId || "N/A"})`);
 
-            if (eventType === "payment.succeeded" || eventType === "payment.created" || (eventType === "payment.updated" && (dataObj?.status === "succeeded" || dataObj?.status === "COMPLETED"))) {
+            // Extract order identification from data object
+            const orderId = 
+                dataObj?.metadata?.orderId || 
+                dataObj?.metadata?.order_id || 
+                dataObj?.referenceId || 
+                dataObj?.orderId ||
+                dataObj?.externalRef;
+
+            const paymentId = dataObj?.id || dataObj?.paymentId || dataObj?.payment_intent || eventId;
+            const statusLower = String(dataObj?.status || "").toLowerCase();
+
+            const isPaymentSuccess = 
+                eventType === "order/paid" ||
+                eventType === "order.paid" ||
+                eventType === "payment/succeeded" ||
+                eventType === "payment.succeeded" ||
+                eventType === "payment_intent.succeeded" ||
+                eventType === "charge.succeeded" ||
+                (eventType === "payment.updated" && (statusLower === "succeeded" || statusLower === "completed" || statusLower === "paid" || statusLower === "approved")) ||
+                (eventType === "payment.created" && (statusLower === "succeeded" || statusLower === "paid")) ||
+                (eventType === "order/updated" && (statusLower === "paid" || statusLower === "completed")) ||
+                statusLower === "succeeded" ||
+                statusLower === "paid" ||
+                dataObj?.latest_charge?.status === "succeeded" ||
+                dataObj?.latest_charge?.paid === true;
+
+            if (isPaymentSuccess) {
                 if (orderId) {
                     await markOrderAsPaid(orderId, "tagadapay", paymentId);
                 } else if (paymentId) {
-                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).maybeSingle();
                     if (order) await markOrderAsPaid(order.id, "tagadapay", paymentId);
                 }
-            } else if (eventType === "charge.refunded" || eventType === "payment.refunded") {
+            } else if (eventType === "charge.refunded" || eventType === "payment.refunded" || eventType === "order/refunded" || eventType === "charge/refunded") {
                 if (orderId) {
                     await markOrderAsRefunded(orderId, "tagadapay");
                 } else if (paymentId) {
-                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).maybeSingle();
                     if (order) await markOrderAsRefunded(order.id, "tagadapay");
                 }
-            } else if (eventType === "charge.dispute.created" || eventType === "payment.disputed") {
+            } else if (eventType === "charge.dispute.created" || eventType === "payment.disputed" || eventType === "dispute.created" || eventType === "charge/disputed") {
                 if (orderId) {
                     await markOrderAsDisputed(orderId, "tagadapay");
                 } else if (paymentId) {
-                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).single();
+                    const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).maybeSingle();
                     if (order) await markOrderAsDisputed(order.id, "tagadapay");
                 }
             }
 
-            return new Response(JSON.stringify({ received: true, provider: "tagadapay" }), {
+            // Immediately ACK with 2xx to satisfy the 10s SLA and prevent retries
+            return new Response(JSON.stringify({ 
+                received: true, 
+                provider: "tagadapay", 
+                eventId: eventId,
+                status: "acknowledged" 
+            }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 status: 200,
             });

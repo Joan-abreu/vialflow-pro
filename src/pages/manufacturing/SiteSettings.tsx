@@ -217,32 +217,6 @@ const SiteSettings = () => {
         }
     };
 
-    const handleSaveInventorySettings = async () => {
-        setSavingInventorySettings(true);
-        try {
-            const settingsToSave = [
-                { key: "enable_strict_stock_enforcement", value: String(enableStrictStockEnforcement) },
-                { key: "enable_restock_notifications", value: String(enableRestockNotifications) },
-                { key: "restock_lead_time_days", value: String(restockLeadTimeDays) },
-                { key: "restock_discount_percent", value: String(restockDiscountPercent) },
-                { key: "restock_coupon_code", value: restockCouponCode }
-            ];
-
-            for (const setting of settingsToSave) {
-                await supabase
-                    .from("app_settings" as any)
-                    .upsert(setting, { onConflict: "key" });
-            }
-
-            toast.success("Inventory & Restock System settings saved successfully!");
-        } catch (e: any) {
-            console.error("Save inventory settings error:", e);
-            toast.error(e.message || "Failed to save inventory settings.");
-        } finally {
-            setSavingInventorySettings(false);
-        }
-    };
-
     useEffect(() => {
         fetchSettings();
     }, []);

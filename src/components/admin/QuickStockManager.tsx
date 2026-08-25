@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Search, Package, Save, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, Bell, Loader2, RefreshCw, ArrowDownCircle, Trash2, ClipboardList, FilePlus, ChevronsUpDown, History, Eye, Calendar, FileText, Edit3, RotateCcw } from "lucide-react";
+import { Search, Package, Save, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, Bell, Loader2, RefreshCw, ArrowDownCircle, Trash2, ClipboardList, FilePlus, ChevronsUpDown, History, Eye, Calendar, FileText, Edit3, RotateCcw, Mail } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
     Dialog,
@@ -95,6 +95,11 @@ export default function QuickStockManager() {
     const [editingInboundLogId, setEditingInboundLogId] = useState<string | null>(null);
     const [deletingInboundLogId, setDeletingInboundLogId] = useState<string | null>(null);
     const [logToRevert, setLogToRevert] = useState<any | null>(null);
+
+    // Waitlist Details Modal State
+    const [viewingWaitlistVariant, setViewingWaitlistVariant] = useState<VariantStockRow | null>(null);
+    const [waitlistCustomers, setWaitlistCustomers] = useState<any[]>([]);
+    const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(false);
 
     // Fetch variants & restock waitlist counts
     const { data: stockItems = [], isLoading, refetch } = useQuery({
@@ -195,6 +200,42 @@ export default function QuickStockManager() {
             toast.error(err.message || "Failed to send restock emails.");
         } finally {
             setNotifyingId(null);
+        }
+    };
+
+    const handleOpenWaitlistModal = async (item: VariantStockRow) => {
+        setViewingWaitlistVariant(item);
+        setIsLoadingWaitlist(true);
+        try {
+            const { data, error } = await supabase
+                .from("restock_notifications" as any)
+                .select("*")
+                .eq("variant_id", item.id)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            setWaitlistCustomers(data || []);
+        } catch (err: any) {
+            console.error("Fetch waitlist error:", err);
+            toast.error("Failed to load waitlist customers.");
+        } finally {
+            setIsLoadingWaitlist(false);
+        }
+    };
+
+    const handleRemoveWaitlistCustomer = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from("restock_notifications" as any)
+                .delete()
+                .eq("id", id);
+
+            if (error) throw error;
+            toast.success("Customer removed from waitlist.");
+            setWaitlistCustomers(prev => prev.filter(c => c.id !== id));
+            refetch();
+        } catch (err: any) {
+            toast.error("Failed to remove customer.");
         }
     };
 
@@ -683,12 +724,24 @@ export default function QuickStockManager() {
                                         {/* Restock Waitlist Count */}
                                         <TableCell className="py-2 text-center">
                                             {item.pending_restock_count > 0 ? (
-                                                <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 font-bold text-[10px] gap-1 px-1.5 py-0.5">
+                                                <Badge 
+                                                    onClick={() => handleOpenWaitlistModal(item)}
+                                                    className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 border-purple-500/20 font-bold text-[10px] gap-1 px-1.5 py-0.5 cursor-pointer transition-all hover:scale-105"
+                                                    title="Click to view waitlisted customers"
+                                                >
                                                     <Bell className="h-3 w-3 animate-bounce" />
                                                     {item.pending_restock_count}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-xs text-muted-foreground">—</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleOpenWaitlistModal(item)}
+                                                    className="h-6 text-[10px] text-muted-foreground hover:text-foreground px-1 font-normal"
+                                                    title="View restock subscriber history"
+                                                >
+                                                    — (View)
+                                                </Button>
                                             )}
                                         </TableCell>
 
@@ -1216,6 +1269,113 @@ export default function QuickStockManager() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Modal for Viewing Restock Waitlist Customers */}
+            <Dialog open={!!viewingWaitlistVariant} onOpenChange={(open) => !open && setViewingWaitlistVariant(null)}>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                            <Bell className="h-5 w-5" />
+                            Restock Waitlist: {viewingWaitlistVariant?.product_name} ({viewingWaitlistVariant?.vial_type_name})
+                        </DialogTitle>
+                        <DialogDescription>
+                            Customers who subscribed to be notified when this item is replenished.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {viewingWaitlistVariant && (
+                        <div className="space-y-4 py-2">
+                            {/* Summary Bar */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 bg-purple-500/5 p-3 rounded-lg border border-purple-500/20 text-xs">
+                                <div>
+                                    <span className="text-muted-foreground block">Product SKU:</span>
+                                    <span className="font-mono font-bold">{viewingWaitlistVariant.sku}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Current Stock:</span>
+                                    <span className="font-bold">{viewingWaitlistVariant.stock_quantity} units</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Total Subscribers:</span>
+                                    <span className="font-bold text-purple-700 dark:text-purple-300">{waitlistCustomers.length} customer(s)</span>
+                                </div>
+                            </div>
+
+                            {/* Subscribers Table */}
+                            <div className="border rounded-lg overflow-hidden bg-card">
+                                <Table>
+                                    <TableHeader className="bg-muted/50">
+                                        <TableRow>
+                                            <TableHead className="text-xs">Customer Email</TableHead>
+                                            <TableHead className="text-xs">Date Subscribed</TableHead>
+                                            <TableHead className="text-xs">Offer Code</TableHead>
+                                            <TableHead className="text-xs text-center">Status</TableHead>
+                                            <TableHead className="text-xs text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoadingWaitlist ? (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+                                                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
+                                                    Loading waitlist subscribers...
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : waitlistCustomers.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+                                                    No customer subscriptions found for this product variant.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            waitlistCustomers.map((cust) => (
+                                                <TableRow key={cust.id} className="hover:bg-muted/30">
+                                                    <TableCell className="font-semibold text-xs py-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                            <span className="truncate">{cust.email}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-muted-foreground py-2 whitespace-nowrap">
+                                                        {cust.created_at ? format(new Date(cust.created_at), "MMM dd, yyyy HH:mm") : "—"}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs font-mono py-2">
+                                                        <Badge variant="outline" className="text-[10px]">
+                                                            {cust.discount_offered || "RESTOCK40"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-center py-2">
+                                                        {cust.status === "notified" ? (
+                                                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+                                                                Notified {cust.notified_at ? `(${format(new Date(cust.notified_at), "MMM dd")})` : ""}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold text-[10px]">
+                                                                Pending
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right py-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleRemoveWaitlistCustomer(cust.id)}
+                                                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                                            title="Remove from waitlist"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

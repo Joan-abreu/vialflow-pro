@@ -81,10 +81,13 @@ serve(async (req) => {
         if (!existingCoupon) {
             await supabase.from("coupons").insert({
                 code: couponCode.toUpperCase(),
-                discount_percent: Number(discountPercent),
+                type: "percentage",
+                value: Number(discountPercent),
                 is_active: true,
-                max_redemptions: 1000,
-                redemptions_count: 0
+                max_uses: 1000,
+                times_used: 0,
+                one_use_per_user: true,
+                target: "all"
             });
         }
 

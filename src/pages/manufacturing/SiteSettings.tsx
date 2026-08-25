@@ -687,6 +687,68 @@ const SiteSettings = () => {
         }
     };
 
+    const handleSaveInventorySettings = async () => {
+        setSavingInventorySettings(true);
+        const now = new Date().toISOString();
+        const cleanCode = restockCouponCode.trim().toUpperCase();
+
+        try {
+            const updates = [
+                { key: "enable_strict_stock_enforcement", value: String(enableStrictStockEnforcement), updated_at: now },
+                { key: "enable_restock_notifications", value: String(enableRestockNotifications), updated_at: now },
+                { key: "restock_lead_time_days", value: String(restockLeadTimeDays), updated_at: now },
+                { key: "restock_discount_percent", value: String(restockDiscountPercent), updated_at: now },
+                { key: "restock_coupon_code", value: cleanCode, updated_at: now },
+            ];
+
+            for (const item of updates) {
+                const { error } = await supabase
+                    .from("app_settings" as any)
+                    .upsert(item);
+                if (error) throw error;
+            }
+
+            // Ensure Restock Coupon exists in coupons table
+            if (cleanCode) {
+                const { data: existingCoupon } = await supabase
+                    .from("coupons")
+                    .select("id")
+                    .eq("code", cleanCode)
+                    .maybeSingle();
+
+                if (!existingCoupon) {
+                    await supabase.from("coupons").insert({
+                        code: cleanCode,
+                        type: "percentage",
+                        value: Number(restockDiscountPercent),
+                        is_active: true,
+                        max_uses: 1000,
+                        times_used: 0,
+                        one_use_per_user: true,
+                        target: "all"
+                    });
+                } else {
+                    await supabase
+                        .from("coupons")
+                        .update({
+                            value: Number(restockDiscountPercent),
+                            is_active: true,
+                            one_use_per_user: true
+                        })
+                        .eq("id", existingCoupon.id);
+                }
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['coupons'] });
+            toast.success(`Inventory & Restock settings saved successfully! Coupon ${cleanCode} (${restockDiscountPercent}% OFF) is active.`);
+        } catch (error: any) {
+            console.error("Error saving inventory settings:", error);
+            toast.error("Failed to save inventory settings");
+        } finally {
+            setSavingInventorySettings(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex h-[50vh] items-center justify-center">

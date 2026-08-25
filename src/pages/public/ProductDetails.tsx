@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus, ArrowRight, Sparkles, Bell } from "lucide-react";
+import RestockNotificationModal from "@/components/public/RestockNotificationModal";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
@@ -47,6 +48,31 @@ const ProductDetails = () => {
     const [customLabelImageUrl, setCustomLabelImageUrl] = useState<string | null>(null);
     const [customLabelInstructions, setCustomLabelInstructions] = useState<string>("");
     const [labelUploading, setLabelUploading] = useState(false);
+    const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+
+    // Fetch stock enforcement settings
+    const { data: stockSettings } = useQuery({
+        queryKey: ["app-settings-stock-control"],
+        staleTime: 60000,
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("app_settings" as any)
+                .select("key, value")
+                .in("key", ["enable_strict_stock_enforcement", "enable_restock_notifications"]);
+
+            const map = {
+                enable_strict_stock_enforcement: true,
+                enable_restock_notifications: true
+            };
+            if (data && Array.isArray(data)) {
+                data.forEach((s: any) => {
+                    if (s.key === "enable_strict_stock_enforcement") map.enable_strict_stock_enforcement = s.value === "true";
+                    if (s.key === "enable_restock_notifications") map.enable_restock_notifications = s.value === "true";
+                });
+            }
+            return map;
+        }
+    });
 
     const handleLabelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -813,13 +839,23 @@ const ProductDetails = () => {
                                             }
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val)) {
+                                                const maxStock = selectedVariant?.stock_quantity ?? 999;
+                                                if (maxStock > 0 && val > maxStock) {
+                                                    toast.error(`Only ${maxStock} units available in stock.`);
+                                                    setQuantity(maxStock);
+                                                    return;
+                                                }
                                                 setQuantity(val);
                                             }
                                         }}
                                         onBlur={() => {
                                             const minLimit = (selectedVariant?.bulk_only) ? (selectedVariant.bulk_min_qty || 100) : (isBulk ? (selectedVariant.bulk_min_qty || 100) : 1);
+                                            const maxStock = selectedVariant?.stock_quantity ?? 999;
                                             if (quantity === "" || quantity < minLimit) {
-                                                setQuantity(minLimit);
+                                                setQuantity(Math.min(minLimit, maxStock));
+                                            } else if (maxStock > 0 && quantity > maxStock) {
+                                                toast.error(`Only ${maxStock} units available in stock.`);
+                                                setQuantity(maxStock);
                                             }
                                         }}
                                         className="w-24 px-1 h-12 text-center text-lg font-medium border-0 rounded-none focus-visible:ring-0"
@@ -830,6 +866,11 @@ const ProductDetails = () => {
                                         className="h-12 w-12 rounded-none"
                                         onClick={() => {
                                             const currentVal = quantity === "" ? 0 : quantity;
+                                            const maxStock = selectedVariant?.stock_quantity ?? 999;
+                                            if (maxStock > 0 && currentVal + 1 > maxStock) {
+                                                toast.error(`Only ${maxStock} units available in stock.`);
+                                                return;
+                                            }
                                             setQuantity(currentVal + 1);
                                         }}
                                     >
@@ -844,25 +885,63 @@ const ProductDetails = () => {
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <Button
-                                variant="outline"
-                                className="flex-1 h-14 text-lg font-semibold border-primary text-primary hover:bg-primary/5"
-                                onClick={handleAddToCart}
-                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
-                            >
-                                <ShoppingCart className="mr-2 h-5 w-5" />
-                                {selectedVariant?.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                            </Button>
-                            <Button
-                                className="flex-1 h-14 text-lg font-semibold"
-                                onClick={handleBuyNow}
-                                disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
-                            >
-                                Buy Now
-                            </Button>
-                        </div>
+                        {/* Action Buttons & Stock Logic */}
+                        {(() => {
+                            const isStrictStock = stockSettings?.enable_strict_stock_enforcement ?? true;
+                            const isRestockNotify = stockSettings?.enable_restock_notifications ?? true;
+                            const isOutOfStock = isStrictStock && selectedVariant && selectedVariant.stock_quantity <= 0;
+
+                            if (isOutOfStock) {
+                                return isRestockNotify ? (
+                                    <Button
+                                        className="w-full h-14 text-lg font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md transition-all flex items-center justify-center gap-2"
+                                        onClick={() => setIsRestockModalOpen(true)}
+                                    >
+                                        <Bell className="h-5 w-5" />
+                                        Notify Me When Restocked
+                                    </Button>
+                                ) : (
+                                    <Button disabled className="w-full h-14 text-lg font-bold">
+                                        Out of Stock
+                                    </Button>
+                                );
+                            }
+
+                            return (
+                                <div className="space-y-2">
+                                    {isStrictStock && selectedVariant && selectedVariant.stock_quantity > 0 && selectedVariant.stock_quantity < 10 && (
+                                        <p className="text-xs text-amber-600 font-semibold flex items-center gap-1">
+                                            <span>⚡ Only {selectedVariant.stock_quantity} left in stock - order soon</span>
+                                        </p>
+                                    )}
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 h-14 text-lg font-semibold border-primary text-primary hover:bg-primary/5"
+                                            onClick={handleAddToCart}
+                                            disabled={!selectedVariant}
+                                        >
+                                            <ShoppingCart className="mr-2 h-5 w-5" />
+                                            Add to Cart
+                                        </Button>
+                                        <Button
+                                            className="flex-1 h-14 text-lg font-semibold"
+                                            onClick={handleBuyNow}
+                                            disabled={!selectedVariant}
+                                        >
+                                            Buy Now
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        <RestockNotificationModal
+                            isOpen={isRestockModalOpen}
+                            onClose={() => setIsRestockModalOpen(false)}
+                            product={product}
+                            selectedVariant={selectedVariant}
+                        />
 
                         {/* Trust & Shipping Perks */}
                         <ProductShippingPerks className="mt-2" freeShippingThreshold={100} />

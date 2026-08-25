@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.sync-tagada-products]
 verify_jwt = false
+
+[functions.send-restock-notification]
+verify_jwt = false

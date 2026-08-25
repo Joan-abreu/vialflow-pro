@@ -144,6 +144,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             });
         }
 
+        const availableStock = variant.stock_quantity ?? 999;
+        if (availableStock <= 0) {
+            toast.error("This item is currently out of stock.");
+            return;
+        }
+
         setItems((currentItems) => {
             const existingItemIndex = currentItems.findIndex(
                 (item) => item.variant.id === variant.id && 
@@ -153,22 +159,45 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                           item.custom_label_instructions === custom_label_instructions
             );
             
+            const totalOtherQty = currentItems
+                .filter((_, idx) => idx !== existingItemIndex && _.variant.id === variant.id)
+                .reduce((sum, item) => sum + item.quantity, 0);
+
+            const maxForThisItem = Math.max(0, availableStock - totalOtherQty);
+
             if (existingItemIndex > -1) {
-                toast.success("Updated quantity in cart");
+                const currentQty = currentItems[existingItemIndex].quantity;
+                const targetQty = currentQty + quantity;
+                const finalQty = Math.min(targetQty, maxForThisItem);
+
+                if (targetQty > maxForThisItem) {
+                    toast.error(`Only ${availableStock} units available in stock.`);
+                } else {
+                    toast.success("Updated quantity in cart");
+                }
+
                 const newItems = [...currentItems];
                 newItems[existingItemIndex] = {
                     ...newItems[existingItemIndex],
-                    variant, // Re-update with latest variant data (price, etc.)
-                    quantity: newItems[existingItemIndex].quantity + quantity
+                    variant,
+                    quantity: finalQty
                 };
                 return newItems;
             } else {
+                if (maxForThisItem <= 0) {
+                    toast.error(`You already have all ${availableStock} available units in your cart.`);
+                    return currentItems;
+                }
+                const finalQty = Math.min(quantity, maxForThisItem);
+                if (quantity > maxForThisItem) {
+                    toast.error(`Quantity capped to available stock (${availableStock} units).`);
+                }
                 const labelText = is_bulk ? ` (Bulk - ${with_labels ? 'With Labels' : 'Unlabeled'})` : '';
                 const sizeLabel = variant.vial_type.name || `${variant.vial_type.capacity_ml}ml`;
                 toast.success(`Added ${variant.product.name} (${sizeLabel}${variant.vial_type.color ? ` - ${variant.vial_type.color}` : ''}${variant.vial_type.shape ? ` - ${variant.vial_type.shape}` : ''})${labelText} to cart`);
                 return [...currentItems, { 
                     variant, 
-                    quantity, 
+                    quantity: finalQty, 
                     is_bulk, 
                     with_labels, 
                     label_fee_applied: labelFee,
@@ -195,7 +224,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                        !!i.is_bulk === !!is_bulk && 
                        !!i.with_labels === !!with_labels
             );
-            const minQty = (is_bulk || !!item?.variant.bulk_only) ? (item?.variant.bulk_min_qty ?? 100) : 1;
+            if (!item) return currentItems;
+
+            const minQty = (is_bulk || !!item.variant.bulk_only) ? (item.variant.bulk_min_qty ?? 100) : 1;
 
             if (quantity < minQty) {
                 // If it goes below minimum bulk quantity, remove it
@@ -206,11 +237,25 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 );
             }
             
+            const availableStock = item.variant.stock_quantity ?? 999;
+            const otherItemsQty = currentItems
+                .filter((i) => i.variant.id === variantId && 
+                               !(!!i.is_bulk === !!is_bulk && !!i.with_labels === !!with_labels))
+                .reduce((sum, i) => sum + i.quantity, 0);
+
+            const maxAllowed = Math.max(minQty, availableStock - otherItemsQty);
+
+            let finalQty = quantity;
+            if (quantity > maxAllowed) {
+                finalQty = maxAllowed;
+                toast.error(`Cannot exceed available stock (${availableStock} units).`);
+            }
+
             return currentItems.map((i) =>
                 i.variant.id === variantId && 
                 !!i.is_bulk === !!is_bulk && 
                 !!i.with_labels === !!with_labels
-                    ? { ...i, quantity }
+                    ? { ...i, quantity: finalQty }
                     : i
             );
         });

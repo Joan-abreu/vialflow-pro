@@ -11,10 +11,12 @@ import { Badge } from "@/components/ui/badge";
 const QuantityInput = ({ 
     initialValue, 
     minQty, 
+    maxQty,
     onChange 
 }: { 
     initialValue: number; 
     minQty: number; 
+    maxQty?: number;
     onChange: (val: number) => void;
 }) => {
     const [inputValue, setInputValue] = useState<string>(initialValue.toString());
@@ -28,6 +30,9 @@ const QuantityInput = ({
         if (isNaN(val) || val < minQty) {
             setInputValue(minQty.toString());
             onChange(minQty);
+        } else if (maxQty !== undefined && maxQty > 0 && val > maxQty) {
+            setInputValue(maxQty.toString());
+            onChange(maxQty);
         } else {
             onChange(val);
         }
@@ -182,6 +187,7 @@ const Cart = () => {
                                                  <QuantityInput
                                                      initialValue={item.quantity}
                                                      minQty={(item.is_bulk || !!item.variant.bulk_only) ? (item.variant.bulk_min_qty ?? 100) : 1}
+                                                     maxQty={item.variant.stock_quantity ?? 999}
                                                      onChange={(val) => updateQuantity(item.variant.id, val, item.is_bulk, item.with_labels)}
                                                  />
                                                  <Button

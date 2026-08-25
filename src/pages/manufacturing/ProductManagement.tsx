@@ -37,7 +37,8 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X, Boxes } from "lucide-react";
+import QuickStockManager from "@/components/admin/QuickStockManager";
 import { Badge } from "@/components/ui/badge";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import {
@@ -229,6 +230,7 @@ const ProductManagement = () => {
 
     const [richTextDescription, setRichTextDescription] = useState("");
     const queryClient = useQueryClient();
+    const [isStockManagerOpen, setIsStockManagerOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -804,6 +806,22 @@ const ProductManagement = () => {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto text-sm sm:text-base">
+                        <Dialog open={isStockManagerOpen} onOpenChange={setIsStockManagerOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10 font-semibold">
+                                    <Boxes className="mr-2 h-4 w-4" /> Quick Stock Control
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] sm:max-w-[1300px] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+                                <DialogHeader>
+                                    <DialogTitle className="text-xl">Inventory Stock Control & Quick Manager</DialogTitle>
+                                    <DialogDescription>
+                                        Edit variant stock levels in real-time and trigger restock alert emails to waiting customers.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <QuickStockManager />
+                            </DialogContent>
+                        </Dialog>
                         <ManageVialTypesDialog />
                         <ManageCategoriesDialog />
                         <Dialog open={isProductDialogOpen} onOpenChange={(open) => {

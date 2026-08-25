@@ -55,6 +55,14 @@ const SiteSettings = () => {
     const [savingRequireLogin, setSavingRequireLogin] = useState(false);
     const [savingShipping, setSavingShipping] = useState(false);
     const [savingGateways, setSavingGateways] = useState(false);
+    const [savingInventorySettings, setSavingInventorySettings] = useState(false);
+
+    // Inventory & Restock System Settings
+    const [enableStrictStockEnforcement, setEnableStrictStockEnforcement] = useState(true);
+    const [enableRestockNotifications, setEnableRestockNotifications] = useState(true);
+    const [restockLeadTimeDays, setRestockLeadTimeDays] = useState(14);
+    const [restockDiscountPercent, setRestockDiscountPercent] = useState(40);
+    const [restockCouponCode, setRestockCouponCode] = useState("RESTOCK40");
 
     // Shipping & Cutoff Settings
     const [cutoffHour, setCutoffHour] = useState<number>(DEFAULT_SHIPPING_CONFIG.cutoffHour);
@@ -209,6 +217,32 @@ const SiteSettings = () => {
         }
     };
 
+    const handleSaveInventorySettings = async () => {
+        setSavingInventorySettings(true);
+        try {
+            const settingsToSave = [
+                { key: "enable_strict_stock_enforcement", value: String(enableStrictStockEnforcement) },
+                { key: "enable_restock_notifications", value: String(enableRestockNotifications) },
+                { key: "restock_lead_time_days", value: String(restockLeadTimeDays) },
+                { key: "restock_discount_percent", value: String(restockDiscountPercent) },
+                { key: "restock_coupon_code", value: restockCouponCode }
+            ];
+
+            for (const setting of settingsToSave) {
+                await supabase
+                    .from("app_settings" as any)
+                    .upsert(setting, { onConflict: "key" });
+            }
+
+            toast.success("Inventory & Restock System settings saved successfully!");
+        } catch (e: any) {
+            console.error("Save inventory settings error:", e);
+            toast.error(e.message || "Failed to save inventory settings.");
+        } finally {
+            setSavingInventorySettings(false);
+        }
+    };
+
     useEffect(() => {
         fetchSettings();
     }, []);
@@ -243,13 +277,28 @@ const SiteSettings = () => {
                     "payment_nmi_config",
                     "payment_paypal_config",
                     "payment_tagadapay_config",
-                    "payment_manual_config"
+                    "payment_manual_config",
+                    "enable_strict_stock_enforcement",
+                    "enable_restock_notifications",
+                    "restock_lead_time_days",
+                    "restock_discount_percent",
+                    "restock_coupon_code"
                 ]);
 
             if (error) throw error;
 
             if (data) {
-                const maintenance = data.find((s: any) => s.key === "maintenance_mode");
+                const strictStock = data.find((s: any) => s.key === "enable_strict_stock_enforcement");
+                const restockNotify = data.find((s: any) => s.key === "enable_restock_notifications");
+                const leadTime = data.find((s: any) => s.key === "restock_lead_time_days");
+                const discount = data.find((s: any) => s.key === "restock_discount_percent");
+                const coupon = data.find((s: any) => s.key === "restock_coupon_code");
+
+                if (strictStock) setEnableStrictStockEnforcement(strictStock.value === "true");
+                if (restockNotify) setEnableRestockNotifications(restockNotify.value === "true");
+                if (leadTime) setRestockLeadTimeDays(Number(leadTime.value) || 14);
+                if (discount) setRestockDiscountPercent(Number(discount.value) || 40);
+                if (coupon) setRestockCouponCode(coupon.value || "RESTOCK40");
                 const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
                 const requireLogin = data.find((s: any) => s.key === "require_login_for_checkout");
                 const hour = data.find((s: any) => s.key === "shipping_cutoff_hour");
@@ -1928,6 +1977,127 @@ const SiteSettings = () => {
                                     <>
                                         <Save className="mr-2 h-4 w-4" />
                                         Save Shipping Settings
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Inventory & Restock System Settings Card */}
+                <Card className="border shadow-sm">
+                    <CardHeader className="border-b bg-muted/20">
+                        <div className="flex items-center gap-2">
+                            <Truck className="h-5 w-5 text-primary" />
+                            <div>
+                                <CardTitle className="text-xl">Inventory & Restock System Settings</CardTitle>
+                                <CardDescription>
+                                    Configure stock enforcement, customer restock notifications, lead times, and discount offers.
+                                </CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Strict Stock Control Switch */}
+                            <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="strict-stock-toggle" className="font-bold text-sm cursor-pointer">
+                                        Enforce Strict Stock Limits
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Prevents customers from buying out-of-stock items and caps quantity to available stock.
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="strict-stock-toggle"
+                                    checked={enableStrictStockEnforcement}
+                                    onCheckedChange={setEnableStrictStockEnforcement}
+                                />
+                            </div>
+
+                            {/* Enable Restock Notification Modal Switch */}
+                            <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="restock-notify-toggle" className="font-bold text-sm cursor-pointer">
+                                        Enable Restock Notification Modal
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Replaces "Add to Cart" with "Notify Me When Restocked" button on out-of-stock items.
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="restock-notify-toggle"
+                                    checked={enableRestockNotifications}
+                                    onCheckedChange={setEnableRestockNotifications}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2 border-t">
+                            {/* Max Lead Time Days */}
+                            <div className="space-y-2">
+                                <Label htmlFor="lead-time-days" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                    Est. Restock Lead Time (Days)
+                                </Label>
+                                <Input
+                                    id="lead-time-days"
+                                    type="number"
+                                    min="1"
+                                    value={restockLeadTimeDays}
+                                    onChange={(e) => setRestockLeadTimeDays(parseInt(e.target.value) || 14)}
+                                    placeholder="14"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Displayed in modal: "up to X days".</p>
+                            </div>
+
+                            {/* Restock Discount % */}
+                            <div className="space-y-2">
+                                <Label htmlFor="discount-percent" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                    Restock Discount Offer (%)
+                                </Label>
+                                <Input
+                                    id="discount-percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={restockDiscountPercent}
+                                    onChange={(e) => setRestockDiscountPercent(parseInt(e.target.value) || 40)}
+                                    placeholder="40"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Discount offered to waitlisted customers.</p>
+                            </div>
+
+                            {/* Restock Coupon Code */}
+                            <div className="space-y-2">
+                                <Label htmlFor="coupon-code" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                    Restock Coupon Code
+                                </Label>
+                                <Input
+                                    id="coupon-code"
+                                    value={restockCouponCode}
+                                    onChange={(e) => setRestockCouponCode(e.target.value.toUpperCase())}
+                                    placeholder="RESTOCK40"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Coupon applied upon restock alert.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <Button 
+                                onClick={handleSaveInventorySettings}
+                                disabled={savingInventorySettings}
+                                className="font-bold min-w-[200px]"
+                            >
+                                {savingInventorySettings ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving Settings...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Inventory Settings
                                     </>
                                 )}
                             </Button>

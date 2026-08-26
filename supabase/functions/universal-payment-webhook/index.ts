@@ -294,20 +294,36 @@ serve(async (req) => {
             const event = JSON.parse(bodyText);
             const eventType = event?.type || event?.event;
             const eventId = event?.id;
-            const dataObj = event?.data?.object || event?.data?.payment || event?.data;
+            const dataObj = event?.data?.object || event?.data?.payment || event?.data?.order || event?.data;
 
             console.log(`[Kashu/Tagada Webhook] Processing event: ${eventType} (ID: ${eventId || "N/A"})`);
+            console.log(`[Kashu/Tagada Webhook] Full Payload:`, bodyText);
 
-            // Extract order identification from data object
+            // Extract order identification from all potential payload structures
             const orderId = 
+                event?.data?.order?.metadata?.orderId ||
+                event?.data?.order?.metadata?.order_id ||
+                event?.data?.order?.referenceId ||
+                event?.data?.payment?.metadata?.orderId ||
+                event?.data?.payment?.metadata?.order_id ||
+                event?.data?.payment?.referenceId ||
                 dataObj?.metadata?.orderId || 
                 dataObj?.metadata?.order_id || 
                 dataObj?.referenceId || 
                 dataObj?.orderId ||
-                dataObj?.externalRef;
+                dataObj?.externalRef ||
+                event?.metadata?.orderId ||
+                event?.orderId ||
+                event?.referenceId;
 
-            const paymentId = dataObj?.id || dataObj?.paymentId || dataObj?.payment_intent || eventId;
-            const statusLower = String(dataObj?.status || "").toLowerCase();
+            const paymentId = 
+                event?.data?.payment?.id ||
+                dataObj?.id || 
+                dataObj?.paymentId || 
+                dataObj?.payment_intent || 
+                eventId;
+
+            const statusLower = String(dataObj?.status || event?.data?.order?.status || event?.data?.payment?.status || "").toLowerCase();
 
             const isPaymentSuccess = 
                 eventType === "order/paid" ||

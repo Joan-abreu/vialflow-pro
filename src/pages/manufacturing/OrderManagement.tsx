@@ -208,6 +208,46 @@ const OrderManagement = () => {
         return map;
     }, [allOrderNotes]);
 
+    const formatVariantSpecification = (variant: any) => {
+        if (!variant) return "";
+        const vialName = variant.vial_type?.name || "";
+        const capMl = variant.vial_type?.capacity_ml;
+        const color = variant.vial_type?.color;
+        const shape = variant.vial_type?.shape;
+        const category = (variant.product?.category || variant.product?.product_categories?.name || "").toLowerCase();
+        
+        // Check if it is a peptide or specified in MG
+        const isMg = 
+            vialName.toLowerCase().includes("mg") || 
+            category.includes("peptide") ||
+            (variant.sku && /^(RT|MOTS|NAD|TR|GLP|PEP)/i.test(variant.sku));
+
+        if (isMg) {
+            // Only show the MG dosage (e.g. "40mg", "500mg", "30mg", "10mg")
+            const mgLabel = vialName || (capMl ? `${capMl}mg` : "");
+            const details = [color, shape].filter(Boolean).join(" - ");
+            return details ? `${mgLabel} (${details})` : mgLabel;
+        }
+
+        // For Reconstitution Solutions / BAC water (liquid volumes in ml)
+        const sizeStr = capMl ? `${capMl}ml` : "";
+        let mainLabel = vialName || sizeStr;
+        
+        if (vialName && sizeStr) {
+            if (vialName.toLowerCase() === sizeStr.toLowerCase() || vialName.toLowerCase().includes(sizeStr.toLowerCase())) {
+                mainLabel = vialName;
+            } else {
+                mainLabel = `${sizeStr} (${vialName})`;
+            }
+        }
+
+        const details = [color, shape].filter(Boolean).join(" - ");
+        if (details && !mainLabel.includes(details)) {
+            return `${mainLabel} - ${details}`;
+        }
+        return mainLabel;
+    };
+
     const CUSTOMER_NOTIFY_STATUSES = ['shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled'];
 
     const updateStatusMutation = useMutation({
@@ -950,30 +990,35 @@ const OrderManagement = () => {
                                             <TableCell className="min-w-[200px] max-w-[300px]">
                                                 {order.order_items && order.order_items.length > 0 ? (
                                                     <div className="space-y-1">
-                                                        {order.order_items.map((item, idx) => (
-                                                            <div key={item.id || idx} className="flex flex-col justify-center py-0.5">
-                                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                                    <span className="font-medium text-xs text-foreground truncate" title={item.variant?.product?.name || "Product"}>
-                                                                        {item.variant?.product?.name || "Unknown Product"}
-                                                                    </span>
-                                                                    {item.variant?.sku && (
-                                                                        <div className="inline-flex items-center gap-0.5">
-                                                                            <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4 bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 font-medium">
-                                                                                {item.variant.sku}
-                                                                            </Badge>
-                                                                            <CopyCell value={item.variant.sku} size={11} />
-                                                                        </div>
+                                                        {order.order_items.map((item, idx) => {
+                                                            const specLabel = formatVariantSpecification(item.variant);
+                                                            const packStr = (item.variant?.sale_type === 'pack' || (item.variant?.pack_size && item.variant.pack_size > 1))
+                                                                ? ` - Pack of ${item.variant.pack_size}`
+                                                                : '';
+
+                                                            return (
+                                                                <div key={item.id || idx} className="flex flex-col justify-center py-0.5">
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span className="font-medium text-xs text-foreground truncate" title={item.variant?.product?.name || "Product"}>
+                                                                            {item.variant?.product?.name || "Unknown Product"}
+                                                                        </span>
+                                                                        {item.variant?.sku && (
+                                                                            <div className="inline-flex items-center gap-0.5">
+                                                                                <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4 bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 font-medium">
+                                                                                    {item.variant.sku}
+                                                                                </Badge>
+                                                                                <CopyCell value={item.variant.sku} size={11} />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    {specLabel && (
+                                                                        <span className="text-[11px] text-muted-foreground truncate">
+                                                                            {specLabel}{packStr}
+                                                                        </span>
                                                                     )}
                                                                 </div>
-                                                                <span className="text-[11px] text-muted-foreground truncate">
-                                                                    {item.variant?.vial_type?.capacity_ml ? `${item.variant.vial_type.capacity_ml}ml` : ''}
-                                                                    {item.variant?.vial_type?.name ? ` (${item.variant.vial_type.name})` : ''}
-                                                                    {(item.variant?.sale_type === 'pack' || (item.variant?.pack_size && item.variant.pack_size > 1))
-                                                                        ? ` - Pack of ${item.variant.pack_size}`
-                                                                        : ''}
-                                                                </span>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground italic">No products</span>
@@ -1346,7 +1391,7 @@ const OrderManagement = () => {
                                                         <div>
                                                             <div className="font-medium text-sm">{item.variant?.product?.name}</div>
                                                             <div className="text-xs text-muted-foreground mt-1">
-                                                                <span>{item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})</span>
+                                                                <span>{formatVariantSpecification(item.variant)}</span>
                                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
                                                                 {item.is_bulk && (
                                                                     <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
@@ -1494,7 +1539,7 @@ const OrderManagement = () => {
                                                     {group.variant?.product?.name || "Unknown Product"}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {group.variant?.vial_type?.capacity_ml}ml{group.variant?.vial_type?.color ? ` - ${group.variant?.vial_type?.color}` : ''}{group.variant?.vial_type?.shape ? ` - ${group.variant?.vial_type?.shape}` : ''}
+                                                    {formatVariantSpecification(group.variant)}
                                                     {group.variant?.pack_size && group.variant.pack_size > 1 ? ` (${group.variant.pack_size}x Pack)` : ''}
                                                     {group.variant?.sale_type === 'pack' ? ' - Pack' : ' - Individual'}
                                                 </p>
@@ -1661,7 +1706,7 @@ const OrderManagement = () => {
                                         <td className="py-4 px-4">
                                             <div className="font-bold text-gray-900 border-b border-transparent">{item.variant?.product?.name}</div>
                                             <div className="text-gray-700 text-sm mt-1 font-medium flex items-center flex-wrap gap-2">
-                                                <span>{item.variant?.vial_type?.name} ({item.variant?.vial_type?.capacity_ml}ml{item.variant?.vial_type?.color ? ` - ${item.variant?.vial_type?.color}` : ''}{item.variant?.vial_type?.shape ? ` - ${item.variant?.vial_type?.shape}` : ''})</span>
+                                                <span>{formatVariantSpecification(item.variant)}</span>
                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
                                                 {item.is_bulk && (
                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-800 uppercase">

@@ -387,6 +387,7 @@ const PublicLayoutContent = () => {
                             <ul className="space-y-2 text-sm text-muted-foreground">
                                 <li><Link to="/about">About Us</Link></li>
                                 <li><Link to="/contact">Contact</Link></li>
+                                <li><a href="tel:18004238002" className="hover:text-primary transition-colors font-medium">📞 1-800-423-8002</a></li>
                             </ul>
                         </div>
                         <div>

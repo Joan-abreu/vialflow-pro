@@ -6,6 +6,7 @@ interface EmailConfig {
     primaryColor: string;
     logoUrl?: string;
     supportEmail: string;
+    supportPhone: string;
     websiteUrl: string;
 }
 
@@ -13,6 +14,7 @@ const defaultConfig: EmailConfig = {
     companyName: "Liv Well Research Labs",
     primaryColor: "#3B82F6",
     supportEmail: "sales@livwellresearchlabs.com",
+    supportPhone: "1-800-423-8002",
     websiteUrl: "https://livwellresearchlabs.com",
 };
 
@@ -123,7 +125,7 @@ export function getEmailTemplate(
         <div class="footer">
             <p><strong>${cfg.companyName}</strong></p>
             <p>
-                Questions? Contact us at <a href="mailto:${cfg.supportEmail}">${cfg.supportEmail}</a>
+                Questions? Contact us at <a href="mailto:${cfg.supportEmail}">${cfg.supportEmail}</a> | <a href="tel:18004238002">${cfg.supportPhone}</a>
             </p>
             <p style="margin-top: 20px; font-size: 12px; color: #9ca3af;">
                 © ${new Date().getFullYear()} ${cfg.companyName}. All rights reserved.
@@ -189,7 +191,7 @@ export function getSimpleEmailTemplate(data: {
         <div class="footer">
             <p>
                 <strong>Liv Well Research Labs</strong><br>
-                <a href="mailto:sales@livwellresearchlabs.com">sales@livwellresearchlabs.com</a>
+                <a href="mailto:sales@livwellresearchlabs.com">sales@livwellresearchlabs.com</a> | <a href="tel:18004238002">1-800-423-8002</a>
             </p>
         </div>
     </div>

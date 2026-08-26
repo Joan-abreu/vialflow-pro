@@ -37,7 +37,7 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X, Boxes } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X, Boxes, Archive, ArchiveRestore, Filter, EyeOff } from "lucide-react";
 import QuickStockManager from "@/components/admin/QuickStockManager";
 import { Badge } from "@/components/ui/badge";
 import RichTextEditor from "@/components/admin/RichTextEditor";
@@ -77,6 +77,7 @@ interface Product {
     rich_description?: string | null;
     is_active: boolean;
     is_published: boolean;
+    is_archived?: boolean | null;
     category_id: string | null;
     product_categories?: ProductCategory | null;
     image_url: string | null;
@@ -332,16 +333,44 @@ const ProductManagement = () => {
 
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all_active");
+    const [archivingProduct, setArchivingProduct] = useState<{ id: string; name: string; archive: boolean } | null>(null);
+    const [archiveSuggestionProduct, setArchiveSuggestionProduct] = useState<{ id: string; name: string } | null>(null);
+
+    const statusCounts = React.useMemo(() => {
+        if (!products) return { total: 0, active: 0, published: 0, draft: 0, mfgActive: 0, mfgInactive: 0, archived: 0 };
+        return {
+            total: products.length,
+            active: products.filter(p => !p.is_archived).length,
+            published: products.filter(p => p.is_published && !p.is_archived).length,
+            draft: products.filter(p => !p.is_published && !p.is_archived).length,
+            mfgActive: products.filter(p => p.is_active && !p.is_archived).length,
+            mfgInactive: products.filter(p => !p.is_active && !p.is_archived).length,
+            archived: products.filter(p => Boolean(p.is_archived)).length,
+        };
+    }, [products]);
 
     const filteredProducts = React.useMemo(() => {
         if (!products) return [];
         const query = searchTerm.trim().toLowerCase();
         return products.filter((product) => {
+            // Category Filter
             const matchesCategory =
                 selectedCategoryFilter === "all" ||
                 product.category_id === selectedCategoryFilter;
 
             if (!matchesCategory) return false;
+
+            // Status Filter
+            const isArchived = Boolean(product.is_archived);
+            if (selectedStatusFilter === "all_active" && isArchived) return false;
+            if (selectedStatusFilter === "archived" && !isArchived) return false;
+            if (selectedStatusFilter === "published" && (!product.is_published || isArchived)) return false;
+            if (selectedStatusFilter === "draft" && (product.is_published || isArchived)) return false;
+            if (selectedStatusFilter === "active_mfg" && (!product.is_active || isArchived)) return false;
+            if (selectedStatusFilter === "inactive_mfg" && (product.is_active || isArchived)) return false;
+            // "all" includes everything
+
             if (!query) return true;
 
             const nameMatch = product.name.toLowerCase().includes(query);
@@ -351,6 +380,11 @@ const ProductManagement = () => {
 
             return nameMatch || categoryMatch || descMatch || variantSkuMatch;
         }).sort((a, b) => {
+            // Unarchived first, archived last if viewing all
+            const aArch = Boolean(a.is_archived);
+            const bArch = Boolean(b.is_archived);
+            if (aArch !== bArch) return aArch ? 1 : -1;
+
             // Sort by category first
             const catA = a.product_categories?.name || "zzz";
             const catB = b.product_categories?.name || "zzz";
@@ -364,9 +398,43 @@ const ProductManagement = () => {
             // Then by name
             return a.name.localeCompare(b.name);
         });
-    }, [products, searchTerm, selectedCategoryFilter, variantsMap]);
+    }, [products, searchTerm, selectedCategoryFilter, selectedStatusFilter, variantsMap]);
 
     // Product mutations
+    const archiveProductMutation = useMutation({
+        mutationFn: async ({ id, archive }: { id: string; archive: boolean }) => {
+            const updatePayload: any = { 
+                is_archived: archive,
+                updated_at: new Date().toISOString()
+            };
+            if (archive) {
+                // When archiving, also set is_published to false so it won't show in the public store
+                updatePayload.is_published = false;
+            }
+            const { data, error } = await supabase
+                .from("products")
+                .update(updatePayload)
+                .eq("id", id)
+                .select();
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
+            queryClient.invalidateQueries({ queryKey: ["public-product-variants"] });
+            if (variables.archive) {
+                toast.success("Product archived successfully. It is now hidden from active product lists.");
+            } else {
+                toast.success("Product restored / unarchived successfully.");
+            }
+            setArchivingProduct(null);
+            setArchiveSuggestionProduct(null);
+        },
+        onError: (error: any) => {
+            toast.error(`Error updating archive status: ${error.message}`);
+        }
+    });
+
     const createProductMutation = useMutation({
         mutationFn: async (newProduct: Omit<Product, "id" | "product_categories">) => {
             const productWithSlug = {
@@ -453,7 +521,11 @@ const ProductManagement = () => {
             queryClient.invalidateQueries({ queryKey: ["products-with-variants"] });
             toast.success("Product deleted successfully");
         },
-        onError: (error) => {
+        onError: (error: any, productId: string) => {
+            const prod = products?.find(p => p.id === productId);
+            if (prod) {
+                setArchiveSuggestionProduct({ id: prod.id, name: prod.name });
+            }
             toast.error(`Error deleting product: ${error.message}`);
         },
     });
@@ -1257,53 +1329,137 @@ const ProductManagement = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* Search and Category Filter Toolbar */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-sm">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by product name, SKU, or description..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="pl-9 pr-8 h-10 bg-background"
-                        />
-                        {searchTerm && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSearchTerm("");
+                {/* Search and Filters Toolbar */}
+                <div className="flex flex-col gap-3 bg-card p-4 rounded-xl border shadow-sm">
+                    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by product name, SKU, or description..."
+                                value={searchTerm}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                className="pl-9 pr-8 h-10 bg-background"
+                            />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchTerm("");
+                                        setCurrentPage(1);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                            {/* Status Filter */}
+                            <select
+                                value={selectedStatusFilter}
+                                onChange={(e) => {
+                                    setSelectedStatusFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer font-medium"
                             >
-                                <X className="h-4 w-4" />
-                            </button>
-                        )}
+                                <option value="all_active">Active ({statusCounts.active})</option>
+                                <option value="published">🌐 Published ({statusCounts.published})</option>
+                                <option value="draft">📝 Draft ({statusCounts.draft})</option>
+                                <option value="active_mfg">⚙️ Mfg Active ({statusCounts.mfgActive})</option>
+                                <option value="inactive_mfg">⏸️ Mfg Inactive ({statusCounts.mfgInactive})</option>
+                                <option value="archived">📦 Archived ({statusCounts.archived})</option>
+                                <option value="all">All Products ({statusCounts.total})</option>
+                            </select>
+
+                            {/* Category Filter */}
+                            <select
+                                value={selectedCategoryFilter}
+                                onChange={(e) => {
+                                    setSelectedCategoryFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                            >
+                                <option value="all">All Categories</option>
+                                {categories?.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {(searchTerm || selectedCategoryFilter !== "all" || selectedStatusFilter !== "all_active") && (
+                                <Badge variant="secondary" className="h-10 px-3 flex items-center font-semibold text-xs shrink-0">
+                                    {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
+                                </Badge>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={selectedCategoryFilter}
-                            onChange={(e) => {
-                                setSelectedCategoryFilter(e.target.value);
+
+                    {/* Quick Filter Badges */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 text-xs">
+                        <span className="text-muted-foreground font-medium mr-1 flex items-center gap-1">
+                            <Filter className="h-3.5 w-3.5" /> Filter:
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedStatusFilter("all_active");
                                 setCurrentPage(1);
                             }}
-                            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                                selectedStatusFilter === "all_active"
+                                    ? "bg-primary text-primary-foreground shadow-xs"
+                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                            }`}
                         >
-                            <option value="all">All Categories</option>
-                            {categories?.map((cat) => (
-                                <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                </option>
-                            ))}
-                        </select>
-                        {(searchTerm || selectedCategoryFilter !== "all") && (
-                            <Badge variant="secondary" className="h-10 px-3 flex items-center font-semibold text-xs shrink-0">
-                                {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
-                            </Badge>
-                        )}
+                            Active ({statusCounts.active})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedStatusFilter("published");
+                                setCurrentPage(1);
+                            }}
+                            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                                selectedStatusFilter === "published"
+                                    ? "bg-blue-600 text-white shadow-xs"
+                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                            }`}
+                        >
+                            Published ({statusCounts.published})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedStatusFilter("draft");
+                                setCurrentPage(1);
+                            }}
+                            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                                selectedStatusFilter === "draft"
+                                    ? "bg-slate-700 text-white shadow-xs"
+                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                            }`}
+                        >
+                            Draft ({statusCounts.draft})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedStatusFilter("archived");
+                                setCurrentPage(1);
+                            }}
+                            className={`px-2.5 py-1 rounded-full font-medium transition-all flex items-center gap-1 ${
+                                selectedStatusFilter === "archived"
+                                    ? "bg-amber-600 text-white shadow-xs"
+                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                            }`}
+                        >
+                            <Archive className="h-3 w-3" /> Archived ({statusCounts.archived})
+                        </button>
                     </div>
                 </div>
 
@@ -1341,10 +1497,11 @@ const ProductManagement = () => {
                                     .map((product) => {
                                         const variants = variantsMap?.[product.id] || [];
                                         const isExpanded = expandedProducts.has(product.id) || (searchTerm.trim() !== "" && variants.some(v => v.sku?.toLowerCase().includes(searchTerm.trim().toLowerCase())));
+                                        const isArchived = Boolean(product.is_archived);
 
                                         return (
                                             <React.Fragment key={product.id}>
-                                                <TableRow>
+                                                <TableRow className={isArchived ? "bg-amber-500/5 hover:bg-amber-500/10 opacity-75" : ""}>
                                                     <TableCell>
                                                         <Button
                                                             variant="ghost"
@@ -1364,7 +1521,7 @@ const ProductManagement = () => {
                                                             <img
                                                                 src={product.image_url}
                                                                 alt={product.name}
-                                                                className="h-12 w-12 object-cover rounded"
+                                                                className={`h-12 w-12 object-cover rounded ${isArchived ? "grayscale" : ""}`}
                                                             />
                                                         ) : (
                                                             <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">
@@ -1373,9 +1530,18 @@ const ProductManagement = () => {
                                                         )}
                                                     </TableCell>
                                                     <TableCell className="font-medium">
-                                                        <div className="flex items-center gap-2">
-                                                            {product.name}
-                                                            {product.is_private && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Private</span>}
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={isArchived ? "line-through text-muted-foreground" : ""}>
+                                                                    {product.name}
+                                                                </span>
+                                                                {product.is_private && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Private</span>}
+                                                                {isArchived && (
+                                                                    <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-800 border-amber-300 font-semibold uppercase">
+                                                                        Archived
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>{product.product_categories?.name || "—"}</TableCell>
@@ -1385,33 +1551,71 @@ const ProductManagement = () => {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                            {product.is_active ? 'Active' : 'Inactive'}
-                                                        </span>
+                                                        {isArchived ? (
+                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">
+                                                                Archived
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                {product.is_active ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                            {product.is_published ? 'Published' : 'Draft'}
-                                                        </span>
+                                                        {isArchived ? (
+                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                                                                Hidden
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_published ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                {product.is_published ? 'Published' : 'Draft'}
+                                                            </span>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>{variants.length} variant{variants.length !== 1 ? 's' : ''}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)}>
-                                                                <Plus className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
+                                                        <div className="flex justify-end gap-1.5">
+                                                            {!isArchived && (
+                                                                <Button variant="ghost" size="icon" onClick={() => handleAddVariant(product.id)} title="Add Variant">
+                                                                    <Plus className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                            <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)} title="Edit Product">
                                                                 <Pencil className="h-4 w-4" />
                                                             </Button>
-                                                            <Button 
-                                                                variant="ghost" 
-                                                                size="icon" 
-                                                                onClick={() => window.open(`/products/${product.slug || product.id}`, '_blank')}
-                                                                title="Preview Product"
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)}>
+                                                            {!isArchived && (
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    onClick={() => window.open(`/products/${product.slug || product.id}`, '_blank')}
+                                                                    title="Preview Product"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                            {/* Archive / Unarchive Button */}
+                                                            {isArchived ? (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                                    onClick={() => setArchivingProduct({ id: product.id, name: product.name, archive: false })}
+                                                                    title="Unarchive / Restore Product"
+                                                                >
+                                                                    <ArchiveRestore className="h-4 w-4" />
+                                                                </Button>
+                                                            ) : (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-slate-500 hover:text-amber-700 hover:bg-amber-50"
+                                                                    onClick={() => setArchivingProduct({ id: product.id, name: product.name, archive: true })}
+                                                                    title="Archive Product"
+                                                                >
+                                                                    <Archive className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteProduct(product)} title="Delete Product">
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         </div>
@@ -1419,7 +1623,7 @@ const ProductManagement = () => {
                                                 </TableRow>
                                                 {isExpanded && variants.length > 0 && (
                                                     <TableRow>
-                                                        <TableCell colSpan={8} className="bg-muted/50 p-0">
+                                                        <TableCell colSpan={9} className="bg-muted/50 p-0">
                                                             <div className="p-2 sm:p-4 overflow-x-auto">
                                                                 <h4 className="font-semibold mb-3 text-sm">Variants</h4>
                                                                 <Table className="min-w-[700px]">
@@ -1474,6 +1678,88 @@ const ProductManagement = () => {
                     />
                 )}
 
+                {/* Archive / Restore Product Confirmation Dialog */}
+                <AlertDialog open={!!archivingProduct} onOpenChange={(open) => !open && setArchivingProduct(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                                {archivingProduct?.archive ? (
+                                    <>
+                                        <Archive className="h-5 w-5 text-amber-600" />
+                                        Archive Product?
+                                    </>
+                                ) : (
+                                    <>
+                                        <ArchiveRestore className="h-5 w-5 text-green-600" />
+                                        Restore Product?
+                                    </>
+                                )}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                                {archivingProduct?.archive ? (
+                                    <>
+                                        <p>
+                                            Archiving <strong>"{archivingProduct?.name}"</strong> will remove it from the public store and hide it from default active product lists.
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            All order history, inventory transactions, and manufacturing batches remain safely preserved in your database.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p>
+                                        Restoring <strong>"{archivingProduct?.name}"</strong> will return it to your active product list.
+                                    </p>
+                                )}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => {
+                                    if (archivingProduct) {
+                                        archiveProductMutation.mutate({ id: archivingProduct.id, archive: archivingProduct.archive });
+                                    }
+                                }}
+                                className={archivingProduct?.archive ? "bg-amber-600 hover:bg-amber-700 text-white" : "bg-primary text-primary-foreground"}
+                            >
+                                {archivingProduct?.archive ? "Archive Product" : "Restore Product"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                {/* Deletion Error -> Archive Suggestion Dialog */}
+                <AlertDialog open={!!archiveSuggestionProduct} onOpenChange={(open) => !open && setArchiveSuggestionProduct(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                                <Boxes className="h-5 w-5" />
+                                Product Has History & Dependencies
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                                <p>
+                                    <strong>"{archiveSuggestionProduct?.name}"</strong> cannot be permanently deleted from the database because it is linked to past orders, variants, or manufacturing batches.
+                                </p>
+                                <p>
+                                    Would you like to <strong>Archive</strong> this product instead? Archiving hides it from active product lists and disables it on the storefront without breaking past order records.
+                                </p>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => {
+                                    if (archiveSuggestionProduct) {
+                                        archiveProductMutation.mutate({ id: archiveSuggestionProduct.id, archive: true });
+                                    }
+                                }}
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                            >
+                                Archive Product Instead
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
                 {/* Delete Product Confirmation Dialog */}
                 <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>

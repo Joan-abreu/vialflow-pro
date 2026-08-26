@@ -90,6 +90,7 @@ const Products = () => {
                     )
                 `)
                 .eq("is_published", true)
+                .or("is_archived.eq.false,is_archived.is.null")
                 .order('position', { ascending: true })
                 .order('position', { foreignTable: 'product_variants', ascending: true });
 

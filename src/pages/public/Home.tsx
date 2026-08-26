@@ -42,7 +42,8 @@ const Home = () => {
                     vial_type:vial_types!inner(name, capacity_ml, color, shape)
                 `)
                 .eq("is_published", true)
-                .eq("product.is_published", true);
+                .eq("product.is_published", true)
+                .or("is_archived.eq.false,is_archived.is.null", { foreignTable: 'product' });
 
             if (!isVip) {
                 query = query.or("is_private.eq.false,is_private.is.null", { foreignTable: 'product' });

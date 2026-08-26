@@ -481,6 +481,7 @@ export type Database = {
           bulk_label_fee: number
           bulk_only: boolean
           images: string[] | null
+          is_archived?: boolean | null
         }
         Insert: {
           created_at?: string
@@ -504,6 +505,7 @@ export type Database = {
           bulk_label_fee?: number
           bulk_only?: boolean
           images?: string[] | null
+          is_archived?: boolean | null
         }
         Update: {
           created_at?: string
@@ -527,6 +529,7 @@ export type Database = {
           bulk_label_fee?: number
           bulk_only?: boolean
           images?: string[] | null
+          is_archived?: boolean | null
         }
         Relationships: [
           {
@@ -776,6 +779,7 @@ export type Database = {
           slug: string
           stock_quantity: number | null
           updated_at: string
+          is_archived?: boolean | null
         }
         Insert: {
           category?: string | null
@@ -792,6 +796,7 @@ export type Database = {
           slug: string
           stock_quantity?: number | null
           updated_at?: string
+          is_archived?: boolean | null
         }
         Update: {
           category?: string | null
@@ -808,6 +813,7 @@ export type Database = {
           slug?: string
           stock_quantity?: number | null
           updated_at?: string
+          is_archived?: boolean | null
         }
         Relationships: []
       }

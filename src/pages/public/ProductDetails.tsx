@@ -200,9 +200,9 @@ const ProductDetails = () => {
                 isAdmin = userRole?.role === "admin" || userRole?.role === "manager" || userRole?.role === "staff";
             }
 
-            // Check if product is published (only block if explicitly false)
-            if (productData.is_published === false && !isAdmin) {
-                console.warn(`[ProductDetails] Product "${productData.name}" is marked as draft/unpublished.`);
+            // Check if product is published or archived (only block if not admin)
+            if ((productData.is_published === false || (productData as any).is_archived === true) && !isAdmin) {
+                console.warn(`[ProductDetails] Product "${productData.name}" is draft or archived.`);
                 throw new Error("Product not found");
             }
 

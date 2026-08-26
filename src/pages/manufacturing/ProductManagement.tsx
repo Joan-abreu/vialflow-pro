@@ -350,6 +350,19 @@ const ProductManagement = () => {
             const variantSkuMatch = (variantsMap?.[product.id] || []).some(v => v.sku?.toLowerCase().includes(query));
 
             return nameMatch || categoryMatch || descMatch || variantSkuMatch;
+        }).sort((a, b) => {
+            // Sort by category first
+            const catA = a.product_categories?.name || "zzz";
+            const catB = b.product_categories?.name || "zzz";
+            if (catA !== catB) return catA.localeCompare(catB);
+            
+            // Then by position
+            const posA = a.position ?? 0;
+            const posB = b.position ?? 0;
+            if (posA !== posB) return posA - posB;
+
+            // Then by name
+            return a.name.localeCompare(b.name);
         });
     }, [products, searchTerm, selectedCategoryFilter, variantsMap]);
 
@@ -1302,6 +1315,7 @@ const ProductManagement = () => {
                                 <TableHead>Image</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Category</TableHead>
+                                <TableHead className="text-center">Order</TableHead>
                                 <TableHead>Manufacturing</TableHead>
                                 <TableHead>E-commerce</TableHead>
                                 <TableHead>Variants</TableHead>
@@ -1311,13 +1325,13 @@ const ProductManagement = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8">
+                                    <TableCell colSpan={9} className="text-center py-8">
                                         Loading products...
                                     </TableCell>
                                 </TableRow>
                             ) : filteredProducts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                                         No products found matching your search criteria.
                                     </TableCell>
                                 </TableRow>
@@ -1365,6 +1379,11 @@ const ProductManagement = () => {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>{product.product_categories?.name || "—"}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 bg-muted/40">
+                                                            #{product.position ?? 0}
+                                                        </Badge>
+                                                    </TableCell>
                                                     <TableCell>
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                                             {product.is_active ? 'Active' : 'Inactive'}

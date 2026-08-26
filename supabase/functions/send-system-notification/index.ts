@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { 
     getOrderConfirmationEmail, 
     getAdminNotificationEmail, 
+    getShippingUrgency,
     getOrderStatusUpdateEmail,
     getLowStockAlertEmail,
     getUserInvitationEmail,
@@ -164,9 +165,18 @@ const handler = async (req: Request): Promise<Response> => {
                 finalRecipients = [customerEmail!];
             } else if (type === "admin_order_notification") {
                 const isP2P = Boolean(order.p2p_provider || ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].includes(order.payment_method));
+                const urgency = getShippingUrgency(order.shipping_service, order.shipping_carrier);
+
+                let urgencyPrefix = "🎉 [ADMIN ALERT]";
+                if (urgency.isOvernight) {
+                    urgencyPrefix = "🚨 [URGENT NEXT DAY / OVERNIGHT]";
+                } else if (urgency.isPriority) {
+                    urgencyPrefix = "⚡ [PRIORITY SHIPPING]";
+                }
+
                 subject = isP2P 
-                    ? `🔔 [ADMIN ALERT] New P2P Order #${orderNumber} (${(order.p2p_provider || order.payment_method || 'P2P').toUpperCase()})`
-                    : `🎉 [ADMIN ALERT] New Order Received #${orderNumber}`;
+                    ? `${urgencyPrefix} New P2P Order #${orderNumber} (${(order.p2p_provider || order.payment_method || 'P2P').toUpperCase()})`
+                    : `${urgencyPrefix} New Order Received #${orderNumber} ($${Number(order.total_amount || 0).toFixed(2)})`;
 
                 htmlContent = getAdminNotificationEmail({
                     orderNumber,

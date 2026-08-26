@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { 
   getOrderConfirmationEmail, 
   getAdminNotificationEmail, 
+  getShippingUrgency,
   getOrderStatusUpdateEmail,
   getPaymentPendingEmail,
   getPaymentConfirmedEmail,
@@ -299,7 +300,15 @@ const handler = async (req: Request): Promise<Response> => {
         throw new Error("No admin emails configured");
       }
 
-      subject = `🎉 New Order Received #${order.id.slice(0, 8)}`;
+      const urgency = getShippingUrgency(order.shipping_service, order.shipping_carrier);
+      let urgencyPrefix = "🎉 [ADMIN ALERT]";
+      if (urgency.isOvernight) {
+        urgencyPrefix = "🚨 [URGENT NEXT DAY / OVERNIGHT]";
+      } else if (urgency.isPriority) {
+        urgencyPrefix = "⚡ [PRIORITY SHIPPING]";
+      }
+
+      subject = `${urgencyPrefix} New Order Received #${order.id.slice(0, 8)} ($${Number(order.total_amount || 0).toFixed(2)})`;
 
       // Prepare order data for template
       const items = order.order_items.map((item: any) => ({
@@ -308,12 +317,20 @@ const handler = async (req: Request): Promise<Response> => {
         price: item.quantity * item.price_at_time
       }));
 
+      const paymentMethodLabel = order.p2p_provider || order.payment_method || (order.p2p_status ? 'P2P Direct' : undefined);
+
       htmlContent = getAdminNotificationEmail({
         orderNumber: order.id.slice(0, 8),
         customerName: customerName,
         customerEmail: customerEmail || "N/A",
         items,
         total: order.total_amount,
+        shippingAddress: order.shipping_address ? (typeof order.shipping_address === 'string' ? order.shipping_address : JSON.stringify(order.shipping_address)) : undefined,
+        shippingCost: order.shipping_cost,
+        shippingCarrier: order.shipping_carrier,
+        shippingService: order.shipping_service,
+        coupons: order.applied_coupons,
+        paymentMethod: paymentMethodLabel,
       });
     }
 

@@ -307,6 +307,95 @@ export function getOrderConfirmationEmail(orderData: {
     return getEmailTemplate(content);
 }
 
+export function getShippingUrgency(service?: string, carrier?: string): {
+    isPriority: boolean;
+    isOvernight: boolean;
+    tierName: string;
+    badgeColor: string;
+    bgGradient: string;
+    borderColor: string;
+    textColor: string;
+    instruction: string;
+} {
+    if (!service) {
+        return {
+            isPriority: false,
+            isOvernight: false,
+            tierName: "STANDARD SHIPPING",
+            badgeColor: "#6B7280",
+            bgGradient: "#F9FAFB",
+            borderColor: "#E5E7EB",
+            textColor: "#374151",
+            instruction: "Standard processing queue."
+        };
+    }
+
+    const s = service.toLowerCase();
+    const c = (carrier || "").toLowerCase();
+
+    // 1. Overnight / Next Day Air (Highest Urgency - Bold Red)
+    const isOvernight = 
+        s.includes("next day") || 
+        s.includes("overnight") || 
+        s.includes("1 day") || 
+        s.includes("same day") || 
+        s.includes("early am") || 
+        s.includes("first overnight") || 
+        s.includes("priority overnight") ||
+        s.includes("standard overnight");
+
+    if (isOvernight) {
+        return {
+            isPriority: true,
+            isOvernight: true,
+            tierName: "🚨 NEXT DAY AIR / OVERNIGHT — CRITICAL SAME-DAY SHIPMENT",
+            badgeColor: "#DC2626",
+            bgGradient: "linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)",
+            borderColor: "#EF4444",
+            textColor: "#991B1B",
+            instruction: "⚠️ CRITICAL: Customer paid for Next Day / Overnight delivery. Pack, label, and drop off at carrier TODAY before cutoff time!"
+        };
+    }
+
+    // 2. 2-Day Air / 2nd Day / Express / Priority Mail (High Urgency - Orange/Amber)
+    const is2DayOrExpress = 
+        s.includes("2nd day") || 
+        s.includes("2 day") || 
+        s.includes("2day") || 
+        s.includes("3 day") || 
+        s.includes("3day") || 
+        s.includes("priority mail express") ||
+        s.includes("express saver") || 
+        s.includes("express") || 
+        s.includes("expedited") || 
+        s.includes("priority mail") ||
+        s.includes("priority");
+
+    if (is2DayOrExpress) {
+        return {
+            isPriority: true,
+            isOvernight: false,
+            tierName: "⚡ EXPEDITED / PRIORITY SHIPPING",
+            badgeColor: "#EA580C",
+            bgGradient: "linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)",
+            borderColor: "#F97316",
+            textColor: "#9A3412",
+            instruction: "⚡ EXPEDITED: Customer selected Priority / Expedited shipping. Please prioritize boxing and dispatching this order promptly."
+        };
+    }
+
+    return {
+        isPriority: false,
+        isOvernight: false,
+        tierName: "STANDARD SHIPPING",
+        badgeColor: "#6B7280",
+        bgGradient: "#F9FAFB",
+        borderColor: "#E5E7EB",
+        textColor: "#374151",
+        instruction: "Standard fulfillment queue."
+    };
+}
+
 export function getAdminNotificationEmail(orderData: {
     orderNumber: string;
     customerName: string;
@@ -329,8 +418,25 @@ export function getAdminNotificationEmail(orderData: {
     `).join('');
 
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
+    const urgency = getShippingUrgency(orderData.shippingService, orderData.shippingCarrier);
 
     const content = `
+        ${urgency.isPriority ? `
+            <div style="background: ${urgency.bgGradient}; border: 2px solid ${urgency.borderColor}; border-radius: 8px; padding: 18px 20px; margin-bottom: 24px; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.12);">
+                <div style="margin-bottom: 8px;">
+                    <span style="display: inline-block; background-color: ${urgency.badgeColor}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ${urgency.tierName}
+                    </span>
+                </div>
+                <h2 style="color: ${urgency.textColor}; font-size: 20px; font-weight: 800; margin: 6px 0 6px 0;">
+                    ${orderData.shippingCarrier ? `${orderData.shippingCarrier} — ` : ''}${orderData.shippingService || 'Priority Shipping'} ${orderData.shippingCost !== undefined ? `($${orderData.shippingCost.toFixed(2)})` : ''}
+                </h2>
+                <p style="color: ${urgency.textColor}; font-size: 14px; font-weight: 600; margin: 0; line-height: 1.5;">
+                    ${urgency.instruction}
+                </p>
+            </div>
+        ` : ''}
+
         <h1 style="color: #111827; margin-top: 0;">🎉 New Order Received (Admin Notification)</h1>
         <p style="font-size: 16px; line-height: 1.6; color: #4b5563;">
             A new customer order has been placed on the site.
@@ -360,9 +466,19 @@ export function getAdminNotificationEmail(orderData: {
             <strong>Name:</strong> ${orderData.customerName}<br>
             <strong>Email:</strong> ${orderData.customerEmail}
             ${orderData.shippingAddress ? `<br><strong>Shipping Address:</strong><br>${orderData.shippingAddress}` : ''}
-            ${orderData.shippingService ? `<br><strong>Shipping Service:</strong> ${orderData.shippingCarrier || ''} ${orderData.shippingService}` : ''}
-            ${orderData.shippingCost !== undefined ? `<br><strong>Shipping Paid:</strong> $${orderData.shippingCost.toFixed(2)}` : ''}
         </p>
+
+        ${orderData.shippingService ? `
+            <div style="margin: 15px 0; padding: 14px 16px; background-color: ${urgency.isPriority ? '#FEF2F2' : '#F9FAFB'}; border-left: 4px solid ${urgency.isPriority ? urgency.badgeColor : '#9CA3AF'}; border-radius: 6px;">
+                <p style="margin: 0; font-size: 11px; font-weight: 700; color: ${urgency.isPriority ? urgency.badgeColor : '#6B7280'}; text-transform: uppercase; letter-spacing: 0.05em;">
+                    ${urgency.isPriority ? '🚨 EXPEDITED SHIPPING SELECTED' : 'Shipping Method'}
+                </p>
+                <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 800; color: ${urgency.isPriority ? '#991B1B' : '#111827'};">
+                    ${orderData.shippingCarrier ? `${orderData.shippingCarrier} — ` : ''}${orderData.shippingService}
+                    ${orderData.shippingCost !== undefined ? `<span style="color: ${urgency.isPriority ? '#DC2626' : '#6B7280'}; font-weight: 700; margin-left: 6px;">($${orderData.shippingCost.toFixed(2)})</span>` : ''}
+                </p>
+            </div>
+        ` : ''}
 
         <h2 style="color: #111827; font-size: 18px; margin-top: 30px;">Order Items</h2>
         <table>

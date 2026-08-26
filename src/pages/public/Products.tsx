@@ -193,6 +193,12 @@ const Products = () => {
         const name = (product.name || "").toLowerCase();
         const firstSku = (product.variants?.[0]?.sku || "").toUpperCase();
 
+        const isBulk = 
+            product.sale_type === 'bulk' ||
+            rawCat.includes("bulk") ||
+            name.includes("bulk") ||
+            (product.variants && product.variants.some((v: any) => v.bulk_only || v.bulk_price || v.sale_type === 'bulk'));
+
         const isPeptide = 
             rawCat.includes("peptide") ||
             name.includes("peptide") ||
@@ -214,10 +220,16 @@ const Products = () => {
             name.includes("reconstitution") ||
             name.includes("bac ");
 
-        const isBulk = 
-            product.sale_type === 'bulk' ||
-            rawCat.includes("bulk") ||
-            name.includes("bulk");
+        // If product category explicitly mentions bulk or the product is bulk-only
+        if (rawCat.includes("bulk") || product.sale_type === 'bulk' || (product.variants && product.variants.length > 0 && product.variants.every(v => v.bulk_only))) {
+            return {
+                key: "bulk",
+                name: product.category || "Bulk & Wholesale Orders",
+                icon: "📦",
+                description: "High-volume packaging and bulk manufacturing supplies.",
+                priority: 3
+            };
+        }
 
         if (isPeptide) {
             return {
@@ -228,6 +240,7 @@ const Products = () => {
                 priority: 1
             };
         }
+
         if (isWater) {
             return {
                 key: "water",
@@ -237,10 +250,11 @@ const Products = () => {
                 priority: 2
             };
         }
+
         if (isBulk) {
             return {
                 key: "bulk",
-                name: "Bulk & Wholesale Orders",
+                name: product.category || "Bulk & Wholesale Orders",
                 icon: "📦",
                 description: "High-volume packaging and bulk manufacturing supplies.",
                 priority: 3
@@ -272,15 +286,46 @@ const Products = () => {
 
         if (!selectedCategory) return matchesSearch;
 
-        const catInfo = normalizeCategory(product);
         const targetCategory = selectedCategory.toLowerCase();
+        const productCategory = (product.category || "").toLowerCase();
+        const productName = (product.name || "").toLowerCase();
+        const catInfo = normalizeCategory(product);
 
-        const matchesCat = 
-            targetCategory === catInfo.key ||
-            targetCategory === catInfo.name.toLowerCase() ||
-            (targetCategory.includes("peptide") && catInfo.key === "peptides") ||
-            ((targetCategory.includes("water") || targetCategory.includes("bac") || targetCategory.includes("reconstitution")) && catInfo.key === "water") ||
-            (targetCategory.includes("bulk") && catInfo.key === "bulk");
+        let matchesCat = false;
+
+        if (targetCategory === "all" || !targetCategory) {
+            matchesCat = true;
+        } else if (targetCategory === "peptides" || targetCategory.includes("peptide")) {
+            matchesCat = catInfo.key === "peptides" || productCategory.includes("peptide") || productName.includes("peptide");
+        } else if (
+            targetCategory === "water" ||
+            targetCategory.includes("water") ||
+            targetCategory.includes("bac") ||
+            targetCategory.includes("reconstitution")
+        ) {
+            matchesCat = 
+                catInfo.key === "water" ||
+                productCategory.includes("water") ||
+                productCategory.includes("reconstitution") ||
+                productCategory.includes("solution") ||
+                productName.includes("water") ||
+                productName.includes("bacteriostatic") ||
+                productName.includes("reconstitution");
+        } else if (targetCategory === "bulk" || targetCategory.includes("bulk")) {
+            matchesCat = 
+                catInfo.key === "bulk" ||
+                productCategory.includes("bulk") ||
+                productName.includes("bulk") ||
+                product.sale_type === 'bulk' ||
+                (product.variants && product.variants.some((v: any) => v.bulk_only || v.bulk_price || v.sale_type === 'bulk'));
+        } else {
+            matchesCat = 
+                productCategory === targetCategory ||
+                productCategory.includes(targetCategory) ||
+                targetCategory.includes(productCategory) ||
+                catInfo.key === targetCategory ||
+                catInfo.name.toLowerCase() === targetCategory;
+        }
 
         return matchesSearch && matchesCat;
     });
@@ -533,7 +578,8 @@ const Products = () => {
                         (selLower === catLower) ||
                         (selLower.includes("peptide") && catLower.includes("peptide")) ||
                         ((selLower.includes("water") || selLower.includes("bac") || selLower.includes("reconstitution")) &&
-                         (catLower.includes("water") || catLower.includes("reconstitution")));
+                         (catLower.includes("water") || catLower.includes("reconstitution"))) ||
+                        (selLower.includes("bulk") && catLower.includes("bulk"));
 
                     return (
                         <button

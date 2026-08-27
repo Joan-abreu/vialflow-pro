@@ -78,6 +78,7 @@ const PublicLayoutContent = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isPromoter, setIsPromoter] = useState(false);
     const [showFdaDisclaimer, setShowFdaDisclaimer] = useState(true);
     const [showPeptideBanner, setShowPeptideBanner] = useState(true);
     const navigate = useNavigate();
@@ -93,7 +94,7 @@ const PublicLayoutContent = () => {
     const [isCheckingRoute, setIsCheckingRoute] = useState<boolean>(false);
 
     useEffect(() => {
-        const checkAdmin = async () => {
+        const checkRolesAndPromoter = async () => {
             if (user) {
                 const { data } = await supabase
                     .from("user_roles")
@@ -102,12 +103,26 @@ const PublicLayoutContent = () => {
                     .single();
 
                 setIsAdmin(data?.role === "admin");
+
+                // Check if user is registered in affiliates
+                try {
+                    const { data: affList } = await supabase
+                        .from("affiliates" as any)
+                        .select("id")
+                        .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
+                        .limit(1);
+
+                    setIsPromoter((affList || []).length > 0);
+                } catch (_) {
+                    setIsPromoter(false);
+                }
             } else {
                 setIsAdmin(false);
+                setIsPromoter(false);
             }
         };
 
-        checkAdmin();
+        checkRolesAndPromoter();
     }, [user]);
 
     useEffect(() => {
@@ -258,21 +273,31 @@ const PublicLayoutContent = () => {
                                         <span className="sr-only">Account</span>
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent align="end" className="w-56">
                                     <DropdownMenuItem asChild>
-                                        <Link to="/account" className="cursor-pointer">
+                                        <Link to="/account" className="cursor-pointer font-medium flex items-center">
+                                            <User className="mr-2 h-4 w-4 text-muted-foreground" />
                                             My Account
                                         </Link>
                                     </DropdownMenuItem>
+                                    {isPromoter && (
+                                        <DropdownMenuItem asChild>
+                                            <Link to="/promoter" className="cursor-pointer font-bold text-primary flex items-center">
+                                                <Sparkles className="mr-2 h-4 w-4 text-primary" />
+                                                Promoter Hub
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    )}
                                     {isAdmin && (
                                         <DropdownMenuItem asChild>
-                                            <Link to="/manufacturing" className="cursor-pointer">
+                                            <Link to="/manufacturing" className="cursor-pointer font-medium flex items-center">
+                                                <Sparkles className="mr-2 h-4 w-4 text-muted-foreground" />
                                                 Manufacturing Dashboard
                                             </Link>
                                         </DropdownMenuItem>
                                     )}
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-muted-foreground hover:text-foreground">
                                         <LogOut className="mr-2 h-4 w-4" />
                                         Logout
                                     </DropdownMenuItem>
@@ -342,6 +367,12 @@ const PublicLayoutContent = () => {
                                             <Link to="/account" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                                 My Account
                                             </Link>
+                                            {isPromoter && (
+                                                <Link to="/promoter" onClick={() => setMobileMenuOpen(false)} className="text-lg font-bold text-primary flex items-center gap-2">
+                                                    <Sparkles className="h-5 w-5 text-primary" />
+                                                    <span>Promoter Hub</span>
+                                                </Link>
+                                            )}
                                             <button onClick={handleLogout} className="text-lg font-medium text-left">
                                                 Logout
                                             </button>

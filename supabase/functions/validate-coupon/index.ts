@@ -103,7 +103,10 @@ serve(async (req) => {
                     }
 
                     if (!isAllowed) {
-                        throw new Error(`Coupon ${trimmedCode} is restricted to specific customer email address(es).`);
+                        if (!userEmail && !userId) {
+                            throw new Error(`This exclusive coupon (${trimmedCode}) is reserved for a specific customer account. Please sign in or enter your delivery email in Step 1 to apply it.`);
+                        }
+                        throw new Error(`Coupon ${trimmedCode} is restricted to specific customer email address(es). Please ensure you are signed in with the correct email.`);
                     }
                 }
 
@@ -195,7 +198,77 @@ serve(async (req) => {
                 continue;
             }
 
-            // 2. Check if it's a referral code (Referrer Reward)
+            // 2. Check if it's an Affiliate / Promoter Promo Code
+            const { data: affiliate, error: affError } = await supabase
+                .from("affiliates")
+                .select("*")
+                .ilike("promo_code", trimmedCode)
+                .maybeSingle();
+
+            if (affiliate) {
+                // Check if program is globally enabled
+                const { data: programSetting } = await supabase
+                    .from("app_settings")
+                    .select("value")
+                    .eq("key", "affiliate_program_enabled")
+                    .maybeSingle();
+
+                if (programSetting && programSetting.value === "false") {
+                    throw new Error(`The promoter code ${trimmedCode} is currently paused.`);
+                }
+
+                if (affiliate.status !== "active") {
+                    throw new Error(`Promoter code ${trimmedCode} is not currently active.`);
+                }
+
+                if (affiliate.expires_at && new Date(affiliate.expires_at) < new Date()) {
+                    throw new Error(`Promoter code ${trimmedCode} has expired.`);
+                }
+
+                // Determine customer discount
+                let discType = affiliate.customer_discount_type || 'percentage';
+                let discValue = Number(affiliate.customer_discount_value) || 10;
+
+                if (!affiliate.is_custom_rates) {
+                    const { data: defaultType } = await supabase
+                        .from("app_settings")
+                        .select("value")
+                        .eq("key", "affiliate_default_customer_discount_type")
+                        .maybeSingle();
+                    const { data: defaultVal } = await supabase
+                        .from("app_settings")
+                        .select("value")
+                        .eq("key", "affiliate_default_customer_discount_value")
+                        .maybeSingle();
+                    if (defaultType?.value) discType = defaultType.value;
+                    if (defaultVal?.value) discValue = Number(defaultVal.value) || 10;
+                }
+
+                let discountAmount = 0;
+                if (discType === 'percentage') {
+                    discountAmount = currentSubtotal * (discValue / 100);
+                } else {
+                    discountAmount = Math.min(discValue, currentSubtotal);
+                }
+
+                discountAmount = Number(discountAmount.toFixed(2));
+                currentSubtotal = Math.max(0, Number((currentSubtotal - discountAmount).toFixed(2)));
+
+                appliedDiscounts.push({
+                    code: trimmedCode,
+                    amount: discountAmount,
+                    target: 'product',
+                    isAffiliate: true,
+                    affiliateId: affiliate.id,
+                    affiliateName: affiliate.name,
+                    discountType: discType,
+                    discountValue: discValue,
+                    message: `Promoter code applied! (${discType === 'percentage' ? `${discValue}% OFF` : `$${discValue} OFF`})`
+                });
+                continue;
+            }
+
+            // 3. Check if it's a customer referral code (Referrer Reward)
             if (userId) {
                 const { data: profile } = await supabase
                     .from("profiles")

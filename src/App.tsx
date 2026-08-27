@@ -14,6 +14,7 @@ import BillOfMaterials from "./pages/BillOfMaterials";
 import InventoryReport from "./pages/InventoryReport";
 import ProductManagement from "./pages/manufacturing/ProductManagement";
 import Coupons from "./pages/manufacturing/Coupons";
+import Affiliates from "./pages/manufacturing/Affiliates";
 import COAManagement from "./pages/manufacturing/COAManagement";
 import OrderManagement from "./pages/manufacturing/OrderManagement";
 import OrderLabels from "./pages/manufacturing/OrderLabels";
@@ -42,6 +43,7 @@ import Terms from "./pages/public/Terms";
 import Privacy from "./pages/public/Privacy";
 import Returns from "./pages/public/Returns";
 import Account from "./pages/public/Account";
+import PromoterDashboard from "./pages/public/PromoterDashboard";
 import SafetyDataSheets from "./pages/public/SafetyDataSheets";
 import LabReports from "./pages/public/LabReports";
 import ComingSoon from "./pages/public/ComingSoon";
@@ -207,6 +209,8 @@ const AppRoutes = () => {
                     <Route path="/about" element={<About />} />
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/account" element={<Account />} />
+                    <Route path="/promoter" element={<PromoterDashboard />} />
+                    <Route path="/affiliates" element={<PromoterDashboard />} />
                     <Route path="/terms" element={<Terms />} />
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/returns" element={<Returns />} />
@@ -227,6 +231,7 @@ const AppRoutes = () => {
                     <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
                     <Route path="coas" element={<ProtectedRoute><COAManagement /></ProtectedRoute>} />
                     <Route path="coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
+                    <Route path="affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />
                     <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
                     <Route path="order-labels" element={<ProtectedRoute><OrderLabels /></ProtectedRoute>} />
                     <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />

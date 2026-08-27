@@ -182,6 +182,13 @@ serve(async (req) => {
                 }
             }
 
+            // Process affiliate commission for this order
+            try {
+                await supabase.rpc('process_order_affiliate_commission', { p_order_id: orderId });
+            } catch (affErr) {
+                console.warn(`[Affiliate Commission] Error processing affiliate commission for order ${orderId}:`, affErr);
+            }
+
             const sendEmail = async (type: string) => {
                 await fetch(`${supabaseUrl}/functions/v1/send-system-notification`, {
                     method: "POST",

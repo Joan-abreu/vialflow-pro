@@ -75,16 +75,25 @@ const markOrderAsPaid = async (orderId: string, providerName: string, transactio
     await supabase.from("orders").update(updates).eq("id", orderId);
     console.log(`[Webhook] Order ${orderId} marked as 'processing' via ${providerName}`);
 
-    // Coupons & referral counters
+    // Coupons, referral counters & affiliate commissions
     if (order.applied_coupons && Array.isArray(order.applied_coupons)) {
         for (const code of order.applied_coupons) {
-            const trimmed = code.trim().toUpperCase();
-            await supabase.rpc('increment_coupon_usage', { coupon_code: trimmed });
-            const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmed).single();
-            if (profile) {
-                await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
+            const trimmed = typeof code === 'string' ? code.trim().toUpperCase() : (code?.code || '').trim().toUpperCase();
+            if (trimmed) {
+                await supabase.rpc('increment_coupon_usage', { coupon_code: trimmed });
+                const { data: profile } = await supabase.from('profiles').select('user_id').eq('referral_code', trimmed).single();
+                if (profile) {
+                    await supabase.rpc('increment_referral_count', { referrer_user_id: profile.user_id });
+                }
             }
         }
+    }
+
+    // Process affiliate commission for this order
+    try {
+        await supabase.rpc('process_order_affiliate_commission', { p_order_id: orderId });
+    } catch (affErr) {
+        console.warn(`[Affiliate Commission] Error processing affiliate commission for order ${orderId}:`, affErr);
     }
 
     await sendOrderNotifications(orderId);
@@ -94,6 +103,11 @@ const markOrderAsPaid = async (orderId: string, providerName: string, transactio
 const markOrderAsRefunded = async (orderId: string, providerName: string) => {
     await supabase.from("orders").update({ status: "refunded" }).eq("id", orderId);
     console.log(`[Webhook] Order ${orderId} marked as 'refunded' via ${providerName}`);
+    try {
+        await supabase.rpc('process_order_affiliate_commission', { p_order_id: orderId });
+    } catch (e) {
+        console.warn(`[Affiliate Commission] Error updating refunded status for order ${orderId}:`, e);
+    }
 };
 
 // Helper: mark order as disputed / chargeback

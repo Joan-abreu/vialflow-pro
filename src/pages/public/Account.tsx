@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { User, Package, ChevronDown, ChevronUp, RotateCcw, Users, Copy, Pencil, Check, X } from "lucide-react";
+import { User, Package, ChevronDown, ChevronUp, RotateCcw, Users, Copy, Pencil, Check, X, Sparkles, ArrowRight, Wallet, Share2 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
     Collapsible,
@@ -34,17 +34,30 @@ interface Order {
     tax: number;
     status: string;
     created_at: string;
+    sent_to_production?: boolean;
+    sent_to_production_at?: string;
     tracking_number?: string;
-    order_shipments?: any[];
-    applied_coupons?: string[];
-    product_discount?: number;
-    shipping_discount?: number;
+    shipping_address?: {
+        street?: string;
+        line1?: string;
+        city?: string;
+        state?: string;
+        postal_code?: string;
+        zip?: string;
+        country?: string;
+    };
+    order_shipments?: {
+        id: string;
+        carrier: string;
+        tracking_number: string;
+        tracking_url?: string;
+    }[];
     order_items: {
         id: string;
         quantity: number;
         price_at_time: number;
         variant_id: string;
-        variant?: {
+        variant: {
             image_url: string | null;
             pack_size: number;
             product: {
@@ -61,11 +74,22 @@ interface Order {
     }[];
 }
 
+interface PromoterSummary {
+    id: string;
+    name: string;
+    promo_code: string;
+    status: string;
+    pendingBalance: number;
+    totalEarned: number;
+    ordersCount: number;
+}
+
 const Account = () => {
     const navigate = useNavigate();
     const { addToCart } = useCart();
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
+    const [promoterData, setPromoterData] = useState<PromoterSummary | null>(null);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [fullName, setFullName] = useState("");
@@ -105,6 +129,58 @@ const Account = () => {
         setProfile(profileData);
         setFullName(profileData?.full_name || "");
         setPhone(profileData?.phone || "");
+
+        // Check if user is registered as an affiliate / promoter
+        try {
+            const { data: affList } = await supabase
+                .from("affiliates" as any)
+                .select("id, name, promo_code, status")
+                .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
+                .order("created_at", { ascending: false });
+
+            const aff = (affList || []).find((a: any) => a.status === "active") || affList?.[0];
+
+            if (aff) {
+                const affiliateIds = (affList || []).map((a: any) => a.id);
+                const { data: comms } = await supabase
+                    .from("affiliate_commissions" as any)
+                    .select("commission_amount, status")
+                    .in("affiliate_id", affiliateIds);
+
+                let pendingBalance = 0;
+                let totalEarned = 0;
+                let ordersCount = 0;
+
+                (comms || []).forEach((c: any) => {
+                    if (c.status !== "rejected") {
+                        ordersCount++;
+                        totalEarned += Number(c.commission_amount || 0);
+                        if (c.status === "approved") {
+                            pendingBalance += Number(c.commission_amount || 0);
+                        }
+                    }
+                });
+
+                setPromoterData({
+                    id: aff.id,
+                    name: aff.name,
+                    promo_code: aff.promo_code,
+                    status: aff.status,
+                    pendingBalance,
+                    totalEarned,
+                    ordersCount,
+                    allCodes: (affList || []).map((a: any) => ({
+                        id: a.id,
+                        name: a.name,
+                        promo_code: a.promo_code,
+                        status: a.status
+                    }))
+                });
+            }
+        } catch (err) {
+            console.error("Failed to load promoter status for account:", err);
+        }
+
         setLoading(false);
     };
 
@@ -422,55 +498,192 @@ const Account = () => {
                     </CardContent>
                 </Card>
 
-                {/* Referrals Section */}
-                <Card className="md:col-span-1">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5" />
-                            Refer & Earn
-                        </CardTitle>
-                        <CardDescription>Share your code and get rewards</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Your Referral Code</Label>
-                            <div className="flex gap-2">
-                                <Input 
-                                    value={profile?.referral_code || ""} 
-                                    readOnly 
-                                    className="font-mono text-center tracking-widest bg-muted/50 border-primary/20" 
-                                />
-                                <Button 
-                                    size="icon" 
-                                    variant="outline" 
-                                    className="shrink-0 hover:bg-primary/5"
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(profile?.referral_code || "");
-                                        toast.success("Code copied to clipboard!");
-                                    }}
-                                >
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between items-center py-1">
-                            <div className="space-y-0.5">
-                                <p className="text-sm font-medium">Successful Referrals</p>
-                                <p className="text-3xl font-extrabold text-primary">{profile?.successful_referrals || 0}</p>
-                            </div>
-                            <div className="text-right space-y-1">
-                                <p className="text-[10px] items-center font-bold text-muted-foreground uppercase tracking-widest">Next Reward</p>
-                                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
-                                    {Math.min((profile?.successful_referrals || 0) * 10, 30)}% OFF
+                {/* Referrals or Influencer Promoter Section (Conditional) */}
+                {promoterData ? (
+                    <Card className="md:col-span-1 border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-background shadow-sm">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                                    <Sparkles className="h-4 w-4 text-primary" />
+                                    Influencer Partner Hub
+                                </CardTitle>
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold">
+                                    ● Active Partner
                                 </Badge>
                             </div>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground italic bg-muted/30 p-2 rounded">
-                            Get 10% off products for each friend referred. Use your code during checkout to redeem your earned discount (capped at 30% off).
-                        </p>
-                    </CardContent>
-                </Card>
+                            <CardDescription className="text-xs">
+                                Track your live commission earnings and share your code.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                                    {promoterData.allCodes && promoterData.allCodes.length > 1 ? "Your Active Promo Codes" : "Your Exclusive Promo Code"}
+                                </Label>
+                                {promoterData.allCodes && promoterData.allCodes.length > 1 ? (
+                                    <div className="space-y-2">
+                                        {promoterData.allCodes.map((c) => {
+                                            const link = `${window.location.origin}/?ref=${encodeURIComponent(c.promo_code)}`;
+                                            return (
+                                                <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-background border border-primary/30 rounded-xl p-2.5 px-3 shadow-xs">
+                                                    <div>
+                                                        <p className="font-mono font-black text-sm text-primary tracking-wider">{c.promo_code}</p>
+                                                        <p className="text-[10px] text-muted-foreground">{c.name || "Campaign Code"}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline" 
+                                                            className="h-7 px-2.5 text-xs gap-1 font-semibold hover:bg-primary/5 border-border"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(c.promo_code);
+                                                                toast.success(`Promo code ${c.promo_code} copied!`);
+                                                            }}
+                                                        >
+                                                            <Copy className="h-3 w-3" />
+                                                            Code
+                                                        </Button>
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline" 
+                                                            className="h-7 px-2.5 text-xs gap-1 font-semibold hover:bg-primary/5 border-primary/30 text-primary"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(link);
+                                                                toast.success(`Referral link for ${c.promo_code} copied!`);
+                                                            }}
+                                                        >
+                                                            <Share2 className="h-3 w-3" />
+                                                            Link
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                        <Input 
+                                            value={promoterData.promo_code} 
+                                            readOnly 
+                                            className="font-mono text-center font-bold text-base tracking-widest bg-background border-primary/30 text-primary flex-1" 
+                                        />
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Button 
+                                                variant="outline" 
+                                                className="gap-1 text-xs font-semibold hover:bg-primary/5 border-border flex-1 sm:flex-initial"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoterData.promo_code);
+                                                    toast.success(`Promo code ${promoterData.promo_code} copied!`);
+                                                }}
+                                            >
+                                                <Copy className="h-3.5 w-3.5" />
+                                                Copy Code
+                                            </Button>
+                                            <Button 
+                                                variant="outline" 
+                                                className="gap-1 text-xs font-semibold hover:bg-primary/5 border-primary/30 text-primary flex-1 sm:flex-initial"
+                                                onClick={() => {
+                                                    const link = `${window.location.origin}/?ref=${encodeURIComponent(promoterData.promo_code)}`;
+                                                    navigator.clipboard.writeText(link);
+                                                    toast.success(`Referral link for ${promoterData.promo_code} copied!`);
+                                                }}
+                                            >
+                                                <Share2 className="h-3.5 w-3.5" />
+                                                Copy Link
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <Separator />
+
+                            {/* Live Stats Summary */}
+                            <div className="grid grid-cols-2 gap-2 text-center">
+                                <div className="p-2.5 bg-background border rounded-lg">
+                                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Unpaid Balance</p>
+                                    <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                        ${(promoterData.pendingBalance || 0).toFixed(2)}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground">Ready for payout</p>
+                                </div>
+                                <div className="p-2.5 bg-background border rounded-lg">
+                                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Sales Generated</p>
+                                    <p className="text-lg font-black text-primary">
+                                        {promoterData.ordersCount}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground">${(promoterData.totalEarned || 0).toFixed(2)} total earned</p>
+                                </div>
+                            </div>
+
+                            {/* Direct Action Link to Full Portal */}
+                            <Button className="w-full font-bold gap-2 shadow-xs text-xs h-10" asChild>
+                                <Link to="/promoter">
+                                    <Wallet className="w-4 h-4" />
+                                    Open Full Commission Portal
+                                    <ArrowRight className="w-4 h-4 ml-auto" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <Card className="md:col-span-1">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5" />
+                                Refer & Earn
+                            </CardTitle>
+                            <CardDescription>Share your code with friends and get rewards</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Your Referral Code</Label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        value={profile?.referral_code || ""} 
+                                        readOnly 
+                                        className="font-mono text-center tracking-widest bg-muted/50 border-primary/20" 
+                                    />
+                                    <Button 
+                                        size="icon" 
+                                        variant="outline" 
+                                        className="shrink-0 hover:bg-primary/5"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(profile?.referral_code || "");
+                                            toast.success("Code copied to clipboard!");
+                                        }}
+                                    >
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between items-center py-1">
+                                <div className="space-y-0.5">
+                                    <p className="text-sm font-medium">Successful Referrals</p>
+                                    <p className="text-3xl font-extrabold text-primary">{profile?.successful_referrals || 0}</p>
+                                </div>
+                                <div className="text-right space-y-1">
+                                    <p className="text-[10px] items-center font-bold text-muted-foreground uppercase tracking-widest">Next Reward</p>
+                                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                        {Math.min((profile?.successful_referrals || 0) * 10, 30)}% OFF
+                                    </Badge>
+                                </div>
+                            </div>
+                            <p className="text-[11px] leading-relaxed text-muted-foreground italic bg-muted/30 p-2 rounded">
+                                Get 10% off products for each friend referred. Use your code during checkout to redeem your earned discount (capped at 30% off).
+                            </p>
+                            <div className="pt-2 border-t mt-2">
+                                <Button variant="outline" size="sm" className="w-full gap-2 text-xs font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5" asChild>
+                                    <Link to="/contact">
+                                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                                        Interested in our Influencer Program? Apply here
+                                    </Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             <Separator className="my-8" />

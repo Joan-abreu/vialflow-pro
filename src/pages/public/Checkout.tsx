@@ -31,6 +31,7 @@ const Checkout = () => {
     
     // Coupon & Referral State
     const [couponCode, setCouponCode] = useState("");
+    const [pendingCouponCode, setPendingCouponCode] = useState<string>("");
     const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
     const [appliedDiscounts, setAppliedDiscounts] = useState<any[]>([]);
     const [finalSubtotal, setFinalSubtotal] = useState<number>(cartTotal);
@@ -241,14 +242,42 @@ const Checkout = () => {
         }
     };
 
+    // Auto-apply referral/promo code from URL param or storage on mount
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refCode = urlParams.get('ref') || localStorage.getItem('vialflow_referral_code');
+        if (refCode && appliedDiscounts.length === 0) {
+            const cleanRef = refCode.trim().toUpperCase();
+            localStorage.setItem('vialflow_referral_code', cleanRef);
+            handleApplyCoupon([cleanRef]);
+        }
+    }, []);
+
+    // Auto-retry pending or restricted coupon as soon as customer email becomes known
+    const userEmailForCoupons = session?.user?.email || currentAddress?.email;
+    useEffect(() => {
+        if (userEmailForCoupons) {
+            if (pendingCouponCode && appliedDiscounts.length === 0) {
+                const codeToRetry = pendingCouponCode;
+                setPendingCouponCode("");
+                handleApplyCoupon([codeToRetry]);
+            }
+        }
+    }, [userEmailForCoupons]);
+
     const handleApplyCoupon = async (codesInput?: string[], currentShipCost?: number) => {
         const currentlyApplied = appliedDiscounts.map(d => d.code);
-        const codesToValidate = codesInput || (couponCode ? [...currentlyApplied, couponCode] : currentlyApplied);
+        const codeTyped = couponCode.trim().toUpperCase();
+        const codesToValidate = codesInput || (codeTyped ? [...currentlyApplied, codeTyped] : currentlyApplied);
         
         if (codesToValidate.length === 0) return;
         
         // Avoid duplicate codes
         const uniqueCodes = Array.from(new Set(codesToValidate.map(c => c.trim().toUpperCase())));
+
+        if (codeTyped && !codesInput) {
+            setPendingCouponCode(codeTyped);
+        }
 
         setIsValidatingCoupon(true);
         try {
@@ -272,6 +301,7 @@ const Checkout = () => {
             setAppliedDiscounts(data.appliedDiscounts || []);
             setFinalSubtotal(data.subtotal);
             setFinalShipping(data.shipping);
+            setPendingCouponCode("");
             
             if (!codesInput) {
                 if (data.appliedDiscounts.length > appliedDiscounts.length) {

@@ -39,6 +39,188 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliates: {
+        Row: {
+          id: string
+          user_id: string | null
+          name: string
+          email: string
+          phone: string | null
+          social_handle: string | null
+          promo_code: string
+          is_custom_rates: boolean | null
+          customer_discount_type: "percentage" | "fixed_amount" | null
+          customer_discount_value: number | null
+          commission_type: "percentage" | "fixed_per_order" | null
+          commission_rate: number | null
+          commission_basis: "net_subtotal" | "gross_subtotal" | null
+          payout_method: string | null
+          payout_details: Json | null
+          status: "active" | "inactive" | "suspended" | null
+          max_uses: number | null
+          expires_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          name: string
+          email: string
+          phone?: string | null
+          social_handle?: string | null
+          promo_code: string
+          is_custom_rates?: boolean | null
+          customer_discount_type?: "percentage" | "fixed_amount" | null
+          customer_discount_value?: number | null
+          commission_type?: "percentage" | "fixed_per_order" | null
+          commission_rate?: number | null
+          commission_basis?: "net_subtotal" | "gross_subtotal" | null
+          payout_method?: string | null
+          payout_details?: Json | null
+          status?: "active" | "inactive" | "suspended" | null
+          max_uses?: number | null
+          expires_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          name?: string
+          email?: string
+          phone?: string | null
+          social_handle?: string | null
+          promo_code?: string
+          is_custom_rates?: boolean | null
+          customer_discount_type?: "percentage" | "fixed_amount" | null
+          customer_discount_value?: number | null
+          commission_type?: "percentage" | "fixed_per_order" | null
+          commission_rate?: number | null
+          commission_basis?: "net_subtotal" | "gross_subtotal" | null
+          payout_method?: string | null
+          payout_details?: Json | null
+          status?: "active" | "inactive" | "suspended" | null
+          max_uses?: number | null
+          expires_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      affiliate_commissions: {
+        Row: {
+          id: string
+          affiliate_id: string
+          order_id: string
+          coupon_code: string
+          customer_email: string | null
+          order_subtotal: number | null
+          customer_discount_amount: number | null
+          commission_rate: number | null
+          commission_amount: number | null
+          status: "pending" | "approved" | "rejected" | "paid" | null
+          payout_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          affiliate_id: string
+          order_id: string
+          coupon_code: string
+          customer_email?: string | null
+          order_subtotal?: number | null
+          customer_discount_amount?: number | null
+          commission_rate?: number | null
+          commission_amount?: number | null
+          status?: "pending" | "approved" | "rejected" | "paid" | null
+          payout_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          affiliate_id?: string
+          order_id?: string
+          coupon_code?: string
+          customer_email?: string | null
+          order_subtotal?: number | null
+          customer_discount_amount?: number | null
+          commission_rate?: number | null
+          commission_amount?: number | null
+          status?: "pending" | "approved" | "rejected" | "paid" | null
+          payout_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_commissions_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      affiliate_payouts: {
+        Row: {
+          id: string
+          affiliate_id: string
+          amount: number
+          payment_method: string
+          transaction_reference: string | null
+          receipt_url: string | null
+          payment_date: string
+          notes: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          affiliate_id: string
+          amount: number
+          payment_method: string
+          transaction_reference?: string | null
+          receipt_url?: string | null
+          payment_date?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          affiliate_id?: string
+          amount?: number
+          payment_method?: string
+          transaction_reference?: string | null
+          receipt_url?: string | null
+          payment_date?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_payouts_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       box_configurations: {
         Row: {
           created_at: string | null

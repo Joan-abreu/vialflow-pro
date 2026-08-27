@@ -339,7 +339,13 @@ serve(async (req) => {
                 throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY).");
             }
 
-            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagada.io/api/public/v1";
+            const candidateBaseUrls = [
+                Deno.env.get("TAGADAPAY_BASE_URL"),
+                "https://api.tagada.io/api/public/v1",
+                "https://app.tagadapay.com/api/public/v1",
+                "https://api.tagadapay.com/api/public/v1"
+            ].filter(Boolean) as string[];
+
             const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
 
             let paymentInstrumentId = sourceId;
@@ -350,32 +356,47 @@ serve(async (req) => {
                 const firstName = shippingAddress?.firstName || customerEmail?.split("@")[0] || "Customer";
                 const lastName = shippingAddress?.lastName || "Order";
 
-                const instrumentRes = await fetch(`${tagadaBaseUrl}/payment-instruments/create-from-token`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${effectiveApiKey}`,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    },
-                    body: JSON.stringify({
-                        tagadaToken: sourceId,
-                        storeId: storeId,
-                        customerData: {
-                            email: customerEmail,
-                            firstName,
-                            lastName
-                        }
-                    })
-                });
+                let instrumentCreated = false;
+                let lastInstrumentErr = "Failed to create Tagada payment instrument";
 
-                const instrumentData = await instrumentRes.json();
-                if (!instrumentRes.ok || (!instrumentData.paymentInstrument?.id && !instrumentData.id)) {
-                    const errMsg = instrumentData.message || instrumentData.error || "Failed to create Tagada payment instrument";
-                    throw new Error(errMsg);
+                for (const baseUrl of candidateBaseUrls) {
+                    try {
+                        const instrumentRes = await fetch(`${baseUrl}/payment-instruments/create-from-token`, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${effectiveApiKey}`,
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                tagadaToken: sourceId,
+                                storeId: storeId,
+                                customerData: {
+                                    email: customerEmail,
+                                    firstName,
+                                    lastName
+                                }
+                            })
+                        });
+
+                        const instrumentData = await instrumentRes.json().catch(() => ({}));
+                        if (instrumentRes.ok && (instrumentData.paymentInstrument?.id || instrumentData.id)) {
+                            paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
+                            tagadaCustomerId = instrumentData.customer?.id || instrumentData.customerId;
+                            instrumentCreated = true;
+                            break;
+                        } else if (instrumentRes.status !== 404) {
+                            lastInstrumentErr = instrumentData.message || instrumentData.error || lastInstrumentErr;
+                            break;
+                        }
+                    } catch (err: any) {
+                        lastInstrumentErr = err.message || lastInstrumentErr;
+                    }
                 }
 
-                paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
-                tagadaCustomerId = instrumentData.customer?.id || instrumentData.customerId;
+                if (!instrumentCreated && !paymentInstrumentId) {
+                    throw new Error(lastInstrumentErr);
+                }
             }
 
             const defaultReturnUrl = (body.returnUrl && !body.returnUrl.includes("localhost") && !body.returnUrl.includes("127.0.0.1"))
@@ -408,17 +429,34 @@ serve(async (req) => {
 
             console.log("👉 [TagadaPay] Sending Process Payload to TagadaPay:", JSON.stringify(processPayload, null, 2));
 
-            const payRes = await fetch(`${tagadaBaseUrl}/payments/process`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${effectiveApiKey}`,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify(processPayload)
-            });
+            let payRes: Response | null = null;
+            let payData: any = null;
 
-            const payData = await payRes.json();
+            for (const baseUrl of candidateBaseUrls) {
+                try {
+                    payRes = await fetch(`${baseUrl}/payments/process`, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${effectiveApiKey}`,
+                            "Content-Type": "application/json",
+                            "Accept": "application/json"
+                        },
+                        body: JSON.stringify(processPayload)
+                    });
+
+                    payData = await payRes.json().catch(() => ({}));
+                    if (payRes.status !== 404) {
+                        break;
+                    }
+                } catch (err) {
+                    console.warn(`TagadaPay request to ${baseUrl} failed:`, err);
+                }
+            }
+
+            if (!payRes || !payData) {
+                throw new Error("Unable to connect to TagadaPay payment processing server.");
+            }
+
             console.log("👈 [TagadaPay] Received Process Response:", JSON.stringify(payData, null, 2));
             const payment = payData.payment || payData.data || payData;
 
@@ -475,7 +513,14 @@ serve(async (req) => {
                     status: 200,
                 });
             } else {
-                const errMsg = payment.error || payData.message || payData.error || `Tagada transaction ${payment.status || "declined"}`;
+                let errMsg = payment.error || payData.message || payData.error;
+                if (!errMsg && payData.fieldErrors) {
+                    const firstErr = Object.values(payData.fieldErrors)[0];
+                    errMsg = Array.isArray(firstErr) ? firstErr[0] : String(firstErr);
+                }
+                if (!errMsg) {
+                    errMsg = `Tagada transaction ${payment.status || "declined"}`;
+                }
                 throw new Error(errMsg);
             }
         }

@@ -183,7 +183,7 @@ serve(async (req) => {
             });
         }
 
-        const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagadapay.io/api/public/v1";
+        const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagada.io/api/public/v1";
         const results: any[] = [];
         let successCount = 0;
         let failCount = 0;

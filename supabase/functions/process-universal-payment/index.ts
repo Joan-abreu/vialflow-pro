@@ -339,7 +339,7 @@ serve(async (req) => {
                 throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY).");
             }
 
-            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagadapay.io/api/public/v1";
+            const tagadaBaseUrl = Deno.env.get("TAGADAPAY_BASE_URL") || "https://api.tagada.io/api/public/v1";
             const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
 
             let paymentInstrumentId = sourceId;

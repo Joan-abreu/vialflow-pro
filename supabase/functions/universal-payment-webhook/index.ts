@@ -67,6 +67,8 @@ const markOrderAsPaid = async (orderId: string, providerName: string, transactio
     const updates: any = {
         status: "processing",
         payment_method: providerName,
+        payment_provider: providerName,
+        payment_status: "paid",
     };
     if (transactionId) updates.payment_intent_id = transactionId;
 
@@ -340,12 +342,30 @@ serve(async (req) => {
                 dataObj?.latest_charge?.status === "succeeded" ||
                 dataObj?.latest_charge?.paid === true;
 
+            const customerEmail = dataObj?.customer?.email || event?.data?.customer?.email || event?.customer?.email;
+
             if (isPaymentSuccess) {
                 if (orderId) {
                     await markOrderAsPaid(orderId, "tagadapay", paymentId);
                 } else if (paymentId) {
                     const { data: order } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).maybeSingle();
-                    if (order) await markOrderAsPaid(order.id, "tagadapay", paymentId);
+                    if (order) {
+                        await markOrderAsPaid(order.id, "tagadapay", paymentId);
+                    } else if (customerEmail) {
+                        const { data: pendingOrder } = await supabase
+                            .from("orders")
+                            .select("id")
+                            .eq("status", "pending_payment")
+                            .ilike("customer_email", customerEmail.trim())
+                            .order("created_at", { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+
+                        if (pendingOrder) {
+                            console.log(`[Tagada Webhook] Matched pending order ${pendingOrder.id} for email ${customerEmail}`);
+                            await markOrderAsPaid(pendingOrder.id, "tagadapay", paymentId);
+                        }
+                    }
                 }
             } else if (eventType === "charge.refunded" || eventType === "payment.refunded" || eventType === "order/refunded" || eventType === "charge/refunded") {
                 if (orderId) {

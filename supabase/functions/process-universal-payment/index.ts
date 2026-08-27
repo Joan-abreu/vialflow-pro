@@ -138,8 +138,10 @@ serve(async (req) => {
             const updatePayload: any = {
                 status: "processing",
                 payment_method: providerName,
-                payment_intent_id: transactionId,
+                payment_provider: providerName,
+                payment_status: "paid",
             };
+            if (transactionId) updatePayload.payment_intent_id = transactionId;
             if (applied_coupons) updatePayload.applied_coupons = applied_coupons;
             if (productDiscount > 0) updatePayload.product_discount = productDiscount;
             if (shippingDiscount > 0) updatePayload.shipping_discount = shippingDiscount;
@@ -157,7 +159,7 @@ serve(async (req) => {
                 // Fallback minimal update
                 const { error: fallbackErr } = await supabase
                     .from("orders")
-                    .update({ status: "processing", payment_method: providerName, payment_intent_id: transactionId })
+                    .update({ status: "processing", payment_method: providerName, payment_status: "paid" })
                     .eq("id", orderId);
 
                 if (fallbackErr) {
@@ -480,6 +482,9 @@ serve(async (req) => {
                 );
 
             const resolvedPaymentId = 
+                payment.paymentId || 
+                payData.paymentId || 
+                payData.data?.paymentId || 
                 payment.id || 
                 payData.id || 
                 payment.latest_charge?.id || 

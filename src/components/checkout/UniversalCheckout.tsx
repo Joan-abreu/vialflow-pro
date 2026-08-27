@@ -868,7 +868,11 @@ const UniversalCheckout = ({
 
         } catch (error: any) {
             console.error("Payment execution error:", error);
-            toast.error(error.message || "Failed to process payment");
+            let msg = error.message || "Failed to process payment";
+            if (msg.toLowerCase().includes("one or more validation errors") || msg.toLowerCase().includes("validation error")) {
+                msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
+            }
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

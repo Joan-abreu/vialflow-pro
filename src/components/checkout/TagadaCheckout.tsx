@@ -144,10 +144,41 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
     };
 
     // Validation Statuses
+    const isValidLuhn = (num: string) => {
+        if (num.length < 13 || num.length > 19) return false;
+        let sum = 0;
+        let shouldDouble = false;
+        for (let i = num.length - 1; i >= 0; i--) {
+            let digit = parseInt(num.charAt(i), 10);
+            if (shouldDouble) {
+                digit *= 2;
+                if (digit > 9) digit -= 9;
+            }
+            sum += digit;
+            shouldDouble = !shouldDouble;
+        }
+        return sum % 10 === 0;
+    };
+
     const reqDigits = isAmex ? 15 : 16;
-    const isCardNumberValid = rawNumber.length === reqDigits;
+    const isCardLengthValid = rawNumber.length === reqDigits;
+    const isCardNumberValid = isCardLengthValid && isValidLuhn(rawNumber);
+
+    const currentCentury = Math.floor(new Date().getFullYear() / 100) * 100;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
     const rawExpDigits = expFormatted.replace(/\D/g, "");
-    const isExpValid = rawExpDigits.length === 4 && parseInt(rawExpDigits.slice(0, 2)) >= 1 && parseInt(rawExpDigits.slice(0, 2)) <= 12;
+    const expM = rawExpDigits.length >= 2 ? parseInt(rawExpDigits.slice(0, 2), 10) : 0;
+    const expYStr = rawExpDigits.length === 4 ? rawExpDigits.slice(2, 4) : "";
+    const expY = expYStr ? (parseInt(expYStr, 10) + currentCentury) : 0;
+
+    const isExpMonthValid = expM >= 1 && expM <= 12;
+    const isExpYearValid = expY >= currentYear && expY <= currentYear + 25;
+    const isExpNotInPast = expY > currentYear || (expY === currentYear && expM >= currentMonth);
+    const isExpValid = rawExpDigits.length === 4 && isExpMonthValid && isExpYearValid && isExpNotInPast;
+
     const reqCvvLen = isAmex ? 4 : 3;
     const isCvvValid = cardData.cvv.length === reqCvvLen;
     const isNameValid = cardData.cardholderName.trim().length >= 2;
@@ -156,13 +187,12 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
     const isBusy = parentLoading || isLocalProcessing || isTokenizing;
     const isButtonEnabled = isFormFullyComplete && !disabled && !isBusy;
 
-    // Resilient direct BasisTheory tokenization fallback
+    // Resilient direct BasisTheory tokenization fallback with deep error extraction
     const directBasisTheoryTokenize = async (expMonthStr: string, expYearStr: string) => {
         const btKey = isProd
             ? "key_prod_us_pub_PNMB2AiaECJ463K6QAPNU6"
             : "key_test_us_pub_VExdfbFQARn821iqP8zNaq";
 
-        const currentCentury = Math.floor(new Date().getFullYear() / 100) * 100;
         const fullYear = expYearStr.length === 2 ? currentCentury + parseInt(expYearStr) : parseInt(expYearStr);
 
         const res = await fetch("https://api.basistheory.com/tokens", {
@@ -187,7 +217,36 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
 
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.title || errData.message || "Failed to tokenize card";
+            let errMsg = "";
+            if (errData.errors && typeof errData.errors === "object") {
+                const errorList: string[] = [];
+                for (const [field, messages] of Object.entries(errData.errors)) {
+                    const fieldLower = field.toLowerCase();
+                    const msgArray = Array.isArray(messages) ? messages : [String(messages)];
+                    for (const msg of msgArray) {
+                        const mLower = String(msg).toLowerCase();
+                        if (fieldLower.includes("number") || mLower.includes("number")) {
+                            errorList.push("The card number is invalid. Please check the digits.");
+                        } else if (fieldLower.includes("expiration") || fieldLower.includes("month") || fieldLower.includes("year") || mLower.includes("expir")) {
+                            errorList.push("The expiration date entered is invalid or in the past.");
+                        } else if (fieldLower.includes("cvc") || fieldLower.includes("cvv") || mLower.includes("cvc") || mLower.includes("cvv")) {
+                            errorList.push("The CVV security code is invalid.");
+                        } else {
+                            errorList.push(String(msg));
+                        }
+                    }
+                }
+                if (errorList.length > 0) {
+                    errMsg = errorList[0];
+                }
+            }
+            if (!errMsg) {
+                if (errData.title === "One or more validation errors occurred.") {
+                    errMsg = "Invalid card details. Please verify your card number, expiration date, and CVV.";
+                } else {
+                    errMsg = errData.detail || errData.message || errData.title || "Failed to validate card details.";
+                }
+            }
             throw new Error(errMsg);
         }
 
@@ -299,17 +358,20 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
 
             // Human-friendly error translation
             let friendlyMessage = err.message || tokenError || "Payment processing failed. Please check your card details.";
+            const msgLower = friendlyMessage.toLowerCase();
             
-            if (friendlyMessage.includes("Invalid card number") || friendlyMessage.includes("number")) {
-                friendlyMessage = "Invalid card number. Please check the digits and try again.";
-            } else if (friendlyMessage.includes("expired") || friendlyMessage.includes("expiry")) {
+            if (msgLower.includes("one or more validation errors") || msgLower.includes("validation error")) {
+                friendlyMessage = "Please check your card details. The card number, expiration date, or CVV is invalid.";
+            } else if (msgLower.includes("invalid card number") || msgLower.includes("number") || msgLower.includes("luhn")) {
+                friendlyMessage = "The card number is invalid. Please check the digits and try again.";
+            } else if (msgLower.includes("expired") || msgLower.includes("expiry") || msgLower.includes("expiration") || msgLower.includes("year")) {
                 friendlyMessage = "The expiration date entered is invalid or the card has expired.";
-            } else if (friendlyMessage.includes("CVC") || friendlyMessage.includes("cvc") || friendlyMessage.includes("cvv")) {
+            } else if (msgLower.includes("cvc") || msgLower.includes("cvv")) {
                 friendlyMessage = "Invalid CVV security code. Please check the 3 or 4 digits on the back of your card.";
-            } else if (friendlyMessage.includes("declined") || friendlyMessage.includes("Do Not Honor") || friendlyMessage.includes("insufficient")) {
+            } else if (msgLower.includes("declined") || msgLower.includes("do not honor") || msgLower.includes("insufficient") || msgLower.includes("decline")) {
                 friendlyMessage = "Your card was declined by the issuer. Please check with your bank or try a different card.";
-            } else if (friendlyMessage.includes("Failed to tokenize")) {
-                friendlyMessage = "Could not encrypt card details securely. Please verify your card number and expiration date.";
+            } else if (msgLower.includes("failed to tokenize") || msgLower.includes("encrypt")) {
+                friendlyMessage = "Could not verify card details securely. Please check your card number and expiration date.";
             }
 
             toast.error(friendlyMessage);
@@ -436,11 +498,17 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
                 <p className="text-[11px] text-muted-foreground text-center pt-1">
                     {!isNameValid 
                         ? "Enter cardholder name" 
-                        : !isCardNumberValid 
+                        : !isCardLengthValid 
                             ? `Enter ${reqDigits}-digit card number` 
-                            : !isExpValid 
-                                ? "Enter valid expiration date (MM/YY)" 
-                                : `Enter ${reqCvvLen}-digit CVV`}
+                            : !isCardNumberValid
+                                ? "Invalid card number (check digits)"
+                                : !isExpMonthValid
+                                    ? "Invalid expiration month (01-12)"
+                                    : !isExpNotInPast
+                                        ? "Card expiration date is in the past"
+                                        : !isExpValid 
+                                            ? "Enter valid expiration date (MM/YY)" 
+                                            : `Enter ${reqCvvLen}-digit CVV`}
                 </p>
             )}
 

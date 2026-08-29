@@ -18,6 +18,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { getSEOConfig } from "@/config/seoConfig";
 import ProductShippingPerks from "@/components/public/ProductShippingPerks";
 import { getBaseSalesCount } from "@/utils/salesCount";
+import ProductCOABadge, { COARecord } from "@/components/products/ProductCOABadge";
+import ProductCOAModal from "@/components/products/ProductCOAModal";
+import ProductCOASection from "@/components/products/ProductCOASection";
 
 interface ProductWithVariants {
     id: string;
@@ -49,6 +52,41 @@ const ProductDetails = () => {
     const [customLabelInstructions, setCustomLabelInstructions] = useState<string>("");
     const [labelUploading, setLabelUploading] = useState(false);
     const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+    const [isCOAModalOpen, setIsCOAModalOpen] = useState(false);
+    const [selectedCOAForModal, setSelectedCOAForModal] = useState<COARecord | undefined>(undefined);
+
+    // Fetch COAs for this product
+    const { data: productCoas } = useQuery<COARecord[]>({
+        queryKey: ["product-coas", id],
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+            if (!id) return [];
+            
+            // Query by product_id or find product first
+            const cleanId = id.trim();
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+            
+            let targetProductId = cleanId;
+            if (!isUuid) {
+                const { data: p } = await supabase.from("products").select("id").eq("slug", cleanId).maybeSingle();
+                if (p?.id) targetProductId = p.id;
+            }
+
+            const { data, error } = await supabase
+                .from("product_coas" as any)
+                .select("*")
+                .or(`product_id.eq.${targetProductId},product_ids.cs.{${targetProductId}}`)
+                .eq("is_active", true)
+                .order("is_featured", { ascending: false })
+                .order("test_date", { ascending: false });
+
+            if (error) {
+                console.warn("Non-fatal error loading COAs:", error);
+                return [];
+            }
+            return (data || []) as COARecord[];
+        }
+    });
 
     // Fetch stock enforcement settings
     const { data: stockSettings } = useQuery({
@@ -615,7 +653,20 @@ const ProductDetails = () => {
                         } font-bold text-foreground mb-2 transition-all duration-300`}>
                             {product.name}
                         </h1>
-                        <p className="text-sm font-medium text-muted-foreground mb-4">{product.sales_count}+ bought in past month</p>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">{product.sales_count}+ bought in past month</p>
+
+                        {/* 3rd-Party Lab Tested Badge (Shows verified COA or Testing in Progress in 48h) */}
+                        <div className="mb-4">
+                            <ProductCOABadge
+                                coas={productCoas || []}
+                                productName={product.name}
+                                onOpenModal={(coa) => {
+                                    setSelectedCOAForModal(coa);
+                                    setIsCOAModalOpen(true);
+                                }}
+                            />
+                        </div>
+
                         <div className="flex flex-col gap-1 mb-6">
                             <p className="text-3xl font-bold text-primary">
                                 ${(() => {
@@ -943,6 +994,15 @@ const ProductDetails = () => {
                             selectedVariant={selectedVariant}
                         />
 
+                        {/* COA / Lab Report Interactive Modal */}
+                        <ProductCOAModal
+                            isOpen={isCOAModalOpen}
+                            onClose={() => setIsCOAModalOpen(false)}
+                            productName={product.name}
+                            coas={productCoas || []}
+                            initialSelectedCoa={selectedCOAForModal}
+                        />
+
                         {/* Trust & Shipping Perks */}
                         <ProductShippingPerks className="mt-2" freeShippingThreshold={100} />
 
@@ -973,21 +1033,31 @@ const ProductDetails = () => {
                 </div>
             </div>
 
+            {/* Quality Assurance & Analytical Lab Testing (COA) Section */}
+            <div className="mt-12 md:mt-16 space-y-10">
+                <ProductCOASection
+                    productName={product.name}
+                    coas={productCoas || []}
+                    onOpenModal={(coa) => {
+                        setSelectedCOAForModal(coa);
+                        setIsCOAModalOpen(true);
+                    }}
+                />
 
-
-
-            <div className="mt-12 md:mt-16 border-t pt-8 md:pt-12">
-                <h2 className="text-2xl font-bold mb-6">Description</h2>
-                {product.rich_description ? (
-                    <div
-                        className={RICH_TEXT_STYLES}
-                        dangerouslySetInnerHTML={{ __html: product.rich_description }}
-                    />
-                ) : (
-                    <p className="text-lg text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                        {product.description || "No description available for this product."}
-                    </p>
-                )}
+                {/* Product Description */}
+                <div className="border-t pt-8 md:pt-12">
+                    <h2 className="text-2xl font-bold mb-6">Description</h2>
+                    {product.rich_description ? (
+                        <div
+                            className={RICH_TEXT_STYLES}
+                            dangerouslySetInnerHTML={{ __html: product.rich_description }}
+                        />
+                    ) : (
+                        <p className="text-lg text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                            {product.description || "No description available for this product."}
+                        </p>
+                    )}
+                </div>
             </div>
         </div >
     );

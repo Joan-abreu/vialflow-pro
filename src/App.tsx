@@ -46,6 +46,7 @@ import Account from "./pages/public/Account";
 import PromoterDashboard from "./pages/public/PromoterDashboard";
 import SafetyDataSheets from "./pages/public/SafetyDataSheets";
 import LabReports from "./pages/public/LabReports";
+import CoaView from "./pages/public/CoaView";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
@@ -216,6 +217,7 @@ const AppRoutes = () => {
                     <Route path="/returns" element={<Returns />} />
                     <Route path="/sds" element={<SafetyDataSheets />} />
                     <Route path="/lab-reports" element={<LabReports />} />
+                    <Route path="/coa/:batchNumber" element={<LabReports />} />
                 </Route>
 
                 {/* Maintenance Route */}

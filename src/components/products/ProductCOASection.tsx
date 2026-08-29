@@ -53,7 +53,7 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
                 ) : (
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-bold self-start md:self-auto">
                         <Clock className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} />
-                        <span>Sample at Lab • Report in ~48h</span>
+                        <span>Sample at Lab • Report in ~3–5 Days</span>
                     </div>
                 )}
             </div>
@@ -169,7 +169,7 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
 
                         <div className="pt-2 border-t space-y-1 text-xs">
                             <span className="text-[10px] text-muted-foreground uppercase font-semibold">Estimated COA Publication</span>
-                            <p className="font-bold text-blue-600 dark:text-blue-400">Within 24 to 48 Hours</p>
+                            <p className="font-bold text-blue-600 dark:text-blue-400">Within 3 to 5 Business Days</p>
                         </div>
 
                         <Button

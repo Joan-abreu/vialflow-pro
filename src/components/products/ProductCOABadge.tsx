@@ -77,7 +77,7 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
                         <span className="hidden sm:inline text-blue-700 dark:text-blue-400">●</span>
                         <span>Sample submitted to accredited lab</span>
                         <span className="font-semibold text-blue-700 dark:text-blue-300 font-mono text-[11px] bg-blue-100/80 dark:bg-blue-900/50 px-2 py-0.5 rounded-full border border-blue-200/60 dark:border-blue-800/40">
-                            COA in ~48h
+                            COA in ~3–5 Days
                         </span>
                     </div>
 
@@ -108,11 +108,11 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">Current Status</span>
                                     <span className="text-[11px] font-bold bg-blue-600 text-white px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                                        <Clock className="h-3 w-3" /> Report Ready in 24–48h
+                                        <Clock className="h-3 w-3" /> Report Ready in 3–5 Days
                                     </span>
                                 </div>
                                 <p className="text-xs text-blue-950 dark:text-blue-200 leading-relaxed">
-                                    Representative samples from this product lot have been submitted to an independent, accredited US analytical laboratory. The signed official Certificate of Analysis (COA) is currently in process and will be published here within 24 to 48 hours.
+                                    Representative samples from this product lot have been submitted to an independent, accredited US analytical laboratory. The signed official Certificate of Analysis (COA) is currently in process and will be published here within 3 to 5 business days.
                                 </p>
                             </div>
 

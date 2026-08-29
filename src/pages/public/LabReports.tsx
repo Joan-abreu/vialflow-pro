@@ -21,7 +21,7 @@ import {
     ChevronDown,
     ChevronUp,
     Share2,
-    Check
+    ArrowLeft
 } from "lucide-react";
 import SEO from "@/components/SEO";
 import { getSEOConfig } from "@/config/seoConfig";
@@ -105,15 +105,6 @@ const LabReports = () => {
                 );
                 if (matched) {
                     setExpandedBatches(new Set([matched.batch_number]));
-                    // Smooth scroll to target card
-                    setTimeout(() => {
-                        const el = document.getElementById(`lot-${matched.batch_number}`);
-                        if (el) {
-                            el.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }
-                    }, 200);
-                } else {
-                    setExpandedBatches(new Set([coas[0].batch_number]));
                 }
             } else {
                 // By default expand the primary active lot
@@ -143,39 +134,71 @@ const LabReports = () => {
         }
     };
 
-    const filteredCoas = coas?.filter((coa) => {
-        const linkedIds = (coa.product_ids && coa.product_ids.length > 0)
-            ? coa.product_ids
-            : (coa.product_id ? [coa.product_id] : []);
+    // Filter COAs: If on /coa/:batchNumber, STRICTLY show that specific lot only!
+    const filteredCoas = useMemo(() => {
+        if (!coas) return [];
 
-        const linkedNames = linkedIds
-            .map(id => productsMap.get(id)?.name || (coa.products?.id === id ? coa.products.name : ""))
-            .join(" ");
+        if (paramBatch) {
+            const cleanParam = paramBatch.trim().toLowerCase();
+            return coas.filter(
+                c => c.batch_number.toLowerCase() === cleanParam || c.id.toLowerCase() === cleanParam
+            );
+        }
 
-        const matchesSearch =
-            coa.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            linkedNames.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (coa.lab_name && coa.lab_name.toLowerCase().includes(searchQuery.toLowerCase()));
-        return matchesSearch;
-    });
+        return coas.filter((coa) => {
+            const linkedIds = (coa.product_ids && coa.product_ids.length > 0)
+                ? coa.product_ids
+                : (coa.product_id ? [coa.product_id] : []);
+
+            const linkedNames = linkedIds
+                .map(id => productsMap.get(id)?.name || (coa.products?.id === id ? coa.products.name : ""))
+                .join(" ");
+
+            const matchesSearch =
+                coa.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                linkedNames.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (coa.lab_name && coa.lab_name.toLowerCase().includes(searchQuery.toLowerCase()));
+            return matchesSearch;
+        });
+    }, [coas, paramBatch, searchQuery, productsMap]);
 
     const seo = getSEOConfig("lab-reports");
 
     return (
-        <div className="container py-10 md:py-16 max-w-5xl min-h-[70vh] space-y-10">
+        <div className="container py-8 md:py-14 max-w-5xl min-h-[70vh] space-y-8">
             <SEO 
                 title={paramBatch ? `COA Lot #${paramBatch} | Official Analytical Report` : seo.title} 
                 description={seo.description}
             />
 
+            {/* Back Navigation if viewing a direct specific lot */}
+            {paramBatch && (
+                <div className="flex items-center justify-between border-b pb-3">
+                    <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground font-semibold gap-1.5"
+                    >
+                        <Link to="/lab-reports">
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                            Back to All Lab Reports Directory
+                        </Link>
+                    </Button>
+                    <span className="text-xs font-mono text-muted-foreground">
+                        Direct Certificate Verification
+                    </span>
+                </div>
+            )}
+
             {/* Header */}
-            <div className="space-y-4">
+            <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     Official Quality Assurance &amp; Analytical Testing Portal
                 </div>
                 <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">
-                    Certificate of Analysis (COA) Directory
+                    {paramBatch ? `Certificate of Analysis — Lot #${paramBatch}` : "Certificate of Analysis (COA) Directory"}
                 </h1>
                 <p className="text-muted-foreground text-base md:text-lg max-w-3xl leading-relaxed">
                     Quality and safety are our top priorities. Every batch of reconstitution solution and research peptides from 
@@ -184,19 +207,22 @@ const LabReports = () => {
                 </p>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative max-w-lg">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                    type="text"
-                    placeholder="Search by lot # (e.g. DW10M033026), product name, or lab..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-11 h-12 text-base rounded-xl shadow-xs"
-                />
-            </div>
-
-            <Separator />
+            {/* Search Bar (Only shown on global directory /lab-reports) */}
+            {!paramBatch && (
+                <>
+                    <div className="relative max-w-lg">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                            type="text"
+                            placeholder="Search by lot # (e.g. DW10M033026), product name, or lab..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-11 h-12 text-base rounded-xl shadow-xs"
+                        />
+                    </div>
+                    <Separator />
+                </>
+            )}
 
             {/* Dynamic Results */}
             {isLoading ? (
@@ -330,7 +356,7 @@ const LabReports = () => {
                                             <span className="text-[10px] uppercase font-bold tracking-wider">Sterility USP &lt;71&gt;</span>
                                             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                                         </div>
-                                        <p className="text-lg font-black text-emerald-600">
+                                        <p className="text-xl font-black text-emerald-600">
                                             {coa.sterility_status || "Pass"}
                                         </p>
                                         <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
@@ -398,12 +424,27 @@ const LabReports = () => {
                     })}
                 </div>
             ) : (
-                <div className="text-center py-16 border rounded-2xl bg-muted/20 space-y-3">
+                <div className="text-center py-16 border rounded-2xl bg-muted/20 space-y-4">
                     <FileText className="h-10 w-10 text-muted-foreground mx-auto" />
-                    <h3 className="text-lg font-bold">No Lab Reports Found</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        No batches matched your search query "{searchQuery}". Please verify the lot number printed on your vial or contact support.
-                    </p>
+                    <div className="space-y-1">
+                        <h3 className="text-lg font-bold">
+                            {paramBatch ? `Lot #${paramBatch} Not Found` : "No Lab Reports Found"}
+                        </h3>
+                        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                            {paramBatch 
+                                ? `We could not locate an active Certificate of Analysis for Lot #${paramBatch}. Please check the number printed on your vial.`
+                                : `No batches matched your search query "${searchQuery}". Please verify the lot number or contact support.`
+                            }
+                        </p>
+                    </div>
+                    {paramBatch && (
+                        <Button asChild variant="outline" size="sm" className="gap-2">
+                            <Link to="/lab-reports">
+                                <ArrowLeft className="h-3.5 w-3.5" />
+                                Go to All Lab Reports
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             )}
 

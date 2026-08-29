@@ -58,7 +58,6 @@ const BarcodeScanner = ({ onScan }: BarcodeScannerProps) => {
                 aspectRatio: 1.777778, // 16:9
               },
               (decodedText) => {
-                console.log("Barcode detected:", decodedText);
                 onScan(decodedText);
                 toast.success("Code scanned successfully");
                 stopScanning();

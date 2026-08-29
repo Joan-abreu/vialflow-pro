@@ -2,8 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 
 export const updateBatchStatus = async (batchId: string) => {
-  console.log(`Updating status for batch ${batchId}`);
-
   try {
     if (!batchId) throw new Error("Batch ID is required");
 
@@ -22,17 +20,12 @@ export const updateBatchStatus = async (batchId: string) => {
     let totalProcessed = 0;
 
     // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
-    // No usamos la lógica de shipments para calcular el estado, ya que se gestiona diferente.
-    // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
-    // Si tiene order_id, ES UN PEDIDO DE ECOMMERCE.
     if (batch.order_id) {
       // Consultamos shipments para ver el estado del envío asociado al batch
       const { data: orderShipments, error: orderShipmentsError } = await supabase
         .from("shipments")
         .select("status")
         .eq("batch_id", batchId);
-
-      console.log("batchId: ", batchId);
 
       if (!orderShipmentsError && orderShipments && orderShipments.length > 0) {
         // Lógica simplificada: Si hay algún shipment, asumimos que afecta a todos los batches de la orden por igual
@@ -67,7 +60,6 @@ export const updateBatchStatus = async (batchId: string) => {
           const othersCompleted = allBatches.every(b => b.id === batchId || b.status === 'completed');
 
           if (othersCompleted) {
-            console.log(`All batches for order ${batch.order_id} are completed (with current update). Updating order status.`);
             const { error: orderUpdateError } = await supabase
               .from("orders")
               .update({ status: 'ready_to_ship' })
@@ -97,7 +89,6 @@ export const updateBatchStatus = async (batchId: string) => {
         .eq("id", batchId);
 
       if (updateError) throw updateError;
-      console.log("Batch (Ecommerce) updated successfully:", updateDataEcommerce);
 
       return;
     }
@@ -208,8 +199,6 @@ export const updateBatchStatus = async (batchId: string) => {
       .eq("id", batchId);
 
     if (updateError) throw updateError;
-
-    console.log("Batch updated successfully:", updateData);
   } catch (error) {
     console.error("Error updating batch:", error);
   }

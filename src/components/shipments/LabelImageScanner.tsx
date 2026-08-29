@@ -25,7 +25,6 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
           const base64Image = reader.result as string;
 
           setProcessingMessage("Analyzing shipping label with AI...");
-          console.log("Sending image to AI for analysis...");
 
           // Call edge function to extract data
           const { data, error } = await supabase.functions.invoke('extract-label-data', {
@@ -43,7 +42,6 @@ export const LabelImageScanner = ({ onDataExtracted }: LabelImageScannerProps) =
               data.data.dimension_height_in = data.data.dimension_width_in;
               data.data.dimension_width_in = height;
             }
-            console.log("Data extracted from label:", data.data);
             setProcessingMessage("Loading extracted data...");
             onDataExtracted(data.data);
             toast.success("Data extracted from label successfully");

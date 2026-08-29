@@ -106,12 +106,7 @@ const Coupons = () => {
             }
 
             const targetCode = historyCoupon!.code.trim().toUpperCase();
-
-            console.log("[Coupon History Debug] Target Code:", targetCode, "Target Coupon ID:", historyCoupon!.id);
-            console.log("[Coupon History Debug] Total Orders in DB:", ordersData?.length);
-            
             const ordersWithCoupons = (ordersData || []).filter(o => o.applied_coupons && (Array.isArray(o.applied_coupons) ? o.applied_coupons.length > 0 : true));
-            console.log("[Coupon History Debug] Orders with non-empty applied_coupons:", ordersWithCoupons.length, ordersWithCoupons.slice(0, 5));
 
             // Fetch profiles for customer names if user_ids are present
             const userIds = [...new Set((ordersData || []).map((o: any) => o.user_id).filter(Boolean))];
@@ -186,8 +181,6 @@ const Coupons = () => {
 
                 return false;
             });
-
-            console.log("[Coupon History Debug] Matched Orders:", matchedOrders.length, matchedOrders);
 
             return matchedOrders.map((o: any) => ({
                 ...o,

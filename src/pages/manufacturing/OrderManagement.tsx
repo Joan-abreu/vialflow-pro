@@ -38,7 +38,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck, AlertTriangle, XCircle } from "lucide-react";
 
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
@@ -102,6 +102,11 @@ interface Order {
     shipping_service?: string;
     shipping_service_code?: string;
     shipping_carrier?: string;
+    payment_method?: string | null;
+    payment_intent_id?: string | null;
+    p2p_status?: string | null;
+    p2p_submission_count?: number | null;
+    p2p_proof_url?: string | null;
     order_items?: OrderItem[];
     customer_profile?: {
         full_name: string;
@@ -407,33 +412,28 @@ const OrderManagement = () => {
 
     const deleteOrderMutation = useMutation({
         mutationFn: async (orderId: string) => {
-            console.log("Starting deep delete for order:", orderId);
-            
             // 1. Delete shipments
-            const { count: shipCount, error: shipmentError } = await supabase
+            const { error: shipmentError } = await supabase
                 .from("order_shipments")
-                .delete({ count: 'exact' })
+                .delete()
                 .eq("order_id", orderId);
             
-            console.log(`Deleted ${shipCount || 0} shipments`);
             if (shipmentError) console.error("Shipment delete error:", shipmentError);
 
             // 2. Delete related production batches
-            const { count: batchCount, error: batchError } = await supabase
+            const { error: batchError } = await supabase
                 .from("production_batches")
-                .delete({ count: 'exact' })
+                .delete()
                 .eq("order_id", orderId);
             
-            console.log(`Deleted ${batchCount || 0} batches`);
             if (batchError) console.error("Batch delete error:", batchError);
 
             // 3. Delete order items
-            const { count: itemCount, error: itemsError } = await supabase
+            const { error: itemsError } = await supabase
                 .from("order_items")
-                .delete({ count: 'exact' })
+                .delete()
                 .eq("order_id", orderId);
             
-            console.log(`Deleted ${itemCount || 0} items`);
             if (itemsError) throw itemsError;
             
             // 4. Finally delete the order itself
@@ -441,8 +441,6 @@ const OrderManagement = () => {
                 .from("orders")
                 .delete({ count: 'exact' })
                 .eq("id", orderId);
-            
-            console.log(`Final order delete count: ${orderCount}`);
 
             if (error) throw error;
             

@@ -71,13 +71,11 @@ const Products = () => {
     });
 
     const isVip = Boolean(userVipStatus);
-    console.log("VIP Status from useQuery:", userVipStatus, "isVip:", isVip);
 
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", isVip],
         staleTime: 0,
         queryFn: async () => {
-            console.log("Products: Fetching product variants...");
             // Fetch all published variants with their product and vial type info
             let query = supabase
                 .from("products")
@@ -100,7 +98,6 @@ const Products = () => {
             }
 
             const { data, error } = await query;
-            console.log("Fetched raw products:", data);
 
             if (error) {
                 console.error("Error fetching products:", error);

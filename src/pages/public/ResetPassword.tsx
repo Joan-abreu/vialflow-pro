@@ -17,36 +17,27 @@ const ResetPassword = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        console.log("ResetPassword: Component mounted, checking session...");
-        
         // Listen for auth changes specifically for recovery
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log("ResetPassword: Auth event fired:", event);
             if (event === "PASSWORD_RECOVERY" || session) {
-                console.log("ResetPassword: Valid recovery session detected via event or session object");
                 setIsValidSession(true);
-            } else {
-                console.log("ResetPassword: No session detected in auth change");
             }
         });
 
         // Also check immediate session as a fallback
         const checkImmediateSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            console.log("ResetPassword: Initial getSession check:", session ? "Session found" : "No session");
             if (session) {
                 setIsValidSession(true);
             } else {
                 // Wait a moment for fragment processing if URL has tokens
                 if (window.location.hash.includes("access_token")) {
-                    console.log("ResetPassword: Token found in URL fragment, waiting for Supabase to process...");
                     return; 
                 }
                 
                 // Only redirect if we are sure there is no session coming
                 const timeout = setTimeout(() => {
                     if (!isValidSession) {
-                        console.log("ResetPassword: Session check timed out, redirecting to login");
                         toast.error("Please request a new reset link or log in.");
                         navigate("/login");
                     }

@@ -163,8 +163,6 @@ const ProductDetails = () => {
             if (!id) throw new Error("Product ID or Slug is required");
             const cleanId = id.trim();
 
-            console.log(`[ProductDetails] Initiating lookup for: "${cleanId}"`);
-
             // Check if id is a valid UUID
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
 
@@ -220,11 +218,8 @@ const ProductDetails = () => {
             }
 
             if (!productData) {
-                console.warn(`[ProductDetails] No product found in database matching "${cleanId}"`);
                 throw new Error("Product not found");
             }
-
-            console.log(`[ProductDetails] Successfully loaded product "${productData.name}" (id: ${productData.id}, slug: ${productData.slug})`);
 
             // Check user authentication role for admin previews
             const { data: { session } } = await supabase.auth.getSession();
@@ -393,8 +388,6 @@ const ProductDetails = () => {
                 }];
             }
 
-            console.log(`[ProductDetails] Returning complete product object for "${productData.name}" with ${variants.length} variant(s).`);
-
             return {
                 id: productData.id,
                 slug: productData.slug,
@@ -412,14 +405,6 @@ const ProductDetails = () => {
             } as ProductWithVariants;
         },
         enabled: !!id,
-    });
-
-    console.log("[ProductDetails] Render state:", {
-        id,
-        isLoading,
-        hasProduct: !!product,
-        variantsCount: product?.variants?.length,
-        errorMessage: error instanceof Error ? error.message : String(error || "")
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);

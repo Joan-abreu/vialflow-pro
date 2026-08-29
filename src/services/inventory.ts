@@ -24,8 +24,6 @@ export const updateMaterialStock = async (
   quantityChange: number,
   operation: "add" | "deduct"
 ) => {
-  console.log(`${operation === "add" ? "Adding" : "Deducting"} ${quantityChange} units for material ${materialId}`);
-
   const currentStock = await getMaterialStock(materialId);
   const newStock = operation === "add"
     ? currentStock + quantityChange
@@ -41,8 +39,6 @@ export const updateMaterialStock = async (
     .eq("id", materialId);
 
   if (error) throw error;
-
-  console.log(`Material ${materialId} stock updated: ${currentStock} -> ${newStock}`);
   return newStock;
 };
 
@@ -50,14 +46,10 @@ export const deductMaterialsForProduction = async (
   materials: MaterialRequirement[],
   totalUnits: number
 ) => {
-  console.log(`Deducting materials for ${totalUnits} units`);
-
   for (const material of materials) {
     const totalRequired = material.required_quantity * totalUnits;
     await updateMaterialStock(material.material_id, totalRequired, "deduct");
   }
-
-  console.log("All materials deducted successfully");
 };
 
 export const checkMaterialsAvailability = async (
@@ -87,8 +79,6 @@ export const addMaterialStock = async (
 };
 
 export const restoreMaterialsForBatch = async (batchId: string) => {
-  console.log(`Restoring materials for batch ${batchId}`);
-
   const { data: batch, error: batchError } = await supabase
     .from("production_batches")
     .select("quantity, vial_type_id")
@@ -119,13 +109,9 @@ export const restoreMaterialsForBatch = async (batchId: string) => {
     const totalUsed = material.quantity_per_unit * batch.quantity;
     await updateMaterialStock(material.raw_material_id, totalUsed, "add");
   }
-
-  console.log("Materials restored successfully");
 };
 
 export const deductBatchMaterials = async (batchId: string) => {
-  console.log(`Deducting materials for batch ${batchId}`);
-
   // Fetch batch details
   const { data: batch, error: batchError } = await supabase
     .from("production_batches")
@@ -146,96 +132,92 @@ export const deductBatchMaterials = async (batchId: string) => {
   if (batchError) throw new Error(`Error fetching batch: ${batchError.message}`);
   if (!batch) throw new Error("Batch not found");
 
-  const productVariant = batch.product_id as any;
-  if (!productVariant) throw new Error("Product variant not found");
+  const productVariant = batch.product_id;
+  if (!productVariant) throw new Error("Product variant not found for batch");
 
-  // Calculate quantity in packs (for material calculation)
-  const quantity = batch.sale_type === "pack" && batch.pack_quantity
-    ? batch.quantity / batch.pack_quantity
-    : batch.quantity;
-
-  // Fetch production configurations
+  // Fetch production configurations (materials) for this variant and vial type
   const { data: configurations, error: configError } = await supabase
     .from("production_configurations")
     .select(`
+      id,
       raw_material_id,
       quantity_per_unit,
       quantity_usage,
       application_basis,
       calculation_type,
-      percentage_value,
-      percentage_of_material_id,
-      raw_materials!production_configurations_raw_material_id_fkey (
+      units_per_box,
+      raw_materials (
         id,
         name,
         current_stock,
-        unit,
-        purchase_unit_id,
-        usage_unit_id,
-        qty_per_container
+        unit
       )
     `)
-    .eq("product_id", productVariant.product_id)
-    .eq("vial_type_id", productVariant.vial_type_id);
+    .eq("vial_type_id", productVariant.vial_type_id)
+    .eq("product_id", productVariant.id);
 
-  if (configError) throw new Error(`Error fetching configurations: ${configError.message}`);
-
-  // Check stock and calculate needed quantities
-  const insufficientMaterials: string[] = [];
-  const materialUpdates: Array<{ id: string; newStock: number }> = [];
-
-  for (const vm of configurations || []) {
-    const material = vm.raw_materials as any;
-
-    if (!material) {
-      console.warn(`Material not found for configuration ${vm.raw_material_id}`);
-      continue;
-    }
-
-    let neededQuantity = 0;
-
-    // Calculate needed quantity based on application basis
-    if (vm.calculation_type === 'fixed') {
-      if (vm.application_basis === 'per_batch') {
-        neededQuantity = vm.quantity_usage || 0;
-      } else {
-        neededQuantity = quantity * vm.quantity_per_unit;
-      }
-    } else if (vm.calculation_type === 'per_box') {
-      neededQuantity = quantity * vm.quantity_per_unit;
-    } else if (vm.calculation_type === 'percentage') {
-      console.warn("Percentage calculation not fully implemented in batch creation yet");
-    }
-
-    if (neededQuantity > 0) {
-      // Get current stock in usage units
-      const { data: stockData, error: stockError } = await supabase
-        .rpc('get_material_stock_in_usage_units', { material_id: material.id });
-
-      if (stockError) {
-        throw new Error(`Error checking stock for ${material.name}`);
-      }
-
-      const availableStock = stockData || 0;
-
-      if (availableStock < neededQuantity) {
-        insufficientMaterials.push(
-          `${material.name}: need ${neededQuantity.toFixed(2)} ${material.unit}, available ${availableStock.toFixed(2)}`
-        );
-      } else {
-        // Calculate new stock in purchase units
-        const conversionFactor = material.qty_per_container || 1;
-        const stockInPurchaseUnits = material.current_stock;
-        const neededInPurchaseUnits = neededQuantity / conversionFactor;
-
-        materialUpdates.push({
-          id: material.id,
-          newStock: stockInPurchaseUnits - neededInPurchaseUnits
-        });
-      }
-    }
+  if (configError) throw new Error(`Error fetching material configurations: ${configError.message}`);
+  if (!configurations || configurations.length === 0) {
+    return { success: true, materialsDeducted: 0, message: "No materials configured for this product" };
   }
 
+  // Calculate quantity in packs (for material calculation)
+  const quantityInPacks = batch.sale_type === "pack" && batch.pack_quantity
+    ? batch.quantity / batch.pack_quantity
+    : batch.quantity;
+
+  // Track updates to be made
+  const materialUpdates: { id: string; name: string; currentStock: number; requiredQty: number; newStock: number }[] = [];
+  const insufficientMaterials: string[] = [];
+
+  for (const config of configurations) {
+    const rawMaterial = config.raw_materials as any;
+    if (!rawMaterial) continue;
+
+    let totalQty = 0;
+
+    // Calculation logic matching BillOfMaterials.tsx
+    if (config.calculation_type === 'usage') {
+      const usage = config.quantity_usage || 0;
+      if (config.application_basis === 'box' && config.units_per_box) {
+        const fullBoxes = Math.floor(batch.quantity / config.units_per_box);
+        const remainder = batch.quantity % config.units_per_box;
+        totalQty = (fullBoxes * usage) + (remainder > 0 ? (remainder / config.units_per_box) * usage : 0);
+      } else {
+        totalQty = usage * batch.quantity;
+      }
+    } else {
+      const perUnit = config.quantity_per_unit || 0;
+      if (config.application_basis === 'unit') {
+        totalQty = perUnit * batch.quantity;
+      } else if (config.application_basis === 'pack') {
+        totalQty = perUnit * quantityInPacks;
+      } else if (config.application_basis === 'box' && config.units_per_box) {
+        totalQty = (batch.quantity / config.units_per_box) * perUnit;
+      } else {
+        totalQty = perUnit * batch.quantity;
+      }
+    }
+
+    const currentStock = rawMaterial.current_stock || 0;
+    const newStock = currentStock - totalQty;
+
+    if (newStock < 0) {
+      insufficientMaterials.push(
+        `${rawMaterial.name}: Needs ${totalQty.toFixed(2)} ${rawMaterial.unit || 'units'}, but only ${currentStock} available (Short by ${Math.abs(newStock).toFixed(2)})`
+      );
+    }
+
+    materialUpdates.push({
+      id: rawMaterial.id,
+      name: rawMaterial.name,
+      currentStock,
+      requiredQty: totalQty,
+      newStock
+    });
+  }
+
+  // If any material is insufficient, abort the whole operation
   if (insufficientMaterials.length > 0) {
     throw new Error("Insufficient materials:\n" + insufficientMaterials.join("\n"));
   }
@@ -250,7 +232,5 @@ export const deductBatchMaterials = async (batchId: string) => {
     if (error) throw new Error(`Error updating stock: ${error.message}`);
   }
 
-  console.log("Materials deducted successfully");
   return { success: true, materialsDeducted: materialUpdates.length };
 };
-

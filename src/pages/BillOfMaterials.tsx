@@ -89,12 +89,6 @@ export default function BillOfMaterials() {
         });
 
         // Fetch materials for this product variant
-        console.log('Product Variant:', productVariant);
-        console.log('Looking for materials with:', {
-          vial_type_id: productVariant.vial_type_id,
-          product_id: productVariant.id  // Use variant ID, not product_id
-        });
-
         const { data: materialsData, error: materialsError } = await supabase
           .from("production_configurations")
           .select(`
@@ -114,8 +108,6 @@ export default function BillOfMaterials() {
           `)
           .eq("vial_type_id", productVariant.vial_type_id)
           .eq("product_id", productVariant.id);  // Use variant ID, not product_id
-
-        console.log('Materials query result:', { materialsData, materialsError });
 
         if (materialsError) throw materialsError;
 

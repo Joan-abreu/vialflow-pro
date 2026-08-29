@@ -103,7 +103,6 @@ const EditBatchDialog = ({ batch, onSuccess }: EditBatchDialogProps) => {
       const matchingVariant = variants.find(v => v.id === targetId);
 
       if (matchingVariant) {
-        console.log('Setting matching variant:', matchingVariant.id);
         setFormData(prev => ({ ...prev, variant_id: matchingVariant.id }));
       }
     }

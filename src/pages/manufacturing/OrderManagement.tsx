@@ -51,6 +51,8 @@ import CopyCell from "@/components/CopyCell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
+import { PackingSlipDialog } from "@/components/orders/PackingSlipDialog";
+import { PackingSlipDocument } from "@/components/orders/PackingSlipDocument";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 
@@ -142,6 +144,8 @@ const OrderManagement = () => {
     const [selectedUploadProofOrder, setSelectedUploadProofOrder] = useState<Order | null>(null);
     const [isUploadProofModalOpen, setIsUploadProofModalOpen] = useState(false);
     const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
+    const [packingSlipOrders, setPackingSlipOrders] = useState<Order[] | null>(null);
+    const [isPackingSlipOpen, setIsPackingSlipOpen] = useState(false);
 
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -318,6 +322,20 @@ const OrderManagement = () => {
             return;
         }
         setShowBulkShippingDialog(true);
+    };
+
+    const handleOpenPackingSlip = (order: Order) => {
+        setPackingSlipOrders([order]);
+        setIsPackingSlipOpen(true);
+    };
+
+    const handleOpenBulkPackingSlips = () => {
+        if (selectedOrders.length === 0) {
+            toast.error("Please select at least one order to generate packing slips.");
+            return;
+        }
+        setPackingSlipOrders(selectedOrders);
+        setIsPackingSlipOpen(true);
     };
 
     const bulkUpdateStatusMutation = useMutation({
@@ -775,6 +793,7 @@ const OrderManagement = () => {
                 <Tabs value={activeTab} onValueChange={(val) => {
                     setActiveTab(val);
                     setCurrentPage(1);
+                    setSelectedOrderIds([]);
                 }} className="w-full">
                     <TabsList className="w-full justify-start overflow-x-auto h-auto p-1 bg-muted/50 gap-1">
                         {TABS.map((tab) => (
@@ -796,22 +815,38 @@ const OrderManagement = () => {
             </div>
 
             {selectedOrderIds.length > 0 && (
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm transition-all animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center gap-2">
-                        <Badge variant="default" className="bg-primary text-primary-foreground font-bold">
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs transition-all animate-in fade-in slide-in-from-top-2">
+                    {/* Left: Selection count, Deselect button, and Select all filtered */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="default" className="bg-primary text-primary-foreground font-bold px-2.5 py-1 text-xs shadow-2xs">
                             {selectedOrderIds.length} Order{selectedOrderIds.length > 1 ? 's' : ''} Selected
                         </Badge>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 font-semibold gap-1"
+                            onClick={() => setSelectedOrderIds([])}
+                            title="Clear selection"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                            Deselect All
+                        </Button>
                         {filteredOrders && filteredOrders.length > selectedOrderIds.length && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs text-primary hover:underline h-7 px-2 font-medium"
-                                onClick={handleSelectAllFiltered}
-                            >
-                                Select all {filteredOrders.length} filtered
-                            </Button>
+                            <>
+                                <div className="h-3.5 w-[1px] bg-border mx-0.5" />
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs text-primary hover:bg-primary/10 h-7 px-2 font-medium"
+                                    onClick={handleSelectAllFiltered}
+                                >
+                                    Select all {filteredOrders.length} in this tab
+                                </Button>
+                            </>
                         )}
                     </div>
+
+                    {/* Right: Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <Select
                             value={bulkStatus}
@@ -877,11 +912,13 @@ const OrderManagement = () => {
 
                         <Button
                             size="sm"
-                            variant="ghost"
-                            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => setSelectedOrderIds([])}
+                            variant="outline"
+                            className="h-8 text-xs bg-background border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold gap-1"
+                            onClick={handleOpenBulkPackingSlips}
+                            title="Generate and print packing slips for selected orders"
                         >
-                            Deselect All
+                            <Printer className="h-3.5 w-3.5 text-indigo-600" />
+                            Packing Slips ({selectedOrders.length})
                         </Button>
                     </div>
                 </div>
@@ -1114,6 +1151,15 @@ const OrderManagement = () => {
                                                         title="View Details"
                                                     >
                                                         <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                                        onClick={() => handleOpenPackingSlip(order)}
+                                                        title="Print Packing Slip"
+                                                    >
+                                                        <Printer className="h-4 w-4" />
                                                     </Button>
                                                     <SendEmailDialog 
                                                         recipientEmail={order.customer_email} 
@@ -1474,9 +1520,17 @@ const OrderManagement = () => {
                     )}
                     <DialogFooter className="flex justify-between sm:justify-between w-full">
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" onClick={() => window.print()} className="gap-2">
-                                <Printer className="h-4 w-4" />
-                                Print Order
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    if (selectedOrder) {
+                                        handleOpenPackingSlip(selectedOrder);
+                                    }
+                                }}
+                                className="gap-2 text-indigo-700 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-semibold"
+                            >
+                                <Printer className="h-4 w-4 text-indigo-600" />
+                                Print Packing Slip
                             </Button>
                             {selectedOrder && (
                                 <OrderNotesDialog
@@ -1637,210 +1691,45 @@ const OrderManagement = () => {
                     setSelectedOrderIds([]);
                 }}
             />
+
+            {/* Packing Slip Preview & Print Dialog */}
+            <PackingSlipDialog
+                open={isPackingSlipOpen}
+                onOpenChange={setIsPackingSlipOpen}
+                orders={packingSlipOrders}
+            />
         </div>
 
-        {/* Print Only View */}
-        <div className="hidden print:block w-full bg-white text-black p-12 pb-0 mb-0">
-            {selectedOrder && (
-                <div className="max-w-4xl mx-auto space-y-8">
-                    {/* Header Row */}
-                    <div className="flex justify-between items-center pb-2">
-                        <div className="font-bold text-2xl tracking-tight">VialFlow Pro</div>
-                        <div className="text-gray-500 text-sm font-medium">Printed Date: {format(new Date(), "PPP p")}</div>
-                    </div>
+        {/* Modals */}
+        {selectedVirtualTerminalOrder && (
+            <VirtualTerminalModal
+                open={isVirtualTerminalOpen}
+                onOpenChange={setIsVirtualTerminalOpen}
+                order={selectedVirtualTerminalOrder}
+                onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+            />
+        )}
 
-                    <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mt-0">
-                        <div>
-                            <h1 className="text-4xl font-bold mb-2">Order Details</h1>
-                            <p className="text-gray-800 text-lg font-mono font-medium">Order #{selectedOrder.id.slice(0, 8)}</p>
-                            <div className="mt-4">
-                                <p className="text-gray-700 text-sm"><span className="font-semibold">Order Date:</span> {format(new Date(selectedOrder.created_at), "PPP p")}</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <h2 className="font-bold text-2xl mb-1">{selectedOrder.customer_profile?.full_name || "Guest Customer"}</h2>
-                            <p className="text-gray-800">{selectedOrder.customer_email}</p>
-                            <p className="font-bold mt-3 text-lg">
-                                Status: {selectedOrder.status.replace(/_/g, " ").toUpperCase()}
-                            </p>
-                        </div>
-                    </div>
+        {selectedP2POrder && (
+            <P2PVerificationModal
+                open={isP2PModalOpen}
+                onOpenChange={setIsP2PModalOpen}
+                order={selectedP2POrder}
+                onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+            />
+        )}
 
-                    {selectedOrder.shipping_address && (
-                        <div className="mb-8">
-                            <h3 className="font-bold text-xl mb-3 border-b border-gray-300 pb-2">Shipping Information</h3>
-                            <div className="grid grid-cols-2 gap-8 text-black">
-                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                                    <p className="font-bold mb-2 uppercase text-xs tracking-wider text-gray-500">Address</p>
-                                    <p className="font-medium text-lg">{selectedOrder.shipping_address.line1}</p>
-                                    {selectedOrder.shipping_address.line2 && <p className="font-medium text-lg">{selectedOrder.shipping_address.line2}</p>}
-                                    <p className="font-medium text-lg">{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} {selectedOrder.shipping_address.postal_code}</p>
-                                    <p className="text-gray-600 mt-1">{selectedOrder.shipping_address.country}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                                    <p className="font-bold mb-2 uppercase text-xs tracking-wider text-gray-500">Method</p>
-                                    <p className="font-medium text-lg">{selectedOrder.shipping_service || "Standard"}</p>
-                                    {selectedOrder.shipping_carrier && <p className="font-medium text-lg mt-1">Carrier: {selectedOrder.shipping_carrier}</p>}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div>
-                        <h3 className="font-bold text-xl mb-4 border-b border-gray-300 pb-2">Order Items</h3>
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b-2 border-gray-800 bg-gray-100">
-                                    <th className="py-3 px-4 font-bold text-gray-800">Product</th>
-                                    <th className="py-3 px-4 font-bold text-gray-800">SKU</th>
-                                    <th className="py-3 px-4 font-bold text-gray-800 text-right">Price</th>
-                                    <th className="py-3 px-4 font-bold text-gray-800 text-center">Qty</th>
-                                    <th className="py-3 px-4 font-bold text-gray-800 text-right">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {selectedOrder.order_items?.map((item) => (
-                                    <tr key={item.id} className="border-b border-gray-300 break-inside-avoid">
-                                        <td className="py-4 px-4">
-                                            <div className="font-bold text-gray-900 border-b border-transparent">{item.variant?.product?.name}</div>
-                                            <div className="text-gray-700 text-sm mt-1 font-medium flex items-center flex-wrap gap-2">
-                                                <span>{formatVariantSpecification(item.variant)}</span>
-                                                {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
-                                                {item.is_bulk && (
-                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-800 uppercase">
-                                                        Bulk - {item.with_labels ? 'With Labels' : 'Unlabeled'}
-                                                    </span>
-                                                )}
-                                                {item.with_labels && item.custom_label_instructions && (
-                                                    <div className="mt-2 text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded p-2 italic max-w-md">
-                                                        <strong>Label Details:</strong> "{item.custom_label_instructions}"
-                                                    </div>
-                                                )}
-                                                {item.with_labels && item.custom_label_image_url && (
-                                                    <div className="mt-1 text-xs text-blue-600 font-semibold break-all">
-                                                        Design Link: {item.custom_label_image_url}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4 font-mono text-sm">{item.variant?.sku || "N/A"}</td>
-                                        <td className="py-4 px-4 text-right">${item.price_at_time.toFixed(2)}</td>
-                                        <td className="py-4 px-4 text-center font-bold">{item.quantity}</td>
-                                        <td className="py-4 px-4 text-right font-bold text-gray-900">
-                                            ${(item.price_at_time * item.quantity).toFixed(2)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="flex justify-end pt-8">
-                        <div className="w-80 space-y-3">
-                            <div className="flex justify-between text-gray-700 text-lg">
-                                <span>Subtotal</span>
-                                <span>${(selectedOrder.total_amount - (selectedOrder.shipping_cost || 0) + (selectedOrder.product_discount || 0) + (selectedOrder.shipping_discount || 0)).toFixed(2)}</span>
-                            </div>
-                            {(selectedOrder.product_discount || 0) > 0 && (
-                                <div className="flex justify-between text-green-700 text-lg font-medium">
-                                    <span>Discount {selectedOrder.applied_coupons && `(${selectedOrder.applied_coupons.join(", ")})`}</span>
-                                    <span>-${selectedOrder.product_discount?.toFixed(2)}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between text-gray-700 text-lg">
-                                <span>Shipping</span>
-                                <span>${(selectedOrder.shipping_cost || 0).toFixed(2)}</span>
-                            </div>
-                            {(selectedOrder.shipping_discount || 0) > 0 && (
-                                <div className="flex justify-between text-green-700 text-lg font-medium">
-                                    <span>Shipping Discount</span>
-                                    <span>-${selectedOrder.shipping_discount?.toFixed(2)}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between border-t-2 border-gray-800 pt-4 text-2xl font-bold text-black">
-                                <span>Total</span>
-                                <span>${selectedOrder.total_amount.toFixed(2)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Virtual Terminal Modal */}
-            {selectedVirtualTerminalOrder && (
-                <VirtualTerminalModal
-                    open={isVirtualTerminalOpen}
-                    onOpenChange={setIsVirtualTerminalOpen}
-                    order={selectedVirtualTerminalOrder}
-                    onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
-                />
-            )}
-
-            {/* P2P Verification Modal */}
-            {selectedP2POrder && (
-                <P2PVerificationModal
-                    open={isP2PModalOpen}
-                    onOpenChange={setIsP2PModalOpen}
-                    order={selectedP2POrder}
-                    onOrderUpdated={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
-                />
-            )}
-
-            {/* Upload Payment Proof Dialog */}
-            {selectedUploadProofOrder && (
-                <UploadPaymentProofDialog
-                    open={isUploadProofModalOpen}
-                    onOpenChange={setIsUploadProofModalOpen}
-                    orderId={selectedUploadProofOrder.id}
-                    orderNumber={selectedUploadProofOrder.id.slice(0, 8).toUpperCase()}
-                    totalAmount={selectedUploadProofOrder.total_amount}
-                    p2pProvider={(selectedUploadProofOrder as any).p2p_provider || "zelle"}
-                    onProofUploaded={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
-                />
-            )}
-        </div>
-
-
-
-
-
-        <style>{`
-            @media print {
-                html, body, #root, div[data-reactroot], .min-h-screen, main, .flex-1 {
-                    height: auto !important;
-                    min-height: 0 !important;
-                    overflow: visible !important;
-                    position: static !important;
-                    display: block !important;
-                }
-                body {
-                    background: white !important;
-                    color: black !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
-                @page {
-                    margin: 0;
-                }
-                /* Hide radix portal (where dialogs live) during print so it doesn't overlap */
-                [data-radix-portal], 
-                [role="dialog"],
-                .fixed,
-                header,
-                aside,
-                [data-sidebar] {
-                    display: none !important;
-                }
-                
-                /* Reset tailwind's gray to actual black where needed for better print contrast */
-                .text-black { color: #000 !important; }
-                .text-gray-900 { color: #111 !important; }
-                .text-gray-800 { color: #222 !important; }
-                .text-gray-700 { color: #333 !important; }
-                .bg-gray-50 { background-color: #f9fafb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            }
-        `}</style>
+        {selectedUploadProofOrder && (
+            <UploadPaymentProofDialog
+                open={isUploadProofModalOpen}
+                onOpenChange={setIsUploadProofModalOpen}
+                orderId={selectedUploadProofOrder.id}
+                orderNumber={selectedUploadProofOrder.id.slice(0, 8).toUpperCase()}
+                totalAmount={selectedUploadProofOrder.total_amount}
+                p2pProvider={(selectedUploadProofOrder as any).p2p_provider || "zelle"}
+                onProofUploaded={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+            />
+        )}
         </>
     );
 };

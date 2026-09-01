@@ -1,12 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import PeptideUpsellModal from "@/components/public/PeptideUpsellModal";
+import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
+import { 
+    DEFAULT_PEPTIDE_UPSELL_SETTINGS, 
+    PeptideUpsellSettings, 
+    cartHasOnlyWater, 
+    calculatePeptideUpsellDiscount 
+} from "@/config/upsellConfig";
 
 const QuantityInput = ({ 
     initialValue, 
@@ -58,9 +67,11 @@ const QuantityInput = ({
 
 const Cart = () => {
     const { items, removeFromCart, updateQuantity, cartTotal } = useCart();
+    const navigate = useNavigate();
     const [requireResearchAck, setRequireResearchAck] = useState(false);
     const [ackResearch, setAckResearch] = useState(false);
     const [ackTerms, setAckTerms] = useState(false);
+    const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchAckSetting = async () => {
@@ -80,6 +91,33 @@ const Cart = () => {
         fetchAckSetting();
     }, []);
 
+    // Fetch dynamic upsell settings from app_settings
+    const { data: upsellSettings } = usePeptideUpsellSettings();
+    const activeSettings = upsellSettings || DEFAULT_PEPTIDE_UPSELL_SETTINGS;
+
+    // Check if promotional discount is eligible
+    const upsellDiscount = useMemo(() => {
+        return calculatePeptideUpsellDiscount(items, activeSettings);
+    }, [items, activeSettings]);
+
+    const finalSubtotal = Math.max(0, cartTotal - (upsellDiscount.isEligible ? upsellDiscount.discountAmount : 0));
+
+    // Handle proceed to checkout with smart upsell interception
+    const handleProceedToCheckout = () => {
+        const onlyWater = cartHasOnlyWater(items);
+
+        if (onlyWater && activeSettings.enabled) {
+            setIsUpsellModalOpen(true);
+        } else {
+            navigate("/checkout");
+        }
+    };
+
+    const handleDeclineUpsell = () => {
+        setIsUpsellModalOpen(false);
+        navigate("/checkout");
+    };
+
     return (
         <div className="container py-12">
             <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
@@ -94,25 +132,33 @@ const Cart = () => {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                     <div className="lg:col-span-2 space-y-6">
-                        {/* Peptide Cross-Sell Banner */}
-                        <div className="bg-gradient-to-r from-primary/10 via-emerald-500/10 to-teal-500/15 border border-primary/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                    <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">
-                                        <Sparkles className="h-3 w-3 mr-1" /> NEW RELEASE
-                                    </Badge>
-                                    <h4 className="font-bold text-sm">Research Peptides Now Available</h4>
+                        {/* Peptide Cross-Sell Banner (if no peptides yet) */}
+                        {cartHasOnlyWater(items) && activeSettings.enabled && (
+                            <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 text-white border border-emerald-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                                <div className="space-y-1 relative z-10">
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                                            <Gift className="h-3 w-3 mr-1" /> {activeSettings.badgeText}
+                                        </Badge>
+                                        <h4 className="font-bold text-sm text-white">Get Your Water 100% FREE</h4>
+                                    </div>
+                                    <p className="text-xs text-slate-300">
+                                        {activeSettings.minPeptideSpend > 0 
+                                            ? `Add $${activeSettings.minPeptideSpend}+ of research peptides to your cart and unlock a 100% instant discount on your Reconstitution Solution.`
+                                            : "Add any research peptide to your cart and unlock a 100% instant discount on your Reconstitution Solution."}
+                                    </p>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Complete your lab research order with our newly released ultra-pure research peptides line.
-                                </p>
-                            </div>
-                            <Link to="/products?category=peptides" className="shrink-0 w-full sm:w-auto">
-                                <Button size="sm" variant="outline" className="w-full sm:w-auto border-primary text-primary hover:bg-primary/5 font-semibold text-xs h-9">
-                                    Browse Peptides <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                                <Button 
+                                    size="sm" 
+                                    onClick={() => setIsUpsellModalOpen(true)}
+                                    className="shrink-0 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 shadow-xs rounded-xl gap-1.5"
+                                >
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    Claim Special Offer
                                 </Button>
-                            </Link>
-                        </div>
+                            </div>
+                        )}
 
                         {/* Cart Items */}
                         {items.map((item) => (
@@ -220,13 +266,26 @@ const Cart = () => {
                     </div>
 
                     <div className="lg:col-span-1">
-                        <div className="bg-card border rounded-lg p-6 sticky top-24">
-                            <h3 className="font-semibold text-lg mb-4">Order Summary</h3>
-                            <div className="space-y-3 mb-6">
+                        <div className="bg-card border rounded-lg p-6 sticky top-24 space-y-4">
+                            <h3 className="font-semibold text-lg">Order Summary</h3>
+                            
+                            <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Subtotal</span>
                                     <span>${cartTotal.toFixed(2)}</span>
                                 </div>
+
+                                {/* Applied Peptide Upsell Promo Discount */}
+                                {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && (
+                                    <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            {upsellDiscount.discountLabel}
+                                        </span>
+                                        <span>-${upsellDiscount.discountAmount.toFixed(2)}</span>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Shipping</span>
                                     <span>Calculated at checkout</span>
@@ -235,13 +294,14 @@ const Cart = () => {
                                     <span className="text-muted-foreground">Tax</span>
                                     <span>$0.00</span>
                                 </div>
-                                <div className="border-t pt-3 flex justify-between font-bold">
+                                <div className="border-t pt-3 flex justify-between font-bold text-base">
                                     <span>Total</span>
-                                    <span>${cartTotal.toFixed(2)}</span>
+                                    <span>${finalSubtotal.toFixed(2)}</span>
                                 </div>
                             </div>
+
                             {requireResearchAck && (
-                                <div className="mb-6 p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-sm">
+                                <div className="p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-sm">
                                     <div className="flex items-center gap-2 text-destructive font-semibold text-xs uppercase tracking-wider">
                                         <AlertTriangle className="h-4 w-4" />
                                         Research Use Only — Required Acknowledgment
@@ -279,23 +339,33 @@ const Cart = () => {
                             )}
 
                             {(!requireResearchAck || (ackResearch && ackTerms)) ? (
-                                <Link to="/checkout">
-                                    <Button className="w-full shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold" size="lg">
-                                        Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
-                                    </Button>
-                                </Link>
+                                <Button 
+                                    onClick={handleProceedToCheckout}
+                                    className="w-full shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold h-12 text-sm" 
+                                    size="lg"
+                                >
+                                    Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
                             ) : (
-                                <Button className="w-full cursor-not-allowed opacity-50 font-semibold" size="lg" disabled>
+                                <Button className="w-full cursor-not-allowed opacity-50 font-semibold h-12 text-sm" size="lg" disabled>
                                     Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
                             )}
-                            <p className="text-xs text-muted-foreground text-center mt-4">
+
+                            <p className="text-xs text-muted-foreground text-center pt-1">
                                 Secure checkout powered by TagadaPay
                             </p>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* Pre-Checkout Peptide Upsell Modal */}
+            <PeptideUpsellModal
+                isOpen={isUpsellModalOpen}
+                onClose={() => setIsUpsellModalOpen(false)}
+                onDecline={handleDeclineUpsell}
+            />
         </div>
     );
 };

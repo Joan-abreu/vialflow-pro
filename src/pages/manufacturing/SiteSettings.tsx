@@ -17,10 +17,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles } from "lucide-react";
 
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
+import { DEFAULT_PEPTIDE_UPSELL_SETTINGS } from "@/config/upsellConfig";
 
 const TIMEZONES = [
     { value: "America/New_York", label: "Eastern Time (ET / New York)" },
@@ -56,6 +57,19 @@ const SiteSettings = () => {
     const [savingShipping, setSavingShipping] = useState(false);
     const [savingGateways, setSavingGateways] = useState(false);
     const [savingInventorySettings, setSavingInventorySettings] = useState(false);
+    const [savingPeptideUpsell, setSavingPeptideUpsell] = useState(false);
+
+    // Pre-Checkout Peptide Cross-Sell & Upsell Settings
+    const [peptideUpsellEnabled, setPeptideUpsellEnabled] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.enabled);
+    const [peptideUpsellType, setPeptideUpsellType] = useState<"free_water" | "percentage_discount" | "fixed_discount">(DEFAULT_PEPTIDE_UPSELL_SETTINGS.offerType);
+    const [peptideUpsellDiscountValue, setPeptideUpsellDiscountValue] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.discountValue);
+    const [peptideUpsellMinSpend, setPeptideUpsellMinSpend] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.minPeptideSpend);
+    const [peptideUpsellMaxFreeUnits, setPeptideUpsellMaxFreeUnits] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.maxFreeWaterUnits);
+    const [peptideUpsellHeadline, setPeptideUpsellHeadline] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.headline);
+    const [peptideUpsellSubtitle, setPeptideUpsellSubtitle] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.subtitle);
+    const [peptideUpsellBadgeText, setPeptideUpsellBadgeText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.badgeText);
+    const [peptideUpsellCtaText, setPeptideUpsellCtaText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.ctaButtonText);
+    const [peptideUpsellDeclineText, setPeptideUpsellDeclineText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.declineButtonText);
 
     // Inventory & Restock System Settings
     const [enableStrictStockEnforcement, setEnableStrictStockEnforcement] = useState(true);
@@ -256,12 +270,44 @@ const SiteSettings = () => {
                     "enable_restock_notifications",
                     "restock_lead_time_days",
                     "restock_discount_percent",
-                    "restock_coupon_code"
+                    "restock_coupon_code",
+                    "peptide_upsell_enabled",
+                    "peptide_upsell_type",
+                    "peptide_upsell_discount_value",
+                    "peptide_upsell_min_spend",
+                    "peptide_upsell_max_free_units",
+                    "peptide_upsell_headline",
+                    "peptide_upsell_subtitle",
+                    "peptide_upsell_badge_text",
+                    "peptide_upsell_cta_text",
+                    "peptide_upsell_decline_text"
                 ]);
 
             if (error) throw error;
 
             if (data) {
+                const pUpsellEnabled = data.find((s: any) => s.key === "peptide_upsell_enabled");
+                const pUpsellType = data.find((s: any) => s.key === "peptide_upsell_type");
+                const pUpsellDiscount = data.find((s: any) => s.key === "peptide_upsell_discount_value");
+                const pUpsellMinSpend = data.find((s: any) => s.key === "peptide_upsell_min_spend");
+                const pUpsellMaxFree = data.find((s: any) => s.key === "peptide_upsell_max_free_units");
+                const pUpsellHeadline = data.find((s: any) => s.key === "peptide_upsell_headline");
+                const pUpsellSubtitle = data.find((s: any) => s.key === "peptide_upsell_subtitle");
+                const pUpsellBadge = data.find((s: any) => s.key === "peptide_upsell_badge_text");
+                const pUpsellCta = data.find((s: any) => s.key === "peptide_upsell_cta_text");
+                const pUpsellDecline = data.find((s: any) => s.key === "peptide_upsell_decline_text");
+
+                if (pUpsellEnabled) setPeptideUpsellEnabled(pUpsellEnabled.value === "true");
+                if (pUpsellType) setPeptideUpsellType(pUpsellType.value as any);
+                if (pUpsellDiscount) setPeptideUpsellDiscountValue(Number(pUpsellDiscount.value) || DEFAULT_PEPTIDE_UPSELL_SETTINGS.discountValue);
+                if (pUpsellMinSpend) setPeptideUpsellMinSpend(Number(pUpsellMinSpend.value) || DEFAULT_PEPTIDE_UPSELL_SETTINGS.minPeptideSpend);
+                if (pUpsellMaxFree) setPeptideUpsellMaxFreeUnits(Number(pUpsellMaxFree.value) || DEFAULT_PEPTIDE_UPSELL_SETTINGS.maxFreeWaterUnits);
+                if (pUpsellHeadline) setPeptideUpsellHeadline(pUpsellHeadline.value);
+                if (pUpsellSubtitle) setPeptideUpsellSubtitle(pUpsellSubtitle.value);
+                if (pUpsellBadge) setPeptideUpsellBadgeText(pUpsellBadge.value);
+                if (pUpsellCta) setPeptideUpsellCtaText(pUpsellCta.value);
+                if (pUpsellDecline) setPeptideUpsellDeclineText(pUpsellDecline.value);
+
                 const strictStock = data.find((s: any) => s.key === "enable_strict_stock_enforcement");
                 const restockNotify = data.find((s: any) => s.key === "enable_restock_notifications");
                 const leadTime = data.find((s: any) => s.key === "restock_lead_time_days");
@@ -720,6 +766,41 @@ const SiteSettings = () => {
             toast.error("Failed to save inventory settings");
         } finally {
             setSavingInventorySettings(false);
+        }
+    };
+
+    const handleSavePeptideUpsellSettings = async () => {
+        setSavingPeptideUpsell(true);
+        const now = new Date().toISOString();
+
+        try {
+            const updates = [
+                { key: "peptide_upsell_enabled", value: String(peptideUpsellEnabled), updated_at: now },
+                { key: "peptide_upsell_type", value: peptideUpsellType, updated_at: now },
+                { key: "peptide_upsell_discount_value", value: String(peptideUpsellDiscountValue), updated_at: now },
+                { key: "peptide_upsell_min_spend", value: String(peptideUpsellMinSpend), updated_at: now },
+                { key: "peptide_upsell_max_free_units", value: String(peptideUpsellMaxFreeUnits), updated_at: now },
+                { key: "peptide_upsell_headline", value: peptideUpsellHeadline, updated_at: now },
+                { key: "peptide_upsell_subtitle", value: peptideUpsellSubtitle, updated_at: now },
+                { key: "peptide_upsell_badge_text", value: peptideUpsellBadgeText, updated_at: now },
+                { key: "peptide_upsell_cta_text", value: peptideUpsellCtaText, updated_at: now },
+                { key: "peptide_upsell_decline_text", value: peptideUpsellDeclineText, updated_at: now },
+            ];
+
+            for (const item of updates) {
+                const { error } = await supabase
+                    .from("app_settings" as any)
+                    .upsert(item);
+                if (error) throw error;
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['peptide-upsell-settings'] });
+            toast.success("Peptide Cross-Sell & Upsell settings saved successfully!");
+        } catch (error: any) {
+            console.error("Error saving peptide upsell settings:", error);
+            toast.error("Failed to save peptide upsell settings");
+        } finally {
+            setSavingPeptideUpsell(false);
         }
     };
 
@@ -2134,6 +2215,200 @@ const SiteSettings = () => {
                                     <>
                                         <Save className="mr-2 h-4 w-4" />
                                         Save Inventory Settings
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 5. Pre-Checkout Peptide Cross-Sell & Upsell System */}
+                <Card className="border-emerald-500/30 shadow-sm">
+                    <CardHeader className="space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                <Gift className="h-5 w-5" />
+                                <CardTitle className="text-xl">Pre-Checkout Peptide Cross-Sell & Upsell Offer</CardTitle>
+                            </div>
+                            <Badge variant={peptideUpsellEnabled ? "default" : "secondary"} className={peptideUpsellEnabled ? "bg-emerald-600 text-white font-bold" : ""}>
+                                {peptideUpsellEnabled ? "Active & Running" : "Disabled"}
+                            </Badge>
+                        </div>
+                        <CardDescription>
+                            Automatically trigger an engaging offer modal when a customer has only Reconstitution Solution / Water in their cart, incentivizing them to add research peptides in exchange for a free water or discount.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {/* Enable/Disable Switch */}
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/20">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Enable Pre-Checkout Peptide Offer</Label>
+                                    <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 font-bold">High Conversion</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    When enabled, customers clicking "Proceed to Checkout" with only water products will see the special peptide promotion.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={peptideUpsellEnabled}
+                                onCheckedChange={setPeptideUpsellEnabled}
+                            />
+                        </div>
+
+                        {/* Offer Rules & Parameters */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Offer Type */}
+                            <div className="space-y-2">
+                                <Label htmlFor="upsell-type" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                    Offer Benefit Type
+                                </Label>
+                                <Select value={peptideUpsellType} onValueChange={(val: any) => setPeptideUpsellType(val)}>
+                                    <SelectTrigger id="upsell-type" className="bg-background">
+                                        <SelectValue placeholder="Select offer type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="free_water">Free Water (100% Off Water Item)</SelectItem>
+                                        <SelectItem value="percentage_discount">Percentage Discount On Order</SelectItem>
+                                        <SelectItem value="fixed_discount">Fixed Dollar Amount Discount</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {peptideUpsellType === "free_water" && "The customer gets 1 unit of water 100% FREE."}
+                                    {peptideUpsellType === "percentage_discount" && "A % discount applied when peptide is added."}
+                                    {peptideUpsellType === "fixed_discount" && "A flat $ amount deducted from water item."}
+                                </p>
+                            </div>
+
+                            {/* Discount Value */}
+                            {peptideUpsellType !== "free_water" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="upsell-discount-val" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                        {peptideUpsellType === "percentage_discount" ? "Discount Percentage (%)" : "Discount Amount ($)"}
+                                    </Label>
+                                    <Input
+                                        id="upsell-discount-val"
+                                        type="number"
+                                        min="1"
+                                        value={peptideUpsellDiscountValue}
+                                        onChange={(e) => setPeptideUpsellDiscountValue(parseFloat(e.target.value) || 0)}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Minimum Peptide Spend */}
+                            <div className="space-y-2">
+                                <Label htmlFor="upsell-min-spend" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                    Minimum Peptide Spend ($)
+                                </Label>
+                                <Input
+                                    id="upsell-min-spend"
+                                    type="number"
+                                    min="0"
+                                    value={peptideUpsellMinSpend}
+                                    onChange={(e) => setPeptideUpsellMinSpend(parseFloat(e.target.value) || 0)}
+                                    placeholder="0 (Any Peptide Qualifies)"
+                                />
+                                <p className="text-[11px] text-muted-foreground">
+                                    Set to 0 for any peptide. When set above $0 (e.g. $60), badges and banners automatically display "$60+ minimum" to customers. You can also customize the Headline / Subtitle below.
+                                </p>
+                            </div>
+
+                            {/* Max Free Water Units Limit */}
+                            {peptideUpsellType === "free_water" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="upsell-max-units" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                        Max Free Water Units Per Order
+                                    </Label>
+                                    <Input
+                                        id="upsell-max-units"
+                                        type="number"
+                                        min="1"
+                                        value={peptideUpsellMaxFreeUnits}
+                                        onChange={(e) => setPeptideUpsellMaxFreeUnits(parseInt(e.target.value) || 1)}
+                                    />
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Default is 1. If customer has 100 waters in cart, only {peptideUpsellMaxFreeUnits} unit(s) are free; the rest are charged full price.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Copy Customization */}
+                        <div className="p-4 rounded-xl border bg-muted/10 space-y-4">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                                Modal Text & Copy Customization
+                            </h4>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="upsell-badge-text" className="text-xs font-semibold">Badge Pill Text</Label>
+                                    <Input
+                                        id="upsell-badge-text"
+                                        value={peptideUpsellBadgeText}
+                                        onChange={(e) => setPeptideUpsellBadgeText(e.target.value)}
+                                        placeholder="EXCLUSIVE LAB UPGRADE OFFER"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="upsell-cta-text" className="text-xs font-semibold">One-Click Add Button Text</Label>
+                                    <Input
+                                        id="upsell-cta-text"
+                                        value={peptideUpsellCtaText}
+                                        onChange={(e) => setPeptideUpsellCtaText(e.target.value)}
+                                        placeholder="Add to Order & Claim Free Water"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="upsell-headline" className="text-xs font-semibold">Modal Headline</Label>
+                                    <Input
+                                        id="upsell-headline"
+                                        value={peptideUpsellHeadline}
+                                        onChange={(e) => setPeptideUpsellHeadline(e.target.value)}
+                                        placeholder="Unlock FREE Reconstitution Solution with Any Research Peptide"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="upsell-subtitle" className="text-xs font-semibold">Modal Subtitle / Value Proposition</Label>
+                                    <Input
+                                        id="upsell-subtitle"
+                                        value={peptideUpsellSubtitle}
+                                        onChange={(e) => setPeptideUpsellSubtitle(e.target.value)}
+                                        placeholder="Add any ultra-pure research peptide to your order and get your Reconstitution Solution 100% FREE!"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="upsell-decline-text" className="text-xs font-semibold">Decline / Dismiss Link Text</Label>
+                                    <Input
+                                        id="upsell-decline-text"
+                                        value={peptideUpsellDeclineText}
+                                        onChange={(e) => setPeptideUpsellDeclineText(e.target.value)}
+                                        placeholder="No thanks, continue with water only"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <Button 
+                                onClick={handleSavePeptideUpsellSettings}
+                                disabled={savingPeptideUpsell}
+                                className="font-bold min-w-[200px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                                {savingPeptideUpsell ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving Settings...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Upsell Settings
                                     </>
                                 )}
                             </Button>

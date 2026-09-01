@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import UniversalCheckout from "@/components/checkout/UniversalCheckout";
-import { Loader2, LogIn, AlertTriangle, Package } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle, Package, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 import { AddressValidationModal } from "@/components/checkout/AddressValidationModal";
+import { 
+    DEFAULT_PEPTIDE_UPSELL_SETTINGS, 
+    PeptideUpsellSettings, 
+    calculatePeptideUpsellDiscount 
+} from "@/config/upsellConfig";
+import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
 
 const Checkout = () => {
     const { items, cartTotal } = useCart();
@@ -37,6 +44,12 @@ const Checkout = () => {
     const [finalSubtotal, setFinalSubtotal] = useState<number>(cartTotal);
     const [finalShipping, setFinalShipping] = useState<number>(0);
 
+    // Fetch dynamic upsell settings using unified hook
+    const { data: upsellSettings } = usePeptideUpsellSettings();
+    const activeUpsellSettings = upsellSettings || DEFAULT_PEPTIDE_UPSELL_SETTINGS;
+    const upsellDiscount = useMemo(() => calculatePeptideUpsellDiscount(items, activeUpsellSettings), [items, activeUpsellSettings]);
+    const autoDiscountAmount = (upsellDiscount.isEligible && appliedDiscounts.length === 0) ? upsellDiscount.discountAmount : 0;
+
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
         const isBulkItem = item.is_bulk || item.variant.bulk_only;
@@ -46,8 +59,8 @@ const Checkout = () => {
         return sum + (itemWeight * item.quantity);
     }, 0);
     
-    // Use final values if coupons are applied, otherwise fallback to standard
-    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : cartTotal;
+    // Use final values if coupons are applied, otherwise fallback to standard with auto promo discount
+    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : Math.max(0, cartTotal - autoDiscountAmount);
     const displayShipping = appliedDiscounts.length > 0 ? finalShipping : shippingCost;
     const totalAmount = Number((displaySubtotal + displayShipping).toFixed(2));
 
@@ -597,6 +610,15 @@ const Checkout = () => {
                                         <span className="font-medium">${displaySubtotal.toFixed(2)}</span>
                                     </div>
                                 </div>
+                                {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && appliedDiscounts.length === 0 && (
+                                    <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            {upsellDiscount.discountLabel}
+                                        </span>
+                                        <span>-${upsellDiscount.discountAmount.toFixed(2)}</span>
+                                    </div>
+                                )}
                                 {appliedDiscounts.map((d, i) => (
                                     <div key={i} className="flex justify-between text-sm text-green-600 font-medium">
                                         <div className="flex items-center gap-1">

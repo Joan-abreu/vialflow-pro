@@ -508,7 +508,16 @@ const ProductDetails = () => {
                 isBulk && withLabels ? customLabelImageUrl : null, 
                 isBulk && withLabels ? customLabelInstructions : null
             );
-            navigate("/checkout");
+
+            const category = (product?.product_categories?.name || "").toLowerCase();
+            const name = (product?.name || "").toLowerCase();
+            const isWater = (category.includes("water") || category.includes("reconstitution") || name.includes("reconstitution") || name.includes("bac water") || name.includes("bacteriostatic")) && !name.includes("peptide") && !category.includes("peptide");
+
+            if (isWater) {
+                navigate("/cart");
+            } else {
+                navigate("/checkout");
+            }
         }
     };
 

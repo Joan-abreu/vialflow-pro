@@ -217,94 +217,117 @@ export const PDFViewerCanvas: React.FC<PDFViewerCanvasProps> = ({
     return (
         <div className={`flex flex-col bg-slate-900 border rounded-2xl overflow-hidden shadow-xl text-white ${className}`}>
             {/* Responsive Document Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2.5 bg-slate-950/90 border-b border-slate-800 text-xs backdrop-blur-xs">
-                <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
-                        <FileText className="h-3.5 w-3.5 text-emerald-400" />
-                        Official Laboratory Certificate
-                    </span>
-                    {numPages > 1 && (
-                        <div className="flex items-center gap-1 bg-slate-800/80 px-1.5 py-0.5 rounded-md text-slate-300">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-slate-300 hover:text-white"
-                                disabled={pageNum <= 1}
-                                onClick={() => setPageNum((p) => Math.max(1, p - 1))}
-                            >
-                                <ChevronLeft className="h-3 w-3" />
-                            </Button>
-                            <span className="font-mono text-[11px] px-1">
-                                {pageNum} / {numPages}
-                            </span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-slate-300 hover:text-white"
-                                disabled={pageNum >= numPages}
-                                onClick={() => setPageNum((p) => Math.min(numPages, p + 1))}
-                            >
-                                <ChevronRight className="h-3 w-3" />
-                            </Button>
-                        </div>
-                    )}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 sm:px-4 sm:py-2.5 bg-slate-950/95 border-b border-slate-800 text-xs backdrop-blur-xs">
+                {/* Mobile Top Row / Desktop Left Side: Title & Download Button */}
+                <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-bold text-slate-200 flex items-center gap-1.5 text-xs truncate">
+                            <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <span className="hidden md:inline">Official Laboratory Certificate</span>
+                            <span className="md:hidden">Official COA</span>
+                        </span>
+                        {numPages > 1 && (
+                            <div className="flex items-center gap-0.5 bg-slate-800/90 px-1.5 py-0.5 rounded-md text-slate-300 border border-slate-700/60">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 text-slate-300 hover:text-white p-0"
+                                    disabled={pageNum <= 1}
+                                    onClick={() => setPageNum((p) => Math.max(1, p - 1))}
+                                >
+                                    <ChevronLeft className="h-3 w-3" />
+                                </Button>
+                                <span className="font-mono text-[10px] sm:text-[11px] px-1">
+                                    {pageNum}/{numPages}
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 text-slate-300 hover:text-white p-0"
+                                    disabled={pageNum >= numPages}
+                                    onClick={() => setPageNum((p) => Math.min(numPages, p + 1))}
+                                >
+                                    <ChevronRight className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Prominent Download Button on Mobile (Top Right) */}
+                    <div className="flex sm:hidden">
+                        <Button
+                            size="sm"
+                            className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 shadow-xs shrink-0"
+                            onClick={() => downloadCoaPdf(url, `COA-${batchNumber || "report"}.pdf`)}
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            <span>Download</span>
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-1 sm:gap-1.5">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] font-semibold border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 gap-1"
-                        title="Fit entire page to view"
-                        onClick={handleFitPage}
-                    >
-                        <Minimize2 className="h-3 w-3" />
-                        <span>Fit Page</span>
-                    </Button>
+                {/* Mobile Bottom Row / Desktop Right Side: View & Zoom Controls */}
+                <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6.5 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 gap-1"
+                            title="Fit entire page to view"
+                            onClick={handleFitPage}
+                        >
+                            <Minimize2 className="h-3 w-3" />
+                            <span>Fit Page</span>
+                        </Button>
 
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] font-semibold border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 gap-1"
-                        title="Fit to Container Width"
-                        onClick={handleFitWidth}
-                    >
-                        <Maximize2 className="h-3 w-3" />
-                        <span>Fit Width</span>
-                    </Button>
-                    
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
-                        title="Zoom Out"
-                        onClick={() => setScale((s) => Math.max(0.35, Number((s - 0.1).toFixed(2))))}
-                    >
-                        <ZoomOut className="h-3.5 w-3.5" />
-                    </Button>
-                    <span className="font-mono text-[11px] text-slate-400 w-10 text-center select-none">
-                        {Math.round(scale * 100)}%
-                    </span>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
-                        title="Zoom In"
-                        onClick={() => setScale((s) => Math.min(2.0, Number((s + 0.1).toFixed(2))))}
-                    >
-                        <ZoomIn className="h-3.5 w-3.5" />
-                    </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6.5 sm:h-7 px-2 text-[10px] sm:text-[11px] font-semibold border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 gap-1"
+                            title="Fit to Container Width"
+                            onClick={handleFitWidth}
+                        >
+                            <Maximize2 className="h-3 w-3" />
+                            <span>Fit Width</span>
+                        </Button>
+                    </div>
 
-                    <div className="h-4 w-px bg-slate-700 mx-0.5" />
+                    <div className="flex items-center gap-0.5 sm:gap-1">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6.5 w-6.5 sm:h-7 sm:w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+                            title="Zoom Out"
+                            onClick={() => setScale((s) => Math.max(0.35, Number((s - 0.1).toFixed(2))))}
+                        >
+                            <ZoomOut className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="font-mono text-[10px] sm:text-[11px] text-slate-400 w-8 sm:w-10 text-center select-none">
+                            {Math.round(scale * 100)}%
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6.5 w-6.5 sm:h-7 sm:w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+                            title="Zoom In"
+                            onClick={() => setScale((s) => Math.min(2.0, Number((s + 0.1).toFixed(2))))}
+                        >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                        </Button>
 
-                    <Button
-                        size="sm"
-                        className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 shadow-xs"
-                        onClick={() => downloadCoaPdf(url, `COA-${batchNumber || "report"}.pdf`)}
-                    >
-                        <Download className="h-3 w-3" />
-                        <span>Download</span>
-                    </Button>
+                        {/* Desktop Download Button */}
+                        <div className="hidden sm:flex items-center gap-1.5 ml-1">
+                            <div className="h-4 w-px bg-slate-700" />
+                            <Button
+                                size="sm"
+                                className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 shadow-xs"
+                                onClick={() => downloadCoaPdf(url, `COA-${batchNumber || "report"}.pdf`)}
+                            >
+                                <Download className="h-3 w-3" />
+                                <span>Download</span>
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

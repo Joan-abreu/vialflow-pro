@@ -57,7 +57,7 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
             <>
                 <div 
                     onClick={() => setIsPendingModalOpen(true)}
-                    className={`group inline-flex flex-wrap items-center gap-2 p-1.5 pr-3 rounded-full bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-700 transition-all cursor-pointer select-none text-left ${className}`}
+                    className={`group flex flex-col sm:inline-flex sm:flex-row sm:items-center gap-2 p-2.5 sm:p-1.5 sm:pr-3 rounded-2xl sm:rounded-full bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-700 transition-all cursor-pointer select-none text-left w-full sm:w-auto ${className}`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -68,20 +68,31 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
                     }}
                     title="Click for laboratory testing status"
                 >
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600 text-white text-xs font-bold shadow-xs">
-                        <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '6s' }} />
-                        <span>Lab Testing in Progress</span>
+                    {/* Top Row on Mobile / Left Section on Desktop */}
+                    <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600 text-white text-xs font-bold shadow-xs shrink-0">
+                            <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '6s' }} />
+                            <span>Lab Testing in Progress</span>
+                        </div>
+
+                        {/* Mobile Status button (top right) */}
+                        <div className="flex sm:hidden items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 group-hover:text-blue-800 dark:group-hover:text-blue-300">
+                            <span className="underline underline-offset-2">Status</span>
+                            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-blue-950 dark:text-blue-200 font-medium">
+                    {/* Bottom Row on Mobile / Middle Section on Desktop */}
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-blue-950 dark:text-blue-200 font-medium">
                         <span className="hidden sm:inline text-blue-700 dark:text-blue-400">●</span>
-                        <span>Sample submitted to accredited lab</span>
-                        <span className="font-semibold text-blue-700 dark:text-blue-300 font-mono text-[11px] bg-blue-100/80 dark:bg-blue-900/50 px-2 py-0.5 rounded-full border border-blue-200/60 dark:border-blue-800/40">
+                        <span className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300">Sample submitted to accredited lab</span>
+                        <span className="font-semibold text-blue-700 dark:text-blue-300 font-mono text-[10px] sm:text-[11px] bg-blue-100/80 dark:bg-blue-900/50 px-2 py-0.5 rounded-full border border-blue-200/60 dark:border-blue-800/40">
                             COA in ~3–5 Days
                         </span>
                     </div>
 
-                    <div className="ml-auto pl-1 flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 group-hover:text-blue-800 dark:group-hover:text-blue-300 transition-colors">
+                    {/* Desktop Status button */}
+                    <div className="hidden sm:flex ml-auto pl-1 items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 group-hover:text-blue-800 dark:group-hover:text-blue-300 transition-colors">
                         <span className="underline underline-offset-2">Status</span>
                         <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                     </div>
@@ -183,7 +194,7 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
     return (
         <div 
             onClick={() => onOpenModal(activeCoa)}
-            className={`group inline-flex flex-wrap items-center gap-2 p-1.5 pr-3 rounded-full bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shadow-xs hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-700 transition-all cursor-pointer select-none text-left ${className}`}
+            className={`group flex flex-col sm:inline-flex sm:flex-row sm:items-center gap-2 p-2.5 sm:p-1.5 sm:pr-3 rounded-2xl sm:rounded-full bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shadow-xs hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-700 transition-all cursor-pointer select-none text-left w-full sm:w-auto ${className}`}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -194,20 +205,32 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
             }}
             title="Click to view full Certificate of Analysis (COA)"
         >
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xs">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>3rd-Party Lab Tested</span>
+            {/* Top Row on Mobile / Left Section on Desktop */}
+            <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xs shrink-0">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>3rd-Party Lab Tested</span>
+                </div>
+
+                {/* Mobile View COA button (top right) */}
+                <div className="flex sm:hidden items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 group-hover:text-emerald-800 dark:group-hover:text-emerald-300">
+                    <FileText className="h-3 w-3" />
+                    <span className="underline underline-offset-2">View COA</span>
+                    <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                </div>
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-emerald-950 dark:text-emerald-200 font-semibold">
+            {/* Bottom Row on Mobile / Middle Section on Desktop */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-emerald-950 dark:text-emerald-200 font-semibold">
                 <span className="hidden sm:inline text-emerald-700 dark:text-emerald-400">●</span>
                 <span className="font-bold text-emerald-800 dark:text-emerald-300">{purityDisplay}</span>
-                <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[11px] bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40">
+                <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[10px] sm:text-[11px] bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40">
                     Lot #{activeCoa.batch_number}
                 </span>
             </div>
 
-            <div className="ml-auto pl-1 flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 group-hover:text-emerald-800 dark:group-hover:text-emerald-300 transition-colors">
+            {/* Desktop View COA button */}
+            <div className="hidden sm:flex ml-auto pl-1 items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 group-hover:text-emerald-800 dark:group-hover:text-emerald-300 transition-colors">
                 <FileText className="h-3 w-3" />
                 <span className="underline underline-offset-2">View COA</span>
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { calculateShipping, getShippingLabel } from "@/utils/shipping";
 import { AddressValidationModal } from "@/components/checkout/AddressValidationModal";
+import { trackFunnelStep } from "@/utils/sessionTracker";
 import { 
     DEFAULT_PEPTIDE_UPSELL_SETTINGS, 
     PeptideUpsellSettings, 
@@ -20,7 +21,7 @@ import {
 import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
 
 const Checkout = () => {
-    const { items, cartTotal } = useCart();
+    const { items, cartTotal, updateCartContactInfo, cartSessionId } = useCart();
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -93,6 +94,11 @@ const Checkout = () => {
     useEffect(() => {
         if (!checkoutStartedRef.current && items.length > 0) {
             checkoutStartedRef.current = true;
+            trackFunnelStep("begin_checkout", {
+                cartTotal,
+                itemCount: items.length,
+            }, cartSessionId);
+
             if (typeof window !== 'undefined') {
                 const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
                 dataLayer.push({
@@ -110,18 +116,28 @@ const Checkout = () => {
                 });
             }
         }
-    }, [items, cartTotal]);
+    }, [items, cartTotal, cartSessionId]);
 
-    // Handle Address change from Square Form (Silent update)
+    // Handle Address change from Square Form (Silent update with early contact capture)
     const handleAddressChange = useCallback((address: any) => {
         setCurrentAddress(address);
+
+        // Early contact capture to link customer info to cart session
+        if (address) {
+            updateCartContactInfo({
+                email: address.email || undefined,
+                phone: address.phone || undefined,
+                customer_name: address.full_name || undefined,
+            });
+        }
+
         // Reset shipping if address changes
         if (shippingService) {
            setShippingCost(0);
            setShippingService("");
            setShippingRates([]);
         }
-    }, [shippingService]);
+    }, [shippingService, updateCartContactInfo]);
 
     const validateAndProceed = async () => {
         if (requireLoginForCheckout && !session) {
@@ -167,6 +183,11 @@ const Checkout = () => {
             } else {
                 // Perfectly valid
                 await calculateRates(currentAddress);
+                trackFunnelStep("address_entered", {
+                    city: currentAddress?.city,
+                    state: currentAddress?.state,
+                    zip: currentAddress?.postal_code,
+                }, cartSessionId);
                 setStep('shipping');
             }
         } catch (error: any) {
@@ -235,6 +256,12 @@ const Checkout = () => {
         setExternalAddressUpdate(fullSuggested);
         setShowValidationModal(false);
         await calculateRates(fullSuggested);
+        trackFunnelStep("address_entered", {
+            city: fullSuggested.city,
+            state: fullSuggested.state,
+            zip: fullSuggested.postal_code,
+            isSuggested: true,
+        }, cartSessionId);
         setStep('shipping');
     };
 
@@ -246,6 +273,13 @@ const Checkout = () => {
         setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase());
         setShippingEstimatedDays(rate.estimated_days || rate.estimatedDays);
         intentAmountRef.current = 0;
+
+        trackFunnelStep("shipping_selected", {
+            carrier: rate.carrier || rate.provider,
+            service: rate.serviceName || rate.service,
+            cost: cost,
+            estimatedDays: rate.estimated_days || rate.estimatedDays,
+        }, cartSessionId);
 
         // Re-validate coupons if shipping changes
         if (appliedDiscounts.length > 0) {
@@ -364,8 +398,17 @@ const Checkout = () => {
     };
 
     const nextStep = () => {
-        if (step === 'address') validateAndProceed();
-        else if (step === 'shipping' && shippingService) setStep('payment');
+        if (step === 'address') {
+            validateAndProceed();
+        } else if (step === 'shipping' && shippingService) {
+            trackFunnelStep("payment_selected", {
+                subtotal: displaySubtotal,
+                shipping: displayShipping,
+                total: totalAmount,
+                itemCount: items.length,
+            }, cartSessionId);
+            setStep('payment');
+        }
     };
 
     const prevStep = () => {

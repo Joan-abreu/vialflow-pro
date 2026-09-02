@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, AlertTriangle, CreditCard as CardIcon, ShieldCheck, CheckCircle2, Lock, Eye, EyeOff, User, LogIn, UserPlus, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
+import { trackFunnelStep } from "@/utils/sessionTracker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -158,7 +159,7 @@ const UniversalCheckout = ({
     hidePayment,
     appliedDiscounts
 }: UniversalCheckoutProps) => {
-    const { items, clearCart } = useCart();
+    const { items, clearCart, markCartConverted } = useCart();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [saveAddress, setSaveAddress] = useState(true);
@@ -861,6 +862,15 @@ const UniversalCheckout = ({
                 return { ...result, orderId };
             }
 
+            try {
+                markCartConverted(orderId).catch((e) => console.debug("markCartConverted non-fatal:", e));
+                trackFunnelStep("order_completed", {
+                    orderId,
+                    amount,
+                    provider: activeProvider,
+                }).catch((e) => console.debug("trackFunnelStep non-fatal:", e));
+            } catch {}
+
             clearCart();
             toast.success("Order placed successfully!");
             navigate(`/order-confirmation/${orderId}`);
@@ -872,6 +882,11 @@ const UniversalCheckout = ({
             if (msg.toLowerCase().includes("one or more validation errors") || msg.toLowerCase().includes("validation error")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
             }
+            trackFunnelStep("payment_failed", {
+                error: msg,
+                provider: activeProvider,
+                amount,
+            });
             toast.error(msg);
         } finally {
             setLoading(false);

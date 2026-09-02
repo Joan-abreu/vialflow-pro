@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getOrCreateSessionId, captureUtmParams } from "@/utils/sessionTracker";
 
 export interface Product {
     id: string;
@@ -30,7 +31,9 @@ export interface ProductVariant {
     bulk_price?: number | null;
     bulk_min_qty?: number;
     bulk_label_fee?: number;
+    bulk_only?: boolean;
     product: {
+        id?: string;
         name: string;
         slug?: string;
         image_url: string | null;
@@ -72,6 +75,9 @@ interface CartContextType {
     cartTotal: number;
     cartCount: number;
     isAnimating: boolean;
+    cartSessionId: string | null;
+    updateCartContactInfo: (info: { email?: string; phone?: string; customer_name?: string }) => Promise<void>;
+    markCartConverted: (orderId: string) => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -79,21 +85,88 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const [items, setItems] = useState<CartItem[]>([]);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [cartSessionId, setCartSessionId] = useState<string | null>(null);
+    const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isInitialMount = useRef(true);
 
-    // Load cart from local storage on mount
+    // Calculate cart total
+    const cartTotal = items.reduce(
+        (total, item) => {
+            const bulkPrice = item.variant.bulk_price ?? null;
+            const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
+            const unitPrice = item.is_bulk && bulkPrice !== null 
+                ? (bulkPrice + labelFee) 
+                : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
+            return total + unitPrice * item.quantity;
+        },
+        0
+    );
+
+    // Calculate total weight
+    const totalWeight = items.reduce((sum, item) => {
+        const isBulkItem = item.is_bulk || item.variant.bulk_only;
+        const itemWeight = isBulkItem 
+            ? (item.variant.weight || 0) / (item.variant.pack_size || 1)
+            : (item.variant.weight || 0);
+        return sum + (itemWeight * item.quantity);
+    }, 0);
+
+    // Check for recovery token or restore cart from local storage on mount
     useEffect(() => {
-        const savedCart = localStorage.getItem("cart");
-        if (savedCart) {
-            try {
-                setItems(JSON.parse(savedCart));
-            } catch (error) {
-                console.error("Failed to parse cart from local storage", error);
+        const initCart = async () => {
+            if (typeof window === "undefined") return;
+
+            // Check if URL has a recovery token (?recover=... or ?recovery_token=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            const recoveryToken = urlParams.get("recover") || urlParams.get("recovery_token");
+
+            if (recoveryToken) {
+                try {
+                    const { data: recoveredCart, error } = await supabase
+                        .from("cart_sessions" as any)
+                        .select("*")
+                        .eq("recovery_token", recoveryToken)
+                        .maybeSingle();
+
+                    if (recoveredCart && recoveredCart.items && Array.isArray(recoveredCart.items) && recoveredCart.items.length > 0) {
+                        setItems(recoveredCart.items);
+                        setCartSessionId(recoveredCart.id);
+                        localStorage.setItem("cart", JSON.stringify(recoveredCart.items));
+                        
+                        // Mark session status as recovered
+                        await supabase
+                            .from("cart_sessions" as any)
+                            .update({ status: "recovered", last_active_at: new Date().toISOString() })
+                            .eq("id", recoveredCart.id);
+
+                        toast.success("Welcome back! Your saved cart has been restored.");
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Failed to recover cart from token:", e);
+                }
             }
-        }
+
+            // Fallback: Load cart from local storage
+            const savedCart = localStorage.getItem("cart");
+            if (savedCart) {
+                try {
+                    setItems(JSON.parse(savedCart));
+                } catch (error) {
+                    console.error("Failed to parse cart from local storage", error);
+                }
+            }
+        };
+
+        initCart();
     }, []);
 
     // Save cart to local storage whenever it changes
     useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
         localStorage.setItem("cart", JSON.stringify(items));
     }, [items]);
 
@@ -111,6 +184,150 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, []);
 
+    // Sync cart with Supabase cart_sessions (Debounced to protect bandwidth)
+    const syncCartWithSupabase = useCallback(async (currentItems: CartItem[], currentTotal: number, currentWeight: number) => {
+        try {
+            const sessionId = getOrCreateSessionId();
+            const utms = captureUtmParams();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
+
+            if (currentItems.length === 0) {
+                // If cart is cleared and we have a session, update status to empty
+                if (cartSessionId) {
+                    await supabase
+                        .from("cart_sessions" as any)
+                        .update({
+                            items: [],
+                            subtotal: 0,
+                            total_weight: 0,
+                            last_active_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("id", cartSessionId);
+                }
+                return;
+            }
+
+            // Check if a session already exists for this browser session_id
+            const { data: existingSession } = await supabase
+                .from("cart_sessions" as any)
+                .select("id, status")
+                .eq("session_id", sessionId)
+                .in("status", ["active", "abandoned", "recovered"])
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (existingSession?.id) {
+                setCartSessionId(existingSession.id);
+                await supabase
+                    .from("cart_sessions" as any)
+                    .update({
+                        user_id: user?.id || null,
+                        items: currentItems,
+                        subtotal: currentTotal,
+                        total_weight: currentWeight,
+                        status: existingSession.status === "abandoned" ? "active" : existingSession.status,
+                        last_active_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        utm_source: utms.utm_source || null,
+                        utm_medium: utms.utm_medium || null,
+                        utm_campaign: utms.utm_campaign || null,
+                        utm_term: utms.utm_term || null,
+                        utm_content: utms.utm_content || null,
+                        referrer: utms.referrer || null,
+                    })
+                    .eq("id", existingSession.id);
+            } else {
+                const { data: newSession } = await supabase
+                    .from("cart_sessions" as any)
+                    .insert({
+                        session_id: sessionId,
+                        user_id: user?.id || null,
+                        items: currentItems,
+                        subtotal: currentTotal,
+                        total_weight: currentWeight,
+                        status: "active",
+                        last_active_at: new Date().toISOString(),
+                        utm_source: utms.utm_source || null,
+                        utm_medium: utms.utm_medium || null,
+                        utm_campaign: utms.utm_campaign || null,
+                        utm_term: utms.utm_term || null,
+                        utm_content: utms.utm_content || null,
+                        referrer: utms.referrer || null,
+                    })
+                    .select("id")
+                    .single();
+
+                if (newSession?.id) {
+                    setCartSessionId(newSession.id);
+                }
+            }
+        } catch (err) {
+            console.debug("Cart session sync error (non-fatal):", err);
+        }
+    }, [cartSessionId]);
+
+    // Trigger debounced sync when items change
+    useEffect(() => {
+        if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+        }
+
+        syncTimeoutRef.current = setTimeout(() => {
+            syncCartWithSupabase(items, cartTotal, totalWeight);
+        }, 1200);
+
+        return () => {
+            if (syncTimeoutRef.current) {
+                clearTimeout(syncTimeoutRef.current);
+            }
+        };
+    }, [items, cartTotal, totalWeight, syncCartWithSupabase]);
+
+    // Update customer contact info in active cart session (Early capture during checkout)
+    const updateCartContactInfo = async (info: { email?: string; phone?: string; customer_name?: string }) => {
+        try {
+            const sessionId = getOrCreateSessionId();
+            if (!info.email && !info.phone && !info.customer_name) return;
+
+            await supabase
+                .from("cart_sessions" as any)
+                .update({
+                    email: info.email || null,
+                    phone: info.phone || null,
+                    customer_name: info.customer_name || null,
+                    last_active_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("session_id", sessionId)
+                .in("status", ["active", "abandoned", "recovered"]);
+        } catch (e) {
+            console.debug("Failed to update cart contact info:", e);
+        }
+    };
+
+    // Mark active cart session as converted upon successful checkout
+    const markCartConverted = async (orderId: string) => {
+        try {
+            const sessionId = getOrCreateSessionId();
+            await supabase
+                .from("cart_sessions" as any)
+                .update({
+                    status: "converted",
+                    converted_order_id: orderId,
+                    last_active_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("session_id", sessionId);
+
+            clearCart();
+        } catch (e) {
+            console.debug("Failed to mark cart converted:", e);
+        }
+    };
+
     const addToCart = (
         variant: ProductVariant, 
         quantity: number = 1, 
@@ -125,7 +342,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
         const bulkPrice = variant.bulk_price ?? null;
         const labelFee = with_labels ? (variant.bulk_label_fee ?? 0.15) : 0;
-        const unitPrice = is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (variant.bulk_only ? (variant.price + labelFee) : variant.price);
+        const unitPrice = is_bulk && bulkPrice !== null 
+            ? (bulkPrice + labelFee) 
+            : (variant.bulk_only ? (variant.price + labelFee) : variant.price);
 
         if (typeof window !== 'undefined') {
             const dataLayer = (window as any).dataLayer = (window as any).dataLayer || [];
@@ -229,7 +448,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             const minQty = (is_bulk || !!item.variant.bulk_only) ? (item.variant.bulk_min_qty ?? 100) : 1;
 
             if (quantity < minQty) {
-                // If it goes below minimum bulk quantity, remove it
                 return currentItems.filter(
                     (i) => !(i.variant.id === variantId && 
                              !!i.is_bulk === !!is_bulk && 
@@ -266,16 +484,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("cart");
     };
 
-    const cartTotal = items.reduce(
-        (total, item) => {
-            const bulkPrice = item.variant.bulk_price ?? null;
-            const labelFee = item.with_labels ? (item.variant.bulk_label_fee ?? 0.15) : 0;
-            const unitPrice = item.is_bulk && bulkPrice !== null ? (bulkPrice + labelFee) : (item.variant.bulk_only ? (item.variant.price + labelFee) : item.variant.price);
-            return total + unitPrice * item.quantity;
-        },
-        0
-    );
-
     const cartCount = items.reduce((count, item) => count + item.quantity, 0);
 
     return (
@@ -289,6 +497,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 cartTotal,
                 cartCount,
                 isAnimating,
+                cartSessionId,
+                updateCartContactInfo,
+                markCartConverted,
             }}
         >
             {children}

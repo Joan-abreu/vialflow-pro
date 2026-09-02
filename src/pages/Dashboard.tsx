@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow, subDays, format, eachDayOfInterval, differenceInDays } from "date-fns";
 import { Link } from "react-router-dom";
@@ -12,6 +13,7 @@ import OrderVolumeTrendChart from "@/components/dashboard/OrderVolumeTrendChart"
 import TopProductsList from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
 import { UnconvertedUsersDialog, UnconvertedUser } from "@/components/dashboard/UnconvertedUsersDialog";
+import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
 import { cn } from "@/lib/utils";
 
 interface Activity {
@@ -51,13 +53,36 @@ const Dashboard = () => {
   const [unconvertedUsers, setUnconvertedUsers] = useState<UnconvertedUser[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; quantity: number; revenue: number }[]>([]);
   const [topCustomers, setTopCustomers] = useState<{ name: string; orderCount: number; totalSpent: number }[]>([]);
+  const [funnelData, setFunnelData] = useState({
+    views: 0,
+    carts: 0,
+    checkouts: 0,
+    addresses: 0,
+    orders: 0,
+  });
+  const [abandonedCartsStats, setAbandonedCartsStats] = useState({
+    count: 0,
+    lostRevenue: 0,
+  });
 
   useEffect(() => {
     const fetchStats = async () => {
       const startDateTime = new Date(`${dateRange.startDate}T00:00:00`).toISOString();
       const endDateTime = new Date(`${dateRange.endDate}T23:59:59.999`).toISOString();
 
-      const [batches, materials, shipments, profiles, ordersResp, orderShipmentsResp, allEverOrdersResp, nonCustomerRolesResp] = await Promise.all([
+      const [
+        batches, 
+        materials, 
+        shipments, 
+        profiles, 
+        ordersResp, 
+        orderShipmentsResp, 
+        allEverOrdersResp, 
+        nonCustomerRolesResp,
+        productViewsResp,
+        cartSessionsResp,
+        funnelEventsResp
+      ] = await Promise.all([
         supabase
           .from("production_batches")
           .select("*", { count: "exact", head: true })
@@ -101,7 +126,23 @@ const Dashboard = () => {
           .select("id, status, user_id, customer_email"),
         supabase
           .from("user_roles")
-          .select("user_id, role")
+          .select("user_id, role"),
+        supabase
+          .from("analytics_events" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("event_name", "product_view")
+          .gte("created_at", startDateTime)
+          .lte("created_at", endDateTime),
+        supabase
+          .from("cart_sessions" as any)
+          .select("id, subtotal, status, created_at")
+          .gte("created_at", startDateTime)
+          .lte("created_at", endDateTime),
+        supabase
+          .from("checkout_funnel_events" as any)
+          .select("id, step, created_at")
+          .gte("created_at", startDateTime)
+          .lte("created_at", endDateTime)
       ]);
 
       const lowStock = materials.data?.filter(
@@ -310,6 +351,31 @@ const Dashboard = () => {
         .slice(0, 5);
 
       setTopCustomers(topCustomersList);
+
+      // 5. Funnel & Abandoned Cart Metrics
+      const totalViews = productViewsResp?.count || 0;
+      const cartSessionsList = (cartSessionsResp?.data || []) as any[];
+      const funnelEventsList = (funnelEventsResp?.data || []) as any[];
+
+      const totalCarts = cartSessionsList.length;
+      const totalCheckouts = funnelEventsList.filter(e => e.step === "begin_checkout").length;
+      const totalAddresses = funnelEventsList.filter(e => e.step === "address_entered").length;
+      const totalOrdersPlaced = validOrders.length;
+
+      setFunnelData({
+        views: totalViews,
+        carts: totalCarts,
+        checkouts: totalCheckouts,
+        addresses: totalAddresses,
+        orders: totalOrdersPlaced,
+      });
+
+      const abandonedCarts = cartSessionsList.filter(c => c.status === "abandoned" || (c.status === "active" && new Date(c.created_at).getTime() < Date.now() - 3600000));
+      const lostRevenue = abandonedCarts.reduce((sum, c) => sum + (Number(c.subtotal) || 0), 0);
+      setAbandonedCartsStats({
+        count: abandonedCarts.length,
+        lostRevenue,
+      });
     };
 
     const fetchActivities = async () => {
@@ -481,7 +547,7 @@ const Dashboard = () => {
       {/* Group 1: E-Commerce Sales */}
       <div className="space-y-4 pt-2">
           <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce Activity</h2>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -494,6 +560,25 @@ const Dashboard = () => {
                     <div className="text-2xl font-bold">{stats.totalOrders}</div>
                 </CardContent>
             </Card>
+
+            <Link to="/manufacturing/analytics">
+                <Card className="hover:border-destructive/50 transition-colors cursor-pointer group border-destructive/20 bg-destructive/5">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <div>
+                          <CardTitle className="text-sm font-medium text-destructive">Abandoned Carts</CardTitle>
+                          <span className="text-[11px] text-destructive/80 font-medium block mt-0.5">{periodLabel}</span>
+                        </div>
+                        <ShoppingCart className="h-5 w-5 text-destructive group-hover:scale-110 transition-transform" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-destructive">{abandonedCartsStats.count}</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            ${abandonedCartsStats.lostRevenue.toFixed(2)} lost • View & Recover &rarr;
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -595,8 +680,24 @@ const Dashboard = () => {
       </div>
 
       {/* Analytics Section */}
-      <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200 mt-8">Analytics & Leaderboards</h2>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mt-8 mb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">Analytics & Conversion Funnel</h2>
+        <Link to="/manufacturing/analytics">
+          <Button variant="outline" size="sm" className="gap-2 border-primary/30 text-primary hover:bg-primary/10 font-bold">
+            <BarChart3 className="h-4 w-4" />
+            <span>Full Analytics Hub & Recovery &rarr;</span>
+          </Button>
+        </Link>
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
+        <EcommerceFunnelChart
+            viewsCount={funnelData.views}
+            cartsCount={funnelData.carts}
+            checkoutsCount={funnelData.checkouts}
+            addressesCount={funnelData.addresses}
+            ordersCount={funnelData.orders}
+            periodLabel={periodLabel}
+        />
         <RevenueTrendChart data={revenueData} periodLabel={periodLabel} />
         <OrderVolumeTrendChart data={orderVolumeData} periodLabel={periodLabel} />
         <OrderStatusChart data={statusData} />

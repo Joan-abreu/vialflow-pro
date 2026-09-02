@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.send-restock-notification]
 verify_jwt = false
+
+[functions.send-cart-recovery-email]
+verify_jwt = false

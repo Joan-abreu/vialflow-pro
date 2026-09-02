@@ -20,6 +20,8 @@ import OrderManagement from "./pages/manufacturing/OrderManagement";
 import OrderLabels from "./pages/manufacturing/OrderLabels";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
 import CommunicationLogs from "./pages/manufacturing/CommunicationLogs";
+import Analytics from "./pages/manufacturing/Analytics";
+import AbandonedCarts from "./pages/manufacturing/AbandonedCarts";
 import ShippingSettings from "./pages/manufacturing/ShippingSettings";
 import ProductionPlanner from "./pages/ProductionPlanner";
 import NotFound from "./pages/NotFound";
@@ -237,6 +239,8 @@ const AppRoutes = () => {
                     <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
                     <Route path="order-labels" element={<ProtectedRoute><OrderLabels /></ProtectedRoute>} />
                     <Route path="customers" element={<ProtectedRoute><CustomerManagement /></ProtectedRoute>} />
+                    <Route path="analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                    <Route path="abandoned-carts" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
                     <Route path="communications" element={<ProtectedRoute><CommunicationLogs /></ProtectedRoute>} />
                     <Route path="shipping-settings" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
                     <Route path="settings" element={<ProtectedRoute><SiteSettings /></ProtectedRoute>} />

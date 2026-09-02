@@ -21,6 +21,7 @@ import { getBaseSalesCount } from "@/utils/salesCount";
 import ProductCOABadge, { COARecord } from "@/components/products/ProductCOABadge";
 import ProductCOAModal from "@/components/products/ProductCOAModal";
 import ProductCOASection from "@/components/products/ProductCOASection";
+import { trackAnalyticsEvent } from "@/utils/sessionTracker";
 
 interface ProductWithVariants {
     id: string;
@@ -433,6 +434,23 @@ const ProductDetails = () => {
             }
         }
     }, [product, id, selectedVariantId]);
+
+    // Track product view analytics event
+    useEffect(() => {
+        if (product?.id) {
+            const isPeptide = (product.category || "").toLowerCase().includes("peptide") ||
+                              (product.name || "").toLowerCase().includes("peptide") ||
+                              product.variants?.some((v: any) => v.vial_type?.name?.toLowerCase().includes("mg"));
+            trackAnalyticsEvent("product_view", {
+                name: product.name,
+                product_name: product.name,
+                category: product.category,
+                is_peptide: isPeptide,
+                slug: product.slug,
+                price: selectedVariant?.price,
+            }, product.id);
+        }
+    }, [product?.id]);
 
     // Reset or enforce bulk status when variant changes
     useEffect(() => {

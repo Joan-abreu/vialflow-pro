@@ -11,6 +11,7 @@ import { getBaseSalesCount } from "@/utils/salesCount";
 import SEO from "@/components/SEO";
 import { getSEOConfig } from "@/config/seoConfig";
 import { useEffect } from "react";
+import { trackAnalyticsEvent } from "@/utils/sessionTracker";
 import {
     Select,
     SelectContent,
@@ -50,6 +51,14 @@ const Products = () => {
         setSelectedCategory(categoryParam || null);
         if (searchUrlParam !== null) {
             setSearchQuery(searchUrlParam);
+        }
+
+        // Track category browsing
+        if (categoryParam) {
+            trackAnalyticsEvent("category_view", {
+                category: categoryParam,
+                is_peptide: categoryParam.toLowerCase().includes("peptide"),
+            });
         }
     }, [categoryParam, searchUrlParam]);
 

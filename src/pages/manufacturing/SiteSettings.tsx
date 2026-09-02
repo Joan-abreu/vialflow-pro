@@ -17,11 +17,14 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing } from "lucide-react";
 
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
 import { DEFAULT_PEPTIDE_UPSELL_SETTINGS } from "@/config/upsellConfig";
+import { DEFAULT_ANALYTICS_SETTINGS } from "@/config/analyticsSettingsConfig";
+import { ANALYTICS_SETTINGS_QUERY_KEY } from "@/hooks/useAnalyticsSettings";
+import { Textarea } from "@/components/ui/textarea";
 
 const TIMEZONES = [
     { value: "America/New_York", label: "Eastern Time (ET / New York)" },
@@ -58,6 +61,33 @@ const SiteSettings = () => {
     const [savingGateways, setSavingGateways] = useState(false);
     const [savingInventorySettings, setSavingInventorySettings] = useState(false);
     const [savingPeptideUpsell, setSavingPeptideUpsell] = useState(false);
+    const [savingAnalytics, setSavingAnalytics] = useState(false);
+
+    // E-Commerce Analytics & Abandoned Cart Recovery Settings
+    const [abandonedCartTrackingEnabled, setAbandonedCartTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.abandonedCartTrackingEnabled);
+    const [abandonedCartThresholdMinutes, setAbandonedCartThresholdMinutes] = useState(DEFAULT_ANALYTICS_SETTINGS.abandonedCartThresholdMinutes);
+    const [guestCartTrackingEnabled, setGuestCartTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.guestCartTrackingEnabled);
+    const [earlyContactCaptureEnabled, setEarlyContactCaptureEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.earlyContactCaptureEnabled);
+    const [cartRetentionDays, setCartRetentionDays] = useState(DEFAULT_ANALYTICS_SETTINGS.cartRetentionDays);
+
+    const [autoRecoveryEmailsEnabled, setAutoRecoveryEmailsEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.autoRecoveryEmailsEnabled);
+    const [recoveryEmail1DelayHours, setRecoveryEmail1DelayHours] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryEmail1DelayHours);
+    const [recoveryEmail2DelayHours, setRecoveryEmail2DelayHours] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryEmail2DelayHours);
+    const [recoveryEmail3DelayHours, setRecoveryEmail3DelayHours] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryEmail3DelayHours);
+    const [recoveryDiscountEnabled, setRecoveryDiscountEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryDiscountEnabled);
+    const [recoveryDiscountCouponCode, setRecoveryDiscountCouponCode] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryDiscountCouponCode);
+    const [recoveryDiscountPercentage, setRecoveryDiscountPercentage] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryDiscountPercentage);
+    const [recoveryEmailSubject, setRecoveryEmailSubject] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryEmailSubject);
+    const [recoveryEmailCustomMessage, setRecoveryEmailCustomMessage] = useState(DEFAULT_ANALYTICS_SETTINGS.recoveryEmailCustomMessage);
+
+    const [funnelTrackingEnabled, setFunnelTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.funnelTrackingEnabled);
+    const [productViewTrackingEnabled, setProductViewTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.productViewTrackingEnabled);
+    const [utmAttributionTrackingEnabled, setUtmAttributionTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.utmAttributionTrackingEnabled);
+    const [excludeAdminFromAnalytics, setExcludeAdminFromAnalytics] = useState(DEFAULT_ANALYTICS_SETTINGS.excludeAdminFromAnalytics);
+
+    const [adminAlertHighValueAbandonment, setAdminAlertHighValueAbandonment] = useState(DEFAULT_ANALYTICS_SETTINGS.adminAlertHighValueAbandonment);
+    const [highValueAbandonmentThreshold, setHighValueAbandonmentThreshold] = useState(DEFAULT_ANALYTICS_SETTINGS.highValueAbandonmentThreshold);
+    const [analyticsAdminNotificationEmail, setAnalyticsAdminNotificationEmail] = useState(DEFAULT_ANALYTICS_SETTINGS.analyticsAdminNotificationEmail);
 
     // Pre-Checkout Peptide Cross-Sell & Upsell Settings
     const [peptideUpsellEnabled, setPeptideUpsellEnabled] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.enabled);
@@ -280,12 +310,84 @@ const SiteSettings = () => {
                     "peptide_upsell_subtitle",
                     "peptide_upsell_badge_text",
                     "peptide_upsell_cta_text",
-                    "peptide_upsell_decline_text"
+                    "peptide_upsell_decline_text",
+                    "abandoned_cart_tracking_enabled",
+                    "abandoned_cart_threshold_minutes",
+                    "guest_cart_tracking_enabled",
+                    "early_contact_capture_enabled",
+                    "cart_retention_days",
+                    "auto_recovery_emails_enabled",
+                    "recovery_email_1_delay_hours",
+                    "recovery_email_2_delay_hours",
+                    "recovery_email_3_delay_hours",
+                    "recovery_discount_enabled",
+                    "recovery_discount_coupon_code",
+                    "recovery_discount_percentage",
+                    "recovery_email_subject",
+                    "recovery_email_custom_message",
+                    "funnel_tracking_enabled",
+                    "product_view_tracking_enabled",
+                    "utm_attribution_tracking_enabled",
+                    "exclude_admin_from_analytics",
+                    "admin_alert_high_value_abandonment",
+                    "high_value_abandonment_threshold",
+                    "analytics_admin_notification_email"
                 ]);
 
             if (error) throw error;
 
             if (data) {
+                // Analytics & Abandoned Cart Recovery
+                const cartTrack = data.find((s: any) => s.key === "abandoned_cart_tracking_enabled");
+                const cartThresh = data.find((s: any) => s.key === "abandoned_cart_threshold_minutes");
+                const guestTrack = data.find((s: any) => s.key === "guest_cart_tracking_enabled");
+                const earlyCapture = data.find((s: any) => s.key === "early_contact_capture_enabled");
+                const cartRet = data.find((s: any) => s.key === "cart_retention_days");
+
+                const autoRecovery = data.find((s: any) => s.key === "auto_recovery_emails_enabled");
+                const delay1 = data.find((s: any) => s.key === "recovery_email_1_delay_hours");
+                const delay2 = data.find((s: any) => s.key === "recovery_email_2_delay_hours");
+                const delay3 = data.find((s: any) => s.key === "recovery_email_3_delay_hours");
+                const recDisc = data.find((s: any) => s.key === "recovery_discount_enabled");
+                const recCode = data.find((s: any) => s.key === "recovery_discount_coupon_code");
+                const recPct = data.find((s: any) => s.key === "recovery_discount_percentage");
+                const recSubj = data.find((s: any) => s.key === "recovery_email_subject");
+                const recMsg = data.find((s: any) => s.key === "recovery_email_custom_message");
+
+                const funTrack = data.find((s: any) => s.key === "funnel_tracking_enabled");
+                const prodView = data.find((s: any) => s.key === "product_view_tracking_enabled");
+                const utmTrack = data.find((s: any) => s.key === "utm_attribution_tracking_enabled");
+                const exclAdmin = data.find((s: any) => s.key === "exclude_admin_from_analytics");
+
+                const highAlert = data.find((s: any) => s.key === "admin_alert_high_value_abandonment");
+                const highThresh = data.find((s: any) => s.key === "high_value_abandonment_threshold");
+                const adminEmail = data.find((s: any) => s.key === "analytics_admin_notification_email");
+
+                if (cartTrack) setAbandonedCartTrackingEnabled(cartTrack.value === "true");
+                if (cartThresh) setAbandonedCartThresholdMinutes(Number(cartThresh.value) || DEFAULT_ANALYTICS_SETTINGS.abandonedCartThresholdMinutes);
+                if (guestTrack) setGuestCartTrackingEnabled(guestTrack.value === "true");
+                if (earlyCapture) setEarlyContactCaptureEnabled(earlyCapture.value === "true");
+                if (cartRet) setCartRetentionDays(Number(cartRet.value) || DEFAULT_ANALYTICS_SETTINGS.cartRetentionDays);
+
+                if (autoRecovery) setAutoRecoveryEmailsEnabled(autoRecovery.value === "true");
+                if (delay1) setRecoveryEmail1DelayHours(Number(delay1.value) || DEFAULT_ANALYTICS_SETTINGS.recoveryEmail1DelayHours);
+                if (delay2) setRecoveryEmail2DelayHours(Number(delay2.value) || DEFAULT_ANALYTICS_SETTINGS.recoveryEmail2DelayHours);
+                if (delay3) setRecoveryEmail3DelayHours(Number(delay3.value) || DEFAULT_ANALYTICS_SETTINGS.recoveryEmail3DelayHours);
+                if (recDisc) setRecoveryDiscountEnabled(recDisc.value === "true");
+                if (recCode) setRecoveryDiscountCouponCode(recCode.value || DEFAULT_ANALYTICS_SETTINGS.recoveryDiscountCouponCode);
+                if (recPct) setRecoveryDiscountPercentage(Number(recPct.value) || DEFAULT_ANALYTICS_SETTINGS.recoveryDiscountPercentage);
+                if (recSubj) setRecoveryEmailSubject(recSubj.value || DEFAULT_ANALYTICS_SETTINGS.recoveryEmailSubject);
+                if (recMsg) setRecoveryEmailCustomMessage(recMsg.value || DEFAULT_ANALYTICS_SETTINGS.recoveryEmailCustomMessage);
+
+                if (funTrack) setFunnelTrackingEnabled(funTrack.value === "true");
+                if (prodView) setProductViewTrackingEnabled(prodView.value === "true");
+                if (utmTrack) setUtmAttributionTrackingEnabled(utmTrack.value === "true");
+                if (exclAdmin) setExcludeAdminFromAnalytics(exclAdmin.value === "true");
+
+                if (highAlert) setAdminAlertHighValueAbandonment(highAlert.value === "true");
+                if (highThresh) setHighValueAbandonmentThreshold(Number(highThresh.value) || DEFAULT_ANALYTICS_SETTINGS.highValueAbandonmentThreshold);
+                if (adminEmail) setAnalyticsAdminNotificationEmail(adminEmail.value || "");
+
                 const pUpsellEnabled = data.find((s: any) => s.key === "peptide_upsell_enabled");
                 const pUpsellType = data.find((s: any) => s.key === "peptide_upsell_type");
                 const pUpsellDiscount = data.find((s: any) => s.key === "peptide_upsell_discount_value");
@@ -801,6 +903,84 @@ const SiteSettings = () => {
             toast.error("Failed to save peptide upsell settings");
         } finally {
             setSavingPeptideUpsell(false);
+        }
+    };
+
+    const handleSaveAnalyticsSettings = async () => {
+        setSavingAnalytics(true);
+        const now = new Date().toISOString();
+        const cleanCoupon = recoveryDiscountCouponCode.trim().toUpperCase();
+
+        try {
+            const updates = [
+                { key: "abandoned_cart_tracking_enabled", value: String(abandonedCartTrackingEnabled), updated_at: now },
+                { key: "abandoned_cart_threshold_minutes", value: String(abandonedCartThresholdMinutes), updated_at: now },
+                { key: "guest_cart_tracking_enabled", value: String(guestCartTrackingEnabled), updated_at: now },
+                { key: "early_contact_capture_enabled", value: String(earlyContactCaptureEnabled), updated_at: now },
+                { key: "cart_retention_days", value: String(cartRetentionDays), updated_at: now },
+                { key: "auto_recovery_emails_enabled", value: String(autoRecoveryEmailsEnabled), updated_at: now },
+                { key: "recovery_email_1_delay_hours", value: String(recoveryEmail1DelayHours), updated_at: now },
+                { key: "recovery_email_2_delay_hours", value: String(recoveryEmail2DelayHours), updated_at: now },
+                { key: "recovery_email_3_delay_hours", value: String(recoveryEmail3DelayHours), updated_at: now },
+                { key: "recovery_discount_enabled", value: String(recoveryDiscountEnabled), updated_at: now },
+                { key: "recovery_discount_coupon_code", value: cleanCoupon, updated_at: now },
+                { key: "recovery_discount_percentage", value: String(recoveryDiscountPercentage), updated_at: now },
+                { key: "recovery_email_subject", value: recoveryEmailSubject, updated_at: now },
+                { key: "recovery_email_custom_message", value: recoveryEmailCustomMessage, updated_at: now },
+                { key: "funnel_tracking_enabled", value: String(funnelTrackingEnabled), updated_at: now },
+                { key: "product_view_tracking_enabled", value: String(productViewTrackingEnabled), updated_at: now },
+                { key: "utm_attribution_tracking_enabled", value: String(utmAttributionTrackingEnabled), updated_at: now },
+                { key: "exclude_admin_from_analytics", value: String(excludeAdminFromAnalytics), updated_at: now },
+                { key: "admin_alert_high_value_abandonment", value: String(adminAlertHighValueAbandonment), updated_at: now },
+                { key: "high_value_abandonment_threshold", value: String(highValueAbandonmentThreshold), updated_at: now },
+                { key: "analytics_admin_notification_email", value: analyticsAdminNotificationEmail.trim(), updated_at: now },
+            ];
+
+            for (const item of updates) {
+                const { error } = await supabase
+                    .from("app_settings" as any)
+                    .upsert(item);
+                if (error) throw error;
+            }
+
+            // If recovery discount is enabled, ensure coupon exists
+            if (recoveryDiscountEnabled && cleanCoupon) {
+                const { data: existingCoupon } = await supabase
+                    .from("coupons")
+                    .select("id")
+                    .eq("code", cleanCoupon)
+                    .maybeSingle();
+
+                if (!existingCoupon) {
+                    await supabase.from("coupons").insert({
+                        code: cleanCoupon,
+                        type: "percentage",
+                        value: Number(recoveryDiscountPercentage),
+                        is_active: true,
+                        max_uses: 5000,
+                        times_used: 0,
+                        one_use_per_user: true,
+                        target: "all"
+                    });
+                } else {
+                    await supabase
+                        .from("coupons")
+                        .update({
+                            value: Number(recoveryDiscountPercentage),
+                            is_active: true,
+                        })
+                        .eq("id", existingCoupon.id);
+                }
+                queryClient.invalidateQueries({ queryKey: ['coupons'] });
+            }
+
+            queryClient.invalidateQueries({ queryKey: ANALYTICS_SETTINGS_QUERY_KEY });
+            toast.success("Analytics & Abandoned Cart Recovery settings saved successfully!");
+        } catch (error: any) {
+            console.error("Error saving analytics settings:", error);
+            toast.error("Failed to save analytics settings");
+        } finally {
+            setSavingAnalytics(false);
         }
     };
 
@@ -2409,6 +2589,382 @@ const SiteSettings = () => {
                                     <>
                                         <Save className="mr-2 h-4 w-4" />
                                         Save Upsell Settings
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 7. E-Commerce Analytics, Funnel Tracking & Cart Recovery Engine */}
+                <Card className="border-2 border-primary/20 shadow-md">
+                    <CardHeader className="space-y-1 bg-muted/10">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 text-primary">
+                                <div className="p-2 rounded-lg bg-primary/10">
+                                    <BarChart3 className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl">E-Commerce Analytics & Abandoned Cart Recovery</CardTitle>
+                                    <CardDescription>
+                                        Control first-party behavioral metrics, checkout funnel drop-offs, abandoned cart detection, and automated recovery email sequences.
+                                    </CardDescription>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className={`font-semibold ${abandonedCartTrackingEnabled ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : 'bg-muted text-muted-foreground'}`}>
+                                    {abandonedCartTrackingEnabled ? '🟢 Tracking Active' : '⚪ Tracking Disabled'}
+                                </Badge>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-8 pt-6">
+                        
+                        {/* Sub-Section A: Cart Tracking & Abandonment Rules */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b">
+                                <ShoppingCart className="h-4 w-4 text-primary" />
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
+                                    1. Cart Tracking & Abandonment Thresholds
+                                </h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Enable Abandoned Cart Tracking</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Synchronizes active carts to your Supabase database in real time with client-side debounce.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={abandonedCartTrackingEnabled}
+                                        onCheckedChange={setAbandonedCartTrackingEnabled}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Early Contact Capture</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Immediately links cart to customer email & name as soon as entered in the checkout form.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={earlyContactCaptureEnabled}
+                                        onCheckedChange={setEarlyContactCaptureEnabled}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Track Anonymous Guest Carts</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Assigns anonymous session tokens to visitors who have not logged in yet.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={guestCartTrackingEnabled}
+                                        onCheckedChange={setGuestCartTrackingEnabled}
+                                    />
+                                </div>
+
+                                <div className="space-y-2 rounded-lg border p-4 bg-muted/5">
+                                    <Label className="text-sm font-semibold flex items-center justify-between">
+                                        <span>Abandonment Inactivity Threshold</span>
+                                        <Badge variant="secondary" className="font-mono text-xs">{abandonedCartThresholdMinutes} min</Badge>
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            min="5"
+                                            max="1440"
+                                            value={abandonedCartThresholdMinutes}
+                                            onChange={(e) => setAbandonedCartThresholdMinutes(Math.max(5, parseInt(e.target.value) || 60))}
+                                            className="bg-background"
+                                        />
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">minutes</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Time of inactivity after which an uncompleted cart is flagged as Abandoned (Recommended: 30–60 min).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sub-Section B: Automated Recovery Email Sequences */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b">
+                                <MailCheck className="h-4 w-4 text-emerald-600" />
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
+                                    2. Automated Recovery Email Sequences
+                                </h3>
+                            </div>
+
+                            <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-emerald-500/5 border-emerald-500/20">
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <Label className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Master Automation Switch</Label>
+                                        <Badge className="bg-emerald-600 text-white text-[10px]">Auto-Pilot</Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Automatically send branded recovery emails with 1-click cart restoration links to customers who left without buying.
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={autoRecoveryEmailsEnabled}
+                                    onCheckedChange={setAutoRecoveryEmailsEnabled}
+                                />
+                            </div>
+
+                            {/* Email Timing Controls */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border bg-muted/10">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                        <Timer className="h-3.5 w-3.5 text-primary" />
+                                        Email 1: Initial Friendly Reminder
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            max="24"
+                                            value={recoveryEmail1DelayHours}
+                                            onChange={(e) => setRecoveryEmail1DelayHours(Math.max(1, parseInt(e.target.value) || 1))}
+                                            className="bg-background"
+                                        />
+                                        <span className="text-xs text-muted-foreground">hours</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Default: 1 hr after abandonment</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                        <Timer className="h-3.5 w-3.5 text-primary" />
+                                        Email 2: Follow-up & Reservation
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            min="2"
+                                            max="72"
+                                            value={recoveryEmail2DelayHours}
+                                            onChange={(e) => setRecoveryEmail2DelayHours(Math.max(2, parseInt(e.target.value) || 24))}
+                                            className="bg-background"
+                                        />
+                                        <span className="text-xs text-muted-foreground">hours</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Default: 24 hrs after abandonment</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                        <Timer className="h-3.5 w-3.5 text-primary" />
+                                        Email 3: Final Opportunity
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            min="24"
+                                            max="168"
+                                            value={recoveryEmail3DelayHours}
+                                            onChange={(e) => setRecoveryEmail3DelayHours(Math.max(24, parseInt(e.target.value) || 72))}
+                                            className="bg-background"
+                                        />
+                                        <span className="text-xs text-muted-foreground">hours</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Default: 72 hrs (3 days) after</p>
+                                </div>
+                            </div>
+
+                            {/* Optional Recovery Coupon Incentive */}
+                            <div className="p-4 rounded-xl border bg-muted/10 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                            <Gift className="h-4 w-4 text-primary" />
+                                            Offer Discount Incentive in Recovery Emails
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Inject a dynamic promo coupon into recovery emails to boost final conversion rates.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={recoveryDiscountEnabled}
+                                        onCheckedChange={setRecoveryDiscountEnabled}
+                                    />
+                                </div>
+
+                                {recoveryDiscountEnabled && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-semibold">Recovery Coupon Code</Label>
+                                            <Input
+                                                value={recoveryDiscountCouponCode}
+                                                onChange={(e) => setRecoveryDiscountCouponCode(e.target.value.toUpperCase())}
+                                                placeholder="COMEBACK10"
+                                                className="bg-background uppercase font-mono font-bold"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-semibold">Discount Percentage (%)</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    max="90"
+                                                    value={recoveryDiscountPercentage}
+                                                    onChange={(e) => setRecoveryDiscountPercentage(Math.max(1, Math.min(90, parseInt(e.target.value) || 10)))}
+                                                    className="bg-background"
+                                                />
+                                                <span className="text-xs text-muted-foreground font-bold">% OFF</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Email Template Customization */}
+                            <div className="space-y-3 p-4 rounded-xl border bg-muted/10">
+                                <Label className="text-xs font-semibold">Email Subject Line</Label>
+                                <Input
+                                    value={recoveryEmailSubject}
+                                    onChange={(e) => setRecoveryEmailSubject(e.target.value)}
+                                    placeholder="Did you forget something in your cart?"
+                                    className="bg-background"
+                                />
+
+                                <Label className="text-xs font-semibold pt-1">Custom Message / Friendly Call to Action</Label>
+                                <Textarea
+                                    rows={3}
+                                    value={recoveryEmailCustomMessage}
+                                    onChange={(e) => setRecoveryEmailCustomMessage(e.target.value)}
+                                    placeholder="We saved the items in your cart so you can easily complete your order whenever you are ready."
+                                    className="bg-background text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Sub-Section C: Behavioral & Funnel Tracking */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b">
+                                <MousePointerClick className="h-4 w-4 text-primary" />
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
+                                    3. Behavioral & Funnel Tracking
+                                </h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Track Checkout Funnel Steps</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Records micro-steps (Address, Shipping, Payment selection, Payment errors) to analyze checkout drop-offs.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={funnelTrackingEnabled}
+                                        onCheckedChange={setFunnelTrackingEnabled}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Track Product & COA Views</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Measures catalog interest to calculate Product View-to-Cart ratios.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={productViewTrackingEnabled}
+                                        onCheckedChange={setProductViewTrackingEnabled}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Capture Marketing UTMs & Referrers</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Preserves campaign parameters (utm_source, campaign, affiliate codes) through the customer journey.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={utmAttributionTrackingEnabled}
+                                        onCheckedChange={setUtmAttributionTrackingEnabled}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">Exclude Admin Traffic</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Filters out test browsing and actions from admin accounts so analytics reflect real customer behavior.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={excludeAdminFromAnalytics}
+                                        onCheckedChange={setExcludeAdminFromAnalytics}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sub-Section D: Admin High-Value Alerts */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b">
+                                <BellRing className="h-4 w-4 text-amber-500" />
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
+                                    4. High-Value Cart Abandonment Alerts
+                                </h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/5">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-semibold">High-Value Abandonment Alerts</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Receive immediate notifications when a high-ticket cart is abandoned for manual concierge follow-up.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={adminAlertHighValueAbandonment}
+                                        onCheckedChange={setAdminAlertHighValueAbandonment}
+                                    />
+                                </div>
+
+                                <div className="space-y-2 rounded-lg border p-4 bg-muted/5">
+                                    <Label className="text-sm font-semibold">High-Value Threshold ($ USD)</Label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-muted-foreground">$</span>
+                                        <Input
+                                            type="number"
+                                            min="50"
+                                            step="25"
+                                            value={highValueAbandonmentThreshold}
+                                            onChange={(e) => setHighValueAbandonmentThreshold(Math.max(10, parseFloat(e.target.value) || 300))}
+                                            className="bg-background"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Save Button for Analytics Card */}
+                        <div className="flex justify-end pt-4 border-t">
+                            <Button 
+                                onClick={handleSaveAnalyticsSettings}
+                                disabled={savingAnalytics}
+                                className="font-bold min-w-[220px] bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
+                            >
+                                {savingAnalytics ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving Settings...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Analytics Settings
                                     </>
                                 )}
                             </Button>

@@ -24,7 +24,8 @@ import {
   Calendar,
   ChevronDown,
   FileText,
-  Award
+  Award,
+  BarChart3
 } from "lucide-react";
 import {
   Collapsible,
@@ -71,6 +72,18 @@ const Layout = ({ children }: LayoutProps) => {
     enabled: !!isAdmin,
   });
 
+  const { data: pendingAbandonedCartsCount = 0 } = useQuery({
+    queryKey: ["cart_sessions", "abandoned-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("cart_sessions" as any)
+        .select("*", { count: "exact", head: true })
+        .eq("status", "abandoned");
+      return count || 0;
+    },
+    enabled: !!isAdmin,
+  });
+
   useEffect(() => {
     const fetchUserProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -103,6 +116,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
     ...(isAdmin ? [
       { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
+      { name: "Analytics", href: "/manufacturing/analytics", icon: BarChart3 },
     ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
     { name: "COAs", href: "/manufacturing/coas", icon: FileText },
@@ -138,7 +152,8 @@ const Layout = ({ children }: LayoutProps) => {
       </div>
       {mainNavigation.map((item) => {
         const isActive = location.pathname === item.href;
-        const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
+        const showBadge = (item.name === "Orders" && pendingOrdersCount > 0) || (item.name === "Analytics" && pendingAbandonedCartsCount > 0);
+        const badgeCount = item.name === "Orders" ? pendingOrdersCount : pendingAbandonedCartsCount;
         return (
           <Link
             key={item.name}
@@ -153,7 +168,7 @@ const Layout = ({ children }: LayoutProps) => {
             <span className="flex-1">{item.name}</span>
             {showBadge && (
               <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
-                {pendingOrdersCount}
+                {badgeCount}
               </Badge>
             )}
           </Link>
@@ -258,7 +273,8 @@ const Layout = ({ children }: LayoutProps) => {
                   <SidebarMenu className="space-y-1">
                     {mainNavigation.map((item) => {
                       const isActive = location.pathname === item.href;
-                      const showBadge = item.name === "Orders" && pendingOrdersCount > 0;
+                      const showBadge = (item.name === "Orders" && pendingOrdersCount > 0) || (item.name === "Analytics" && pendingAbandonedCartsCount > 0);
+                      const badgeCount = item.name === "Orders" ? pendingOrdersCount : pendingAbandonedCartsCount;
                       return (
                         <SidebarMenuItem key={item.name}>
                           <SidebarMenuButton 
@@ -274,7 +290,7 @@ const Layout = ({ children }: LayoutProps) => {
                               <span className={open ? 'flex-1' : 'sr-only'}>{item.name}</span>
                               {showBadge && open && (
                                 <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
-                                  {pendingOrdersCount}
+                                  {badgeCount}
                                 </Badge>
                               )}
                             </Link>

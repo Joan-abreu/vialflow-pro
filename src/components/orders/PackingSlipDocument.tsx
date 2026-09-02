@@ -276,86 +276,86 @@ export const SingleOrderPackingSlip: React.FC<{
                                 />
                             </div>
                             <div>
-                                <h1 className="text-sm font-black tracking-wide uppercase text-black leading-tight">
+                                <h1 className="text-base font-black tracking-wide uppercase text-black leading-tight">
                                     {company.name}
                                 </h1>
-                                <p className="text-[9px] text-gray-600 font-medium tracking-tight">
+                                <p className="text-[11px] text-gray-900 font-bold tracking-tight">
                                     {company.tagline}
                                 </p>
                             </div>
                         </div>
-                        <div className="mt-1 text-[9px] text-gray-600 flex items-center gap-2">
-                            <span>Web: <strong className="text-gray-900">{company.website}</strong></span>
+                        <div className="mt-1.5 text-[11px] text-black font-bold flex items-center gap-2">
+                            <span>Web: <strong className="text-black underline">{company.website}</strong></span>
                             <span>•</span>
-                            <span>Support: <strong className="text-gray-900">{company.email}</strong></span>
+                            <span>Support: <strong className="text-black">{company.email}</strong></span>
                         </div>
                     </div>
 
                     {/* Document Title */}
                     <div className="flex flex-col items-end text-right">
-                        <div className="bg-black text-white text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-xs">
+                        <div className="bg-black text-white text-xs font-black uppercase tracking-widest px-3 py-1 rounded-xs">
                             PACKING SLIP
                         </div>
-                        <div className="font-mono text-xs font-black text-gray-900 mt-1">
+                        <div className="font-mono text-sm font-black text-black mt-1">
                             #{orderShortId}
                         </div>
                     </div>
                 </div>
 
                 {/* Metadata & Addresses Grid */}
-                <div className="grid grid-cols-2 gap-3 mt-2.5 py-2 px-3 bg-gray-50 border border-gray-200 rounded">
+                <div className="grid grid-cols-2 gap-3.5 mt-2.5 py-2.5 px-3.5 bg-zinc-50 border-2 border-black rounded text-black">
                     {/* Left: Ship To */}
-                    <div className="text-[10px]">
-                        <div className="flex items-center gap-1 font-bold uppercase text-[9px] tracking-wider text-gray-500 mb-0.5">
-                            <MapPin className="w-3 h-3 text-gray-700" />
+                    <div className="text-xs">
+                        <div className="flex items-center gap-1 font-black uppercase text-[11px] tracking-wider text-black mb-1">
+                            <MapPin className="w-3.5 h-3.5 text-black" />
                             <span>Ship To:</span>
                         </div>
-                        <p className="font-bold text-xs text-gray-900">{recipientName}</p>
+                        <p className="font-black text-sm text-black">{recipientName}</p>
                         {order.shipping_address ? (
-                            <div className="text-gray-700 leading-tight mt-0.5">
+                            <div className="text-black font-semibold leading-snug mt-1 text-xs">
                                 <p>{order.shipping_address.line1}</p>
                                 {order.shipping_address.line2 && <p>{order.shipping_address.line2}</p>}
-                                <p className="font-medium text-gray-900">
+                                <p className="font-black text-black">
                                     {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
                                 </p>
-                                <p className="uppercase text-[8px] text-gray-500 font-semibold">{order.shipping_address.country || "United States"}</p>
+                                <p className="uppercase text-[10px] text-black font-black">{order.shipping_address.country || "United States"}</p>
                                 {order.shipping_address.phone && (
-                                    <p className="text-[9px] text-gray-600 mt-0.5">📞 {order.shipping_address.phone}</p>
+                                    <p className="text-xs text-black font-bold mt-1">📞 {order.shipping_address.phone}</p>
                                 )}
                             </div>
                         ) : (
-                            <p className="text-gray-500 italic">No shipping address recorded</p>
+                            <p className="text-black italic">No shipping address recorded</p>
                         )}
-                        <p className="text-[9px] text-gray-600 mt-0.5">
+                        <p className="text-xs text-black font-bold mt-1">
                             ✉️ {order.customer_email}
                         </p>
                     </div>
 
                     {/* Right: Order Details */}
-                    <div className="text-[10px] flex flex-col justify-between border-l border-gray-200 pl-3">
-                        <div className="space-y-0.5">
+                    <div className="text-xs flex flex-col justify-between border-l-2 border-black pl-3.5">
+                        <div className="space-y-1">
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-medium">Order Number:</span>
-                                <span className="font-mono font-bold text-xs text-black">#{orderShortId}</span>
+                                <span className="text-black font-bold">Order Number:</span>
+                                <span className="font-mono font-black text-sm text-black">#{orderShortId}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-medium">Order Date:</span>
-                                <span className="font-semibold text-gray-900">
+                                <span className="text-black font-bold">Order Date:</span>
+                                <span className="font-black text-black">
                                     {order.created_at ? format(new Date(order.created_at), "MMM d, yyyy h:mm a") : "-"}
                                 </span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-medium">Shipping Service:</span>
-                                <span className="font-bold text-gray-900 bg-white px-1 py-0.2 rounded border border-gray-200 text-[9px]">
+                                <span className="text-black font-bold">Shipping Service:</span>
+                                <span className="font-black text-black bg-white px-1.5 py-0.5 rounded border border-black text-[11px]">
                                     {order.shipping_service || "Standard Shipping"} {order.shipping_carrier ? `(${order.shipping_carrier})` : ""}
                                 </span>
                             </div>
                             {activeTracking && (
-                                <div className="flex justify-between items-center bg-blue-50/70 px-1.5 py-0.5 rounded border border-blue-200 mt-0.5">
-                                    <span className="text-blue-900 font-bold text-[8px] flex items-center gap-1">
-                                        <Truck className="w-2.5 h-2.5 text-blue-700" /> Tracking:
+                                <div className="flex justify-between items-center bg-blue-50 px-2 py-0.5 rounded border border-blue-300 mt-1">
+                                    <span className="text-black font-black text-[10px] flex items-center gap-1">
+                                        <Truck className="w-3 h-3 text-black" /> Tracking:
                                     </span>
-                                    <span className="font-mono font-bold text-[9px] text-blue-900">
+                                    <span className="font-mono font-black text-xs text-black">
                                         {activeTracking}
                                     </span>
                                 </div>
@@ -363,12 +363,12 @@ export const SingleOrderPackingSlip: React.FC<{
                         </div>
 
                         {/* Summary Badges */}
-                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-gray-200 mt-1">
-                            <span className="text-[8px] font-semibold text-gray-500 uppercase">Items:</span>
-                            <span className="inline-flex items-center px-1.5 py-0.2 bg-black text-white text-[9px] font-bold rounded">
+                        <div className="flex items-center justify-end gap-2 pt-1.5 border-t-2 border-black mt-1.5">
+                            <span className="text-[10px] font-black text-black uppercase">Items:</span>
+                            <span className="inline-flex items-center px-2 py-0.5 bg-black text-white text-xs font-black rounded">
                                 {totalUnits} Units
                             </span>
-                            <span className="inline-flex items-center px-1 py-0.2 bg-gray-200 text-gray-800 text-[9px] font-bold rounded">
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-gray-200 text-black border border-black text-xs font-black rounded">
                                 {uniqueSkusCount} SKUs
                             </span>
                         </div>
@@ -376,31 +376,31 @@ export const SingleOrderPackingSlip: React.FC<{
                 </div>
 
                 {/* Items Checklist Table */}
-                <div className="mt-2.5">
+                <div className="mt-3">
                     <div className="flex items-center justify-between pb-1">
-                        <h2 className="text-[10px] font-bold uppercase tracking-wider text-black flex items-center gap-1">
-                            <CheckSquare className="w-3 h-3 text-black" />
+                        <h2 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
+                            <CheckSquare className="w-3.5 h-3.5 text-black" />
                             Picking & Packing Checklist
                         </h2>
-                        <span className="text-[8px] font-medium text-gray-500 italic">
+                        <span className="text-[10px] font-bold text-black italic">
                             ✓ Check off each item during fulfillment
                         </span>
                     </div>
 
-                    <table className="w-full text-left border-collapse border border-gray-300">
+                    <table className="w-full text-left border-collapse border-2 border-black">
                         <thead>
-                            <tr className="bg-gray-100 text-gray-800 text-[9px] uppercase tracking-wider border-b border-gray-300">
-                                <th className="py-1 px-1.5 text-center w-7 border-r border-gray-300">Check</th>
-                                <th className="py-1 px-1.5 text-center w-12 border-r border-gray-300">Photo</th>
-                                <th className="py-1 px-2 border-r border-gray-300">Product & Specification</th>
-                                <th className="py-1 px-2 border-r border-gray-300 w-32">SKU</th>
-                                <th className="py-1 px-1.5 text-center w-14 border-r border-gray-300">Qty</th>
+                            <tr className="bg-gray-200 text-black text-[11px] font-black uppercase tracking-wider border-b-2 border-black">
+                                <th className="py-1.5 px-2 text-center w-8 border-r-2 border-black">Check</th>
+                                <th className="py-1.5 px-2 text-center w-14 border-r-2 border-black">Photo</th>
+                                <th className="py-1.5 px-2.5 border-r-2 border-black">Product & Specification</th>
+                                <th className="py-1.5 px-2.5 border-r-2 border-black w-36">SKU</th>
+                                <th className="py-1.5 px-2 text-center w-16 border-r-2 border-black">Qty</th>
                                 {showPrices && (
-                                    <th className="py-1 px-2 text-right w-16">Price</th>
+                                    <th className="py-1.5 px-2.5 text-right w-20">Price</th>
                                 )}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200 text-xs">
+                        <tbody className="divide-y divide-black text-xs">
                             {order.order_items && order.order_items.length > 0 ? (
                                 order.order_items.map((item, idx) => {
                                     const imgUrl = getProductThumbnail(item);
@@ -411,15 +411,15 @@ export const SingleOrderPackingSlip: React.FC<{
                                     return (
                                         <tr key={item.id || idx} className="hover:bg-gray-50/50 break-inside-avoid">
                                             {/* Checkbox box for physical pen check */}
-                                            <td className="py-1 px-1 text-center border-r border-gray-300 align-middle">
-                                                <div className="w-3.5 h-3.5 border-2 border-gray-700 rounded-xs mx-auto bg-white flex items-center justify-center">
+                                            <td className="py-2 px-1 text-center border-r-2 border-black align-middle">
+                                                <div className="w-4 h-4 border-2 border-black rounded-xs mx-auto bg-white flex items-center justify-center">
                                                     {/* Empty box for operator check */}
                                                 </div>
                                             </td>
 
                                             {/* Visual Image Thumbnail */}
-                                            <td className="py-1 px-1 text-center border-r border-gray-300 align-middle">
-                                                <div className="w-9 h-9 rounded border border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden mx-auto shadow-2xs">
+                                            <td className="py-1.5 px-1.5 text-center border-r-2 border-black align-middle">
+                                                <div className="w-12 h-12 rounded border-2 border-black bg-white flex items-center justify-center overflow-hidden mx-auto shadow-2xs">
                                                     {imgUrl ? (
                                                         <img
                                                             src={imgUrl}
@@ -428,65 +428,65 @@ export const SingleOrderPackingSlip: React.FC<{
                                                             crossOrigin="anonymous"
                                                         />
                                                     ) : (
-                                                        <Package className="w-4 h-4 text-gray-400" />
+                                                        <Package className="w-5 h-5 text-black" />
                                                     )}
                                                 </div>
                                             </td>
 
                                             {/* Product Description */}
-                                            <td className="py-1 px-2 border-r border-gray-300 align-top">
-                                                <div className="font-bold text-xs text-gray-900 leading-tight">
+                                            <td className="py-2 px-2.5 border-r-2 border-black align-top">
+                                                <div className="font-black text-sm text-black leading-snug">
                                                     {item.variant?.product?.name || "Unknown Product"}
                                                 </div>
-                                                <div className="text-gray-700 text-[9px] mt-0.5 font-medium flex flex-wrap items-center gap-1">
+                                                <div className="text-black text-[11px] mt-1 font-bold flex flex-wrap items-center gap-1.5">
                                                     {specLabel && (
-                                                        <span className="bg-gray-100 text-gray-800 px-1 py-0.2 rounded font-semibold text-[8px]">
+                                                        <span className="bg-gray-100 text-black border border-black px-1.5 py-0.5 rounded font-black text-[10px]">
                                                             {specLabel}
                                                         </span>
                                                     )}
                                                     {isPack && (
-                                                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.2 rounded font-bold text-[8px]">
+                                                        <span className="bg-indigo-50 text-black border border-black px-1.5 py-0.5 rounded font-black text-[10px]">
                                                             Pack of {packSize} vials
                                                         </span>
                                                     )}
                                                     {item.is_bulk && (
-                                                        <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1 py-0.2 rounded font-bold text-[8px]">
-                                                            Bulk {item.with_labels ? "(Custom Labels)" : "(Unlabeled)"}
+                                                        <span className="bg-amber-100 text-black border border-black px-1.5 py-0.5 rounded font-black text-[10px]">
+                                                            Bulk ${item.with_labels ? "(Custom Labels)" : "(Unlabeled)"}
                                                         </span>
                                                     )}
                                                 </div>
 
                                                 {/* Custom Label Instructions */}
                                                 {item.with_labels && item.custom_label_instructions && (
-                                                    <div className="mt-0.5 p-0.5 bg-yellow-50 border border-yellow-200 rounded text-[8px] text-yellow-900 font-medium">
-                                                        <span className="font-bold">🏷️ Label Notes:</span> {item.custom_label_instructions}
+                                                    <div className="mt-1 p-1 bg-yellow-50 border border-black rounded text-[10px] text-black font-bold">
+                                                        <span className="font-black">🏷️ Label Notes:</span> {item.custom_label_instructions}
                                                     </div>
                                                 )}
                                             </td>
 
                                             {/* SKU */}
-                                            <td className="py-1 px-2 border-r border-gray-300 align-top">
-                                                <div className="font-mono font-bold text-[10px] text-gray-900 bg-gray-100 px-1 py-0.2 rounded inline-block border border-gray-200">
+                                            <td className="py-2 px-2.5 border-r-2 border-black align-top">
+                                                <div className="font-mono font-black text-xs text-black bg-gray-100 px-1.5 py-0.5 rounded inline-block border border-black">
                                                     {item.variant?.sku || "NO-SKU"}
                                                 </div>
                                             </td>
 
                                             {/* Quantity */}
-                                            <td className="py-1 px-1 text-center border-r border-gray-300 align-middle">
+                                            <td className="py-2 px-1 text-center border-r-2 border-black align-middle">
                                                 <div className="inline-flex flex-col items-center justify-center">
-                                                    <span className="font-black text-xs text-black bg-gray-100 border-2 border-gray-800 rounded px-1.5 py-0.2 min-w-[24px] text-center">
+                                                    <span className="font-black text-base text-black bg-gray-100 border-2 border-black rounded px-2 py-0.5 min-w-[28px] text-center">
                                                         {item.quantity}
                                                     </span>
-                                                    <span className="text-[7px] font-bold text-gray-500 uppercase mt-0.5">
-                                                        {isPack ? `(${item.quantity * packSize} v)` : "units"}
+                                                    <span className="text-[8px] font-black text-black uppercase mt-0.5">
+                                                        {isPack ? `(${item.quantity * packSize} vials)` : "units"}
                                                     </span>
                                                 </div>
                                             </td>
 
                                             {/* Price (optional) */}
                                             {showPrices && (
-                                                <td className="py-1 px-2 text-right align-middle font-mono text-[10px]">
-                                                    <div className="font-bold text-gray-900">
+                                                <td className="py-2 px-2.5 text-right align-middle font-mono text-xs">
+                                                    <div className="font-black text-black">
                                                         ${((item.price_at_time || 0) * item.quantity).toFixed(2)}
                                                     </div>
                                                 </td>
@@ -496,7 +496,7 @@ export const SingleOrderPackingSlip: React.FC<{
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={showPrices ? 6 : 5} className="py-3 text-center text-gray-500 italic text-xs">
+                                    <td colSpan={showPrices ? 6 : 5} className="py-4 text-center text-black font-bold text-xs">
                                         No items in this order.
                                     </td>
                                 </tr>
@@ -507,23 +507,23 @@ export const SingleOrderPackingSlip: React.FC<{
 
                 {/* Price Breakdown (only when showPrices is enabled) */}
                 {showPrices && (
-                    <div className="flex justify-end mt-1.5">
-                        <div className="w-44 bg-gray-50 border border-gray-200 rounded p-1.5 text-[9px] space-y-0.5">
-                            <div className="flex justify-between text-gray-600">
+                    <div className="flex justify-end mt-2">
+                        <div className="w-52 bg-gray-50 border-2 border-black rounded p-2 text-[10px] space-y-1 font-bold text-black">
+                            <div className="flex justify-between">
                                 <span>Subtotal:</span>
                                 <span>${(order.total_amount - (order.shipping_cost || 0) + (order.product_discount || 0) + (order.shipping_discount || 0)).toFixed(2)}</span>
                             </div>
                             {(order.product_discount || 0) > 0 && (
-                                <div className="flex justify-between text-green-700 font-medium">
+                                <div className="flex justify-between">
                                     <span>Discount:</span>
                                     <span>-${(order.product_discount || 0).toFixed(2)}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between text-gray-600">
+                            <div className="flex justify-between">
                                 <span>Shipping:</span>
                                 <span>${(order.shipping_cost || 0).toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between font-bold text-[10px] text-black border-t border-gray-300 pt-0.5">
+                            <div className="flex justify-between font-black text-xs text-black border-t-2 border-black pt-1">
                                 <span>Total Paid:</span>
                                 <span>${order.total_amount.toFixed(2)}</span>
                             </div>
@@ -533,31 +533,31 @@ export const SingleOrderPackingSlip: React.FC<{
             </div>
 
             {/* Bottom Verification & Signatures */}
-            <div className="mt-3 pt-2 border-t border-gray-300 text-[9px]">
-                <div className="grid grid-cols-2 gap-4 pb-1.5 border-b border-gray-200">
+            <div className="mt-3 pt-2 border-t-2 border-black text-[10px]">
+                <div className="grid grid-cols-2 gap-4 pb-2 border-b border-black">
                     {/* Packer Signature */}
-                    <div className="border border-dashed border-gray-400 px-2.5 py-1.5 rounded bg-gray-50/50 flex items-center justify-between">
-                        <span className="text-[9px] uppercase font-bold text-gray-600 tracking-wider">Packed By:</span>
-                        <div className="w-32 border-b border-gray-400 pb-0.5 text-[9px] font-mono text-center text-gray-400">
+                    <div className="border border-dashed border-black px-3 py-2 rounded bg-gray-50 flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-black text-black tracking-wider">Packed By:</span>
+                        <div className="w-36 border-b-2 border-black pb-0.5 text-[9px] font-mono text-center text-gray-500 font-bold">
                             (Signature / Initials)
                         </div>
                     </div>
 
                     {/* Packing Date / Stamp */}
-                    <div className="border border-dashed border-gray-400 px-2.5 py-1.5 rounded bg-gray-50/50 flex items-center justify-between">
-                        <span className="text-[9px] uppercase font-bold text-gray-600 tracking-wider">Fulfillment Date:</span>
-                        <span className="text-[9px] font-semibold text-gray-800">
+                    <div className="border border-dashed border-black px-3 py-2 rounded bg-gray-50 flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-black text-black tracking-wider">Fulfillment Date:</span>
+                        <span className="text-xs font-black text-black">
                             {format(new Date(), "MMM d, yyyy")}
                         </span>
                     </div>
                 </div>
 
                 {/* Return & Support Notice */}
-                <div className="mt-1 flex justify-between items-center text-[8px] text-gray-500 leading-tight">
+                <div className="mt-1.5 flex justify-between items-center text-[9px] text-black font-semibold leading-tight">
                     <p>
                         <strong>Inspection Notice:</strong> Please verify all contents upon receipt. For any discrepancies, contact us at <strong>{company.email}</strong>.
                     </p>
-                    <div className="shrink-0 ml-2 text-right font-mono text-[8px] font-semibold text-gray-600">
+                    <div className="shrink-0 ml-2 text-right font-mono text-xs font-black text-black">
                         PS-{orderShortId}
                     </div>
                 </div>

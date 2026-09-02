@@ -5,73 +5,6 @@ import {
     getProductThumbnail
 } from "@/components/orders/PackingSlipDocument";
 
-const CODE128_B_PATTERNS: string[] = [
-    "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
-    "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
-    "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
-    "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
-    "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
-    "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
-    "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
-    "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
-    "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
-    "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
-    "114131", "311141", "411131", "211412", "211214", "211232", "2331112"
-];
-
-const START_CODE_B = 104;
-const STOP_CODE = 106;
-
-function generateBarcodeSvg(value: string, height: number = 24): string {
-    const cleanText = value.toUpperCase().replace(/[^ -~]/g, "");
-    if (!cleanText) return `<span style="font-family: monospace; font-size: 10px;">*${value}*</span>`;
-
-    const codes: number[] = [START_CODE_B];
-    let checksum = START_CODE_B;
-
-    for (let i = 0; i < cleanText.length; i++) {
-        const charCode = cleanText.charCodeAt(i) - 32;
-        codes.push(charCode);
-        checksum += charCode * (i + 1);
-    }
-
-    codes.push(checksum % 103);
-    codes.push(STOP_CODE);
-
-    const bars: boolean[] = [];
-    for (const code of codes) {
-        const pattern = CODE128_B_PATTERNS[code] || CODE128_B_PATTERNS[0];
-        let isBar = true;
-        for (const char of pattern) {
-            const width = parseInt(char, 10);
-            for (let w = 0; w < width; w++) {
-                bars.push(isBar);
-            }
-            isBar = !isBar;
-        }
-    }
-
-    const barWidth = 1.25;
-    const totalWidth = bars.length * barWidth;
-
-    const rects = bars
-        .map((isBar, idx) =>
-            isBar
-                ? `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${height}" fill="#000000" />`
-                : ""
-        )
-        .join("");
-
-    return `
-        <div style="display: flex; flex-direction: column; align-items: center;">
-            <svg width="${totalWidth}" height="${height}" viewBox="0 0 ${totalWidth} ${height}" style="overflow: visible; shape-rendering: crispEdges;">
-                ${rects}
-            </svg>
-            <span style="font-family: monospace; font-size: 8px; font-weight: bold; color: #111; letter-spacing: 0.05em; margin-top: 1px;">${value}</span>
-        </div>
-    `;
-}
-
 function escapeHtml(str: string | null | undefined): string {
     if (!str) return "";
     return str
@@ -89,7 +22,6 @@ export function generateSingleOrderHtml(
     showPrices: boolean = false
 ): string {
     const orderShortId = order.id ? order.id.slice(0, 8).toUpperCase() : "ORDER";
-    const barcodeValue = `ORD-${orderShortId}`;
     const recipientName =
         order.customer_profile?.full_name ||
         order.shipping_address?.full_name ||
@@ -116,64 +48,69 @@ export function generateSingleOrderHtml(
         const isPack = item.variant?.sale_type === "pack" || packSize > 1;
 
         return `
-            <tr style="border-bottom: 1px solid #e5e7eb; page-break-inside: avoid; break-inside: avoid;">
-                <td style="padding: 4px 6px; text-align: center; border-right: 1px solid #e5e7eb; vertical-align: middle;">
-                    <div style="width: 13px; height: 13px; border: 1.5px solid #374151; border-radius: 2px; margin: 0 auto; background: #fff;"></div>
+            <tr style="border-bottom: 1.5px solid #000000; page-break-inside: avoid; break-inside: avoid;">
+                <!-- Checkbox -->
+                <td style="padding: 8px 6px; text-align: center; border-right: 1.5px solid #000000; vertical-align: middle;">
+                    <div style="width: 18px; height: 18px; border: 2px solid #000000; border-radius: 3px; margin: 0 auto; background: #ffffff;"></div>
                 </td>
-                <td style="padding: 4px 6px; text-align: center; border-right: 1px solid #e5e7eb; vertical-align: middle;">
-                    <div style="width: 36px; height: 36px; border: 1px solid #d1d5db; border-radius: 3px; background: #f9fafb; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto;">
+                <!-- Photo -->
+                <td style="padding: 6px 8px; text-align: center; border-right: 1.5px solid #000000; vertical-align: middle;">
+                    <div style="width: 52px; height: 52px; border: 1.5px solid #000000; border-radius: 4px; background: #ffffff; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto;">
                         ${
                             imgUrl
                                 ? `<img src="${escapeHtml(imgUrl)}" alt="Product" style="width: 100%; height: 100%; object-fit: cover;" />`
-                                : `<div style="font-size: 8px; color: #9ca3af; font-weight: bold;">ITEM</div>`
+                                : `<div style="font-size: 9px; color: #000000; font-weight: 900;">ITEM</div>`
                         }
                     </div>
                 </td>
-                <td style="padding: 4px 8px; border-right: 1px solid #e5e7eb; vertical-align: top;">
-                    <div style="font-weight: bold; font-size: 11px; color: #111827; line-height: 1.2;">
+                <!-- Description -->
+                <td style="padding: 8px 10px; border-right: 1.5px solid #000000; vertical-align: top;">
+                    <div style="font-weight: 900; font-size: 13.5px; color: #000000; line-height: 1.25;">
                         ${escapeHtml(item.variant?.product?.name || "Unknown Product")}
                     </div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 2px;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px;">
                         ${
                             specLabel
-                                ? `<span style="background: #f3f4f6; color: #1f2937; padding: 1px 4px; border-radius: 2px; font-weight: 600; font-size: 8px;">${escapeHtml(specLabel)}</span>`
+                                ? `<span style="background: #f3f4f6; color: #000000; border: 1px solid #000000; padding: 2px 6px; border-radius: 3px; font-weight: 800; font-size: 11px;">${escapeHtml(specLabel)}</span>`
                                 : ""
                         }
                         ${
                             isPack
-                                ? `<span style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; padding: 1px 4px; border-radius: 2px; font-weight: bold; font-size: 8px;">Pack of ${packSize} vials</span>`
+                                ? `<span style="background: #eef2ff; color: #000000; border: 1.5px solid #000000; padding: 2px 6px; border-radius: 3px; font-weight: 900; font-size: 11px;">Pack of ${packSize} vials</span>`
                                 : ""
                         }
                         ${
                             item.is_bulk
-                                ? `<span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 1px 4px; border-radius: 2px; font-weight: bold; font-size: 8px;">Bulk ${item.with_labels ? "(Custom Labels)" : "(Unlabeled)"}</span>`
+                                ? `<span style="background: #fef3c7; color: #000000; border: 1.5px solid #000000; padding: 2px 6px; border-radius: 3px; font-weight: 900; font-size: 11px;">Bulk ${item.with_labels ? "(Custom Labels)" : "(Unlabeled)"}</span>`
                                 : ""
                         }
                     </div>
                     ${
                         item.with_labels && item.custom_label_instructions
-                            ? `<div style="margin-top: 2px; padding: 2px 4px; background: #fefce8; border: 1px solid #fef08a; border-radius: 2px; font-size: 8px; color: #713f12;"><strong>Label Notes:</strong> ${escapeHtml(item.custom_label_instructions)}</div>`
+                            ? `<div style="margin-top: 4px; padding: 3px 6px; background: #fffbeb; border: 1px solid #000000; border-radius: 3px; font-size: 11px; font-weight: 700; color: #000000;"><strong>Label Notes:</strong> ${escapeHtml(item.custom_label_instructions)}</div>`
                             : ""
                     }
                 </td>
-                <td style="padding: 4px 8px; border-right: 1px solid #e5e7eb; vertical-align: top;">
-                    <div style="font-family: monospace; font-weight: bold; font-size: 9.5px; color: #111827; background: #f3f4f6; padding: 2px 4px; border-radius: 2px; display: inline-block; border: 1px solid #e5e7eb;">
+                <!-- SKU -->
+                <td style="padding: 8px 10px; border-right: 1.5px solid #000000; vertical-align: top;">
+                    <div style="font-family: monospace; font-weight: 900; font-size: 12px; color: #000000; background: #f3f4f6; padding: 3px 6px; border-radius: 3px; display: inline-block; border: 1.5px solid #000000;">
                         ${escapeHtml(item.variant?.sku || "NO-SKU")}
                     </div>
                 </td>
-                <td style="padding: 4px 6px; text-align: center; border-right: 1px solid #e5e7eb; vertical-align: middle;">
+                <!-- Qty -->
+                <td style="padding: 8px 6px; text-align: center; border-right: 1.5px solid #000000; vertical-align: middle;">
                     <div style="display: inline-flex; flex-direction: column; align-items: center;">
-                        <span style="font-weight: 900; font-size: 11px; color: #000; background: #f3f4f6; border: 1.5px solid #1f2937; border-radius: 3px; padding: 1px 6px; min-width: 22px; text-align: center;">
+                        <span style="font-weight: 900; font-size: 16px; color: #000000; background: #f3f4f6; border: 2px solid #000000; border-radius: 4px; padding: 2px 8px; min-width: 32px; text-align: center;">
                             ${item.quantity}
                         </span>
-                        <span style="font-size: 7px; font-weight: bold; color: #6b7280; text-transform: uppercase; margin-top: 1px;">
-                            ${isPack ? `(${item.quantity * packSize} v)` : "units"}
+                        <span style="font-size: 9px; font-weight: 900; color: #000000; text-transform: uppercase; margin-top: 2px;">
+                            ${isPack ? `(${item.quantity * packSize} vials)` : "units"}
                         </span>
                     </div>
                 </td>
                 ${
                     showPrices
-                        ? `<td style="padding: 4px 8px; text-align: right; vertical-align: middle; font-family: monospace; font-size: 10px; font-weight: bold; color: #111827;">
+                        ? `<td style="padding: 8px 10px; text-align: right; vertical-align: middle; font-family: monospace; font-size: 13px; font-weight: 900; color: #000000;">
                             $${((item.price_at_time || 0) * item.quantity).toFixed(2)}
                            </td>`
                         : ""
@@ -184,25 +121,25 @@ export function generateSingleOrderHtml(
 
     const priceBreakdown = showPrices
         ? `
-            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
-                <div style="width: 170px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 6px; font-size: 9px; line-height: 1.4;">
-                    <div style="display: flex; justify-content: space-between; color: #4b5563;">
+            <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                <div style="width: 220px; background: #f9fafb; border: 1.5px solid #000000; border-radius: 4px; padding: 8px; font-size: 11px; line-height: 1.4; font-weight: 700; color: #000000;">
+                    <div style="display: flex; justify-content: space-between;">
                         <span>Subtotal:</span>
                         <span>$${(order.total_amount - (order.shipping_cost || 0) + (order.product_discount || 0) + (order.shipping_discount || 0)).toFixed(2)}</span>
                     </div>
                     ${
                         (order.product_discount || 0) > 0
-                            ? `<div style="display: flex; justify-content: space-between; color: #15803d; font-weight: 600;">
+                            ? `<div style="display: flex; justify-content: space-between; color: #000000;">
                                 <span>Discount:</span>
                                 <span>-$${(order.product_discount || 0).toFixed(2)}</span>
                                </div>`
                             : ""
                     }
-                    <div style="display: flex; justify-content: space-between; color: #4b5563;">
+                    <div style="display: flex; justify-content: space-between;">
                         <span>Shipping:</span>
                         <span>$${(order.shipping_cost || 0).toFixed(2)}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 10px; color: #000; border-top: 1px solid #d1d5db; padding-top: 2px; margin-top: 2px;">
+                    <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 13px; color: #000000; border-top: 2px solid #000000; padding-top: 3px; margin-top: 3px;">
                         <span>Total Paid:</span>
                         <span>$${order.total_amount.toFixed(2)}</span>
                     </div>
@@ -212,107 +149,107 @@ export function generateSingleOrderHtml(
         : "";
 
     return `
-        <div class="packing-slip-page" style="page-break-inside: avoid; break-inside: avoid; box-sizing: border-box; width: 100%; max-width: 8.5in; margin: 0 auto; padding: 4px 8px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <div class="packing-slip-page" style="page-break-inside: avoid; break-inside: avoid; box-sizing: border-box; width: 100%; max-width: 8.5in; margin: 0 auto; padding: 8px 12px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
             <!-- Header Row -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000000; padding-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #000000; padding-bottom: 8px;">
                 <div style="display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div style="width: 32px; height: 32px; border-radius: 4px; background: #ffffff; border: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
-                            <img src="/favicon.png" alt="Liv Well Logo" style="width: 100%; height: 100%; object-fit: contain; padding: 1px;" onerror="this.style.display='none'" />
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 42px; height: 42px; border-radius: 6px; background: #ffffff; border: 1.5px solid #000000; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                            <img src="/favicon.png" alt="Liv Well Logo" style="width: 100%; height: 100%; object-fit: contain; padding: 2px;" onerror="this.style.display='none'" />
                         </div>
                         <div>
-                            <h1 style="font-size: 13.5px; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase; color: #000000; margin: 0; line-height: 1.1;">
+                            <h1 style="font-size: 17px; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase; color: #000000; margin: 0; line-height: 1.1;">
                                 Liv Well Research Labs
                             </h1>
-                            <p style="font-size: 8.5px; color: #4b5563; font-weight: 500; margin: 1px 0 0 0;">
+                            <p style="font-size: 10.5px; color: #111111; font-weight: 700; margin: 2px 0 0 0;">
                                 Direct Manufacturer of Ultra-Pure Reconstitution Solutions & Research Peptides
                             </p>
                         </div>
                     </div>
-                    <div style="margin-top: 4px; font-size: 8.5px; color: #4b5563; display: flex; align-items: center; gap: 8px;">
-                        <span>Web: <strong style="color: #111827;">livwellresearchlabs.com</strong></span>
+                    <div style="margin-top: 6px; font-size: 11px; color: #000000; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                        <span>Web: <strong style="color: #000000; text-decoration: underline;">livwellresearchlabs.com</strong></span>
                         <span>•</span>
-                        <span>Support: <strong style="color: #111827;">sales@livwellresearchlabs.com</strong></span>
+                        <span>Support: <strong style="color: #000000;">sales@livwellresearchlabs.com</strong></span>
                     </div>
                 </div>
 
                 <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right;">
-                    <div style="background: #000000; color: #ffffff; font-size: 9.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 2px;">
+                    <div style="background: #000000; color: #ffffff; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 12px; border-radius: 3px;">
                         PACKING SLIP
                     </div>
-                    <div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #111827; margin-top: 3px;">
+                    <div style="font-family: monospace; font-size: 16px; font-weight: 900; color: #000000; margin-top: 4px;">
                         #${escapeHtml(orderShortId)}
                     </div>
                 </div>
             </div>
 
             <!-- Metadata & Addresses Grid -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 9.5px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; padding: 8px 12px; background: #f4f4f5; border: 1.5px solid #000000; border-radius: 4px; font-size: 11.5px; color: #000000;">
                 <!-- Ship To -->
                 <div>
-                    <div style="font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 2px;">
+                    <div style="font-weight: 900; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; color: #000000; margin-bottom: 3px;">
                         📍 Ship To:
                     </div>
-                    <div style="font-weight: bold; font-size: 11px; color: #111827;">
+                    <div style="font-weight: 900; font-size: 14px; color: #000000;">
                         ${escapeHtml(recipientName)}
                     </div>
                     ${
                         order.shipping_address
                             ? `
-                                <div style="color: #374151; line-height: 1.25; margin-top: 1px;">
+                                <div style="color: #000000; font-weight: 600; line-height: 1.35; margin-top: 2px;">
                                     <div>${escapeHtml(order.shipping_address.line1)}</div>
                                     ${order.shipping_address.line2 ? `<div>${escapeHtml(order.shipping_address.line2)}</div>` : ""}
-                                    <div style="font-weight: 600; color: #111827;">
+                                    <div style="font-weight: 800;">
                                         ${escapeHtml(order.shipping_address.city)}, ${escapeHtml(order.shipping_address.state)} ${escapeHtml(order.shipping_address.postal_code)}
                                     </div>
-                                    <div style="text-transform: uppercase; font-size: 8px; color: #6b7280; font-weight: 600;">
+                                    <div style="text-transform: uppercase; font-size: 10px; color: #000000; font-weight: 800;">
                                         ${escapeHtml(order.shipping_address.country || "United States")}
                                     </div>
-                                    ${order.shipping_address.phone ? `<div style="font-size: 8.5px; color: #4b5563; margin-top: 1px;">📞 ${escapeHtml(order.shipping_address.phone)}</div>` : ""}
+                                    ${order.shipping_address.phone ? `<div style="font-size: 11px; color: #000000; font-weight: 700; margin-top: 2px;">📞 ${escapeHtml(order.shipping_address.phone)}</div>` : ""}
                                 </div>
                             `
-                            : `<div style="color: #9ca3af; font-style: italic;">No shipping address recorded</div>`
+                            : `<div style="color: #000000; font-style: italic;">No shipping address recorded</div>`
                     }
-                    <div style="font-size: 8.5px; color: #4b5563; margin-top: 2px;">
+                    <div style="font-size: 11px; color: #000000; font-weight: 700; margin-top: 3px;">
                         ✉️ ${escapeHtml(order.customer_email)}
                     </div>
                 </div>
 
                 <!-- Order Details -->
-                <div style="border-left: 1px solid #e5e7eb; padding-left: 10px; display: flex; flex-direction: column; justify-content: space-between;">
-                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="border-left: 1.5px solid #000000; padding-left: 14px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #6b7280; font-weight: 500;">Order Number:</span>
-                            <span style="font-family: monospace; font-weight: bold; font-size: 11px; color: #000000;">#${escapeHtml(orderShortId)}</span>
+                            <span style="color: #000000; font-weight: 700;">Order Number:</span>
+                            <span style="font-family: monospace; font-weight: 900; font-size: 13px; color: #000000;">#${escapeHtml(orderShortId)}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #6b7280; font-weight: 500;">Order Date:</span>
-                            <span style="font-weight: 600; color: #111827;">${formattedDate}</span>
+                            <span style="color: #000000; font-weight: 700;">Order Date:</span>
+                            <span style="font-weight: 800; color: #000000;">${formattedDate}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #6b7280; font-weight: 500;">Shipping Service:</span>
-                            <span style="font-weight: bold; color: #111827; background: #ffffff; padding: 1px 4px; border-radius: 2px; border: 1px solid #e5e7eb; font-size: 8.5px;">
+                            <span style="color: #000000; font-weight: 700;">Shipping Service:</span>
+                            <span style="font-weight: 900; color: #000000; background: #ffffff; padding: 2px 6px; border-radius: 3px; border: 1.5px solid #000000; font-size: 10.5px;">
                                 ${escapeHtml(order.shipping_service || "Standard Shipping")} ${order.shipping_carrier ? `(${escapeHtml(order.shipping_carrier)})` : ""}
                             </span>
                         </div>
                         ${
                             activeTracking
                                 ? `
-                                    <div style="display: flex; justify-content: space-between; align-items: center; background: #eff6ff; padding: 2px 4px; border-radius: 2px; border: 1px solid #bfdbfe; margin-top: 1px;">
-                                        <span style="color: #1e3a8a; font-weight: bold; font-size: 8px;">🚚 Tracking:</span>
-                                        <span style="font-family: monospace; font-weight: bold; font-size: 9px; color: #1e3a8a;">${escapeHtml(activeTracking)}</span>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; background: #eff6ff; padding: 3px 6px; border-radius: 3px; border: 1.5px solid #000000; margin-top: 2px;">
+                                        <span style="color: #000000; font-weight: 900; font-size: 10px;">🚚 Tracking:</span>
+                                        <span style="font-family: monospace; font-weight: 900; font-size: 11px; color: #000000;">${escapeHtml(activeTracking)}</span>
                                     </div>
                                 `
                                 : ""
                         }
                     </div>
 
-                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; border-top: 1px solid #e5e7eb; padding-top: 3px; margin-top: 3px;">
-                        <span style="font-size: 8px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Items:</span>
-                        <span style="background: #000000; color: #ffffff; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px;">
+                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; border-top: 1.5px solid #000000; padding-top: 4px; margin-top: 4px;">
+                        <span style="font-size: 10px; font-weight: 900; color: #000000; text-transform: uppercase;">Items Summary:</span>
+                        <span style="background: #000000; color: #ffffff; font-size: 11px; font-weight: 900; padding: 2px 6px; border-radius: 3px;">
                             ${totalUnits} Units
                         </span>
-                        <span style="background: #e5e7eb; color: #1f2937; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px;">
+                        <span style="background: #e5e7eb; color: #000000; border: 1px solid #000000; font-size: 11px; font-weight: 900; padding: 2px 6px; border-radius: 3px;">
                             ${uniqueSkusCount} SKUs
                         </span>
                     </div>
@@ -320,31 +257,31 @@ export function generateSingleOrderHtml(
             </div>
 
             <!-- Items Checklist Table -->
-            <div style="margin-top: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 2px;">
-                    <div style="font-size: 9.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #000000;">
+            <div style="margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 3px;">
+                    <div style="font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: #000000;">
                         ☑️ Picking &amp; Packing Checklist
                     </div>
-                    <div style="font-size: 8px; font-weight: 500; color: #6b7280; font-style: italic;">
+                    <div style="font-size: 10.5px; font-weight: 700; color: #111111; font-style: italic;">
                         ✓ Check off each item during fulfillment
                     </div>
                 </div>
 
-                <table style="width: 100%; text-align: left; border-collapse: collapse; border: 1px solid #d1d5db; font-size: 9.5px;">
+                <table style="width: 100%; text-align: left; border-collapse: collapse; border: 2px solid #000000; font-size: 12px;">
                     <thead>
-                        <tr style="background: #f3f4f6; color: #374151; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #d1d5db;">
-                            <th style="padding: 3px 4px; text-align: center; width: 24px; border-right: 1px solid #d1d5db;">Check</th>
-                            <th style="padding: 3px 4px; text-align: center; width: 44px; border-right: 1px solid #d1d5db;">Photo</th>
-                            <th style="padding: 3px 6px; border-right: 1px solid #d1d5db;">Product &amp; Specification</th>
-                            <th style="padding: 3px 6px; border-right: 1px solid #d1d5db; width: 120px;">SKU</th>
-                            <th style="padding: 3px 4px; text-align: center; width: 50px; border-right: 1px solid #d1d5db;">Qty</th>
-                            ${showPrices ? `<th style="padding: 3px 6px; text-align: right; width: 60px;">Price</th>` : ""}
+                        <tr style="background: #e5e7eb; color: #000000; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #000000;">
+                            <th style="padding: 6px 6px; text-align: center; width: 32px; border-right: 1.5px solid #000000;">Check</th>
+                            <th style="padding: 6px 6px; text-align: center; width: 60px; border-right: 1.5px solid #000000;">Photo</th>
+                            <th style="padding: 6px 10px; border-right: 1.5px solid #000000;">Product &amp; Specification</th>
+                            <th style="padding: 6px 10px; border-right: 1.5px solid #000000; width: 140px;">SKU</th>
+                            <th style="padding: 6px 6px; text-align: center; width: 65px; border-right: 1.5px solid #000000;">Qty</th>
+                            ${showPrices ? `<th style="padding: 6px 10px; text-align: right; width: 75px;">Price</th>` : ""}
                         </tr>
                     </thead>
                     <tbody>
                         ${
                             itemsRows ||
-                            `<tr><td colspan="${showPrices ? 6 : 5}" style="padding: 8px; text-align: center; color: #9ca3af; font-style: italic;">No items in this order.</td></tr>`
+                            `<tr><td colspan="${showPrices ? 6 : 5}" style="padding: 12px; text-align: center; color: #000000; font-weight: 700;">No items in this order.</td></tr>`
                         }
                     </tbody>
                 </table>
@@ -353,28 +290,28 @@ export function generateSingleOrderHtml(
             ${priceBreakdown}
 
             <!-- Bottom Verification & Signatures -->
-            <div style="margin-top: 8px; border-top: 1px solid #d1d5db; padding-top: 4px; font-size: 8.5px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb;">
-                    <div style="border: 1px dashed #9ca3af; padding: 4px 6px; border-radius: 3px; background: #f9fafb; display: flex; align-items: center; justify-content: space-between;">
-                        <span style="font-size: 8.5px; text-transform: uppercase; font-weight: bold; color: #4b5563; letter-spacing: 0.05em;">Packed By:</span>
-                        <div style="width: 120px; border-bottom: 1px solid #9ca3af; padding-bottom: 1px; font-family: monospace; font-size: 8px; color: #9ca3af; text-align: center;">
+            <div style="margin-top: 12px; border-top: 2px solid #000000; padding-top: 6px; font-size: 11px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-bottom: 6px; border-bottom: 1.5px solid #000000;">
+                    <div style="border: 1.5px dashed #000000; padding: 6px 10px; border-radius: 4px; background: #f9fafb; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 900; color: #000000; letter-spacing: 0.05em;">Packed By:</span>
+                        <div style="width: 140px; border-bottom: 1.5px solid #000000; padding-bottom: 1px; font-family: monospace; font-size: 10px; color: #555555; text-align: center; font-weight: 600;">
                             (Signature / Initials)
                         </div>
                     </div>
 
-                    <div style="border: 1px dashed #9ca3af; padding: 4px 6px; border-radius: 3px; background: #f9fafb; display: flex; align-items: center; justify-content: space-between;">
-                        <span style="font-size: 8.5px; text-transform: uppercase; font-weight: bold; color: #4b5563; letter-spacing: 0.05em;">Fulfillment Date:</span>
-                        <span style="font-size: 8.5px; font-weight: 600; color: #1f2937;">
+                    <div style="border: 1.5px dashed #000000; padding: 6px 10px; border-radius: 4px; background: #f9fafb; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 900; color: #000000; letter-spacing: 0.05em;">Fulfillment Date:</span>
+                        <span style="font-size: 12px; font-weight: 900; color: #000000;">
                             ${currentDate}
                         </span>
                     </div>
                 </div>
 
-                <div style="margin-top: 3px; display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #6b7280; line-height: 1.2;">
+                <div style="margin-top: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; color: #000000; font-weight: 600; line-height: 1.25;">
                     <p style="margin: 0;">
                         <strong>Inspection Notice:</strong> Please verify all contents upon receipt. For any discrepancies, contact us at <strong>sales@livwellresearchlabs.com</strong>.
                     </p>
-                    <div style="font-family: monospace; font-size: 8px; color: #6b7280; flex-shrink: 0; margin-left: 6px; font-weight: 600;">
+                    <div style="font-family: monospace; font-size: 11px; color: #000000; font-weight: 900; flex-shrink: 0; margin-left: 10px;">
                         PS-${escapeHtml(orderShortId)}
                     </div>
                 </div>
@@ -412,7 +349,7 @@ export function generatePackingSlipsDocumentHtml(
     <style>
         @page {
             size: letter portrait;
-            margin: 6mm 8mm;
+            margin: 8mm 10mm;
         }
         *, *::before, *::after {
             box-sizing: border-box;

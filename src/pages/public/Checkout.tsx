@@ -122,12 +122,16 @@ const Checkout = () => {
     const handleAddressChange = useCallback((address: any) => {
         setCurrentAddress(address);
 
-        // Early contact capture to link customer info to cart session
+        // Early contact capture to link customer info & location to cart session
         if (address) {
             updateCartContactInfo({
                 email: address.email || undefined,
                 phone: address.phone || undefined,
                 customer_name: address.full_name || undefined,
+                city: address.city || undefined,
+                region: address.state || undefined,
+                country: address.country === "US" ? "United States" : (address.country || undefined),
+                country_code: address.country || undefined,
             });
         }
 

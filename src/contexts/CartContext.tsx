@@ -76,7 +76,15 @@ interface CartContextType {
     cartCount: number;
     isAnimating: boolean;
     cartSessionId: string | null;
-    updateCartContactInfo: (info: { email?: string; phone?: string; customer_name?: string }) => Promise<void>;
+    updateCartContactInfo: (info: { 
+        email?: string; 
+        phone?: string; 
+        customer_name?: string;
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    }) => Promise<void>;
     markCartConverted: (orderId: string) => Promise<void>;
 }
 
@@ -326,21 +334,43 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, [items, cartTotal, totalWeight, syncCartWithSupabase]);
 
-    // Update customer contact info in active cart session (Early capture during checkout)
-    const updateCartContactInfo = async (info: { email?: string; phone?: string; customer_name?: string }) => {
+    // Update customer contact & location info in active cart session (Early capture during checkout)
+    const updateCartContactInfo = async (info: { 
+        email?: string; 
+        phone?: string; 
+        customer_name?: string;
+        city?: string;
+        region?: string;
+        country?: string;
+        country_code?: string;
+    }) => {
         try {
             const sessionId = getOrCreateSessionId();
-            if (!info.email && !info.phone && !info.customer_name) return;
+            if (!info.email && !info.phone && !info.customer_name && !info.city) return;
+
+            const updatePayload: Record<string, any> = {
+                last_active_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+            if (info.email) updatePayload.email = info.email;
+            if (info.phone) updatePayload.phone = info.phone;
+            if (info.customer_name) updatePayload.customer_name = info.customer_name;
+            if (info.city) updatePayload.city = info.city;
+            if (info.region) updatePayload.region = info.region;
+            if (info.country) updatePayload.country = info.country;
+            if (info.country_code) updatePayload.country_code = info.country_code;
+
+            // Also attempt to get GeoIP if still missing
+            const geo = await getGeoIpInfo();
+            if (geo.ip_address) updatePayload.ip_address = geo.ip_address;
+            if (geo.country && !updatePayload.country) updatePayload.country = geo.country;
+            if (geo.country_code && !updatePayload.country_code) updatePayload.country_code = geo.country_code;
+            if (geo.city && !updatePayload.city) updatePayload.city = geo.city;
+            if (geo.region && !updatePayload.region) updatePayload.region = geo.region;
 
             await supabase
                 .from("cart_sessions" as any)
-                .update({
-                    email: info.email || null,
-                    phone: info.phone || null,
-                    customer_name: info.customer_name || null,
-                    last_active_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                })
+                .update(updatePayload)
                 .eq("session_id", sessionId)
                 .in("status", ["active", "abandoned", "recovered"]);
         } catch (e) {

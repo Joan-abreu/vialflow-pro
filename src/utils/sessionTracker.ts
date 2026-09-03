@@ -63,10 +63,68 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
         }
     } catch {}
 
-    // 3. Passive network fetch with strict 2.5s timeout (never blocks page load)
+    // 3. Multi-layer passive network fetch with strict timeouts
+    // Provider 1: Supabase Edge Function geo-lookup (immune to client adblockers and strict browser CSP)
+    try {
+        const { data, error } = await supabase.functions.invoke("geo-lookup");
+        if (!error && data?.ip_address) {
+            const geo: GeoIpInfo = {
+                ip_address: data.ip_address || undefined,
+                country: data.country || undefined,
+                country_code: data.country_code || undefined,
+                city: data.city || undefined,
+                region: data.region || undefined,
+            };
+
+            memoryGeoInfo = geo;
+            try {
+                sessionStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                localStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+            } catch {}
+            return geo;
+        }
+    } catch (err) {
+        console.debug("Provider 1 (geo-lookup edge function) failed, trying fallback:", err);
+    }
+
+    // Provider 2 Fallback: ipwho.is (fast, unblocked, complete geolocation)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+        const res = await fetch("https://ipwho.is/", {
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success !== false && data.ip) {
+                const geo: GeoIpInfo = {
+                    ip_address: data.ip || undefined,
+                    country: data.country || undefined,
+                    country_code: data.country_code || undefined,
+                    city: data.city || undefined,
+                    region: data.region || undefined,
+                };
+
+                memoryGeoInfo = geo;
+                try {
+                    sessionStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                    localStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                } catch {}
+                return geo;
+            }
+        }
+    } catch (err) {
+        console.debug("Provider 2 (ipwho.is) failed, trying fallback:", err);
+    }
+
+    // Provider 3 Fallback: freeipapi.com
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
 
         const res = await fetch("https://freeipapi.com/api/json", {
             signal: controller.signal,
@@ -94,7 +152,36 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
             }
         }
     } catch (err) {
-        console.debug("Passive GeoIP lookup error (non-fatal):", err);
+        console.debug("Provider 2 (freeipapi.com) failed, trying fallback:", err);
+    }
+
+    // Provider 3 Fallback: api.ipify.org (Guarantees public IP address)
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+        const res = await fetch("https://api.ipify.org?format=json", {
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data?.ip) {
+                const geo: GeoIpInfo = {
+                    ip_address: data.ip,
+                };
+                memoryGeoInfo = geo;
+                try {
+                    sessionStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                    localStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                } catch {}
+                return geo;
+            }
+        }
+    } catch (err) {
+        console.debug("Provider 3 (ipify.org) failed:", err);
     }
 
     return memoryGeoInfo || {};

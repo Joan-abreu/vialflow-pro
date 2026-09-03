@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SESSION_STORAGE_KEY = "vialflow_session_id";
 const UTM_STORAGE_KEY = "vialflow_utm_params";
+const GEO_STORAGE_KEY = "vialflow_geo_info";
 
 export interface UtmParams {
     utm_source?: string;
@@ -11,6 +12,93 @@ export interface UtmParams {
     utm_content?: string;
     referrer?: string;
 }
+
+export interface GeoIpInfo {
+    ip_address?: string;
+    country?: string;
+    country_code?: string;
+    city?: string;
+    region?: string;
+}
+
+/**
+ * Converts a 2-letter ISO country code (e.g. "US", "ES") to its emoji flag.
+ */
+export const getCountryFlagEmoji = (countryCode?: string): string => {
+    if (!countryCode || countryCode.length !== 2) return "🌐";
+    try {
+        const codePoints = countryCode
+            .toUpperCase()
+            .split("")
+            .map((char) => 127397 + char.charCodeAt(0));
+        return String.fromCodePoint(...codePoints);
+    } catch {
+        return "🌐";
+    }
+};
+
+let memoryGeoInfo: GeoIpInfo | null = null;
+
+/**
+ * Passively captures IP and Location (City, Region, Country) without requesting any browser permissions.
+ * Cached in sessionStorage so it only makes one request per visit.
+ */
+export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
+    if (typeof window === "undefined") return {};
+
+    // 1. Check in-memory cache
+    if (memoryGeoInfo && memoryGeoInfo.ip_address) {
+        return memoryGeoInfo;
+    }
+
+    // 2. Check sessionStorage / localStorage
+    try {
+        const stored = sessionStorage.getItem(GEO_STORAGE_KEY) || localStorage.getItem(GEO_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored) as GeoIpInfo;
+            if (parsed.ip_address) {
+                memoryGeoInfo = parsed;
+                return parsed;
+            }
+        }
+    } catch {}
+
+    // 3. Passive network fetch with strict 2.5s timeout (never blocks page load)
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+        const res = await fetch("https://freeipapi.com/api/json", {
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            const geo: GeoIpInfo = {
+                ip_address: data.ipAddress || undefined,
+                country: data.countryName || undefined,
+                country_code: data.countryCode || undefined,
+                city: data.cityName || undefined,
+                region: data.regionName || undefined,
+            };
+
+            if (geo.ip_address) {
+                memoryGeoInfo = geo;
+                try {
+                    sessionStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                    localStorage.setItem(GEO_STORAGE_KEY, JSON.stringify(geo));
+                } catch {}
+                return geo;
+            }
+        }
+    } catch (err) {
+        console.debug("Passive GeoIP lookup error (non-fatal):", err);
+    }
+
+    return memoryGeoInfo || {};
+};
 
 let memorySessionId: string | null = null;
 

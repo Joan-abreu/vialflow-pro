@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getOrCreateSessionId, captureUtmParams } from "@/utils/sessionTracker";
+import { getOrCreateSessionId, captureUtmParams, getGeoIpInfo } from "@/utils/sessionTracker";
 
 export interface Product {
     id: string;
@@ -189,8 +189,26 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             const sessionId = getOrCreateSessionId();
             const utms = captureUtmParams();
+            const geo = await getGeoIpInfo();
             const { data: { session } } = await supabase.auth.getSession();
             const user = session?.user;
+
+            // Auto-detect email and name from authenticated session if available
+            let authEmail = user?.email || null;
+            let authName: string | null = (user?.user_metadata?.full_name || user?.user_metadata?.name) || null;
+
+            if (user && !authName) {
+                try {
+                    const { data: prof } = await supabase
+                        .from("profiles")
+                        .select("full_name")
+                        .eq("user_id", user.id)
+                        .maybeSingle();
+                    if (prof?.full_name) {
+                        authName = prof.full_name;
+                    }
+                } catch {}
+            }
 
             if (currentItems.length === 0) {
                 // If cart is cleared and we have a session, update status to empty
@@ -212,7 +230,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             // Check if a session already exists for this browser session_id
             const { data: existingSession } = await supabase
                 .from("cart_sessions" as any)
-                .select("id, status")
+                .select("id, status, email, customer_name, ip_address")
                 .eq("session_id", sessionId)
                 .in("status", ["active", "abandoned", "recovered"])
                 .order("created_at", { ascending: false })
@@ -221,42 +239,64 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
             if (existingSession?.id) {
                 setCartSessionId(existingSession.id);
+                const updatePayload: Record<string, any> = {
+                    user_id: user?.id || null,
+                    items: currentItems,
+                    subtotal: currentTotal,
+                    total_weight: currentWeight,
+                    status: existingSession.status === "abandoned" ? "active" : existingSession.status,
+                    last_active_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    utm_source: utms.utm_source || null,
+                    utm_medium: utms.utm_medium || null,
+                    utm_campaign: utms.utm_campaign || null,
+                    utm_term: utms.utm_term || null,
+                    utm_content: utms.utm_content || null,
+                    referrer: utms.referrer || null,
+                };
+
+                // Populate GeoIP if available
+                if (geo.ip_address) updatePayload.ip_address = geo.ip_address;
+                if (geo.country) updatePayload.country = geo.country;
+                if (geo.country_code) updatePayload.country_code = geo.country_code;
+                if (geo.city) updatePayload.city = geo.city;
+                if (geo.region) updatePayload.region = geo.region;
+
+                // Auto-fill customer contact if user has an account and not already populated
+                if (authEmail && !existingSession.email) updatePayload.email = authEmail;
+                if (authName && !existingSession.customer_name) updatePayload.customer_name = authName;
+
                 await supabase
                     .from("cart_sessions" as any)
-                    .update({
-                        user_id: user?.id || null,
-                        items: currentItems,
-                        subtotal: currentTotal,
-                        total_weight: currentWeight,
-                        status: existingSession.status === "abandoned" ? "active" : existingSession.status,
-                        last_active_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                        utm_source: utms.utm_source || null,
-                        utm_medium: utms.utm_medium || null,
-                        utm_campaign: utms.utm_campaign || null,
-                        utm_term: utms.utm_term || null,
-                        utm_content: utms.utm_content || null,
-                        referrer: utms.referrer || null,
-                    })
+                    .update(updatePayload)
                     .eq("id", existingSession.id);
             } else {
+                const insertPayload: Record<string, any> = {
+                    session_id: sessionId,
+                    user_id: user?.id || null,
+                    email: authEmail || null,
+                    customer_name: authName || null,
+                    items: currentItems,
+                    subtotal: currentTotal,
+                    total_weight: currentWeight,
+                    status: "active",
+                    last_active_at: new Date().toISOString(),
+                    utm_source: utms.utm_source || null,
+                    utm_medium: utms.utm_medium || null,
+                    utm_campaign: utms.utm_campaign || null,
+                    utm_term: utms.utm_term || null,
+                    utm_content: utms.utm_content || null,
+                    referrer: utms.referrer || null,
+                    ip_address: geo.ip_address || null,
+                    country: geo.country || null,
+                    country_code: geo.country_code || null,
+                    city: geo.city || null,
+                    region: geo.region || null,
+                };
+
                 const { data: newSession } = await supabase
                     .from("cart_sessions" as any)
-                    .insert({
-                        session_id: sessionId,
-                        user_id: user?.id || null,
-                        items: currentItems,
-                        subtotal: currentTotal,
-                        total_weight: currentWeight,
-                        status: "active",
-                        last_active_at: new Date().toISOString(),
-                        utm_source: utms.utm_source || null,
-                        utm_medium: utms.utm_medium || null,
-                        utm_campaign: utms.utm_campaign || null,
-                        utm_term: utms.utm_term || null,
-                        utm_content: utms.utm_content || null,
-                        referrer: utms.referrer || null,
-                    })
+                    .insert(insertPayload)
                     .select("id")
                     .single();
 

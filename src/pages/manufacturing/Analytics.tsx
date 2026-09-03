@@ -64,6 +64,7 @@ import {
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter";
 import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
+import { getCountryFlagEmoji } from "@/utils/sessionTracker";
 
 export interface CartSessionRecord {
     id: string;
@@ -86,6 +87,11 @@ export interface CartSessionRecord {
     utm_campaign: string | null;
     utm_term: string | null;
     referrer: string | null;
+    ip_address?: string | null;
+    country?: string | null;
+    country_code?: string | null;
+    city?: string | null;
+    region?: string | null;
     converted_order_id: string | null;
     created_at: string;
     updated_at: string;
@@ -947,12 +953,12 @@ export default function Analytics() {
                                                 return (
                                                     <TableRow key={cart.id} className="hover:bg-muted/50 transition-colors">
                                                         
-                                                        {/* Customer */}
+                                                        {/* Customer & Location */}
                                                         <TableCell>
                                                             <div className="flex flex-col gap-0.5">
                                                                 <div className="flex items-center gap-1.5">
                                                                     <span className="font-semibold text-foreground text-sm">
-                                                                        {cart.customer_name || cart.email || "Anonymous Guest"}
+                                                                        {cart.customer_name || cart.email || (cart.user_id ? "Registered Customer" : "Anonymous Guest")}
                                                                     </span>
                                                                     {cart.user_id ? (
                                                                         <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/20">Account</Badge>
@@ -969,6 +975,22 @@ export default function Analytics() {
                                                                     <span className="text-[11px] text-muted-foreground">
                                                                         📞 {cart.phone}
                                                                     </span>
+                                                                )}
+                                                                {/* Passive GeoIP / Location */}
+                                                                {(cart.country_code || cart.city || cart.country || cart.ip_address) && (
+                                                                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5" title={`Location: ${[cart.city, cart.region, cart.country].filter(Boolean).join(", ")}${cart.ip_address ? ` • IP: ${cart.ip_address}` : ''}`}>
+                                                                        <span className="text-xs select-none">
+                                                                            {getCountryFlagEmoji(cart.country_code || undefined)}
+                                                                        </span>
+                                                                        <span className="truncate max-w-[130px] font-medium text-foreground/80">
+                                                                            {[cart.city, cart.country_code || cart.country].filter(Boolean).join(", ")}
+                                                                        </span>
+                                                                        {cart.ip_address && (
+                                                                            <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                                                                ({cart.ip_address})
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </TableCell>
@@ -1186,7 +1208,7 @@ export default function Analytics() {
                                 <div>
                                     <span className="text-muted-foreground block">Customer Name</span>
                                     <span className="font-semibold text-foreground text-sm">
-                                        {selectedCart.customer_name || "Guest"}
+                                        {selectedCart.customer_name || (selectedCart.user_id ? "Registered Customer" : "Guest")}
                                     </span>
                                 </div>
                                 <div>
@@ -1199,6 +1221,29 @@ export default function Analytics() {
                                     <span className="text-muted-foreground block">Phone</span>
                                     <span className="font-semibold text-foreground text-sm">
                                         {selectedCart.phone || "Not entered"}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Location (GeoIP)</span>
+                                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                                        {selectedCart.country_code && (
+                                            <span className="text-sm">{getCountryFlagEmoji(selectedCart.country_code)}</span>
+                                        )}
+                                        <span>
+                                            {[selectedCart.city, selectedCart.region, selectedCart.country].filter(Boolean).join(", ") || "Unknown"}
+                                        </span>
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">IP Address</span>
+                                    <span className="font-mono font-medium text-foreground">
+                                        {selectedCart.ip_address || "Not recorded"}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Traffic Channel</span>
+                                    <span className="font-semibold text-foreground">
+                                        {selectedCart.utm_source || selectedCart.referrer || "Direct"}
                                     </span>
                                 </div>
                                 <div>

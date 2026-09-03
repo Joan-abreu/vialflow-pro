@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +28,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
     ShoppingCart,
@@ -60,11 +62,14 @@ import {
     Layers,
     Flame,
     ArrowRight,
+    ShieldCheck,
+    Shield,
 } from "lucide-react";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter";
 import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
 import { getCountryFlagEmoji } from "@/utils/sessionTracker";
+import { useAnalyticsSettings } from "@/hooks/useAnalyticsSettings";
 
 export interface CartSessionRecord {
     id: string;
@@ -195,6 +200,50 @@ export default function Analytics() {
 
     const isRefetching = loadingEvents || loadingFunnel || loadingCarts || loadingOrders;
 
+    // 5. Fetch Global Analytics Settings (Exclude Admin Traffic flag)
+    const { data: analyticsSettings } = useAnalyticsSettings();
+    const [excludeAdmin, setExcludeAdmin] = useState<boolean>(true);
+
+    useEffect(() => {
+        if (analyticsSettings) {
+            setExcludeAdmin(analyticsSettings.excludeAdminFromAnalytics);
+        }
+    }, [analyticsSettings?.excludeAdminFromAnalytics]);
+
+    // 6. Fetch Admin / Manager / Staff User IDs from user_roles
+    const { data: adminUserIds = [] } = useQuery({
+        queryKey: ["admin_user_role_ids"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("user_roles")
+                .select("user_id")
+                .in("role", ["admin", "manager", "staff"]);
+            if (error) return [];
+            return (data || []).map((r: any) => r.user_id).filter(Boolean);
+        },
+    });
+
+    // Effective datasets filtering out admin test traffic if excludeAdmin is active
+    const effectiveCartSessions = useMemo(() => {
+        if (!excludeAdmin || adminUserIds.length === 0) return cartSessions;
+        return cartSessions.filter(c => !c.user_id || !adminUserIds.includes(c.user_id));
+    }, [cartSessions, excludeAdmin, adminUserIds]);
+
+    const effectiveAnalyticsEvents = useMemo(() => {
+        if (!excludeAdmin || adminUserIds.length === 0) return analyticsEvents;
+        return analyticsEvents.filter(e => !e.user_id || !adminUserIds.includes(e.user_id));
+    }, [analyticsEvents, excludeAdmin, adminUserIds]);
+
+    const effectiveFunnelEvents = useMemo(() => {
+        if (!excludeAdmin || adminUserIds.length === 0) return funnelEvents;
+        return funnelEvents.filter(e => !e.user_id || !adminUserIds.includes(e.user_id));
+    }, [funnelEvents, excludeAdmin, adminUserIds]);
+
+    const effectiveOrders = useMemo(() => {
+        if (!excludeAdmin || adminUserIds.length === 0) return orders;
+        return orders.filter(o => !o.user_id || !adminUserIds.includes(o.user_id));
+    }, [orders, excludeAdmin, adminUserIds]);
+
     const handleRefreshAll = () => {
         refetchEvents();
         refetchFunnel();
@@ -204,17 +253,17 @@ export default function Analytics() {
 
     // Aggregate High-Level Metrics
     const metrics = useMemo(() => {
-        const productViews = analyticsEvents.filter(e => e.event_name === "product_view").length;
-        const totalCarts = cartSessions.length;
-        const checkoutStarts = funnelEvents.filter(e => e.step === "begin_checkout").length;
-        const addressEntered = funnelEvents.filter(e => e.step === "address_entered").length;
-        const shippingSelected = funnelEvents.filter(e => e.step === "shipping_selected").length;
-        const paymentSelected = funnelEvents.filter(e => e.step === "payment_selected").length;
-        const totalOrders = orders.length;
+        const productViews = effectiveAnalyticsEvents.filter(e => e.event_name === "product_view").length;
+        const totalCarts = effectiveCartSessions.length;
+        const checkoutStarts = effectiveFunnelEvents.filter(e => e.step === "begin_checkout").length;
+        const addressEntered = effectiveFunnelEvents.filter(e => e.step === "address_entered").length;
+        const shippingSelected = effectiveFunnelEvents.filter(e => e.step === "shipping_selected").length;
+        const paymentSelected = effectiveFunnelEvents.filter(e => e.step === "payment_selected").length;
+        const totalOrders = effectiveOrders.length;
 
-        const abandonedCarts = cartSessions.filter(c => c.status === "abandoned" || (c.status === "active" && new Date(c.last_active_at).getTime() < Date.now() - 3600000));
-        const recoveredCarts = cartSessions.filter(c => c.status === "recovered");
-        const convertedCarts = cartSessions.filter(c => c.status === "converted");
+        const abandonedCarts = effectiveCartSessions.filter(c => c.status === "abandoned" || (c.status === "active" && new Date(c.last_active_at).getTime() < Date.now() - 3600000));
+        const recoveredCarts = effectiveCartSessions.filter(c => c.status === "recovered");
+        const convertedCarts = effectiveCartSessions.filter(c => c.status === "converted");
 
         const lostRevenue = abandonedCarts.reduce((acc, c) => acc + (Number(c.subtotal) || 0), 0);
         const recoveredRevenue = recoveredCarts.reduce((acc, c) => acc + (Number(c.subtotal) || 0), 0);
@@ -226,14 +275,14 @@ export default function Analytics() {
             : "0.0";
 
         // Peptide-Specific Metrics
-        const peptideEvents = analyticsEvents.filter(e => {
+        const peptideEvents = effectiveAnalyticsEvents.filter(e => {
             if (e.event_name !== "product_view") return false;
             const cat = (e.properties?.category || "").toLowerCase();
             const name = (e.properties?.product_name || e.properties?.name || "").toLowerCase();
             return cat.includes("peptide") || name.includes("peptide") || e.properties?.is_peptide;
         });
 
-        const waterEvents = analyticsEvents.filter(e => {
+        const waterEvents = effectiveAnalyticsEvents.filter(e => {
             if (e.event_name !== "product_view") return false;
             const cat = (e.properties?.category || "").toLowerCase();
             const name = (e.properties?.product_name || e.properties?.name || "").toLowerCase();
@@ -246,7 +295,7 @@ export default function Analytics() {
         const waterViews = waterEvents.length;
         const waterUniqueSessions = new Set(waterEvents.map(e => e.session_id).filter(Boolean)).size;
 
-        const peptideCarts = cartSessions.filter(c => {
+        const peptideCarts = effectiveCartSessions.filter(c => {
             return (c.items || []).some((item: any) => {
                 const cat = (item.variant?.product?.category || "").toLowerCase();
                 const name = (item.variant?.product?.name || "").toLowerCase();
@@ -255,7 +304,7 @@ export default function Analytics() {
             });
         });
 
-        const waterCarts = cartSessions.filter(c => {
+        const waterCarts = effectiveCartSessions.filter(c => {
             return (c.items || []).some((item: any) => {
                 const cat = (item.variant?.product?.category || "").toLowerCase();
                 const name = (item.variant?.product?.name || "").toLowerCase();
@@ -263,7 +312,7 @@ export default function Analytics() {
             });
         });
 
-        const combinedCarts = cartSessions.filter(c => {
+        const combinedCarts = effectiveCartSessions.filter(c => {
             const hasPeptide = (c.items || []).some((item: any) => {
                 const cat = (item.variant?.product?.category || "").toLowerCase();
                 const name = (item.variant?.product?.name || "").toLowerCase();
@@ -320,14 +369,14 @@ export default function Analytics() {
             peptideTrafficShare,
             peptideCartConversionRate,
         };
-    }, [analyticsEvents, funnelEvents, cartSessions, orders]);
+    }, [effectiveAnalyticsEvents, effectiveFunnelEvents, effectiveCartSessions, effectiveOrders]);
 
     // Top Viewed Peptides Breakdown
     const topViewedPeptides = useMemo(() => {
         const counts: Record<string, { name: string; views: number; uniqueVisitors: number; productId: string; category: string }> = {};
         const sessionsByProduct: Record<string, Set<string>> = {};
 
-        analyticsEvents.forEach(e => {
+        effectiveAnalyticsEvents.forEach(e => {
             if (e.event_name === "product_view" && e.properties?.product_name) {
                 const cat = (e.properties.category || "").toLowerCase();
                 const name = e.properties.product_name;
@@ -348,12 +397,12 @@ export default function Analytics() {
             ...c,
             uniqueVisitors: sessionsByProduct[c.productId]?.size || 0,
         })).sort((a, b) => b.views - a.views);
-    }, [analyticsEvents]);
+    }, [effectiveAnalyticsEvents]);
 
     // Product Views Breakdown
     const topViewedProducts = useMemo(() => {
         const counts: Record<string, { name: string; views: number; productId: string }> = {};
-        analyticsEvents.forEach(e => {
+        effectiveAnalyticsEvents.forEach(e => {
             if (e.event_name === "product_view" && e.properties?.product_name) {
                 const name = e.properties.product_name;
                 const id = e.properties.product_id || name;
@@ -364,12 +413,12 @@ export default function Analytics() {
             }
         });
         return Object.values(counts).sort((a, b) => b.views - a.views).slice(0, 8);
-    }, [analyticsEvents]);
+    }, [effectiveAnalyticsEvents]);
 
     // Marketing & Attribution Breakdown
     const attributionData = useMemo(() => {
         const sources: Record<string, { source: string; carts: number; revenue: number; converted: number }> = {};
-        cartSessions.forEach(c => {
+        effectiveCartSessions.forEach(c => {
             const src = c.utm_source || (c.referrer ? "Referral" : "Direct / Organic");
             if (!sources[src]) {
                 sources[src] = { source: src, carts: 0, revenue: 0, converted: 0 };
@@ -381,11 +430,11 @@ export default function Analytics() {
             }
         });
         return Object.values(sources).sort((a, b) => b.carts - a.carts);
-    }, [cartSessions]);
+    }, [effectiveCartSessions]);
 
     // Filtered Abandoned Carts Table
     const filteredCarts = useMemo(() => {
-        return cartSessions.filter(c => {
+        return effectiveCartSessions.filter(c => {
             if (statusFilter !== "all" && c.status !== statusFilter) return false;
             if (!searchTerm) return true;
             const term = searchTerm.toLowerCase();
@@ -396,7 +445,7 @@ export default function Analytics() {
             const itemMatch = c.items?.some(i => i.variant?.product?.name?.toLowerCase().includes(term));
             return emailMatch || nameMatch || phoneMatch || utmMatch || itemMatch;
         });
-    }, [cartSessions, statusFilter, searchTerm]);
+    }, [effectiveCartSessions, statusFilter, searchTerm]);
 
     const handleCopyRecoveryLink = (token: string) => {
         const url = `${window.location.origin}/cart?recover=${token}`;
@@ -454,32 +503,56 @@ export default function Analytics() {
     return (
         <div className="container mx-auto py-8 space-y-8 animate-in fade-in-50 duration-300">
             
-            {/* Header with Date Range Filter */}
-            <div className="flex flex-col xl:flex-row justify-between xl:items-end gap-4">
-                <div>
+            {/* Header: Title with Exclude Admin Switch on the side & Subtitle */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
                         <div className="p-2 rounded-xl bg-primary/10 text-primary">
                             <BarChart3 className="h-7 w-7" />
                         </div>
                         E-Commerce Analytics & Recovery Hub
                     </h1>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-muted-foreground">
                         Unified real-time analytics, conversion drop-off funnel, abandoned cart recovery, and attribution.
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <DateRangeFilter initialRange={dateRange} onChange={setDateRange} className="w-full sm:w-auto" />
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleRefreshAll} 
-                        disabled={isRefetching}
-                        className="flex items-center gap-2 shadow-xs"
-                    >
-                        <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+
+                {/* Exclude Admin Traffic Switch beside Title */}
+                <div className="flex items-center gap-3 bg-card border rounded-xl px-4 py-2.5 shadow-xs shrink-0 self-start md:self-center">
+                    <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
+                        <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div className="flex flex-col">
+                        <Label htmlFor="exclude-admin-switch" className="text-xs font-bold text-foreground cursor-pointer select-none">
+                            Exclude Admin Traffic
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground">
+                            {excludeAdmin ? "Filtering admin actions" : "Including admin test carts"}
+                        </span>
+                    </div>
+                    <Switch
+                        id="exclude-admin-switch"
+                        checked={excludeAdmin}
+                        onCheckedChange={setExcludeAdmin}
+                        className="data-[state=checked]:bg-amber-600"
+                    />
                 </div>
+            </div>
+
+            {/* Filter & Actions Bar: Full-Width Row underneath subtitle */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+                <div className="flex-1 w-full">
+                    <DateRangeFilter initialRange={dateRange} onChange={setDateRange} className="w-full shadow-xs" />
+                </div>
+                <Button 
+                    variant="outline" 
+                    onClick={handleRefreshAll} 
+                    disabled={isRefetching}
+                    className="h-11 px-4 text-xs font-semibold flex items-center justify-center gap-2 rounded-xl shadow-xs bg-card hover:bg-primary/10 hover:text-primary transition-colors shrink-0"
+                >
+                    <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin text-primary' : ''}`} />
+                    Refresh
+                </Button>
             </div>
 
             {/* High-Level KPI Summary Cards */}
@@ -899,7 +972,7 @@ export default function Analytics() {
                                             <SelectValue placeholder="Filter by status" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Statuses ({cartSessions.length})</SelectItem>
+                                            <SelectItem value="all">All Statuses ({effectiveCartSessions.length})</SelectItem>
                                             <SelectItem value="abandoned">Abandoned Only</SelectItem>
                                             <SelectItem value="active">Active / Idle</SelectItem>
                                             <SelectItem value="recovered">Recovered</SelectItem>
@@ -960,7 +1033,9 @@ export default function Analytics() {
                                                                     <span className="font-semibold text-foreground text-sm">
                                                                         {cart.customer_name || cart.email || (cart.user_id ? "Registered Customer" : "Anonymous Guest")}
                                                                     </span>
-                                                                    {cart.user_id ? (
+                                                                    {cart.user_id && adminUserIds.includes(cart.user_id) ? (
+                                                                        <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold">Admin Test</Badge>
+                                                                    ) : cart.user_id ? (
                                                                         <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/20">Account</Badge>
                                                                     ) : (
                                                                         <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground">Guest</Badge>

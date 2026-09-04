@@ -50,7 +50,7 @@ export const AddressValidationModal = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md md:max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg overflow-hidden flex flex-col max-h-[90vh] rounded-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isInvalid ? (

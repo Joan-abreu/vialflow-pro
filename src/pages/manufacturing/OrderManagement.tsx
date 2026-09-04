@@ -38,9 +38,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck, AlertTriangle, XCircle } from "lucide-react";
+import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck, AlertTriangle, XCircle, Plus, Receipt } from "lucide-react";
 
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
+import { CreateManualOrderDialog } from "@/components/orders/CreateManualOrderDialog";
 import { EditAddressDialog } from "@/components/shipping/EditAddressDialog";
 import { SendEmailDialog } from "@/components/shared/SendEmailDialog";
 import { VirtualTerminalModal } from "@/components/admin/VirtualTerminalModal";
@@ -53,6 +54,7 @@ import { BulkShippingDialog } from "@/components/shipping/BulkShippingDialog";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { PackingSlipDialog } from "@/components/orders/PackingSlipDialog";
 import { PackingSlipDocument } from "@/components/orders/PackingSlipDocument";
+import { InvoiceDialog } from "@/components/orders/InvoiceDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 
@@ -135,7 +137,7 @@ const OrderManagement = () => {
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showProductionDialog, setShowProductionDialog] = useState(false);
     const [showShippingDialog, setShowShippingDialog] = useState(false);
-    const [activeTab, setActiveTab] = useState("all");
+    const [activeTab, setActiveTab] = useState("to_ship");
     const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string, status: string } | null>(null);
     const [selectedVirtualTerminalOrder, setSelectedVirtualTerminalOrder] = useState<Order | null>(null);
     const [isVirtualTerminalOpen, setIsVirtualTerminalOpen] = useState(false);
@@ -146,6 +148,15 @@ const OrderManagement = () => {
     const [refreshingTracking, setRefreshingTracking] = useState<string | null>(null);
     const [packingSlipOrders, setPackingSlipOrders] = useState<Order[] | null>(null);
     const [isPackingSlipOpen, setIsPackingSlipOpen] = useState(false);
+    const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+    const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
+    const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+    const [filterManualOnly, setFilterManualOnly] = useState(false);
+
+    const handleOpenInvoice = (order: Order) => {
+        setInvoiceOrder(order);
+        setIsInvoiceOpen(true);
+    };
 
     const queryClient = useQueryClient();
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -195,6 +206,8 @@ const OrderManagement = () => {
 
             return ordersData as any as Order[];
         },
+        refetchInterval: 5 * 60 * 1000, // Auto-refreshes orders every 5 minutes
+        refetchIntervalInBackground: false,
     });
 
     // Fetch all order notes count mapping
@@ -207,6 +220,7 @@ const OrderManagement = () => {
             if (error) return [];
             return data || [];
         },
+        refetchInterval: 5 * 60 * 1000,
     });
 
     const notesCountMap = useMemo(() => {
@@ -658,8 +672,21 @@ const OrderManagement = () => {
         return Object.values(groups);
     };
 
+    const isInvoiceOrder = (order: Order | any) => {
+        if (!order) return false;
+        const method = (order.payment_method || "").toLowerCase();
+        return (
+            method === "external_invoice" ||
+            method === "zelle" ||
+            method === "bank_wire" ||
+            method === "cash" ||
+            method === "offline_manual" ||
+            method === "manual_terminal" ||
+            method === "manual"
+        );
+    };
+
     const TABS = [
-        { id: 'all', label: 'All', statuses: [] },
         { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production', 'ready_to_ship'] },
         { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['label_created', 'pickup_scheduled'] },
         { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
@@ -667,11 +694,18 @@ const OrderManagement = () => {
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
         { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
+        { id: 'all', label: 'All', statuses: [] },
     ];
 
+    const totalManualOrdersCount = useMemo(() => {
+        return orders?.filter(isInvoiceOrder).length || 0;
+    }, [orders]);
+
     const tabCounts = useMemo(() => {
-        const counts: Record<string, number> = { all: orders?.length || 0 };
-        TABS.slice(1).forEach(tab => {
+        const counts: Record<string, number> = { 
+            all: orders?.length || 0,
+        };
+        TABS.filter(t => t.id !== 'all').forEach(tab => {
             counts[tab.id] = orders?.filter(o => tab.statuses.includes(o.status)).length || 0;
         });
         return counts;
@@ -686,15 +720,25 @@ const OrderManagement = () => {
             }
         }
 
+        // Filter by manual-only toggle
+        if (filterManualOnly && !isInvoiceOrder(order)) {
+            return false;
+        }
+
         // Then filter by search query
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         
+        // Match "invoice" or "invoices" or "manual"
+        const isInvoiceKeyword = query === "invoice" || query === "invoices" || query === "manual";
+        if (isInvoiceKeyword && isInvoiceOrder(order)) return true;
+
         const matchesOrder = (
             order.id.toLowerCase().includes(query) ||
             order.customer_email?.toLowerCase().includes(query) ||
             order.customer_profile?.full_name?.toLowerCase().includes(query) ||
             order.status.toLowerCase().includes(query) ||
+            (order.payment_method && order.payment_method.toLowerCase().includes(query)) ||
             (order.tracking_number && order.tracking_number.toLowerCase().includes(query)) ||
             order.applied_coupons?.some(c => c.toLowerCase().includes(query))
         );
@@ -753,17 +797,39 @@ const OrderManagement = () => {
                         Track and manage your customer orders, production status, and shipments.
                     </p>
                 </div>
-                <Link to="/manufacturing/order-labels">
-                    <Button variant="outline" className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-primary" />
-                        Shipping & Pickups
+                <div className="flex items-center gap-2.5">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                            queryClient.invalidateQueries({ queryKey: ["orders"] });
+                            queryClient.invalidateQueries({ queryKey: ["all-order-notes"] });
+                            toast.success("Orders list refreshed");
+                        }}
+                        title="Refresh orders (Auto-refreshes every 5 mins)"
+                        className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                    >
+                        <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin text-primary")} />
                     </Button>
-                </Link>
+                    <Button 
+                        onClick={() => setIsCreateOrderOpen(true)}
+                        className="flex items-center gap-2 bg-primary text-primary-foreground font-bold shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Create Order / Invoice
+                    </Button>
+                    <Link to="/manufacturing/order-labels">
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-primary" />
+                            Shipping & Pickups
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div className="relative flex items-center w-full md:w-96">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="relative flex items-center w-full sm:w-96">
                         <Search className="w-4 h-4 text-muted-foreground absolute left-3 pointer-events-none" />
                         <Input
                             placeholder="Search by ID, Customer, SKU, Product, Email, or Tracking #"
@@ -787,6 +853,40 @@ const OrderManagement = () => {
                                 <X className="w-4 h-4" />
                             </button>
                         )}
+                    </div>
+
+                    {/* Quick filter for Manual Orders / Invoices without disrupting lifecycle tabs */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                            type="button"
+                            variant={filterManualOnly ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => {
+                                setFilterManualOnly(!filterManualOnly);
+                                setCurrentPage(1);
+                            }}
+                            className={cn(
+                                "h-9 text-xs font-semibold gap-1.5 transition-colors",
+                                filterManualOnly
+                                    ? "bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                                    : "border-purple-200 text-purple-700 hover:bg-purple-50"
+                            )}
+                        >
+                            <Receipt className="h-3.5 w-3.5" />
+                            <span>{filterManualOnly ? "Showing Manual Orders Only" : "Filter: Manual Orders"}</span>
+                            <Badge
+                                variant="secondary"
+                                className={cn(
+                                    "text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center font-bold ml-0.5",
+                                    filterManualOnly ? "bg-white/25 text-white" : "bg-purple-100 text-purple-800"
+                                )}
+                            >
+                                {totalManualOrdersCount}
+                            </Badge>
+                            {filterManualOnly && (
+                                <X className="h-3 w-3 ml-0.5 text-white/80" />
+                            )}
+                        </Button>
                     </div>
                 </div>
 
@@ -913,6 +1013,21 @@ const OrderManagement = () => {
                         <Button
                             size="sm"
                             variant="outline"
+                            className="h-8 text-xs bg-background border-purple-200 text-purple-700 hover:bg-purple-50 font-semibold gap-1"
+                            onClick={() => {
+                                if (selectedOrders.length > 0) {
+                                    handleOpenInvoice(selectedOrders[0]);
+                                }
+                            }}
+                            title="View / Print Invoice for selected order"
+                        >
+                            <Receipt className="h-3.5 w-3.5 text-purple-600" />
+                            Invoice ({selectedOrders.length})
+                        </Button>
+
+                        <Button
+                            size="sm"
+                            variant="outline"
                             className="h-8 text-xs bg-background border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold gap-1"
                             onClick={handleOpenBulkPackingSlips}
                             title="Generate and print packing slips for selected orders"
@@ -994,6 +1109,16 @@ const OrderManagement = () => {
                                             <TableCell className="font-mono text-xs whitespace-nowrap">
                                                 <div className="flex items-center gap-1 flex-wrap">
                                                     <span>#{order.id.slice(0, 8)}</span>
+                                                    {isInvoiceOrder(order) && (
+                                                        <Badge 
+                                                            variant="outline" 
+                                                            className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 text-[9px] px-1.5 py-0 font-bold flex items-center gap-1 uppercase"
+                                                            title="Custom Manual Order / Invoice"
+                                                        >
+                                                            <Receipt className="w-2.5 h-2.5 text-purple-600" />
+                                                            Invoice
+                                                        </Badge>
+                                                    )}
                                                     {order.order_items?.some(item => item.is_bulk) && (
                                                         <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0 font-bold uppercase">
                                                             Bulk
@@ -1151,6 +1276,15 @@ const OrderManagement = () => {
                                                         title="View Details"
                                                     >
                                                         <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                                        onClick={() => handleOpenInvoice(order)}
+                                                        title="View / Print Invoice (PDF)"
+                                                    >
+                                                        <Receipt className="h-4 w-4" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
@@ -1524,6 +1658,18 @@ const OrderManagement = () => {
                                 variant="outline"
                                 onClick={() => {
                                     if (selectedOrder) {
+                                        handleOpenInvoice(selectedOrder);
+                                    }
+                                }}
+                                className="gap-2 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100 font-semibold"
+                            >
+                                <Receipt className="h-4 w-4 text-purple-600" />
+                                Invoice (PDF)
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    if (selectedOrder) {
                                         handleOpenPackingSlip(selectedOrder);
                                     }
                                 }}
@@ -1697,6 +1843,31 @@ const OrderManagement = () => {
                 open={isPackingSlipOpen}
                 onOpenChange={setIsPackingSlipOpen}
                 orders={packingSlipOrders}
+            />
+
+            {/* Create Manual Order / Invoice Dialog */}
+            <CreateManualOrderDialog
+                open={isCreateOrderOpen}
+                onOpenChange={setIsCreateOrderOpen}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ["orders"] });
+                }}
+                onOpenShippingLabel={(order) => {
+                    handleCreateShippingLabel(order);
+                }}
+                onOpenPackingSlip={(order) => {
+                    handleOpenPackingSlip(order);
+                }}
+                onOpenInvoice={(order) => {
+                    handleOpenInvoice(order);
+                }}
+            />
+
+            {/* Commercial Invoice Preview & Print Dialog */}
+            <InvoiceDialog
+                open={isInvoiceOpen}
+                onOpenChange={setIsInvoiceOpen}
+                order={invoiceOrder}
             />
         </div>
 

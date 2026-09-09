@@ -40,6 +40,7 @@ const CartIcon = () => {
 
 const EXEMPT_PATHS = [
     "/terms",
+    "/blog",
 ];
 
 const checkIsExemptRouteSync = (pathname: string, search: string): boolean => {
@@ -236,6 +237,9 @@ const PublicLayoutContent = () => {
                             <Link to="/lab-reports" className="transition-colors hover:text-primary">
                                 Lab Reports
                             </Link>
+                            <Link to="/blog" className="transition-colors hover:text-primary">
+                                Blog
+                            </Link>
                             <Link to="/about" className="transition-colors hover:text-primary">
                                 About Us
                             </Link>
@@ -338,6 +342,9 @@ const PublicLayoutContent = () => {
                                     <Link to="/lab-reports" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         Lab Reports
                                     </Link>
+                                    <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
+                                        Research Blog
+                                    </Link>
                                     <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="text-lg font-medium">
                                         About Us
                                     </Link>
@@ -429,6 +436,7 @@ const PublicLayoutContent = () => {
                                 <li><Link to="/returns">Return Policy</Link></li>
                                 <li><Link to="/sds">Safety Data Sheets (SDS)</Link></li>
                                 <li><Link to="/lab-reports">Lab Reports (COAs)</Link></li>
+                                <li><Link to="/blog">Research Blog & Protocols</Link></li>
                             </ul>
                         </div>
                         <div>

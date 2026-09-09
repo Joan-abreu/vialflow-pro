@@ -48,6 +48,9 @@ import Account from "./pages/public/Account";
 import PromoterDashboard from "./pages/public/PromoterDashboard";
 import SafetyDataSheets from "./pages/public/SafetyDataSheets";
 import LabReports from "./pages/public/LabReports";
+import Blog from "./pages/public/Blog";
+import BlogPost from "./pages/public/BlogPost";
+import BlogManagement from "./pages/manufacturing/BlogManagement";
 import CoaView from "./pages/public/CoaView";
 import ComingSoon from "./pages/public/ComingSoon";
 import Layout from "./components/Layout";
@@ -220,6 +223,8 @@ const AppRoutes = () => {
                     <Route path="/sds" element={<SafetyDataSheets />} />
                     <Route path="/lab-reports" element={<LabReports />} />
                     <Route path="/coa/:batchNumber" element={<LabReports />} />
+                    <Route path="/blog" element={<Blog />} />
+                    <Route path="/blog/:slug" element={<BlogPost />} />
                 </Route>
 
                 {/* Maintenance Route */}
@@ -234,6 +239,7 @@ const AppRoutes = () => {
                     <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
                     <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
                     <Route path="coas" element={<ProtectedRoute><COAManagement /></ProtectedRoute>} />
+                    <Route path="blogs" element={<ProtectedRoute><BlogManagement /></ProtectedRoute>} />
                     <Route path="coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
                     <Route path="affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />
                     <Route path="orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />

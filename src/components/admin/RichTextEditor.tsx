@@ -5,6 +5,11 @@ import { Underline } from '@tiptap/extension-underline';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import CustomImage from '@/components/admin/CustomImageExtension';
+import { supabase } from '@/integrations/supabase/client';
+import imageCompression from 'browser-image-compression';
+import { toast } from 'sonner';
+import { useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import {
     Bold,
@@ -25,7 +30,10 @@ import {
     AlignJustify,
     Type,
     ChevronDown,
-    Rows as RowsIcon
+    Rows as RowsIcon,
+    Image as ImageIcon,
+    UploadCloud,
+    Loader2
 } from 'lucide-react';
 import { RICH_TEXT_STYLES } from '@/lib/rich-text-styles';
 import {
@@ -104,10 +112,17 @@ const defaultExtensions = [
             class: 'text-primary underline',
         },
     }),
+    CustomImage.configure({
+        inline: false,
+        allowBase64: false,
+    }),
     LineHeight,
 ];
 
 const RichTextEditor = ({ content, onChange, editable = true }: RichTextEditorProps) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
+
     const editor = useEditor({
         extensions: defaultExtensions,
         content,
@@ -121,6 +136,60 @@ const RichTextEditor = ({ content, onChange, editable = true }: RichTextEditorPr
             },
         },
     });
+
+    const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !editor) return;
+
+        setUploadingImage(true);
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const fileName = `content/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${fileExt}`;
+
+        try {
+            toast.info("Uploading image to Supabase cloud storage...");
+            let fileToUpload = file;
+            try {
+                fileToUpload = await imageCompression(file, {
+                    maxSizeMB: 0.8,
+                    maxWidthOrHeight: 1600,
+                    useWebWorker: true,
+                });
+            } catch (compErr) {
+                console.warn("Compression skipped:", compErr);
+            }
+
+            const { error: uploadError } = await supabase.storage
+                .from('blog-images')
+                .upload(fileName, fileToUpload, {
+                    contentType: file.type || 'image/png',
+                    upsert: true,
+                });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicData } = supabase.storage
+                .from('blog-images')
+                .getPublicUrl(fileName);
+
+            if (publicData?.publicUrl) {
+                editor.chain().focus().setImage({ src: publicData.publicUrl, alt: file.name }).run();
+                toast.success("Image uploaded and inserted into article!");
+            }
+        } catch (err: any) {
+            toast.error(`Image upload failed: ${err.message}`);
+        } finally {
+            setUploadingImage(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
+
+    const handleInsertImageUrl = () => {
+        if (!editor) return;
+        const url = window.prompt('Enter Image URL:');
+        if (url) {
+            editor.chain().focus().setImage({ src: url }).run();
+        }
+    };
 
     if (!editor) {
         return null;
@@ -340,6 +409,52 @@ const RichTextEditor = ({ content, onChange, editable = true }: RichTextEditorPr
                 >
                     <LinkIcon className="h-4 w-4" />
                 </Button>
+
+                {/* Image Upload Dropdown Menu */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            type="button"
+                            title="Insert Image"
+                            disabled={uploadingImage}
+                            className="gap-1 text-primary hover:bg-primary/10"
+                        >
+                            {uploadingImage ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <ImageIcon className="h-4 w-4" />
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                            onClick={() => fileInputRef.current?.click()}
+                            className="cursor-pointer gap-2"
+                        >
+                            <UploadCloud className="h-4 w-4 text-primary" />
+                            Upload from Computer (Supabase)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={handleInsertImageUrl}
+                            className="cursor-pointer gap-2"
+                        >
+                            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                            Insert via Image URL
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageFileChange}
+                    disabled={uploadingImage}
+                />
 
                 <div className="w-px h-6 bg-border mx-1 self-center" />
 

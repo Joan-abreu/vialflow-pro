@@ -25,7 +25,8 @@ import {
   ChevronDown,
   FileText,
   Award,
-  BarChart3
+  BarChart3,
+  BookOpen
 } from "lucide-react";
 import {
   Collapsible,
@@ -120,6 +121,7 @@ const Layout = ({ children }: LayoutProps) => {
     ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
     { name: "COAs", href: "/manufacturing/coas", icon: FileText },
+    { name: "Blog Posts", href: "/manufacturing/blogs", icon: BookOpen },
     { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
     { name: "Affiliates", href: "/manufacturing/affiliates", icon: Award },
     ...(isAdmin ? [

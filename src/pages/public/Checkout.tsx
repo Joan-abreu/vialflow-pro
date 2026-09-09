@@ -21,7 +21,7 @@ import {
 import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
 
 const Checkout = () => {
-    const { items, cartTotal, updateCartContactInfo, cartSessionId } = useCart();
+    const { items, cartTotal, updateCartContactInfo, cartSessionId, bundleDiscountTotal, bundleCalculation } = useCart();
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -50,6 +50,7 @@ const Checkout = () => {
     const activeUpsellSettings = upsellSettings || DEFAULT_PEPTIDE_UPSELL_SETTINGS;
     const upsellDiscount = useMemo(() => calculatePeptideUpsellDiscount(items, activeUpsellSettings), [items, activeUpsellSettings]);
     const autoDiscountAmount = (upsellDiscount.isEligible && appliedDiscounts.length === 0) ? upsellDiscount.discountAmount : 0;
+    const totalAutoDiscounts = autoDiscountAmount + (bundleDiscountTotal || 0);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
@@ -61,7 +62,7 @@ const Checkout = () => {
     }, 0);
     
     // Use final values if coupons are applied, otherwise fallback to standard with auto promo discount
-    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : Math.max(0, cartTotal - autoDiscountAmount);
+    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : Math.max(0, cartTotal - totalAutoDiscounts);
     const displayShipping = appliedDiscounts.length > 0 ? finalShipping : shippingCost;
     const totalAmount = Number((displaySubtotal + displayShipping).toFixed(2));
 
@@ -657,6 +658,15 @@ const Checkout = () => {
                                         <span className="font-medium">${displaySubtotal.toFixed(2)}</span>
                                     </div>
                                 </div>
+                                {bundleDiscountTotal > 0 && appliedDiscounts.length === 0 && (
+                                    <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            {bundleCalculation.bundleSummaryText || "Bundle & Save Discount"}
+                                        </span>
+                                        <span>-${bundleDiscountTotal.toFixed(2)}</span>
+                                    </div>
+                                )}
                                 {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && appliedDiscounts.length === 0 && (
                                     <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
                                         <span className="flex items-center gap-1.5">

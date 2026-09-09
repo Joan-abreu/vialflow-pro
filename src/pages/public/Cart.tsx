@@ -66,7 +66,7 @@ const QuantityInput = ({
 };
 
 const Cart = () => {
-    const { items, removeFromCart, updateQuantity, cartTotal } = useCart();
+    const { items, removeFromCart, updateQuantity, cartTotal, bundleDiscountTotal, bundleCalculation } = useCart();
     const navigate = useNavigate();
     const [requireResearchAck, setRequireResearchAck] = useState(false);
     const [ackResearch, setAckResearch] = useState(false);
@@ -100,7 +100,9 @@ const Cart = () => {
         return calculatePeptideUpsellDiscount(items, activeSettings);
     }, [items, activeSettings]);
 
-    const finalSubtotal = Math.max(0, cartTotal - (upsellDiscount.isEligible ? upsellDiscount.discountAmount : 0));
+    const autoUpsellAmount = upsellDiscount.isEligible ? upsellDiscount.discountAmount : 0;
+    const totalPromoSavings = autoUpsellAmount + (bundleDiscountTotal || 0);
+    const finalSubtotal = Math.max(0, Number((cartTotal - totalPromoSavings).toFixed(2)));
 
     // Handle proceed to checkout with smart upsell interception
     const handleProceedToCheckout = () => {
@@ -272,8 +274,24 @@ const Cart = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Subtotal</span>
-                                    <span>${cartTotal.toFixed(2)}</span>
+                                    <div className="flex items-center gap-2">
+                                        {totalPromoSavings > 0 && (
+                                            <span className="line-through text-muted-foreground">${cartTotal.toFixed(2)}</span>
+                                        )}
+                                        <span className="font-semibold">${(cartTotal - totalPromoSavings).toFixed(2)}</span>
+                                    </div>
                                 </div>
+
+                                {/* Applied Bundle & Save / Volume Tier Discounts */}
+                                {bundleDiscountTotal > 0 && (
+                                    <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            {bundleCalculation.bundleSummaryText || "Bundle & Save Discount"}
+                                        </span>
+                                        <span>-${bundleDiscountTotal.toFixed(2)}</span>
+                                    </div>
+                                )}
 
                                 {/* Applied Peptide Upsell Promo Discount */}
                                 {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && (

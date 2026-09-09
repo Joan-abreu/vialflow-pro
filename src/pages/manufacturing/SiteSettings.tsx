@@ -17,13 +17,15 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing, Layers, Plus, Tag } from "lucide-react";
 
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
 import { DEFAULT_PEPTIDE_UPSELL_SETTINGS } from "@/config/upsellConfig";
 import { DEFAULT_ANALYTICS_SETTINGS } from "@/config/analyticsSettingsConfig";
 import { ANALYTICS_SETTINGS_QUERY_KEY } from "@/hooks/useAnalyticsSettings";
+import { DEFAULT_BUNDLE_SETTINGS, BundleSaveSettings, VolumeTier } from "@/config/bundleConfig";
+import { BUNDLE_SETTINGS_QUERY_KEY } from "@/hooks/useBundleSettings";
 import { Textarea } from "@/components/ui/textarea";
 
 const TIMEZONES = [
@@ -62,6 +64,7 @@ const SiteSettings = () => {
     const [savingInventorySettings, setSavingInventorySettings] = useState(false);
     const [savingPeptideUpsell, setSavingPeptideUpsell] = useState(false);
     const [savingAnalytics, setSavingAnalytics] = useState(false);
+    const [savingBundleSettings, setSavingBundleSettings] = useState(false);
 
     // E-Commerce Analytics & Abandoned Cart Recovery Settings
     const [abandonedCartTrackingEnabled, setAbandonedCartTrackingEnabled] = useState(DEFAULT_ANALYTICS_SETTINGS.abandonedCartTrackingEnabled);
@@ -100,6 +103,17 @@ const SiteSettings = () => {
     const [peptideUpsellBadgeText, setPeptideUpsellBadgeText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.badgeText);
     const [peptideUpsellCtaText, setPeptideUpsellCtaText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.ctaButtonText);
     const [peptideUpsellDeclineText, setPeptideUpsellDeclineText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.declineButtonText);
+ 
+    // Bundle & Save / Volume Tiers Settings
+    const [bundleSettingsEnabled, setBundleSettingsEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.enabled);
+    const [fbtEnabled, setFbtEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.enabled);
+    const [fbtDiscountType, setFbtDiscountType] = useState<"percentage" | "fixed">(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.discountType);
+    const [fbtDiscountValue, setFbtDiscountValue] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.discountValue);
+    const [fbtHeadline, setFbtHeadline] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.headline);
+    const [fbtBadgeText, setFbtBadgeText] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.badgeText);
+    const [fbtCtaText, setFbtCtaText] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.ctaButtonText);
+    const [volumeTiersEnabled, setVolumeTiersEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.volumeTiers.enabled);
+    const [volumeTiers, setVolumeTiers] = useState<VolumeTier[]>(DEFAULT_BUNDLE_SETTINGS.volumeTiers.tiers);
 
     // Inventory & Restock System Settings
     const [enableStrictStockEnforcement, setEnableStrictStockEnforcement] = useState(true);
@@ -331,7 +345,8 @@ const SiteSettings = () => {
                     "exclude_admin_from_analytics",
                     "admin_alert_high_value_abandonment",
                     "high_value_abandonment_threshold",
-                    "analytics_admin_notification_email"
+                    "analytics_admin_notification_email",
+                    "bundle_save_settings"
                 ]);
 
             if (error) throw error;
@@ -548,6 +563,26 @@ const SiteSettings = () => {
                         if (mn.cashAppTag) setCashAppTag(mn.cashAppTag);
                         if (mn.cashAppQrUrl) setCashAppQrUrl(mn.cashAppQrUrl);
                         if (mn.instructions) setManualInstructions(mn.instructions);
+                    } catch (e) {}
+                }
+
+                const bundleCfg = data.find((s: any) => s.key === "bundle_save_settings");
+                if (bundleCfg?.value) {
+                    try {
+                        const parsed = JSON.parse(bundleCfg.value);
+                        if (typeof parsed.enabled === "boolean") setBundleSettingsEnabled(parsed.enabled);
+                        if (parsed.frequentlyBoughtTogether) {
+                            if (typeof parsed.frequentlyBoughtTogether.enabled === "boolean") setFbtEnabled(parsed.frequentlyBoughtTogether.enabled);
+                            if (parsed.frequentlyBoughtTogether.discountType) setFbtDiscountType(parsed.frequentlyBoughtTogether.discountType);
+                            if (parsed.frequentlyBoughtTogether.discountValue !== undefined) setFbtDiscountValue(parsed.frequentlyBoughtTogether.discountValue);
+                            if (parsed.frequentlyBoughtTogether.headline) setFbtHeadline(parsed.frequentlyBoughtTogether.headline);
+                            if (parsed.frequentlyBoughtTogether.badgeText) setFbtBadgeText(parsed.frequentlyBoughtTogether.badgeText);
+                            if (parsed.frequentlyBoughtTogether.ctaButtonText) setFbtCtaText(parsed.frequentlyBoughtTogether.ctaButtonText);
+                        }
+                        if (parsed.volumeTiers) {
+                            if (typeof parsed.volumeTiers.enabled === "boolean") setVolumeTiersEnabled(parsed.volumeTiers.enabled);
+                            if (Array.isArray(parsed.volumeTiers.tiers)) setVolumeTiers(parsed.volumeTiers.tiers);
+                        }
                     } catch (e) {}
                 }
 
@@ -981,6 +1016,72 @@ const SiteSettings = () => {
             toast.error("Failed to save analytics settings");
         } finally {
             setSavingAnalytics(false);
+        }
+    };
+
+    const handleAddVolumeTier = () => {
+        const nextMinQty = volumeTiers.length > 0 ? Math.max(...volumeTiers.map(t => t.minQty)) + 2 : 3;
+        const newTier: VolumeTier = {
+            id: `tier-${Date.now()}`,
+            minQty: nextMinQty,
+            discountPercentage: 15,
+            badge: `Save 15% • Value`
+        };
+        setVolumeTiers([...volumeTiers, newTier].sort((a, b) => a.minQty - b.minQty));
+    };
+
+    const handleRemoveVolumeTier = (id: string) => {
+        setVolumeTiers(volumeTiers.filter(t => t.id !== id));
+    };
+
+    const handleUpdateVolumeTier = (id: string, field: keyof VolumeTier, value: any) => {
+        setVolumeTiers(volumeTiers.map(t => {
+            if (t.id === id) {
+                return { ...t, [field]: value };
+            }
+            return t;
+        }));
+    };
+
+    const handleSaveBundleSettings = async () => {
+        setSavingBundleSettings(true);
+        const now = new Date().toISOString();
+
+        const payload: BundleSaveSettings = {
+            enabled: bundleSettingsEnabled,
+            frequentlyBoughtTogether: {
+                enabled: fbtEnabled,
+                discountType: fbtDiscountType,
+                discountValue: fbtDiscountValue,
+                headline: fbtHeadline,
+                badgeText: fbtBadgeText,
+                ctaButtonText: fbtCtaText,
+                defaultPartnerCategory: "water",
+            },
+            volumeTiers: {
+                enabled: volumeTiersEnabled,
+                tiers: volumeTiers,
+            }
+        };
+
+        try {
+            const { error } = await supabase
+                .from("app_settings" as any)
+                .upsert({
+                    key: "bundle_save_settings",
+                    value: JSON.stringify(payload),
+                    updated_at: now
+                });
+
+            if (error) throw error;
+
+            queryClient.invalidateQueries({ queryKey: BUNDLE_SETTINGS_QUERY_KEY });
+            toast.success("Bundle & Save settings saved successfully!");
+        } catch (error: any) {
+            console.error("Error saving bundle settings:", error);
+            toast.error("Failed to save bundle settings");
+        } finally {
+            setSavingBundleSettings(false);
         }
     };
 
@@ -2965,6 +3066,237 @@ const SiteSettings = () => {
                                     <>
                                         <Save className="mr-2 h-4 w-4" />
                                         Save Analytics Settings
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 7. Bundle & Save / Volume Discount Tiers */}
+                <Card className="border-primary/30 shadow-sm">
+                    <CardHeader className="space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-primary">
+                                <Layers className="h-5 w-5 text-primary" />
+                                <CardTitle className="text-xl">Bundle & Save / Volume Tier Discounts</CardTitle>
+                            </div>
+                            <Badge variant={bundleSettingsEnabled ? "default" : "secondary"} className={bundleSettingsEnabled ? "bg-primary text-primary-foreground font-bold" : ""}>
+                                {bundleSettingsEnabled ? "Active & Converting" : "Disabled"}
+                            </Badge>
+                        </div>
+                        <CardDescription>
+                            Incentivize larger cart sizes and increase Average Order Value (AOV) with automated Volume Discount Tiers and 1-click Frequently Bought Together (Pair & Save) bundles.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8">
+                        {/* Master Suite Toggle */}
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/20">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Enable Bundle & Save Engine</Label>
+                                    <Badge variant="outline" className="text-[10px] text-primary bg-primary/10 font-bold">AOV Booster</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Master toggle for storefront volume pricing tiers and complementary pair widgets.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={bundleSettingsEnabled}
+                                onCheckedChange={setBundleSettingsEnabled}
+                            />
+                        </div>
+
+                        {/* SUB-SECTION 1: Volume / Quantity Tiers */}
+                        <div className="space-y-4 pt-2 border-t">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Tag className="h-4 w-4 text-primary" />
+                                    <h3 className="font-bold text-base text-foreground">
+                                        1. Quantity / Volume Pricing Tiers
+                                    </h3>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-muted-foreground">Enable Tiers:</span>
+                                    <Switch
+                                        checked={volumeTiersEnabled}
+                                        onCheckedChange={setVolumeTiersEnabled}
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Tier buttons appear on product pages above the quantity selector (e.g. 1 vial standard, 3 vials @ 10% off, 5+ vials @ 20% off). Customers clicking a tier automatically update their quantity and receive the discounted unit price.
+                            </p>
+
+                            {/* Tiers List */}
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-12 gap-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <div className="col-span-3 sm:col-span-2">Min Qty</div>
+                                    <div className="col-span-3 sm:col-span-3">Discount %</div>
+                                    <div className="col-span-4 sm:col-span-5">Badge / Tagline</div>
+                                    <div className="col-span-2 sm:col-span-2 text-right">Action</div>
+                                </div>
+
+                                {volumeTiers.map((tier) => (
+                                    <div key={tier.id} className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-lg border bg-card hover:border-primary/40 transition-colors">
+                                        <div className="col-span-3 sm:col-span-2">
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                value={tier.minQty}
+                                                onChange={(e) => handleUpdateVolumeTier(tier.id, "minQty", Math.max(1, parseInt(e.target.value) || 1))}
+                                                className="h-9 text-xs font-medium"
+                                            />
+                                        </div>
+                                        <div className="col-span-3 sm:col-span-3">
+                                            <div className="relative flex items-center">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    max="99"
+                                                    value={tier.discountPercentage}
+                                                    onChange={(e) => handleUpdateVolumeTier(tier.id, "discountPercentage", Math.min(99, Math.max(0, parseFloat(e.target.value) || 0)))}
+                                                    className="h-9 text-xs font-bold pr-6"
+                                                />
+                                                <span className="absolute right-2 text-xs text-muted-foreground">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="col-span-4 sm:col-span-5">
+                                            <Input
+                                                value={tier.badge}
+                                                onChange={(e) => handleUpdateVolumeTier(tier.id, "badge", e.target.value)}
+                                                placeholder="e.g. Save 10% • Popular"
+                                                className="h-9 text-xs"
+                                            />
+                                        </div>
+                                        <div className="col-span-2 sm:col-span-2 flex justify-end">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={volumeTiers.length <= 1}
+                                                onClick={() => handleRemoveVolumeTier(tier.id)}
+                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                title="Remove Tier"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <div className="flex justify-start pt-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleAddVolumeTier}
+                                        className="text-xs h-8 gap-1.5 border-dashed"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Add Volume Tier
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SUB-SECTION 2: Frequently Bought Together (Pair & Save) */}
+                        <div className="space-y-4 pt-4 border-t">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    <h3 className="font-bold text-base text-foreground">
+                                        2. Frequently Bought Together (Pair & Save)
+                                    </h3>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-muted-foreground">Enable Pair & Save:</span>
+                                    <Switch
+                                        checked={fbtEnabled}
+                                        onCheckedChange={setFbtEnabled}
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Shows a complementary pairing card directly below the Add to Cart button (e.g. Peptide + 30ml Bacteriostatic Reconstitution Solution combo) with 1-click addition to cart and combined discount.
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Discount Type</Label>
+                                    <Select value={fbtDiscountType} onValueChange={(val: any) => setFbtDiscountType(val)}>
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="percentage">Percentage Discount (%)</SelectItem>
+                                            <SelectItem value="fixed">Fixed Dollar Discount ($ USD)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">
+                                        {fbtDiscountType === "percentage" ? "Discount Percentage (%)" : "Discount Amount ($ USD)"}
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max={fbtDiscountType === "percentage" ? 99 : 500}
+                                        value={fbtDiscountValue}
+                                        onChange={(e) => setFbtDiscountValue(parseFloat(e.target.value) || 0)}
+                                        className="h-9 text-xs font-bold"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Badge Pill Text</Label>
+                                    <Input
+                                        value={fbtBadgeText}
+                                        onChange={(e) => setFbtBadgeText(e.target.value)}
+                                        placeholder="PAIR & SAVE 15%"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label className="text-xs font-semibold">Card Headline</Label>
+                                    <Input
+                                        value={fbtHeadline}
+                                        onChange={(e) => setFbtHeadline(e.target.value)}
+                                        placeholder="Frequently Paired for Reconstitution"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">1-Click Button Text</Label>
+                                    <Input
+                                        value={fbtCtaText}
+                                        onChange={(e) => setFbtCtaText(e.target.value)}
+                                        placeholder="Add Both to Cart & Save"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Save Button */}
+                        <div className="flex justify-end pt-4 border-t">
+                            <Button 
+                                onClick={handleSaveBundleSettings}
+                                disabled={savingBundleSettings}
+                                className="font-bold min-w-[220px] bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
+                            >
+                                {savingBundleSettings ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving Settings...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Bundle & Save Settings
                                     </>
                                 )}
                             </Button>

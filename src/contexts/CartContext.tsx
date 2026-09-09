@@ -1,7 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getOrCreateSessionId, captureUtmParams, getGeoIpInfo } from "@/utils/sessionTracker";
+import { useBundleSettings } from "@/hooks/useBundleSettings";
+import { 
+    DEFAULT_BUNDLE_SETTINGS, 
+    calculateBundleAndVolumeSavings, 
+    BundleCalculationResult 
+} from "@/config/bundleConfig";
 
 export interface Product {
     id: string;
@@ -86,6 +92,9 @@ interface CartContextType {
         country_code?: string;
     }) => Promise<void>;
     markCartConverted: (orderId: string) => Promise<void>;
+    bundleDiscountTotal: number;
+    discountedCartTotal: number;
+    bundleCalculation: BundleCalculationResult;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -109,6 +118,17 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         },
         0
     );
+
+    // Calculate dynamic Bundle & Save / Volume Tier Discounts
+    const { data: bundleSettings } = useBundleSettings();
+    const activeBundleSettings = bundleSettings || DEFAULT_BUNDLE_SETTINGS;
+
+    const bundleCalculation = useMemo(() => {
+        return calculateBundleAndVolumeSavings(items, activeBundleSettings);
+    }, [items, activeBundleSettings]);
+
+    const bundleDiscountTotal = bundleCalculation.totalSavings;
+    const discountedCartTotal = Math.max(0, Number((cartTotal - bundleDiscountTotal).toFixed(2)));
 
     // Calculate total weight
     const totalWeight = items.reduce((sum, item) => {
@@ -570,6 +590,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 cartSessionId,
                 updateCartContactInfo,
                 markCartConverted,
+                bundleDiscountTotal,
+                discountedCartTotal,
+                bundleCalculation,
             }}
         >
             {children}

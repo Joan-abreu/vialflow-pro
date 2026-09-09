@@ -22,6 +22,10 @@ import ProductCOABadge, { COARecord } from "@/components/products/ProductCOABadg
 import ProductCOAModal from "@/components/products/ProductCOAModal";
 import ProductCOASection from "@/components/products/ProductCOASection";
 import { trackAnalyticsEvent } from "@/utils/sessionTracker";
+import VolumeDiscountTiers from "@/components/public/VolumeDiscountTiers";
+import FrequentlyBoughtTogether from "@/components/public/FrequentlyBoughtTogether";
+import { useBundleSettings } from "@/hooks/useBundleSettings";
+import { DEFAULT_BUNDLE_SETTINGS } from "@/config/bundleConfig";
 
 interface ProductWithVariants {
     id: string;
@@ -112,6 +116,10 @@ const ProductDetails = () => {
             return map;
         }
     });
+
+    // Fetch bundle & volume tiers settings
+    const { data: bundleSettings } = useBundleSettings();
+    const activeBundleSettings = bundleSettings || DEFAULT_BUNDLE_SETTINGS;
 
     const handleLabelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -408,7 +416,7 @@ const ProductDetails = () => {
         enabled: !!id,
     });
 
-    const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
+    const selectedVariant = product?.variants.find(v => v.id === selectedVariantId) || (product?.variants && product.variants.length > 0 ? (product.variants.find(v => v.stock_quantity > 0) || product.variants[0]) : null);
     const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
     const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -873,6 +881,18 @@ const ProductDetails = () => {
                             </div>
                         )}
 
+                        {/* Volume / Quantity Discount Tiers */}
+                        {activeBundleSettings.enabled && activeBundleSettings.volumeTiers.enabled && !isBulk && !selectedVariant?.bulk_only && (
+                            <VolumeDiscountTiers
+                                basePrice={selectedVariant?.price || 0}
+                                currentQuantity={quantity}
+                                onSelectQuantity={(newQty) => setQuantity(newQty)}
+                                tiers={activeBundleSettings.volumeTiers.tiers}
+                                packSize={selectedVariant?.pack_size || 1}
+                                disabled={!selectedVariant || (selectedVariant.stock_quantity <= 0)}
+                            />
+                        )}
+
                         {/* Quantity Selector */}
                         <div>
                             <label className="block text-sm font-medium mb-3">Quantity</label>
@@ -1005,6 +1025,15 @@ const ProductDetails = () => {
                             product={product}
                             selectedVariant={selectedVariant}
                         />
+
+                        {/* Frequently Bought Together (Pair & Save) */}
+                        {activeBundleSettings.enabled && activeBundleSettings.frequentlyBoughtTogether.enabled && !isBulk && !selectedVariant?.bulk_only && selectedVariant && (
+                            <FrequentlyBoughtTogether
+                                currentProduct={product}
+                                currentVariant={selectedVariant}
+                                fbtConfig={activeBundleSettings.frequentlyBoughtTogether}
+                            />
+                        )}
 
                         {/* COA / Lab Report Interactive Modal */}
                         <ProductCOAModal

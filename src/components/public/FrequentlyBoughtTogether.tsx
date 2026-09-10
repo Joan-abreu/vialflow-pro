@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
-import { FrequentlyBoughtTogetherConfig, isWaterProduct, isPeptideProduct } from "@/config/bundleConfig";
+import { FrequentlyBoughtTogetherConfig, isGlpProduct, isResearchPeptideProduct } from "@/config/bundleConfig";
+import { getBaseSalesCount } from "@/utils/salesCount";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +25,7 @@ interface FrequentlyBoughtTogetherProps {
         image_url?: string | null;
         images?: string[];
         product_categories?: { name?: string } | null;
+        slug?: string | null;
     };
     currentVariant: ProductVariant | null;
     fbtConfig: FrequentlyBoughtTogetherConfig;
@@ -51,15 +53,16 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
         }
     }, [currentVariant?.id, currentVariant?.stock_quantity]);
 
-    const isCurrentWater = isWaterProduct(currentProduct);
+    const isCurrentGlp = isGlpProduct(currentProduct);
+    const isCurrentResearch = isResearchPeptideProduct(currentProduct);
+    const pairingMode = fbtConfig.pairingMode || "smart";
+    const customPairId = fbtConfig.customPairs ? fbtConfig.customPairs[currentProduct.id] : undefined;
 
     // Fetch complementary partner product
     const { data: partnerData, isLoading } = useQuery({
-        queryKey: ["fbt-partner-product", currentProduct.id, isCurrentWater],
+        queryKey: ["fbt-partner-product", currentProduct.id, pairingMode, customPairId, isCurrentGlp],
         staleTime: 5 * 60 * 1000,
         queryFn: async () => {
-            // If current product is Water, find a popular research peptide
-            // If current product is Peptide/Other, find Bacteriostatic Water / Reconstitution solution
             let query = supabase
                 .from("products")
                 .select(`
@@ -82,7 +85,7 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                 .eq("is_published", true)
                 .neq("id", currentProduct.id)
                 .or("is_archived.eq.false,is_archived.is.null")
-                .limit(30);
+                .limit(40);
 
             const { data, error } = await query;
             if (error) {
@@ -92,22 +95,77 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
 
             if (!data || data.length === 0) return null;
 
-            // Filter for complementary match (exclude bulk wholesale items)
-            let matched = data.find(p => {
-                const isBulk = (p.name || "").toLowerCase().includes("[bulk") || (p.product_categories?.name || "").toLowerCase().includes("bulk");
-                if (isBulk) return false;
-                const inStock = (p.variants || []).some((v: any) => (v.stock_quantity ?? 999) > 0);
-                if (!inStock) return false;
-                return isCurrentWater ? isPeptideProduct(p) : isWaterProduct(p);
-            });
+            let matched: any = null;
 
-            // Fallback: pick any other non-bulk product with in-stock variants
-            if (!matched) {
-                matched = data.find(p => {
+            // 1. MANUAL MODE: Look up explicitly configured pair
+            if (pairingMode === "manual") {
+                if (customPairId) {
+                    matched = data.find(p => p.id === customPairId);
+                    const hasStock = matched && (matched.variants || []).some((v: any) => (v.stock_quantity ?? 999) > 0);
+                    if (!hasStock) matched = null;
+                }
+
+                // If not found in custom pairs, check default group fallback
+                if (!matched) {
+                    const defaultPartnerId = isCurrentGlp ? fbtConfig.defaultResearchPartnerId : fbtConfig.defaultGlpPartnerId;
+                    if (defaultPartnerId) {
+                        matched = data.find(p => p.id === defaultPartnerId);
+                        const hasStock = matched && (matched.variants || []).some((v: any) => (v.stock_quantity ?? 999) > 0);
+                        if (!hasStock) matched = null;
+                    }
+                }
+
+                // In strict manual mode, if no custom pair or fallback is configured/in-stock, do not show
+                if (!matched) return null;
+            } else {
+                // 2. SMART MODE: Rule-based ranking by Best Seller / Popularity & Cross-Group Affinity
+                const eligible = data.filter(p => {
                     const isBulk = (p.name || "").toLowerCase().includes("[bulk") || (p.product_categories?.name || "").toLowerCase().includes("bulk");
                     if (isBulk) return false;
-                    return (p.variants || []).some((v: any) => (v.stock_quantity ?? 999) > 0);
+                    const inStock = (p.variants || []).some((v: any) => (v.stock_quantity ?? 999) > 0);
+                    if (!inStock) return false;
+
+                    // Group match:
+                    if (isCurrentGlp) {
+                        return isResearchPeptideProduct(p);
+                    }
+                    if (isCurrentResearch) {
+                        return isGlpProduct(p);
+                    }
+                    return isGlpProduct(p) || isResearchPeptideProduct(p);
                 });
+
+                if (eligible.length === 0) return null;
+
+                // Rank by popularity score + synergy affinity
+                const scored = eligible.map(p => {
+                    const baseSales = getBaseSalesCount(p.id, false, p.name, p.product_categories?.name);
+                    let affinityBonus = 0;
+                    const pName = (p.name || "").toLowerCase();
+                    const pSlug = (p.slug || "").toLowerCase();
+
+                    if (isCurrentGlp) {
+                        // High synergy partner for GLPs: Wolverine, then BPC-157, KLOW, NAD+
+                        if (pName.includes("wolverine") || pSlug.includes("wolverine")) affinityBonus += 250;
+                        else if (pName.includes("bpc-157") || pSlug.includes("bpc-157")) affinityBonus += 120;
+                        else if (pName.includes("klow") || pSlug.includes("klow")) affinityBonus += 100;
+                        else if (pName.includes("nad") || pSlug.includes("nad")) affinityBonus += 80;
+                    } else {
+                        // High synergy partner for Research Peptides: GLP1-SM, then GLP2-TZ, GLP3-RT
+                        if (pSlug.includes("glp1-sm") || pName.includes("glp1-sm")) affinityBonus += 250;
+                        else if (pSlug.includes("glp2-tz") || pName.includes("glp2-tz")) affinityBonus += 180;
+                        else if (pSlug.includes("glp3-rt") || pName.includes("glp3-rt")) affinityBonus += 120;
+                        else if (isGlpProduct(p)) affinityBonus += 60;
+                    }
+
+                    return {
+                        product: p,
+                        score: baseSales + affinityBonus
+                    };
+                });
+
+                scored.sort((a, b) => b.score - a.score);
+                matched = scored[0].product;
             }
 
             if (!matched) return null;
@@ -190,10 +248,10 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                 toast.success(
                     <div className="space-y-1">
                         <strong className="font-bold flex items-center gap-1 text-emerald-600">
-                            <Sparkles className="h-4 w-4" /> Pair & Save Bundle Added!
+                            <Sparkles className="h-4 w-4" /> Protocol Pair Added!
                         </strong>
                         <p className="text-xs text-muted-foreground">
-                            You saved ${savings.toFixed(2)} on this combo!
+                            You saved ${savings.toFixed(2)} on this research pair!
                         </p>
                     </div>
                 );
@@ -210,6 +268,10 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
     const currentImage = currentVariant.image_url || currentProduct.image_url || (currentProduct.images && currentProduct.images[0]);
     const partnerImage = partnerVariant.image_url || partnerData.product.image_url || (partnerData.product.images && partnerData.product.images[0]);
 
+    const subtitleText = isCurrentGlp
+        ? `Synergistic recovery & research protocol with ${partnerData.product.name}`
+        : `Synergistic metabolic protocol with ${partnerData.product.name}`;
+
     return (
         <div className="bg-gradient-to-br from-card via-card to-emerald-500/[0.04] border-2 border-emerald-500/25 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 my-6">
             {/* Header */}
@@ -220,15 +282,19 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                     </div>
                     <div>
                         <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight leading-tight">
-                            {fbtConfig.headline || "Frequently Paired for Reconstitution"}
+                            {fbtConfig.headline && fbtConfig.headline !== "Frequently Paired for Reconstitution"
+                                ? fbtConfig.headline
+                                : "Frequently Paired Research Protocol"}
                         </h3>
                         <p className="text-[11px] text-muted-foreground hidden sm:block">
-                            Bundle with reconstitution solution & save instantly
+                            {subtitleText}
                         </p>
                     </div>
                 </div>
                 <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-xs shrink-0">
-                    {fbtConfig.badgeText || "PAIR & SAVE 15%"}
+                    {fbtConfig.badgeText && fbtConfig.badgeText !== "PAIR & SAVE 15%"
+                        ? fbtConfig.badgeText
+                        : "PROTOCOL PAIR • SAVE 15%"}
                 </Badge>
             </div>
 
@@ -336,7 +402,7 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                 <div className="flex items-center justify-between">
                     <div>
                         <span className="text-xs text-muted-foreground font-semibold block">
-                            Combined Bundle Price:
+                            Combined Protocol Price:
                         </span>
                         {isBothSelected && savings > 0 ? (
                             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
@@ -344,7 +410,7 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                             </span>
                         ) : (
                             <span className="text-[11px] text-muted-foreground">
-                                Select both to unlock pair discount
+                                Select both to unlock protocol discount
                             </span>
                         )}
                     </div>
@@ -375,7 +441,7 @@ export const FrequentlyBoughtTogether: React.FC<FrequentlyBoughtTogetherProps> =
                             <ShoppingCart className="h-4 w-4" />
                             <span>
                                 {isBothSelected 
-                                    ? (fbtConfig.ctaButtonText || "Add Both to Cart & Save") 
+                                    ? (fbtConfig.ctaButtonText || "Add Protocol Pair & Save") 
                                     : (includeCurrent ? "Add Item to Cart" : "Add Partner to Cart")}
                             </span>
                         </>

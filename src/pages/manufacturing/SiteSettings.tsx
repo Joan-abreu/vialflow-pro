@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/payme
 import { DEFAULT_PEPTIDE_UPSELL_SETTINGS } from "@/config/upsellConfig";
 import { DEFAULT_ANALYTICS_SETTINGS } from "@/config/analyticsSettingsConfig";
 import { ANALYTICS_SETTINGS_QUERY_KEY } from "@/hooks/useAnalyticsSettings";
-import { DEFAULT_BUNDLE_SETTINGS, BundleSaveSettings, VolumeTier } from "@/config/bundleConfig";
+import { DEFAULT_BUNDLE_SETTINGS, BundleSaveSettings, VolumeTier, isGlpProduct, isResearchPeptideProduct } from "@/config/bundleConfig";
 import { BUNDLE_SETTINGS_QUERY_KEY } from "@/hooks/useBundleSettings";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -107,6 +107,10 @@ const SiteSettings = () => {
     // Bundle & Save / Volume Tiers Settings
     const [bundleSettingsEnabled, setBundleSettingsEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.enabled);
     const [fbtEnabled, setFbtEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.enabled);
+    const [fbtPairingMode, setFbtPairingMode] = useState<"smart" | "manual">(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.pairingMode || "smart");
+    const [fbtCustomPairs, setFbtCustomPairs] = useState<Record<string, string>>(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.customPairs || {});
+    const [newPairSourceId, setNewPairSourceId] = useState<string>("");
+    const [newPairTargetId, setNewPairTargetId] = useState<string>("");
     const [fbtDiscountType, setFbtDiscountType] = useState<"percentage" | "fixed">(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.discountType);
     const [fbtDiscountValue, setFbtDiscountValue] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.discountValue);
     const [fbtHeadline, setFbtHeadline] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.headline);
@@ -114,6 +118,19 @@ const SiteSettings = () => {
     const [fbtCtaText, setFbtCtaText] = useState(DEFAULT_BUNDLE_SETTINGS.frequentlyBoughtTogether.ctaButtonText);
     const [volumeTiersEnabled, setVolumeTiersEnabled] = useState(DEFAULT_BUNDLE_SETTINGS.volumeTiers.enabled);
     const [volumeTiers, setVolumeTiers] = useState<VolumeTier[]>(DEFAULT_BUNDLE_SETTINGS.volumeTiers.tiers);
+
+    const { data: allProducts = [] } = useQuery({
+        queryKey: ["site-settings-products"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("products")
+                .select("id, name, slug, product_categories(name)")
+                .eq("is_published", true)
+                .or("is_archived.eq.false,is_archived.is.null")
+                .order("name");
+            return (data || []).filter((p: any) => !p.name?.toLowerCase().includes("[bulk"));
+        }
+    });
 
     // Inventory & Restock System Settings
     const [enableStrictStockEnforcement, setEnableStrictStockEnforcement] = useState(true);
@@ -436,6 +453,8 @@ const SiteSettings = () => {
                 if (leadTime) setRestockLeadTimeDays(Number(leadTime.value) || 14);
                 if (discount) setRestockDiscountPercent(Number(discount.value) || 40);
                 if (coupon) setRestockCouponCode(coupon.value || "RESTOCK40");
+
+                const maintenance = data.find((s: any) => s.key === "maintenance_mode");
                 const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
                 const requireLogin = data.find((s: any) => s.key === "require_login_for_checkout");
                 const hour = data.find((s: any) => s.key === "shipping_cutoff_hour");
@@ -573,6 +592,8 @@ const SiteSettings = () => {
                         if (typeof parsed.enabled === "boolean") setBundleSettingsEnabled(parsed.enabled);
                         if (parsed.frequentlyBoughtTogether) {
                             if (typeof parsed.frequentlyBoughtTogether.enabled === "boolean") setFbtEnabled(parsed.frequentlyBoughtTogether.enabled);
+                            if (parsed.frequentlyBoughtTogether.pairingMode) setFbtPairingMode(parsed.frequentlyBoughtTogether.pairingMode);
+                            if (parsed.frequentlyBoughtTogether.customPairs) setFbtCustomPairs(parsed.frequentlyBoughtTogether.customPairs);
                             if (parsed.frequentlyBoughtTogether.discountType) setFbtDiscountType(parsed.frequentlyBoughtTogether.discountType);
                             if (parsed.frequentlyBoughtTogether.discountValue !== undefined) setFbtDiscountValue(parsed.frequentlyBoughtTogether.discountValue);
                             if (parsed.frequentlyBoughtTogether.headline) setFbtHeadline(parsed.frequentlyBoughtTogether.headline);
@@ -1043,6 +1064,32 @@ const SiteSettings = () => {
         }));
     };
 
+    const handleAddPair = () => {
+        if (!newPairSourceId || !newPairTargetId) {
+            toast.error("Please select both a source product and a partner product");
+            return;
+        }
+        if (newPairSourceId === newPairTargetId) {
+            toast.error("A product cannot be paired with itself");
+            return;
+        }
+        setFbtCustomPairs(prev => ({
+            ...prev,
+            [newPairSourceId]: newPairTargetId
+        }));
+        setNewPairSourceId("");
+        setNewPairTargetId("");
+        toast.success("Custom pair added! Remember to save settings.");
+    };
+
+    const handleRemovePair = (sourceId: string) => {
+        setFbtCustomPairs(prev => {
+            const copy = { ...prev };
+            delete copy[sourceId];
+            return copy;
+        });
+    };
+
     const handleSaveBundleSettings = async () => {
         setSavingBundleSettings(true);
         const now = new Date().toISOString();
@@ -1051,12 +1098,14 @@ const SiteSettings = () => {
             enabled: bundleSettingsEnabled,
             frequentlyBoughtTogether: {
                 enabled: fbtEnabled,
+                pairingMode: fbtPairingMode,
                 discountType: fbtDiscountType,
                 discountValue: fbtDiscountValue,
                 headline: fbtHeadline,
                 badgeText: fbtBadgeText,
                 ctaButtonText: fbtCtaText,
-                defaultPartnerCategory: "water",
+                defaultPartnerCategory: "peptides",
+                customPairs: fbtCustomPairs,
             },
             volumeTiers: {
                 enabled: volumeTiersEnabled,
@@ -3218,8 +3267,149 @@ const SiteSettings = () => {
                                 </div>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Shows a complementary pairing card directly below the Add to Cart button (e.g. Peptide + 30ml Bacteriostatic Reconstitution Solution combo) with 1-click addition to cart and combined discount.
+                                Cross-sells a complementary research peptide directly on the product page (e.g. GLP1-SM + Wolverine) with 1-click addition to cart and combined protocol savings.
                             </p>
+
+                            {/* Pairing Mode Switch: Smart (Best Seller) vs Manual (Custom Pairs) */}
+                            <div className="bg-muted/40 border rounded-xl p-3.5 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                            <Layers className="h-3.5 w-3.5 text-primary" />
+                                            Pairing Engine Strategy
+                                        </Label>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Choose whether pairings are selected automatically based on sales popularity or explicitly assigned.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 bg-background p-1 rounded-lg border shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFbtPairingMode("smart")}
+                                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                                                fbtPairingMode === "smart"
+                                                    ? "bg-primary text-primary-foreground shadow-xs"
+                                                    : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                        >
+                                            🔵 Smart Mode (Best Seller)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFbtPairingMode("manual")}
+                                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                                                fbtPairingMode === "manual"
+                                                    ? "bg-emerald-600 text-white shadow-xs"
+                                                    : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                        >
+                                            🟢 Manual Mode (Custom Pairs)
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {fbtPairingMode === "smart" ? (
+                                    <div className="text-xs text-muted-foreground bg-blue-500/10 border border-blue-500/20 text-blue-950 dark:text-blue-200 p-2.5 rounded-lg flex items-start gap-2">
+                                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                                        <span>
+                                            <strong>Smart Mode Active:</strong> GLP Peptides (like GLP1-SM, GLP2-TZ, GLP3-RT) automatically pair with the #1 best-selling, in-stock research peptide (such as Wolverine, BPC-157, etc.). Research peptides automatically pair with the #1 best-selling GLP product in stock.
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 pt-2 border-t border-border/60">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2.5">
+                                            <div className="w-full sm:w-1/2 space-y-1">
+                                                <Label className="text-[11px] font-semibold">Primary Product</Label>
+                                                <Select value={newPairSourceId} onValueChange={setNewPairSourceId}>
+                                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                                        <SelectValue placeholder="Select primary product..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {allProducts.map((p: any) => (
+                                                            <SelectItem key={p.id} value={p.id} className="text-xs">
+                                                                {p.name} {isGlpProduct(p) ? "⭐ (GLP)" : ""}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="w-full sm:w-1/2 space-y-1">
+                                                <Label className="text-[11px] font-semibold">Paired Partner Product</Label>
+                                                <Select value={newPairTargetId} onValueChange={setNewPairTargetId}>
+                                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                                        <SelectValue placeholder="Select partner to pair..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {allProducts
+                                                            .filter((p: any) => p.id !== newPairSourceId)
+                                                            .map((p: any) => (
+                                                                <SelectItem key={p.id} value={p.id} className="text-xs">
+                                                                    {p.name} {isGlpProduct(p) ? "⭐ (GLP)" : ""}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={handleAddPair}
+                                                className="h-8 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                                            >
+                                                <Plus className="h-3.5 w-3.5" />
+                                                Add Pair
+                                            </Button>
+                                        </div>
+
+                                        {/* List of Configured Custom Pairs */}
+                                        <div className="space-y-1.5 pt-1">
+                                            <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                Configured Custom Pairs ({Object.keys(fbtCustomPairs).length})
+                                            </Label>
+                                            {Object.keys(fbtCustomPairs).length === 0 ? (
+                                                <p className="text-xs text-muted-foreground italic py-1">
+                                                    No custom pairs added yet. Select a primary product and partner above to link them explicitly.
+                                                </p>
+                                            ) : (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                                                    {Object.entries(fbtCustomPairs).map(([sourceId, targetId]) => {
+                                                        const sourceProd = allProducts.find((p: any) => p.id === sourceId);
+                                                        const targetProd = allProducts.find((p: any) => p.id === targetId);
+                                                        return (
+                                                            <div
+                                                                key={sourceId}
+                                                                className="flex items-center justify-between p-2 rounded-lg bg-background border text-xs shadow-2xs"
+                                                            >
+                                                                <div className="flex items-center gap-1.5 truncate mr-2">
+                                                                    <span className="font-bold text-foreground truncate max-w-[120px]">
+                                                                        {sourceProd?.name || sourceId.slice(0, 8)}
+                                                                    </span>
+                                                                    <span className="text-muted-foreground">➔</span>
+                                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
+                                                                        {targetProd?.name || targetId.slice(0, 8)}
+                                                                    </span>
+                                                                </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => handleRemovePair(sourceId)}
+                                                                    className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+                                                                    title="Remove Pair"
+                                                                >
+                                                                    <Trash2 className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="space-y-1.5">
@@ -3254,7 +3444,7 @@ const SiteSettings = () => {
                                     <Input
                                         value={fbtBadgeText}
                                         onChange={(e) => setFbtBadgeText(e.target.value)}
-                                        placeholder="PAIR & SAVE 15%"
+                                        placeholder="PROTOCOL PAIR • SAVE 15%"
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -3264,7 +3454,7 @@ const SiteSettings = () => {
                                     <Input
                                         value={fbtHeadline}
                                         onChange={(e) => setFbtHeadline(e.target.value)}
-                                        placeholder="Frequently Paired for Reconstitution"
+                                        placeholder="Frequently Paired Research Protocol"
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -3274,7 +3464,7 @@ const SiteSettings = () => {
                                     <Input
                                         value={fbtCtaText}
                                         onChange={(e) => setFbtCtaText(e.target.value)}
-                                        placeholder="Add Both to Cart & Save"
+                                        placeholder="Add Protocol Pair & Save"
                                         className="h-9 text-xs"
                                     />
                                 </div>

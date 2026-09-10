@@ -9,12 +9,16 @@ export interface VolumeTier {
 
 export interface FrequentlyBoughtTogetherConfig {
     enabled: boolean;
+    pairingMode: "smart" | "manual"; // Switch between Smart (Best Seller) and Manual (Explicit Pairs)
     discountType: "percentage" | "fixed";
     discountValue: number; // e.g. 15 for 15% or 5 for $5.00 off
     headline: string;
     badgeText: string;
     ctaButtonText: string;
-    defaultPartnerCategory: string; // e.g. "water" or "reconstitution"
+    defaultPartnerCategory: string; // e.g. "peptides"
+    customPairs?: Record<string, string>; // Map of productId -> partnerProductId
+    defaultGlpPartnerId?: string; // Fallback default GLP partner
+    defaultResearchPartnerId?: string; // Fallback default Research partner
     customPartnerVariantId?: string; // Optional manual override SKU/variant
 }
 
@@ -33,12 +37,14 @@ export const DEFAULT_BUNDLE_SETTINGS: BundleSaveSettings = {
     enabled: true,
     frequentlyBoughtTogether: {
         enabled: true,
+        pairingMode: "smart",
         discountType: "percentage",
         discountValue: 15, // 15% off the combo
-        headline: "Frequently Paired for Reconstitution",
-        badgeText: "PAIR & SAVE 15%",
-        ctaButtonText: "Add Both to Cart & Save",
-        defaultPartnerCategory: "water",
+        headline: "Synergistic Research Protocol",
+        badgeText: "PROTOCOL PAIR • SAVE 15%",
+        ctaButtonText: "Add Protocol Pair & Save",
+        defaultPartnerCategory: "peptides",
+        customPairs: {},
     },
     volumeTiers: {
         enabled: true,
@@ -70,7 +76,7 @@ export function getVolumeDiscountForQuantity(
 /**
  * Check if an item is a water / reconstitution solvent product
  */
-export function isWaterProduct(product: { name?: string | null; category?: string | null; product_categories?: { name?: string } | null }): boolean {
+export function isWaterProduct(product: { name?: string | null; category?: string | null; slug?: string | null; product_categories?: { name?: string } | null }): boolean {
     const category = (product.category || product.product_categories?.name || "").toLowerCase();
     const name = (product.name || "").toLowerCase();
     return (
@@ -84,16 +90,43 @@ export function isWaterProduct(product: { name?: string | null; category?: strin
 }
 
 /**
- * Check if an item is a peptide product
+ * Check if a product belongs to the high-priority GLP Peptides group
+ * (GLP1-SM, GLP2-TZ, GLP3-RT, Semaglutide, Tirzepatide, Retatrutide, etc.)
  */
-export function isPeptideProduct(product: { name?: string | null; category?: string | null; product_categories?: { name?: string } | null }): boolean {
-    const category = (product.category || product.product_categories?.name || "").toLowerCase();
+export function isGlpProduct(product: { name?: string | null; category?: string | null; slug?: string | null; product_categories?: { name?: string } | null }): boolean {
     const name = (product.name || "").toLowerCase();
+    const slug = (product.slug || "").toLowerCase();
+    const cat = (product.category || product.product_categories?.name || "").toLowerCase();
+
     return (
-        category.includes("peptide") ||
-        name.includes("peptide") ||
-        (!category.includes("water") && !name.includes("reconstitution") && !name.includes("bacteriostatic") && !name.includes("bac water"))
+        name.includes("glp") ||
+        slug.includes("glp") ||
+        name.includes("semaglutide") ||
+        slug.includes("semaglutide") ||
+        name.includes("tirzepatide") ||
+        slug.includes("tirzepatide") ||
+        name.includes("retatrutide") ||
+        slug.includes("retatrutide") ||
+        cat.includes("weight loss")
     );
+}
+
+/**
+ * Check if an item is a research peptide (non-GLP, non-water, non-bulk)
+ * e.g. Wolverine, BPC-157, TB-500, KLOW, NAD+, MOTS-C, etc.
+ */
+export function isResearchPeptideProduct(product: { name?: string | null; category?: string | null; slug?: string | null; product_categories?: { name?: string } | null }): boolean {
+    if (isWaterProduct(product)) return false;
+    const name = (product.name || "").toLowerCase();
+    if (name.includes("[bulk") || name.includes("bulk order")) return false;
+    return !isGlpProduct(product);
+}
+
+/**
+ * Legacy check: peptide product of any kind
+ */
+export function isPeptideProduct(product: { name?: string | null; category?: string | null; slug?: string | null; product_categories?: { name?: string } | null }): boolean {
+    return isGlpProduct(product) || isResearchPeptideProduct(product);
 }
 
 /**
@@ -132,7 +165,7 @@ export function calculateBundleAndVolumeSavings(
     let volumeSavings = 0;
     const appliedTiers: BundleCalculationResult["appliedTiers"] = [];
 
-    // 1. Calculate Volume Tier Discounts per item (only on non-bulk items, since bulk has wholesale pricing)
+    // 1. Calculate Volume Tier Discounts per item (only on non-bulk items)
     if (settings.volumeTiers.enabled && settings.volumeTiers.tiers.length > 0) {
         items.forEach(item => {
             if (item.is_bulk || item.variant.bulk_only) return;
@@ -154,27 +187,30 @@ export function calculateBundleAndVolumeSavings(
         });
     }
 
-    // 2. Calculate Frequently Bought Together (Pair & Save) Combo
+    // 2. Calculate Frequently Bought Together (Pair & Save) Combo:
+    // Pairing is between GLP Peptides (e.g. GLP1-SM) and Synergistic Research Peptides (e.g. Wolverine)
     let pairBundleSavings = 0;
     let hasPairBundle = false;
     let bundleSummaryText: string | null = null;
 
     if (settings.frequentlyBoughtTogether.enabled) {
-        const hasWater = items.some(item => isWaterProduct(item.variant.product));
-        const hasPeptide = items.some(item => isPeptideProduct(item.variant.product));
+        const hasGlp = items.some(item => !item.is_bulk && !item.variant.bulk_only && isGlpProduct(item.variant.product));
+        const hasResearch = items.some(item => !item.is_bulk && !item.variant.bulk_only && isResearchPeptideProduct(item.variant.product));
 
-        if (hasWater && hasPeptide) {
+        if (hasGlp && hasResearch) {
             hasPairBundle = true;
             const fbt = settings.frequentlyBoughtTogether;
 
+            // Discount applies to the paired research companion
+            const researchItems = items.filter(item => !item.is_bulk && !item.variant.bulk_only && isResearchPeptideProduct(item.variant.product));
+            const researchSubtotal = researchItems.reduce((sum, it) => sum + (it.variant.price * it.quantity), 0);
+
             if (fbt.discountType === "percentage") {
-                const waterItems = items.filter(item => isWaterProduct(item.variant.product));
-                const waterSubtotal = waterItems.reduce((sum, it) => sum + (it.variant.price * it.quantity), 0);
-                pairBundleSavings = (waterSubtotal * fbt.discountValue) / 100;
-                bundleSummaryText = `Bundle & Save: ${fbt.discountValue}% off Reconstitution Solution`;
+                pairBundleSavings = (researchSubtotal * fbt.discountValue) / 100;
+                bundleSummaryText = `Bundle & Save: ${fbt.discountValue}% off Research Companion`;
             } else {
-                pairBundleSavings = fbt.discountValue;
-                bundleSummaryText = `Bundle & Save: $${fbt.discountValue.toFixed(2)} off Pair`;
+                pairBundleSavings = Math.min(fbt.discountValue, researchSubtotal);
+                bundleSummaryText = `Bundle & Save: $${fbt.discountValue.toFixed(2)} off Protocol Pair`;
             }
         }
     }

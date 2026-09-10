@@ -8,7 +8,7 @@ import { ArrowLeft, ShoppingCart, Check, ShieldCheck, Truck, Plus, Minus, ArrowR
 import RestockNotificationModal from "@/components/public/RestockNotificationModal";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";

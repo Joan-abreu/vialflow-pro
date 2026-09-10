@@ -409,6 +409,25 @@ const ProductDetails = () => {
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
+
+    // Filter COAs to match the currently active/selected variant
+    const activeVariantCoas = useMemo(() => {
+        if (!productCoas || productCoas.length === 0) return [];
+        if (!selectedVariant) return productCoas;
+
+        const variantMatches = productCoas.filter(c => 
+            c.variant_ids && Array.isArray(c.variant_ids) && c.variant_ids.includes(selectedVariant.id)
+        );
+
+        return variantMatches.length > 0 ? variantMatches : productCoas;
+    }, [productCoas, selectedVariant]);
+
+    const coaProductName = useMemo(() => {
+        if (!product) return "Product";
+        const variantName = selectedVariant?.vial_type?.name;
+        return variantName ? `${product.name} (${variantName})` : product.name;
+    }, [product, selectedVariant]);
+
     const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
     const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -670,8 +689,8 @@ const ProductDetails = () => {
                         {/* 3rd-Party Lab Tested Badge (Shows verified COA or Testing in Progress in 48h) */}
                         <div className="mb-4">
                             <ProductCOABadge
-                                coas={productCoas || []}
-                                productName={product.name}
+                                coas={activeVariantCoas}
+                                productName={coaProductName}
                                 onOpenModal={(coa) => {
                                     setSelectedCOAForModal(coa);
                                     setIsCOAModalOpen(true);
@@ -1010,8 +1029,8 @@ const ProductDetails = () => {
                         <ProductCOAModal
                             isOpen={isCOAModalOpen}
                             onClose={() => setIsCOAModalOpen(false)}
-                            productName={product.name}
-                            coas={productCoas || []}
+                            productName={coaProductName}
+                            coas={activeVariantCoas.length > 0 ? activeVariantCoas : (productCoas || [])}
                             initialSelectedCoa={selectedCOAForModal}
                         />
 
@@ -1048,8 +1067,8 @@ const ProductDetails = () => {
             {/* Quality Assurance & Analytical Lab Testing (COA) Section */}
             <div className="mt-12 md:mt-16 space-y-10">
                 <ProductCOASection
-                    productName={product.name}
-                    coas={productCoas || []}
+                    productName={coaProductName}
+                    coas={activeVariantCoas}
                     onOpenModal={(coa) => {
                         setSelectedCOAForModal(coa);
                         setIsCOAModalOpen(true);

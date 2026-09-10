@@ -7,11 +7,14 @@ import {
     FlaskConical, 
     ExternalLink, 
     Clock,
-    Search
+    Search,
+    KeyRound,
+    Dna,
+    Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { COARecord } from "./ProductCOABadge";
+import { COARecord } from "@/types/coa";
 
 interface ProductCOASectionProps {
     productName: string;
@@ -26,19 +29,28 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
 }) => {
     const activeCoa = coas?.find(c => c.is_featured) || (coas && coas.length > 0 ? coas[0] : null);
 
+    const isPeptide = activeCoa?.coa_type === 'peptide' || !!activeCoa?.task_number || !!activeCoa?.measured_dosage_mg;
+
+    const formattedPurity = activeCoa?.purity_pct !== null && activeCoa?.purity_pct !== undefined && activeCoa.purity_pct > 0
+        ? `${Number(activeCoa.purity_pct).toFixed(activeCoa.purity_pct % 1 === 0 ? 1 : 3)}%`
+        : null;
+
+    const janoshikVerifyUrl = activeCoa?.verification_url || 
+        (activeCoa?.verification_key ? `https://janoshik.com/verify/?key=${activeCoa.verification_key}` : null);
+
     return (
         <div className="bg-gradient-to-br from-card to-muted/30 border rounded-2xl p-6 md:p-8 space-y-6 shadow-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
                 <div className="space-y-1">
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                        Quality Assurance & Analytical Testing
+                        {isPeptide ? "Janoshik Analytical Testing & Batch Verification" : "Quality Assurance & Analytical Testing"}
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold text-foreground">
-                        Third-Party Laboratory Testing (COA)
+                        {isPeptide ? "Third-Party HPLC & Mass Spec Testing (COA)" : "Third-Party Laboratory Testing (COA)"}
                     </h3>
                     <p className="text-sm text-muted-foreground max-w-2xl">
-                        Every production batch of <strong>{productName}</strong> is rigorously tested by independent, accredited US analytical laboratories to verify chemical identity, purity, and sterility.
+                        Every production batch of <strong>{productName}</strong> is rigorously tested by independent, accredited analytical laboratories (including Janoshik Analytical) to verify chemical identity, chromatographic purity, and active content.
                     </p>
                 </div>
 
@@ -66,7 +78,7 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Current Batch in Stock</span>
                             <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full">
-                                Verified
+                                {isPeptide ? "Janoshik Verified" : "Lab Verified"}
                             </span>
                         </div>
                         
@@ -75,78 +87,165 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
                             <p className="text-xs text-muted-foreground">
                                 Tested: {new Date(activeCoa.test_date).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}
                             </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
-                            <div>
-                                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Purity</span>
-                                <p className="font-bold text-foreground">
-                                    {activeCoa.purity_pct !== null && activeCoa.purity_pct > 0 ? `${activeCoa.purity_pct}%` : "≥99.5%"}
+                            {activeCoa.task_number && (
+                                <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                    Janoshik Task #{activeCoa.task_number}
                                 </p>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Sterility</span>
-                                <p className="font-bold text-emerald-600">{activeCoa.sterility_status || "Pass"}</p>
-                            </div>
+                            )}
                         </div>
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-xs font-semibold gap-1.5 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                            onClick={() => onOpenModal(activeCoa)}
-                        >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Open Full Report Viewer
-                        </Button>
+                        {/* Metrics Mini-Grid */}
+                        {isPeptide ? (
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
+                                <div>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">HPLC Purity</span>
+                                    <p className="font-bold text-foreground">
+                                        {formattedPurity || "≥99.0%"}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Net Content</span>
+                                    <p className="font-bold text-emerald-600">
+                                        {activeCoa.measured_dosage_mg ? `${activeCoa.measured_dosage_mg} mg` : "Verified"}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
+                                <div>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Purity</span>
+                                    <p className="font-bold text-foreground">
+                                        {formattedPurity || "≥99.5%"}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Sterility</span>
+                                    <p className="font-bold text-emerald-600">{activeCoa.sterility_status || "Pass"}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-xs font-semibold gap-1.5 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                onClick={() => onOpenModal(activeCoa)}
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Open Full Report Viewer
+                            </Button>
+                            {janoshikVerifyUrl && (
+                                <a
+                                    href={janoshikVerifyUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-1 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    <span>Verify Authenticity on Janoshik.com</span>
+                                    <ExternalLink className="h-3 w-3" />
+                                </a>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Quality Testing Protocol Highlights */}
+                    {/* Quality Testing Protocol Highlights (Adapts for Peptide vs Solution) */}
                     <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl bg-background border space-y-1.5">
-                            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                                <Award className="h-4 w-4" />
-                                <span>HPLC & Mass Spectrometry</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                High-Performance Liquid Chromatography (HPLC) and MS analysis verify compound identity and ensure absolute purity without degradation artifacts.
-                            </p>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-background border space-y-1.5">
-                            <div className="flex items-center gap-2 text-emerald-600 font-semibold text-sm">
-                                <CheckCircle2 className="h-4 w-4" />
-                                <span>USP &lt;71&gt; Sterility Validation</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                Tested for bacterial endotoxins and membrane integrity in accordance with USP &lt;71&gt; and &lt;85&gt; pharmacopeia standards.
-                            </p>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-background border space-y-1.5">
-                            <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm">
-                                <FlaskConical className="h-4 w-4" />
-                                <span>pH & Preservative Precision</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                Stringent quality checks ensure exact buffering and optimal 0.9% benzyl alcohol content for bacteriostatic longevity.
-                            </p>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-background border space-y-1.5 flex flex-col justify-between">
-                            <div>
-                                <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
-                                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                                    <span>Batch Traceability</span>
+                        {isPeptide ? (
+                            <>
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                                        <Award className="h-4 w-4 text-emerald-600" />
+                                        <span>HPLC Purity Assay (≥99.0%)</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        High-Performance Liquid Chromatography with UV detection confirms ultra-pure peptide fraction free from truncated synthesis fragments.
+                                    </p>
                                 </div>
-                                <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-                                    Every vial is stamped with its unique batch code. Verify your physical vial's lot code anytime.
-                                </p>
-                            </div>
-                            <Link to="/lab-reports" className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 mt-2">
-                                Search All Lab Reports &rarr;
-                            </Link>
-                        </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-emerald-600 font-semibold text-sm">
+                                        <Dna className="h-4 w-4" />
+                                        <span>Mass Spectrometry Identity</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Accurate molecular mass confirmation (ESI-MS / MALDI-TOF) validates correct amino acid composition and molecular weight.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm">
+                                        <FlaskConical className="h-4 w-4" />
+                                        <span>Lyophilized Net Content (mg)</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Vial content is individually weighed and calibrated against primary analytical standards to verify exact target active dosage.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
+                                            <KeyRound className="h-4 w-4 text-emerald-600" />
+                                            <span>Janoshik Verification Key</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                                            Every Janoshik test includes a unique cryptographic verification key for independent tamper-proof validation.
+                                        </p>
+                                    </div>
+                                    <Link to="/lab-reports" className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 mt-2">
+                                        Search All Lab Reports &rarr;
+                                    </Link>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                                        <Award className="h-4 w-4" />
+                                        <span>HPLC & Mass Spectrometry</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        High-Performance Liquid Chromatography (HPLC) and MS analysis verify compound identity and ensure absolute purity without degradation artifacts.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-emerald-600 font-semibold text-sm">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        <span>USP &lt;71&gt; Sterility Validation</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Tested for bacterial endotoxins and membrane integrity in accordance with USP &lt;71&gt; and &lt;85&gt; pharmacopeia standards.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5">
+                                    <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm">
+                                        <FlaskConical className="h-4 w-4" />
+                                        <span>pH & Preservative Precision</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Stringent quality checks ensure exact buffering and optimal 0.9% benzyl alcohol content for bacteriostatic longevity.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-background border space-y-1.5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
+                                            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                                            <span>Batch Traceability</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                                            Every vial is stamped with its unique batch code. Verify your physical vial's lot code anytime.
+                                        </p>
+                                    </div>
+                                    <Link to="/lab-reports" className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 mt-2">
+                                        Search All Lab Reports &rarr;
+                                    </Link>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             ) : (

@@ -21,13 +21,17 @@ import {
     ChevronDown,
     ChevronUp,
     Share2,
-    ArrowLeft
+    ArrowLeft,
+    Layers,
+    KeyRound,
+    Dna
 } from "lucide-react";
 import SEO from "@/components/SEO";
 import { getSEOConfig } from "@/config/seoConfig";
 import { downloadCoaPdf } from "@/utils/downloadCoa";
 import PDFViewerCanvas from "@/components/products/PDFViewerCanvas";
 import { toast } from "sonner";
+import { COA } from "@/types/coa";
 
 interface Product {
     id: string;
@@ -35,27 +39,11 @@ interface Product {
     slug?: string;
 }
 
-interface COA {
-    id: string;
-    product_id: string | null;
-    product_ids?: string[] | null;
-    batch_number: string;
-    test_date: string;
-    pdf_url: string;
-    purity_pct: number | null;
-    ph_level: number | null;
-    benzyl_alcohol_pct: number | null;
-    sterility_status: string;
-    is_active: boolean;
-    lab_name?: string | null;
-    is_featured?: boolean;
-    products?: Product | null;
-}
-
 const LabReports = () => {
     const { batchNumber: paramBatch } = useParams<{ batchNumber?: string }>();
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+    const [activeTab, setActiveTab] = useState<'all' | 'peptide' | 'water'>('all');
 
     // Fetch all products for fast lookup
     const { data: allProducts } = useQuery<Product[]>({
@@ -76,6 +64,25 @@ const LabReports = () => {
         return map;
     }, [allProducts]);
 
+    // Fetch all product variants for variant chip display
+    const { data: allVariants } = useQuery({
+        queryKey: ["public-all-variants-for-coas"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("product_variants")
+                .select("id, product_id, sku, vial_types(name, capacity_ml)");
+            if (error) throw error;
+            return data || [];
+        },
+        staleTime: 10 * 60 * 1000,
+    });
+
+    const variantsMap = useMemo(() => {
+        const map = new Map<string, any>();
+        allVariants?.forEach(v => map.set(v.id, v));
+        return map;
+    }, [allVariants]);
+
     // Fetch COAs from Supabase
     const { data: coas, isLoading } = useQuery<COA[]>({
         queryKey: ["public-coas"],
@@ -94,6 +101,19 @@ const LabReports = () => {
             return (data || []) as COA[];
         },
     });
+
+    // Counts for Category Tabs
+    const counts = useMemo(() => {
+        if (!coas) return { all: 0, peptide: 0, water: 0 };
+        let peptide = 0;
+        let water = 0;
+        coas.forEach(c => {
+            const isPep = c.coa_type === 'peptide' || !!c.task_number || !!c.measured_dosage_mg;
+            if (isPep) peptide++;
+            else water++;
+        });
+        return { all: coas.length, peptide, water };
+    }, [coas]);
 
     // Handle initial expand: If paramBatch is provided, expand that lot; otherwise expand the featured/active lot
     useEffect(() => {
@@ -134,7 +154,7 @@ const LabReports = () => {
         }
     };
 
-    // Filter COAs: If on /coa/:batchNumber, STRICTLY show that specific lot only!
+    // Filter COAs based on search, activeTab, and optional paramBatch
     const filteredCoas = useMemo(() => {
         if (!coas) return [];
 
@@ -146,6 +166,10 @@ const LabReports = () => {
         }
 
         return coas.filter((coa) => {
+            const isPep = coa.coa_type === 'peptide' || !!coa.task_number || !!coa.measured_dosage_mg;
+            if (activeTab === 'peptide' && !isPep) return false;
+            if (activeTab === 'water' && isPep) return false;
+
             const linkedIds = (coa.product_ids && coa.product_ids.length > 0)
                 ? coa.product_ids
                 : (coa.product_id ? [coa.product_id] : []);
@@ -154,13 +178,23 @@ const LabReports = () => {
                 .map(id => productsMap.get(id)?.name || (coa.products?.id === id ? coa.products.name : ""))
                 .join(" ");
 
+            const variantNames = (coa.variant_ids || [])
+                .map(vid => {
+                    const v = variantsMap.get(vid);
+                    return v ? `${v.vial_types?.name || ''} ${v.sku || ''}` : '';
+                })
+                .join(" ");
+
             const matchesSearch =
                 coa.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 linkedNames.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                variantNames.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (coa.task_number && coa.task_number.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (coa.verification_key && coa.verification_key.toLowerCase().includes(searchQuery.toLowerCase())) ||
                 (coa.lab_name && coa.lab_name.toLowerCase().includes(searchQuery.toLowerCase()));
             return matchesSearch;
         });
-    }, [coas, paramBatch, searchQuery, productsMap]);
+    }, [coas, paramBatch, searchQuery, productsMap, variantsMap, activeTab]);
 
     const seo = getSEOConfig("lab-reports");
 
@@ -202,26 +236,64 @@ const LabReports = () => {
                 </h1>
                 <p className="text-muted-foreground text-base md:text-lg max-w-3xl leading-relaxed">
                     Quality and safety are our top priorities. Every batch of reconstitution solution and research peptides from 
-                    <strong> Liv Well Research Labs</strong> is tested by independent, third-party, A2LA-accredited US laboratories. 
+                    <strong> Liv Well Research Labs</strong> is tested by independent, third-party laboratories (including Janoshik Analytical). 
                     Inspect official laboratory report certificates and verify lot specifications below.
                 </p>
             </div>
 
-            {/* Search Bar (Only shown on global directory /lab-reports) */}
+            {/* Search Bar & Category Filter Tabs */}
             {!paramBatch && (
-                <>
-                    <div className="relative max-w-lg">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input
-                            type="text"
-                            placeholder="Search by lot # (e.g. DW10M033026), product name, or lab..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 text-base rounded-xl shadow-xs"
-                        />
+                <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-lg">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input
+                                type="text"
+                                placeholder="Search by lot #, product, variant (e.g. 20mg), or task #..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-11 h-12 text-base rounded-xl shadow-xs"
+                            />
+                        </div>
+
+                        {/* Category Segmented Tabs */}
+                        <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border self-start sm:self-auto">
+                            <button
+                                onClick={() => setActiveTab('all')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    activeTab === 'all' 
+                                        ? 'bg-background text-foreground shadow-xs' 
+                                        : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                All ({counts.all})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('peptide')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                    activeTab === 'peptide' 
+                                        ? 'bg-emerald-600 text-white shadow-xs' 
+                                        : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                <span>🔬 Peptides</span>
+                                <span className="opacity-80 font-mono">({counts.peptide})</span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('water')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                    activeTab === 'water' 
+                                        ? 'bg-blue-600 text-white shadow-xs' 
+                                        : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                <span>💧 Water</span>
+                                <span className="opacity-80 font-mono">({counts.water})</span>
+                            </button>
+                        </div>
                     </div>
                     <Separator />
-                </>
+                </div>
             )}
 
             {/* Dynamic Results */}
@@ -234,6 +306,7 @@ const LabReports = () => {
                 <div className="space-y-8">
                     {filteredCoas.map((coa) => {
                         const isExpanded = expandedBatches.has(coa.batch_number);
+                        const isPeptide = coa.coa_type === 'peptide' || !!coa.task_number || !!coa.measured_dosage_mg;
 
                         // Resolve unique linked products
                         const linkedIds = (coa.product_ids && coa.product_ids.length > 0)
@@ -247,6 +320,20 @@ const LabReports = () => {
                         });
                         const linkedProducts = Array.from(linkedProductsMap.values());
 
+                        // Resolve covered variants
+                        const coveredVariantObjects = (coa.variant_ids || [])
+                            .map(vid => variantsMap.get(vid))
+                            .filter(Boolean);
+
+                        const formattedPurity = coa.purity_pct !== null && coa.purity_pct > 0
+                            ? `${Number(coa.purity_pct).toFixed(coa.purity_pct % 1 === 0 ? 1 : 3)}%`
+                            : null;
+
+                        const janoshikVerifyUrl = coa.verification_url || 
+                            (coa.verification_key ? `https://janoshik.com/verify/?key=${coa.verification_key}` : null);
+
+                        const components = Array.isArray(coa.components) ? coa.components : [];
+
                         return (
                             <div 
                                 key={coa.id} 
@@ -258,11 +345,17 @@ const LabReports = () => {
                                     <div className="space-y-1">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> 3rd Party Lab Verified
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                                {isPeptide ? "Janoshik Verified" : "3rd Party Lab Verified"}
                                             </div>
                                             {coa.is_featured && (
                                                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                                                     ★ Current Active Lot
+                                                </span>
+                                            )}
+                                            {coa.task_number && (
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                                                    Task #{coa.task_number}
                                                 </span>
                                             )}
                                         </div>
@@ -278,7 +371,7 @@ const LabReports = () => {
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <FlaskConical className="h-3.5 w-3.5 text-emerald-600" />
-                                                <span>Accredited Lab: <strong className="text-foreground font-medium">{coa.lab_name || "Chromak Research Analytical Lab"}</strong></span>
+                                                <span>Accredited Lab: <strong className="text-foreground font-medium">{coa.lab_name || (isPeptide ? "Janoshik Analytical Laboratory" : "Chromak Research Analytical Lab")}</strong></span>
                                             </div>
                                         </div>
                                     </div>
@@ -294,6 +387,20 @@ const LabReports = () => {
                                             {isExpanded ? "Hide Preview" : "Inspect PDF"}
                                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5 ml-0.5" /> : <ChevronDown className="h-3.5 w-3.5 ml-0.5" />}
                                         </Button>
+
+                                        {janoshikVerifyUrl && (
+                                            <Button
+                                                asChild
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-9 px-3 rounded-xl border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-xs font-bold gap-1"
+                                            >
+                                                <a href={janoshikVerifyUrl} target="_blank" rel="noopener noreferrer">
+                                                    <span>Verify</span>
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </Button>
+                                        )}
 
                                         <Button
                                             variant="ghost"
@@ -314,81 +421,174 @@ const LabReports = () => {
                                     </div>
                                 </div>
 
-                                {/* 1. Analytical Specs Horizontal Bar (4 Cards) - Compact & Clean */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                                    <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
-                                        <div className="flex items-center justify-between text-muted-foreground">
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">Purity (HPLC)</span>
-                                            <Award className="h-3.5 w-3.5 text-emerald-600" />
+                                {/* 1. Analytical Specs Horizontal Bar (4 Cards) */}
+                                {isPeptide ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">HPLC Purity</span>
+                                                <Award className="h-3.5 w-3.5 text-emerald-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {formattedPurity || "Identity Confirmed"}
+                                            </p>
+                                            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                                                <CheckCircle2 className="h-3 w-3" /> Chromatographic Assay
+                                            </span>
                                         </div>
-                                        <p className="text-lg font-black text-foreground">
-                                            {coa.purity_pct !== null && coa.purity_pct > 0 ? `${coa.purity_pct}%` : "≥99.5%"}
-                                        </p>
-                                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-                                            <CheckCircle2 className="h-3 w-3" /> High Analytical Grade
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Net Content</span>
+                                                <FlaskConical className="h-3.5 w-3.5 text-blue-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {coa.measured_dosage_mg !== null 
+                                                    ? `${coa.measured_dosage_mg} mg` 
+                                                    : components.length > 0
+                                                        ? `${components.reduce((acc: number, c: any) => acc + (Number(c.amount_mg) || 0), 0).toFixed(2)} mg`
+                                                        : "Verified"}
+                                            </p>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                {coa.target_dosage_mg ? `Target: ${coa.target_dosage_mg} mg` : "Active Lyophilized"}
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Mass Spec ID</span>
+                                                <Dna className="h-3.5 w-3.5 text-indigo-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {coa.sequence_status || "Confirmed"}
+                                            </p>
+                                            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                                                <CheckCircle2 className="h-3 w-3" /> Molecular Mass Verified
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Janoshik Key</span>
+                                                <KeyRound className="h-3.5 w-3.5 text-emerald-600" />
+                                            </div>
+                                            <p className="text-sm font-mono font-bold text-foreground truncate" title={coa.verification_key || ""}>
+                                                {coa.verification_key || `#${coa.task_number || "Verified"}`}
+                                            </p>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                Task #{coa.task_number || "Official"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Purity (HPLC)</span>
+                                                <Award className="h-3.5 w-3.5 text-emerald-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {coa.purity_pct !== null && coa.purity_pct > 0 ? `${coa.purity_pct}%` : "≥99.5%"}
+                                            </p>
+                                            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                                                <CheckCircle2 className="h-3 w-3" /> High Analytical Grade
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">pH Level</span>
+                                                <Activity className="h-3.5 w-3.5 text-blue-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {coa.ph_level !== null ? coa.ph_level : "5.0 - 7.0"}
+                                            </p>
+                                            <span className="text-[10px] text-muted-foreground">Standard Specification</span>
+                                        </div>
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Benzyl Alcohol</span>
+                                                <FlaskConical className="h-3.5 w-3.5 text-indigo-600" />
+                                            </div>
+                                            <p className="text-lg font-black text-foreground">
+                                                {coa.benzyl_alcohol_pct !== null ? `${coa.benzyl_alcohol_pct}%` : "0.90%"}
+                                            </p>
+                                            <span className="text-[10px] text-muted-foreground">Bacteriostatic Agent</span>
+                                        </div>
+
+                                        <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">Sterility USP &lt;71&gt;</span>
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                            </div>
+                                            <p className="text-xl font-black text-emerald-600">
+                                                {coa.sterility_status || "Pass"}
+                                            </p>
+                                            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                                                <CheckCircle2 className="h-3 w-3" /> No Microorganism Growth
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Multi-Peptide Blend Components Breakdown Chips */}
+                                {components.length > 0 && (
+                                    <div className="p-3 bg-muted/30 border rounded-xl space-y-2">
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                            <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                                            Blend Components ({components.length}):
                                         </span>
-                                    </div>
-
-                                    <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
-                                        <div className="flex items-center justify-between text-muted-foreground">
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">pH Level</span>
-                                            <Activity className="h-3.5 w-3.5 text-blue-600" />
+                                        <div className="flex flex-wrap gap-2">
+                                            {components.map((c: any, idx: number) => (
+                                                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-background border text-xs">
+                                                    <span className="font-semibold text-foreground">{c.name}:</span>
+                                                    <strong className="font-mono text-emerald-600 font-bold">{c.amount_mg} mg</strong>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <p className="text-lg font-black text-foreground">
-                                            {coa.ph_level !== null ? coa.ph_level : "5.0 - 7.0"}
-                                        </p>
-                                        <span className="text-[10px] text-muted-foreground">Standard Specification</span>
                                     </div>
+                                )}
 
-                                    <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
-                                        <div className="flex items-center justify-between text-muted-foreground">
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">Benzyl Alcohol</span>
-                                            <FlaskConical className="h-3.5 w-3.5 text-indigo-600" />
-                                        </div>
-                                        <p className="text-lg font-black text-foreground">
-                                            {coa.benzyl_alcohol_pct !== null ? `${coa.benzyl_alcohol_pct}%` : "0.90%"}
-                                        </p>
-                                        <span className="text-[10px] text-muted-foreground">Bacteriostatic Agent</span>
-                                    </div>
-
-                                    <div className="bg-muted/40 border rounded-xl p-3 space-y-0.5">
-                                        <div className="flex items-center justify-between text-muted-foreground">
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">Sterility USP &lt;71&gt;</span>
-                                            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                                        </div>
-                                        <p className="text-xl font-black text-emerald-600">
-                                            {coa.sterility_status || "Pass"}
-                                        </p>
-                                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-                                            <CheckCircle2 className="h-3 w-3" /> No Microorganism Growth
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* 2. Associated Products List (Compact Pills with Full Description & Direct Links) */}
+                                {/* 2. Associated Products & Variant Pills */}
                                 <div className="space-y-1.5">
                                     <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         <Package className="h-3.5 w-3.5 text-primary" />
-                                        <span>Associated Products ({linkedProducts.length > 0 ? linkedProducts.length : "General"}):</span>
+                                        <span>Associated Products &amp; Variants:</span>
                                     </div>
 
                                     {linkedProducts.length > 0 ? (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {linkedProducts.map((p) => (
-                                                <Link
-                                                    key={p.id}
-                                                    to={`/products/${p.slug || p.id}`}
-                                                    className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-muted/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-foreground hover:text-emerald-700 dark:hover:text-emerald-300 border border-border/80 hover:border-emerald-300 dark:hover:border-emerald-700/60 transition-all text-left"
-                                                >
-                                                    <Package className="h-3 w-3 text-emerald-600 shrink-0" />
-                                                    <span className="leading-snug break-words">{p.name}</span>
-                                                    <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-emerald-600 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                                                </Link>
-                                            ))}
+                                        <div className="flex flex-wrap gap-2">
+                                            {linkedProducts.map((p) => {
+                                                const prodVars = coveredVariantObjects.filter(v => v.product_id === p.id);
+                                                return (
+                                                    <Link
+                                                        key={p.id}
+                                                        to={`/products/${p.slug || p.id}`}
+                                                        className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-muted/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-foreground hover:text-emerald-700 dark:hover:text-emerald-300 border border-border/80 hover:border-emerald-300 dark:hover:border-emerald-700/60 transition-all text-left"
+                                                    >
+                                                        <Package className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                                        <span className="font-semibold">{p.name}</span>
+                                                        {prodVars.length > 0 && (
+                                                            <div className="flex items-center gap-1">
+                                                                {prodVars.map(v => (
+                                                                    <span 
+                                                                        key={v.id} 
+                                                                        className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-primary/10 text-primary"
+                                                                    >
+                                                                        {v.vial_types?.name || v.sku}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-emerald-600 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                                                    </Link>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div className="px-2.5 py-1 rounded-lg bg-muted/30 border text-xs text-foreground font-medium inline-block">
-                                            Reconstitution Solution (General Batch)
+                                            {isPeptide ? "Research Peptides (General Lot)" : "Reconstitution Solution (General Batch)"}
                                         </div>
                                     )}
                                 </div>

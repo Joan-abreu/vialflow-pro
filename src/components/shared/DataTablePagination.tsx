@@ -70,14 +70,22 @@ export function DataTablePagination({
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 px-2">
             <div className="flex items-center gap-6 text-sm text-muted-foreground order-2 md:order-1">
                 {totalItems !== undefined && (
-                    <div className="text-nowrap">
-                        Total: {totalItems} records
+                    <div className="text-nowrap font-medium text-xs sm:text-sm">
+                        {pageSize ? (
+                            <span>
+                                Showing <strong className="text-foreground">{Math.min((currentPage - 1) * pageSize + 1, totalItems)}</strong> to{" "}
+                                <strong className="text-foreground">{Math.min(currentPage * pageSize, totalItems)}</strong> of{" "}
+                                <strong className="text-foreground">{totalItems}</strong> records
+                            </span>
+                        ) : (
+                            <span>Total: {totalItems} records</span>
+                        )}
                     </div>
                 )}
 
                 {pageSize && onPageSizeChange && (
                     <div className="flex items-center gap-2">
-                        <span className="text-nowrap">Rows per page</span>
+                        <span className="text-nowrap text-xs sm:text-sm">Rows per page</span>
                         <Select
                             value={pageSize.toString()}
                             onValueChange={(value) => {
@@ -88,7 +96,7 @@ export function DataTablePagination({
                                 <SelectValue placeholder={pageSize} />
                             </SelectTrigger>
                             <SelectContent side="top">
-                                {[10, 20, 30, 40, 50].map((size) => (
+                                {[5, 10, 20, 30, 50].map((size) => (
                                     <SelectItem key={size} value={`${size}`}>
                                         {size}
                                     </SelectItem>

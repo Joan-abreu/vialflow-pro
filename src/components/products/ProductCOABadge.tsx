@@ -20,21 +20,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { COARecord } from "@/types/coa";
 
-export interface COARecord {
-    id: string;
-    product_id: string | null;
-    batch_number: string;
-    test_date: string;
-    pdf_url: string;
-    purity_pct: number | null;
-    ph_level: number | null;
-    benzyl_alcohol_pct: number | null;
-    sterility_status: string;
-    is_active: boolean;
-    is_featured?: boolean;
-    lab_name?: string | null;
-}
+export type { COARecord };
 
 interface ProductCOABadgeProps {
     coas: COARecord[];
@@ -185,11 +173,32 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
     // Find the primary featured COA or default to the most recent one
     const activeCoa = coas.find(c => c.is_featured) || coas[0];
 
-    const purityDisplay = activeCoa.purity_pct !== null && activeCoa.purity_pct > 0 
-        ? `${activeCoa.purity_pct}% Purity` 
-        : activeCoa.sterility_status === "Pass" 
-            ? "Sterility Tested (Pass)" 
-            : "Lab Verified";
+    const isPeptide = activeCoa.coa_type === 'peptide' || !!activeCoa.task_number || !!activeCoa.measured_dosage_mg;
+
+    const formattedPurity = activeCoa.purity_pct !== null && activeCoa.purity_pct > 0
+        ? `${Number(activeCoa.purity_pct).toFixed(activeCoa.purity_pct % 1 === 0 ? 1 : 3)}% Purity`
+        : null;
+
+    let primaryMetric = "Lab Verified";
+    if (isPeptide) {
+        if (activeCoa.measured_dosage_mg && formattedPurity) {
+            primaryMetric = `${activeCoa.measured_dosage_mg}mg • ${formattedPurity}`;
+        } else if (activeCoa.measured_dosage_mg) {
+            primaryMetric = `${activeCoa.measured_dosage_mg}mg Verified`;
+        } else if (formattedPurity) {
+            primaryMetric = formattedPurity;
+        }
+    } else {
+        primaryMetric = formattedPurity 
+            ? formattedPurity 
+            : activeCoa.sterility_status === "Pass" 
+                ? "Sterility Tested (Pass)" 
+                : "Lab Verified";
+    }
+
+    const labLabel = activeCoa.lab_name && activeCoa.lab_name.toLowerCase().includes("janoshik")
+        ? "Janoshik Verified"
+        : "3rd-Party Lab Tested";
 
     return (
         <div 
@@ -209,7 +218,7 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
             <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xs shrink-0">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    <span>3rd-Party Lab Tested</span>
+                    <span>{labLabel}</span>
                 </div>
 
                 {/* Mobile View COA button (top right) */}
@@ -223,7 +232,7 @@ export const ProductCOABadge: React.FC<ProductCOABadgeProps> = ({
             {/* Bottom Row on Mobile / Middle Section on Desktop */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-emerald-950 dark:text-emerald-200 font-semibold">
                 <span className="hidden sm:inline text-emerald-700 dark:text-emerald-400">●</span>
-                <span className="font-bold text-emerald-800 dark:text-emerald-300">{purityDisplay}</span>
+                <span className="font-bold text-emerald-800 dark:text-emerald-300">{primaryMetric}</span>
                 <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[10px] sm:text-[11px] bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40">
                     Lot #{activeCoa.batch_number}
                 </span>

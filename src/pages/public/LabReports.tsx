@@ -249,7 +249,7 @@ const LabReports = () => {
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <Input
                                 type="text"
-                                placeholder="Search by lot #, product, variant (e.g. 20mg), or task #..."
+                                placeholder="Search by lot #, product, or variant (e.g. 20mg)..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-11 h-12 text-base rounded-xl shadow-xs"
@@ -329,8 +329,11 @@ const LabReports = () => {
                             ? `${Number(coa.purity_pct).toFixed(coa.purity_pct % 1 === 0 ? 1 : 3)}%`
                             : null;
 
+                        const cleanTask = coa.task_number ? coa.task_number.replace(/^#/, "").trim() : "";
                         const janoshikVerifyUrl = coa.verification_url || 
-                            (coa.verification_key ? `https://janoshik.com/verify/?key=${coa.verification_key}` : null);
+                            (coa.verification_key 
+                                ? `https://janoshik.com/verification/?${cleanTask ? `task=${cleanTask}&` : ""}key=${coa.verification_key}` 
+                                : null);
 
                         const components = Array.isArray(coa.components) ? coa.components : [];
 
@@ -351,11 +354,6 @@ const LabReports = () => {
                                             {coa.is_featured && (
                                                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                                                     ★ Current Active Lot
-                                                </span>
-                                            )}
-                                            {coa.task_number && (
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                                                    Task #{coa.task_number}
                                                 </span>
                                             )}
                                         </div>
@@ -473,10 +471,10 @@ const LabReports = () => {
                                                 <KeyRound className="h-3.5 w-3.5 text-emerald-600" />
                                             </div>
                                             <p className="text-sm font-mono font-bold text-foreground truncate" title={coa.verification_key || ""}>
-                                                {coa.verification_key || `#${coa.task_number || "Verified"}`}
+                                                {coa.verification_key || "Verified"}
                                             </p>
                                             <span className="text-[10px] text-muted-foreground">
-                                                Task #{coa.task_number || "Official"}
+                                                Official Janoshik Key
                                             </span>
                                         </div>
                                     </div>

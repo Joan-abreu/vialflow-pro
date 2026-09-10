@@ -100,7 +100,7 @@ const defaultFormData: FormDataState = {
     measured_dosage_mg: "",
     task_number: "",
     verification_key: "",
-    verification_url: "https://www.janoshik.com/verify/",
+    verification_url: "https://janoshik.com/verification/",
     sequence_status: "Confirmed",
     appearance: "White Lyophilized Powder",
     components: [],
@@ -382,7 +382,7 @@ const COAManagement = () => {
             measured_dosage_mg: coa.measured_dosage_mg !== null && coa.measured_dosage_mg !== undefined ? coa.measured_dosage_mg.toString() : "",
             task_number: coa.task_number || "",
             verification_key: coa.verification_key || "",
-            verification_url: coa.verification_url || "https://www.janoshik.com/verify/",
+            verification_url: coa.verification_url || "https://janoshik.com/verification/",
             sequence_status: coa.sequence_status || "Confirmed",
             appearance: coa.appearance || "White Lyophilized Powder",
             components: coa.components || [],
@@ -1056,9 +1056,8 @@ const COAManagement = () => {
                                                     <div className="pt-0.5">
                                                         <a
                                                             href={
-                                                                coa.verification_url
-                                                                    ? `${coa.verification_url.replace(/\/$/, "")}/?key=${coa.verification_key}`
-                                                                    : `https://www.janoshik.com/verify/?key=${coa.verification_key}`
+                                                                coa.verification_url ||
+                                                                `https://janoshik.com/verification/?${coa.task_number ? `task=${coa.task_number.replace(/^#/, "").trim()}&` : ""}key=${coa.verification_key}`
                                                             }
                                                             target="_blank"
                                                             rel="noopener noreferrer"

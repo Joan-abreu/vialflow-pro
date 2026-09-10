@@ -35,8 +35,11 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
         ? `${Number(activeCoa.purity_pct).toFixed(activeCoa.purity_pct % 1 === 0 ? 1 : 3)}%`
         : null;
 
+    const cleanTask = activeCoa?.task_number ? activeCoa.task_number.replace(/^#/, "").trim() : "";
     const janoshikVerifyUrl = activeCoa?.verification_url || 
-        (activeCoa?.verification_key ? `https://janoshik.com/verify/?key=${activeCoa.verification_key}` : null);
+        (activeCoa?.verification_key 
+            ? `https://janoshik.com/verification/?${cleanTask ? `task=${cleanTask}&` : ""}key=${activeCoa.verification_key}` 
+            : null);
 
     return (
         <div className="bg-gradient-to-br from-card to-muted/30 border rounded-2xl p-6 md:p-8 space-y-6 shadow-xs">
@@ -87,11 +90,6 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
                             <p className="text-xs text-muted-foreground">
                                 Tested: {new Date(activeCoa.test_date).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}
                             </p>
-                            {activeCoa.task_number && (
-                                <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                    Janoshik Task #{activeCoa.task_number}
-                                </p>
-                            )}
                         </div>
 
                         {/* Metrics Mini-Grid */}

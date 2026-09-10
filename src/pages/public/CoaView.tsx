@@ -182,8 +182,11 @@ export const CoaView: React.FC = () => {
         ? `${Number(coaData.purity_pct).toFixed(coaData.purity_pct % 1 === 0 ? 1 : 3)}%`
         : null;
 
+    const cleanTask = coaData.task_number ? coaData.task_number.replace(/^#/, "").trim() : "";
     const janoshikVerifyUrl = coaData.verification_url || 
-        (coaData.verification_key ? `https://janoshik.com/verify/?key=${coaData.verification_key}` : null);
+        (coaData.verification_key 
+            ? `https://janoshik.com/verification/?${cleanTask ? `task=${cleanTask}&` : ""}key=${coaData.verification_key}` 
+            : null);
 
     const components = Array.isArray(coaData.components) ? coaData.components : [];
 
@@ -274,11 +277,6 @@ export const CoaView: React.FC = () => {
                             <Badge className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold text-[11px] uppercase tracking-wider">
                                 ★ Current Active Lot
                             </Badge>
-                        )}
-                        {coaData.task_number && (
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                Task #{coaData.task_number}
-                            </span>
                         )}
                     </div>
                     <span className="text-xs text-slate-400 font-mono">
@@ -383,10 +381,10 @@ export const CoaView: React.FC = () => {
                             <ShieldCheck className="h-4 w-4 text-emerald-600" />
                         </div>
                         <p className="text-sm font-mono font-bold text-foreground truncate" title={coaData.verification_key || ""}>
-                            {coaData.verification_key ? coaData.verification_key : `#${coaData.task_number || "Verified"}`}
+                            {coaData.verification_key ? coaData.verification_key : "Verified"}
                         </p>
                         <span className="text-[10px] text-muted-foreground">
-                            Task #{coaData.task_number || "Official"}
+                            Official Janoshik Key
                         </span>
                     </div>
                 </div>

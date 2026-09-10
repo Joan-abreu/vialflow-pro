@@ -79,8 +79,11 @@ export const ProductCOAModal: React.FC<ProductCOAModalProps> = ({
         ? `${Number(currentCoa.purity_pct).toFixed(currentCoa.purity_pct % 1 === 0 ? 1 : 3)}%`
         : null;
 
+    const cleanTask = currentCoa.task_number ? currentCoa.task_number.replace(/^#/, "").trim() : "";
     const janoshikVerifyUrl = currentCoa.verification_url || 
-        (currentCoa.verification_key ? `https://janoshik.com/verify/?key=${currentCoa.verification_key}` : null);
+        (currentCoa.verification_key 
+            ? `https://janoshik.com/verification/?${cleanTask ? `task=${cleanTask}&` : ""}key=${currentCoa.verification_key}` 
+            : null);
 
     const components = Array.isArray(currentCoa.components) ? currentCoa.components : [];
 
@@ -204,17 +207,17 @@ export const ProductCOAModal: React.FC<ProductCOAModalProps> = ({
                                 </span>
                             </div>
 
-                            {/* Janoshik Task & Verification Key */}
+                            {/* Janoshik Verification Key */}
                             <div className="bg-muted/40 p-4 rounded-xl border space-y-1">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Task / Unique Key</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Verification Key</span>
                                     <KeyRound className="h-4 w-4 text-emerald-600" />
                                 </div>
                                 <p className="text-sm font-mono font-bold text-foreground truncate" title={currentCoa.verification_key || ""}>
-                                    {currentCoa.verification_key ? currentCoa.verification_key : `#${currentCoa.task_number || "Verified"}`}
+                                    {currentCoa.verification_key ? currentCoa.verification_key : "Verified"}
                                 </p>
                                 <span className="text-[10px] text-muted-foreground">
-                                    Task #{currentCoa.task_number || "Official"}
+                                    Official Janoshik Key
                                 </span>
                             </div>
                         </div>

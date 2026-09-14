@@ -30,11 +30,12 @@ import AddBatchDialog from "@/components/production/AddBatchDialog";
 import { ManageProductionMaterialsDialog } from "@/components/production/ManageProductionMaterialsDialog";
 import AddShipmentDialog from "@/components/shipments/AddShipmentDialog";
 import EditBatchDialog from "@/components/production/EditBatchDialog";
-import StartProductionDialog from "@/components/production/StartProductionDialog";
 import { Input } from "@/components/ui/input";
-import { Package, Trash2, FileText, Search, ArrowUp, ArrowDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Package, Trash2, FileText, Search, ArrowUp, ArrowDown, QrCode, ArrowDownCircle } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import CopyCell from "@/components/CopyCell";
+import VialLabelModal from "@/components/production/VialLabelModal";
 
 interface ProductionBatch {
   id: string;
@@ -65,12 +66,15 @@ interface ProductionBatch {
 }
 
 const Production = () => {
+  const navigate = useNavigate();
   const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [labelModalBatch, setLabelModalBatch] = useState<any | null>(null);
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
 
   const filteredBatches = batches.filter((batch) =>
     batch.batch_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -154,6 +158,13 @@ const Production = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-semibold"
+            onClick={() => navigate("/manufacturing/inbound")}
+          >
+            <ArrowDownCircle className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Inbound Orders (+Stock)
+          </Button>
           <ManageProductionMaterialsDialog />
           <AddBatchDialog onSuccess={fetchBatches} />
         </div>
@@ -319,6 +330,27 @@ const Production = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => {
+                                  setLabelModalBatch({
+                                    id: batch.id,
+                                    batch_number: batch.batch_number,
+                                    quantity: batch.quantity,
+                                    product_name: batch.product_variant_details?.product_id?.name,
+                                    vial_capacity_ml: batch.product_variant_details?.vial_type_id?.capacity_ml,
+                                    vial_type_name: batch.product_variant_details?.vial_type_id?.name,
+                                    color: batch.product_variant_details?.vial_type_id?.color,
+                                    created_at: batch.created_at,
+                                  });
+                                  setLabelModalOpen(true);
+                                }}
+                                title="Print Vial Labels with QR"
+                                className="hover:text-emerald-600 dark:hover:text-emerald-400"
+                              >
+                                <QrCode className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => window.open(`/manufacturing/bom/${batch.id}`, '_blank')}
                                 title="Generate Bill of Materials"
                               >
@@ -373,6 +405,13 @@ const Production = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Vial Label Print & QR Modal */}
+      <VialLabelModal
+        batch={labelModalBatch}
+        open={labelModalOpen}
+        onOpenChange={setLabelModalOpen}
+      />
     </div>
 
   );

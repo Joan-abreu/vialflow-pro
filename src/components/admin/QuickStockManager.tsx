@@ -21,7 +21,10 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Search, Package, Save, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, Bell, Loader2, RefreshCw, ArrowDownCircle, Trash2, ClipboardList, FilePlus, ChevronsUpDown, History, Eye, Calendar, FileText, Edit3, RotateCcw, Mail } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Package, Save, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, Bell, Loader2, RefreshCw, ArrowDownCircle, Trash2, ClipboardList, FilePlus, ChevronsUpDown, History, Eye, Calendar, FileText, Edit3, RotateCcw, Mail, QrCode, Sparkles, ExternalLink, X, Filter } from "lucide-react";
+import { generateBatchNumber } from "@/utils/batchGenerator";
+import VialLabelModal from "@/components/production/VialLabelModal";
 import { Label } from "@/components/ui/label";
 import {
     Dialog,
@@ -69,6 +72,7 @@ interface VariantStockRow {
 }
 
 export default function QuickStockManager() {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
@@ -80,11 +84,18 @@ export default function QuickStockManager() {
     // Inbound Receiving Stock Orders State
     const [isInboundOrderOpen, setIsInboundOrderOpen] = useState(false);
     const [inboundRefNumber, setInboundRefNumber] = useState("");
+    const [inboundReceivedDate, setInboundReceivedDate] = useState<string>(
+        new Date().toISOString().split("T")[0]
+    );
     const [inboundSupplier, setInboundSupplier] = useState("");
     const [inboundNotes, setInboundNotes] = useState("");
-    const [inboundLineItems, setInboundLineItems] = useState<Array<{ variantId: string; quantityToAdd: number }>>([]);
+    const [inboundLineItems, setInboundLineItems] = useState<Array<{ variantId: string; quantityToAdd: number; batchNumber?: string }>>([]);
+    const [inboundLineItemFilter, setInboundLineItemFilter] = useState("");
+    const [inboundLineItemFilterMode, setInboundLineItemFilterMode] = useState<"all" | "received_only">("all");
     const [isSubmittingInbound, setIsSubmittingInbound] = useState(false);
     const [isProductComboboxOpen, setIsProductComboboxOpen] = useState(false);
+    const [labelModalBatch, setLabelModalBatch] = useState<any | null>(null);
+    const [labelModalOpen, setLabelModalOpen] = useState(false);
 
     // Inbound History State
     const [isInboundHistoryOpen, setIsInboundHistoryOpen] = useState(false);
@@ -263,10 +274,15 @@ export default function QuickStockManager() {
         const autoRef = `IN-${Date.now().toString().slice(-6)}`;
         setEditingInboundLogId(null);
         setInboundRefNumber(autoRef);
+        setInboundReceivedDate(new Date().toISOString().split("T")[0]);
         setInboundSupplier("");
         setInboundNotes("");
+        setInboundLineItemFilter("");
+        setInboundLineItemFilterMode("all");
         if (initialVariantId) {
-            setInboundLineItems([{ variantId: initialVariantId, quantityToAdd: 50 }]);
+            const stockItem = stockItems.find(s => s.id === initialVariantId);
+            const batchNum = generateBatchNumber({ productName: stockItem?.product_name, strategy: "hybrid" });
+            setInboundLineItems([{ variantId: initialVariantId, quantityToAdd: 50, batchNumber: batchNum }]);
         } else {
             setInboundLineItems([]);
         }
@@ -277,13 +293,20 @@ export default function QuickStockManager() {
         const details = log.new_values || log.changes || {};
         setEditingInboundLogId(log.id);
         setInboundRefNumber(details.reference_number || `IN-${Date.now().toString().slice(-6)}`);
+        setInboundReceivedDate(details.received_date || new Date().toISOString().split("T")[0]);
         setInboundSupplier(details.supplier || "");
         setInboundNotes(details.notes || "");
+        setInboundLineItemFilter("");
+        setInboundLineItemFilterMode("all");
 
-        const items = (details.items || []).map((i: any) => ({
-            variantId: i.variant_id,
-            quantityToAdd: i.qty_added || 0
-        })).filter((i: any) => !!i.variantId);
+        const items = (details.items || []).map((i: any) => {
+            const s = stockItems.find(x => x.id === i.variant_id);
+            return {
+                variantId: i.variant_id,
+                quantityToAdd: i.qty_added || 0,
+                batchNumber: i.batch_number || generateBatchNumber({ productName: s?.product_name, strategy: "hybrid" })
+            };
+        }).filter((i: any) => !!i.variantId);
 
         setInboundLineItems(items);
         setSelectedHistoryLog(null);
@@ -351,14 +374,20 @@ export default function QuickStockManager() {
 
     const handleAddVariantToInbound = (variantId: string) => {
         if (!variantId) return;
+        const stockItem = stockItems.find(s => s.id === variantId);
+        const batchNum = generateBatchNumber({ productName: stockItem?.product_name, strategy: "hybrid" });
         setInboundLineItems((prev) => {
             if (prev.some(i => i.variantId === variantId)) return prev;
-            return [...prev, { variantId, quantityToAdd: 50 }];
+            return [...prev, { variantId, quantityToAdd: 50, batchNumber: batchNum }];
         });
     };
 
     const handleAddAllProductsToInbound = () => {
-        const allLines = stockItems.map(item => ({ variantId: item.id, quantityToAdd: 0 }));
+        const allLines = stockItems.map(item => ({
+            variantId: item.id,
+            quantityToAdd: 0,
+            batchNumber: generateBatchNumber({ productName: item.product_name, strategy: "hybrid" })
+        }));
         setInboundLineItems(allLines);
         toast.info(`Loaded all ${allLines.length} catalog products into the receiving list.`);
     };
@@ -367,6 +396,21 @@ export default function QuickStockManager() {
         setInboundLineItems((prev) =>
             prev.map(item => item.variantId === variantId ? { ...item, quantityToAdd: Math.max(0, quantityToAdd) } : item)
         );
+    };
+
+    const handleBatchNumberChange = (variantId: string, batchNumber: string) => {
+        setInboundLineItems((prev) =>
+            prev.map(item => item.variantId === variantId ? { ...item, batchNumber: batchNumber.toUpperCase() } : item)
+        );
+    };
+
+    const handleRegenerateBatch = (variantId: string) => {
+        const stockItem = stockItems.find(s => s.id === variantId);
+        const newBatch = generateBatchNumber({ productName: stockItem?.product_name, strategy: "hybrid" });
+        setInboundLineItems((prev) =>
+            prev.map(item => item.variantId === variantId ? { ...item, batchNumber: newBatch } : item)
+        );
+        toast.info(`Generated batch: ${newBatch}`);
     };
 
     const handleRemoveInboundLine = (variantId: string) => {
@@ -413,27 +457,69 @@ export default function QuickStockManager() {
                 }
             }
 
-            // Apply new quantities
+            // Apply new quantities and create production batch for each received product
             for (const item of validItems) {
                 const { data: vData } = await supabase
                     .from("product_variants")
-                    .select("stock_quantity")
+                    .select("stock_quantity, product_id, vial_type_id")
                     .eq("id", item.variantId)
                     .single();
 
-                const currentStock = vData ? vData.stock_quantity : (stockItems.find(s => s.id === item.variantId)?.stock_quantity || 0);
+                const matchedStockItem = stockItems.find(s => s.id === item.variantId);
+                const currentStock = vData ? vData.stock_quantity : (matchedStockItem?.stock_quantity || 0);
                 const newStock = currentStock + item.quantityToAdd;
                 totalUnitsAdded += item.quantityToAdd;
 
-                const { error } = await supabase
+                const { error: updateErr } = await supabase
                     .from("product_variants")
                     .update({ stock_quantity: newStock })
                     .eq("id", item.variantId);
 
-                if (error) throw error;
+                if (updateErr) throw updateErr;
 
-                // Auto-trigger restock notification if variant was out of stock (currentStock === 0) and has waitlisted customers
-                const matchedStockItem = stockItems.find(s => s.id === item.variantId);
+                // Create Batch Record in production_batches
+                const finalBatchNum = (item.batchNumber && item.batchNumber.trim())
+                    ? item.batchNumber.trim().toUpperCase()
+                    : generateBatchNumber({ productName: matchedStockItem?.product_name, strategy: "hybrid" });
+
+                try {
+                    await supabase.from("production_batches").insert({
+                        batch_number: finalBatchNum,
+                        product_id: item.variantId,
+                        variant_id: item.variantId,
+                        quantity: item.quantityToAdd,
+                        sale_type: "individual",
+                        pack_quantity: 1,
+                        created_by: session?.user?.id || (await supabase.auth.getUser()).data.user?.id,
+                        status: "completed",
+                        completed_at: new Date().toISOString(),
+                        waste_notes: `Inbound Order: ${inboundRefNumber}${inboundSupplier ? ` - Supplier: ${inboundSupplier}` : ""}`,
+                    });
+                } catch (batchErr) {
+                    console.warn("Error auto-creating production_batch for inbound item:", batchErr);
+                }
+
+                // Pre-register draft in product_coas
+                const prodId = vData?.product_id || matchedStockItem?.product_id;
+                if (prodId) {
+                    try {
+                        await supabase.from("product_coas" as any).insert({
+                            batch_number: finalBatchNum,
+                            product_id: prodId,
+                            product_ids: [prodId],
+                            test_date: new Date().toISOString().split("T")[0],
+                            pdf_url: "",
+                            sterility_status: "Pending Test",
+                            lab_name: "3rd Party Accredited US Lab",
+                            is_active: false,
+                            is_featured: false,
+                        });
+                    } catch (coaErr) {
+                        console.warn("Error pre-registering COA for inbound batch:", coaErr);
+                    }
+                }
+
+                // Auto-trigger restock notification if variant was out of stock
                 if (currentStock === 0 && matchedStockItem && matchedStockItem.pending_restock_count > 0) {
                     supabase.functions.invoke("send-restock-notification", {
                         body: { variant_id: item.variantId }
@@ -449,6 +535,7 @@ export default function QuickStockManager() {
                 changed_by: session?.user?.id || null,
                 new_values: {
                     reference_number: inboundRefNumber,
+                    received_date: inboundReceivedDate || new Date().toISOString().split("T")[0],
                     supplier: inboundSupplier,
                     notes: inboundNotes,
                     total_units_added: totalUnitsAdded,
@@ -459,7 +546,10 @@ export default function QuickStockManager() {
                             sku: s?.sku,
                             product_name: s?.product_name,
                             qty_added: i.quantityToAdd,
-                            new_stock: (s?.stock_quantity || 0) + i.quantityToAdd
+                            new_stock: (s?.stock_quantity || 0) + i.quantityToAdd,
+                            batch_number: (i.batchNumber && i.batchNumber.trim())
+                                ? i.batchNumber.trim().toUpperCase()
+                                : generateBatchNumber({ productName: s?.product_name, strategy: "hybrid" })
                         };
                     })
                 }
@@ -529,6 +619,26 @@ export default function QuickStockManager() {
         return matchesSearch && matchesCategory && matchesStatus;
     });
 
+    // Filtered items inside Inbound Receiving modal
+    const filteredInboundLineItems = inboundLineItems.filter((line) => {
+        const stockItem = stockItems.find((s) => s.id === line.variantId);
+        if (!stockItem) return false;
+
+        if (inboundLineItemFilterMode === "received_only" && (line.quantityToAdd || 0) <= 0) {
+            return false;
+        }
+
+        if (!inboundLineItemFilter.trim()) return true;
+        const q = inboundLineItemFilter.toLowerCase().trim();
+        const name = (stockItem.product_name || "").toLowerCase();
+        const sku = (stockItem.sku || "").toLowerCase();
+        const batch = (line.batchNumber || "").toLowerCase();
+        const cat = (stockItem.category_name || "").toLowerCase();
+        const vial = (stockItem.vial_type_name || "").toLowerCase();
+
+        return name.includes(q) || sku.includes(q) || batch.includes(q) || cat.includes(q) || vial.includes(q);
+    });
+
     return (
         <div className="space-y-6">
             {/* Header Controls Bar */}
@@ -569,6 +679,16 @@ export default function QuickStockManager() {
                             <SelectItem value="out_of_stock">Out of Stock (0)</SelectItem>
                         </SelectContent>
                     </Select>
+
+                    <Button 
+                        variant="outline"
+                        onClick={() => navigate("/manufacturing/inbound")}
+                        className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-50 font-semibold gap-1.5 text-xs shadow-sm"
+                        title="Go to dedicated full-page Inbound Receiving Management"
+                    >
+                        <ExternalLink className="h-4 w-4 text-emerald-600" />
+                        Dedicated Inbound Page
+                    </Button>
 
                     <Button 
                         onClick={() => handleOpenInboundModal()} 
@@ -799,33 +919,45 @@ export default function QuickStockManager() {
                     </TableBody>
                 </Table>
             </div>
-
             {/* Modal for Inbound Receiving Stock Orders */}
             <Dialog open={isInboundOrderOpen} onOpenChange={setIsInboundOrderOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
+                <DialogContent className="w-[96vw] max-w-6xl 2xl:max-w-7xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+                    <DialogHeader className="shrink-0 pb-1">
                         <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                            <ArrowDownCircle className="h-6 w-6" />
+                            <ArrowDownCircle className="h-6 w-6 shrink-0" />
                             Register Inbound Receiving Order (Stock Replenishment)
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-xs sm:text-sm">
                             Enter receiving details to automatically add incoming quantities to existing product stock.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 py-2 text-xs overflow-y-auto pr-1 flex-1">
                         {/* Header info */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-muted/30 p-3 rounded-lg border">
-                            <div className="space-y-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/30 p-3.5 rounded-xl border shrink-0">
+                            <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold">Inbound Order / Reference #</Label>
                                 <Input 
                                     value={inboundRefNumber}
                                     onChange={(e) => setInboundRefNumber(e.target.value)}
                                     placeholder="e.g. IN-2026-001"
-                                    className="h-9 text-xs"
+                                    className="h-9 text-xs font-mono font-bold"
                                 />
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    Received Date *
+                                </Label>
+                                <Input 
+                                    type="date"
+                                    value={inboundReceivedDate}
+                                    onChange={(e) => setInboundReceivedDate(e.target.value)}
+                                    className="h-9 text-xs font-semibold border-emerald-500/40"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold">Supplier / Origin (Optional)</Label>
                                 <Input 
                                     value={inboundSupplier}
@@ -834,7 +966,7 @@ export default function QuickStockManager() {
                                     className="h-9 text-xs"
                                 />
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
                                 <Label className="text-xs font-semibold">Notes / Comments</Label>
                                 <Input 
                                     value={inboundNotes}
@@ -845,18 +977,70 @@ export default function QuickStockManager() {
                             </div>
                         </div>
 
-                        {/* Add product select & bulk options */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
-                            <h4 className="text-sm font-bold flex items-center gap-1.5">
-                                <Package className="h-4 w-4 text-primary" />
-                                Products to Receive ({inboundLineItems.length})
-                            </h4>
+                        {/* Add product select, filter & bulk options */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2 border-t shrink-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="text-sm font-bold flex items-center gap-1.5">
+                                    <Package className="h-4 w-4 text-primary shrink-0" />
+                                    Products Received ({inboundLineItems.length})
+                                </h4>
+
+                                {/* Quick Filter Toggles if items exist */}
+                                {inboundLineItems.length > 0 && (
+                                    <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setInboundLineItemFilterMode("all")}
+                                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                                                inboundLineItemFilterMode === "all"
+                                                    ? "bg-background text-foreground shadow-sm font-bold"
+                                                    : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                        >
+                                            All ({inboundLineItems.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInboundLineItemFilterMode("received_only")}
+                                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                                                inboundLineItemFilterMode === "received_only"
+                                                    ? "bg-emerald-600 text-white shadow-sm font-bold"
+                                                    : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                        >
+                                            Qty &gt; 0 ({inboundLineItems.filter((i) => (i.quantityToAdd || 0) > 0).length})
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="flex flex-wrap items-center gap-2">
+                                {/* Real-time search filter for products in table */}
+                                {inboundLineItems.length > 0 && (
+                                    <div className="relative w-full sm:w-60">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Filter received products..."
+                                            value={inboundLineItemFilter}
+                                            onChange={(e) => setInboundLineItemFilter(e.target.value)}
+                                            className="pl-8 pr-7 h-9 text-xs bg-background"
+                                        />
+                                        {inboundLineItemFilter && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setInboundLineItemFilter("")}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
                                 <Popover open={isProductComboboxOpen} onOpenChange={setIsProductComboboxOpen}>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" className="w-72 justify-between text-xs h-9 font-normal">
-                                            <span className="truncate text-muted-foreground">+ Select product to add...</span>
+                                        <Button variant="outline" className="w-full sm:w-64 justify-between text-xs h-9 font-normal">
+                                            <span className="truncate text-muted-foreground">+ Select product to receive...</span>
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -889,7 +1073,7 @@ export default function QuickStockManager() {
                                                                 <div className="font-semibold text-xs truncate">{item.product_name}</div>
                                                                 <div className="text-[10px] text-muted-foreground truncate">{item.vial_type_name} • SKU: {item.sku}</div>
                                                             </div>
-                                                            <Badge variant="outline" className="text-[9px] shrink-0 font-mono">
+                                                            <Badge variant="outline" className="text-[9px] font-mono">
                                                                 Stock: {item.stock_quantity}
                                                             </Badge>
                                                         </CommandItem>
@@ -905,7 +1089,7 @@ export default function QuickStockManager() {
                                     variant="outline" 
                                     size="sm"
                                     onClick={handleAddAllProductsToInbound}
-                                    className="text-xs h-9 font-medium"
+                                    className="text-xs h-9 font-medium w-full sm:w-auto"
                                 >
                                     + Load All Products
                                 </Button>
@@ -913,27 +1097,48 @@ export default function QuickStockManager() {
                         </div>
 
                         {/* Receiving Table */}
-                        <div className="border rounded-lg overflow-hidden bg-card">
-                            <Table>
-                                <TableHeader className="bg-muted/50">
+                        <div className="border rounded-xl overflow-x-auto bg-card shadow-inner max-h-[48vh] overflow-y-auto">
+                            <Table className="min-w-[950px] w-full text-xs">
+                                <TableHeader className="bg-muted/50 sticky top-0 z-10">
                                     <TableRow>
-                                        <TableHead className="text-xs">Product / Variant</TableHead>
-                                        <TableHead className="text-xs">SKU</TableHead>
-                                        <TableHead className="text-xs text-center">Current Stock</TableHead>
-                                        <TableHead className="text-xs text-center font-bold text-emerald-700 w-36">+ Quantity Received</TableHead>
-                                        <TableHead className="text-xs text-center">New Expected Stock</TableHead>
-                                        <TableHead className="text-xs text-right w-12"></TableHead>
+                                        <TableHead className="min-w-[280px] max-w-[380px] text-xs font-semibold">
+                                            Product / Variant {inboundLineItems.length > 0 && (inboundLineItemFilter || inboundLineItemFilterMode === "received_only") ? `(${filteredInboundLineItems.length} of ${inboundLineItems.length})` : ""}
+                                        </TableHead>
+                                        <TableHead className="w-[100px] min-w-[100px] text-xs">SKU</TableHead>
+                                        <TableHead className="w-[200px] min-w-[200px] text-xs">Batch / Lot # (Auto)</TableHead>
+                                        <TableHead className="w-[100px] min-w-[100px] text-xs text-center">Current Stock</TableHead>
+                                        <TableHead className="w-[130px] min-w-[130px] text-xs text-center font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10">+ Quantity Received</TableHead>
+                                        <TableHead className="w-[110px] min-w-[110px] text-xs text-center">New Expected Stock</TableHead>
+                                        <TableHead className="w-[95px] min-w-[95px] text-xs text-center">Vial Labels</TableHead>
+                                        <TableHead className="w-[50px] min-w-[50px] text-xs text-right"></TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {inboundLineItems.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                                            <TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-xs">
                                                 No products added to this receiving order yet. Select a product from the dropdown above or click "+ Load All Products".
                                             </TableCell>
                                         </TableRow>
+                                    ) : filteredInboundLineItems.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-xs">
+                                                <Filter className="h-6 w-6 mx-auto mb-1.5 opacity-40 text-muted-foreground" />
+                                                No products match your filter criteria "{inboundLineItemFilter}".{" "}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setInboundLineItemFilter("");
+                                                        setInboundLineItemFilterMode("all");
+                                                    }}
+                                                    className="text-primary hover:underline font-semibold ml-1 inline-flex items-center gap-1"
+                                                >
+                                                    Clear filters
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
                                     ) : (
-                                        inboundLineItems.map((line) => {
+                                        filteredInboundLineItems.map((line) => {
                                             const stockItem = stockItems.find(s => s.id === line.variantId);
                                             if (!stockItem) return null;
 
@@ -942,35 +1147,95 @@ export default function QuickStockManager() {
                                             const newStock = currentStock + addedQty;
 
                                             return (
-                                                <TableRow key={line.variantId}>
-                                                    <TableCell className="py-2">
-                                                        <div className="flex items-center gap-2">
-                                                            {stockItem.image_url && (
-                                                                <img src={stockItem.image_url} alt="" className="w-8 h-8 rounded object-cover border" />
+                                                <TableRow key={line.variantId} className="hover:bg-muted/30 transition-colors">
+                                                    <TableCell className="min-w-[280px] max-w-[380px] py-2.5">
+                                                        <div className="flex items-start gap-2.5">
+                                                            {stockItem.image_url ? (
+                                                                <img src={stockItem.image_url} alt="" className="w-9 h-9 rounded-md object-cover border shrink-0 mt-0.5" />
+                                                            ) : (
+                                                                <div className="w-9 h-9 rounded-md bg-muted border flex items-center justify-center shrink-0 mt-0.5 text-muted-foreground text-[10px]">
+                                                                    <Package className="w-4 h-4 text-muted-foreground/60" />
+                                                                </div>
                                                             )}
-                                                            <div>
-                                                                <div className="font-semibold text-xs">{stockItem.product_name}</div>
-                                                                <div className="text-[10px] text-muted-foreground">{stockItem.vial_type_name} ({stockItem.category_name})</div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-semibold text-xs leading-snug line-clamp-2 text-foreground" title={stockItem.product_name}>
+                                                                    {stockItem.product_name}
+                                                                </div>
+                                                                <div className="text-[11px] text-muted-foreground font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="bg-muted px-1.5 py-0.5 rounded text-[10px]">{stockItem.vial_type_name}</span>
+                                                                    {stockItem.category_name && stockItem.category_name !== "Uncategorized" && (
+                                                                        <span className="text-[10px] text-muted-foreground/80">• {stockItem.category_name}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-xs font-mono">{stockItem.sku}</TableCell>
-                                                    <TableCell className="text-center font-bold text-xs">{currentStock}</TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="w-[100px] min-w-[100px] text-xs font-mono text-muted-foreground">{stockItem.sku || "—"}</TableCell>
+
+                                                    {/* Batch Number Cell with Regenerate */}
+                                                    <TableCell className="w-[200px] min-w-[200px] py-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Input
+                                                                value={line.batchNumber || ""}
+                                                                onChange={(e) => handleBatchNumberChange(line.variantId, e.target.value)}
+                                                                className="w-36 h-8 font-mono text-xs uppercase font-bold bg-background border-primary/30 tracking-wide"
+                                                                placeholder="e.g. BPC-2609-7X2"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon"
+                                                                onClick={() => handleRegenerateBatch(line.variantId)}
+                                                                className="h-8 w-8 shrink-0 text-primary hover:bg-primary/10"
+                                                                title="Generate new random lot number"
+                                                            >
+                                                                <RefreshCw className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    <TableCell className="w-[100px] min-w-[100px] text-center font-bold text-xs font-mono">{currentStock.toLocaleString()}</TableCell>
+                                                    <TableCell className="w-[130px] min-w-[130px] text-center py-2 bg-emerald-500/5">
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             value={line.quantityToAdd}
                                                             onChange={(e) => handleInboundQtyChange(line.variantId, parseInt(e.target.value) || 0)}
-                                                            className="w-28 text-center font-bold text-sm h-8 mx-auto border-emerald-500 ring-1 ring-emerald-500/30"
+                                                            className="w-24 text-center font-bold text-sm h-8 mx-auto border-emerald-500 ring-1 ring-emerald-500/30 bg-background"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-xs">
-                                                            {newStock} units
+                                                    <TableCell className="w-[110px] min-w-[110px] text-center">
+                                                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-xs border-0">
+                                                            {newStock.toLocaleString()} units
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-right">
+
+                                                    {/* Print Labels Button */}
+                                                    <TableCell className="w-[95px] min-w-[95px] text-center">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setLabelModalBatch({
+                                                                    id: line.variantId,
+                                                                    batch_number: line.batchNumber || "PENDING",
+                                                                    quantity: line.quantityToAdd || 50,
+                                                                    product_name: stockItem.product_name,
+                                                                    vial_capacity_ml: stockItem.vial_type_name,
+                                                                    created_at: inboundReceivedDate ? new Date(inboundReceivedDate).toISOString() : new Date().toISOString(),
+                                                                });
+                                                                setLabelModalOpen(true);
+                                                            }}
+                                                            className="h-8 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1"
+                                                            title="Print Vial Labels for this Lot"
+                                                        >
+                                                            <QrCode className="h-3.5 w-3.5" />
+                                                            Labels
+                                                        </Button>
+                                                    </TableCell>
+
+                                                    <TableCell className="w-[50px] min-w-[50px] text-right">
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
@@ -989,34 +1254,47 @@ export default function QuickStockManager() {
                         </div>
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => setIsInboundOrderOpen(false)} disabled={isSubmittingInbound}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleProcessInboundOrder}
-                            disabled={isSubmittingInbound || inboundLineItems.length === 0}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                        >
-                            {isSubmittingInbound ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Processing Inbound...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Receive Stock (+{inboundLineItems.reduce((acc, i) => acc + (i.quantityToAdd || 0), 0)} Units)
-                                </>
-                            )}
-                        </Button>
+                    <DialogFooter className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t mt-2 shrink-0">
+                        <div className="text-xs text-muted-foreground font-medium">
+                            Total: <span className="font-bold text-foreground">{inboundLineItems.length}</span> products •{" "}
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                +{inboundLineItems.reduce((acc, i) => acc + (i.quantityToAdd || 0), 0).toLocaleString()}
+                            </span> units to restock
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => setIsInboundOrderOpen(false)} 
+                                disabled={isSubmittingInbound}
+                                className="flex-1 sm:flex-none text-xs"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleProcessInboundOrder}
+                                disabled={isSubmittingInbound || inboundLineItems.length === 0}
+                                className="flex-1 sm:flex-none text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            >
+                                {isSubmittingInbound ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Processing Inbound...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                        Receive Stock (+{inboundLineItems.reduce((acc, i) => acc + (i.quantityToAdd || 0), 0).toLocaleString()} Units)
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Modal for Inbound Receiving Orders History */}
             <Dialog open={isInboundHistoryOpen} onOpenChange={setIsInboundHistoryOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                             <History className="h-6 w-6" />
@@ -1040,8 +1318,8 @@ export default function QuickStockManager() {
                         </div>
 
                         {/* History Table */}
-                        <div className="border rounded-lg overflow-hidden bg-card">
-                            <Table>
+                        <div className="border rounded-xl overflow-x-auto bg-card">
+                            <Table className="min-w-[750px] w-full text-xs">
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
                                         <TableHead className="text-xs">Reference #</TableHead>
@@ -1159,7 +1437,7 @@ export default function QuickStockManager() {
 
             {/* Modal for Order Item Breakdown */}
             <Dialog open={!!selectedHistoryLog} onOpenChange={(open) => !open && setSelectedHistoryLog(null)}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] lg:max-w-4xl max-h-[88vh] overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold flex items-center gap-2">
                             <Package className="h-5 w-5 text-emerald-600" />
@@ -1189,14 +1467,16 @@ export default function QuickStockManager() {
                                     </div>
                                 </div>
 
-                                <div className="border rounded-lg overflow-hidden bg-card">
-                                    <Table>
+                                <div className="border rounded-xl overflow-x-auto bg-card">
+                                    <Table className="min-w-[650px] w-full text-xs">
                                         <TableHeader className="bg-muted/50">
                                             <TableRow>
                                                 <TableHead className="text-xs">Product Name</TableHead>
                                                 <TableHead className="text-xs">SKU</TableHead>
+                                                <TableHead className="text-xs">Batch / Lot #</TableHead>
                                                 <TableHead className="text-xs text-center font-bold text-emerald-700">Quantity Added</TableHead>
                                                 <TableHead className="text-xs text-center">New Stock Level</TableHead>
+                                                <TableHead className="text-xs text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -1204,6 +1484,15 @@ export default function QuickStockManager() {
                                                 <TableRow key={idx}>
                                                     <TableCell className="font-semibold text-xs py-2">{item.product_name || "Unknown Product"}</TableCell>
                                                     <TableCell className="font-mono text-xs text-muted-foreground py-2">{item.sku || "—"}</TableCell>
+                                                    <TableCell className="py-2">
+                                                        {item.batch_number ? (
+                                                            <Badge variant="outline" className="font-mono text-[10px] font-bold border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                                                                {item.batch_number}
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-muted-foreground text-[10px]">—</span>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell className="text-center py-2">
                                                         <Badge className="bg-emerald-500/15 text-emerald-700 font-bold text-xs">
                                                             +{item.qty_added} units
@@ -1211,6 +1500,29 @@ export default function QuickStockManager() {
                                                     </TableCell>
                                                     <TableCell className="text-center font-bold text-xs py-2">
                                                         {item.new_stock ?? "—"}
+                                                    </TableCell>
+                                                    <TableCell className="text-right py-2">
+                                                        {item.batch_number && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setLabelModalBatch({
+                                                                        id: item.variant_id,
+                                                                        batch_number: item.batch_number,
+                                                                        quantity: item.qty_added || 50,
+                                                                        product_name: item.product_name,
+                                                                        created_at: selectedHistoryLog?.created_at || new Date().toISOString(),
+                                                                    });
+                                                                    setLabelModalOpen(true);
+                                                                }}
+                                                                className="h-7 px-2 text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 gap-1 font-semibold"
+                                                                title="Print Labels for this Lot"
+                                                            >
+                                                                <QrCode className="h-3 w-3" />
+                                                                Labels
+                                                            </Button>
+                                                        )}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -1376,6 +1688,12 @@ export default function QuickStockManager() {
                     )}
                 </DialogContent>
             </Dialog>
+            {/* Vial Label Print & QR Modal */}
+            <VialLabelModal
+                batch={labelModalBatch}
+                open={labelModalOpen}
+                onOpenChange={setLabelModalOpen}
+            />
         </div>
     );
 }

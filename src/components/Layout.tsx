@@ -10,6 +10,7 @@ import {
   Package,
   Boxes,
   Truck,
+  ArrowDownCircle,
   LogOut,
   Menu,
   Shield,
@@ -128,6 +129,7 @@ const Layout = ({ children }: LayoutProps) => {
   ];
 
   const operationsNavigation = [
+    { name: "Inbound Orders", href: "/manufacturing/inbound", icon: ArrowDownCircle },
     { name: "Production", href: "/manufacturing/production", icon: Package },
     { name: "Inventory", href: "/manufacturing/inventory", icon: Boxes },
     { name: "Shipments FBA", href: "/manufacturing/shipments", icon: Truck },

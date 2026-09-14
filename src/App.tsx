@@ -60,6 +60,7 @@ import { supabase } from "./integrations/supabase/client";
 import Maintenance from "./pages/public/Maintenance";
 import SiteSettings from "./pages/manufacturing/SiteSettings";
 import AuditLogs from "./pages/manufacturing/AuditLogs";
+import InboundOrders from "./pages/manufacturing/InboundOrders";
 import { HelmetProvider } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
 
@@ -233,6 +234,8 @@ const AppRoutes = () => {
                 {/* Manufacturing Routes */}
                 <Route path="/manufacturing" element={session ? <Outlet /> : <Navigate to="/login" replace />}>
                     <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="inbound" element={<ProtectedRoute><InboundOrders /></ProtectedRoute>} />
+                    <Route path="inbound-orders" element={<ProtectedRoute><InboundOrders /></ProtectedRoute>} />
                     <Route path="production" element={<ProtectedRoute><Production /></ProtectedRoute>} />
                     <Route path="inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
                     <Route path="shipments" element={<ProtectedRoute><Shipments /></ProtectedRoute>} />

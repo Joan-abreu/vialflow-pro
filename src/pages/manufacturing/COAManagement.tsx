@@ -60,6 +60,7 @@ import {
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import ProductVariantMultiSelect, { ProductWithVariants } from "@/components/admin/ProductVariantMultiSelect";
 import { COA, PeptideComponent } from "@/types/coa";
+import { generateBatchNumber } from "@/utils/batchGenerator";
 
 interface FormDataState {
     product_ids: string[];
@@ -197,6 +198,32 @@ const COAManagement = () => {
         setNewCompName("");
         setNewCompAmount("");
     };
+
+    // Fetch Production Batches for auto-completing / selecting batch numbers
+    const { data: productionBatches } = useQuery({
+        queryKey: ["production-batches-select"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("production_batches")
+                .select(`
+                    id,
+                    batch_number,
+                    product_id,
+                    variant_id,
+                    status,
+                    created_at,
+                    product_variant_details:product_id (
+                        product_id (id, name)
+                    )
+                `)
+                .order("created_at", { ascending: false });
+            if (error) {
+                console.error("Error fetching batches for COA select:", error);
+                return [];
+            }
+            return data || [];
+        },
+    });
 
     // File Upload Handler
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -530,15 +557,73 @@ const COAManagement = () => {
             {/* Batch Number & Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
-                    <Label htmlFor="batch" className="text-xs font-semibold">Batch / Lot Number *</Label>
-                    <Input
-                        id="batch"
-                        placeholder={formData.coa_type === "peptide" ? "e.g. RT20/2026-04-15" : "e.g. DW10M033026"}
-                        value={formData.batch_number}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, batch_number: e.target.value }))}
-                        required
-                        className="h-9 text-sm font-mono"
-                    />
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="batch" className="text-xs font-semibold">Batch / Lot Number *</Label>
+                        {productionBatches && productionBatches.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                                Select or type lot
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <Input
+                            id="batch"
+                            placeholder={formData.coa_type === "peptide" ? "e.g. BPC-2609-7X2" : "e.g. DW10M033026"}
+                            value={formData.batch_number}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, batch_number: e.target.value.toUpperCase() }))}
+                            required
+                            className="h-9 text-sm font-mono uppercase font-semibold flex-1"
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                const firstProd = products?.find((p) => formData.product_ids.includes(p.id));
+                                const newCode = generateBatchNumber({
+                                    productName: firstProd?.name,
+                                    strategy: "hybrid",
+                                });
+                                setFormData((prev) => ({ ...prev, batch_number: newCode }));
+                                toast.info(`Generated batch: ${newCode}`);
+                            }}
+                            title="Generate random hybrid batch code"
+                            className="h-9 text-xs font-bold gap-1 px-2.5 shrink-0 text-primary border-primary/30 hover:bg-primary/10"
+                        >
+                            🎲 Generar
+                        </Button>
+                    </div>
+
+                    {/* Quick picker from production batches */}
+                    {productionBatches && productionBatches.length > 0 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
+                            <span className="text-[10px] text-muted-foreground font-semibold shrink-0">Lotes Recientes:</span>
+                            {productionBatches.slice(0, 5).map((pb: any) => (
+                                <button
+                                    key={pb.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData((prev) => {
+                                            const newIds = [...prev.product_ids];
+                                            const associatedProdId = pb.product_variant_details?.product_id?.id;
+                                            if (associatedProdId && !newIds.includes(associatedProdId)) {
+                                                newIds.push(associatedProdId);
+                                            }
+                                            return {
+                                                ...prev,
+                                                batch_number: pb.batch_number,
+                                                product_ids: newIds,
+                                            };
+                                        });
+                                        toast.success(`Selected batch ${pb.batch_number}`);
+                                    }}
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border bg-muted/50 hover:bg-primary/10 hover:border-primary/50 text-foreground transition-colors shrink-0"
+                                >
+                                    {pb.batch_number}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-1.5">
                     <Label htmlFor="date" className="text-xs font-semibold">Analysis Date *</Label>

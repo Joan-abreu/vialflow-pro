@@ -37,7 +37,8 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X, Boxes, Archive, ArchiveRestore, Filter, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, FileText, Eye, Search, X, Boxes, Archive, ArchiveRestore, Filter, EyeOff, ArrowDownCircle } from "lucide-react";
 import QuickStockManager from "@/components/admin/QuickStockManager";
 import { Badge } from "@/components/ui/badge";
 import RichTextEditor from "@/components/admin/RichTextEditor";
@@ -215,6 +216,7 @@ const SortableVariantRow = ({ variant, onEdit, onDelete }: SortableVariantRowPro
 };
 
 const ProductManagement = () => {
+    const navigate = useNavigate();
     const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
     const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -891,6 +893,13 @@ const ProductManagement = () => {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto text-sm sm:text-base">
+                        <Button 
+                            variant="default" 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                            onClick={() => navigate("/manufacturing/inbound")}
+                        >
+                            <ArrowDownCircle className="mr-2 h-4 w-4" /> Inbound Orders (+Stock)
+                        </Button>
                         <Dialog open={isStockManagerOpen} onOpenChange={setIsStockManagerOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10 font-semibold">

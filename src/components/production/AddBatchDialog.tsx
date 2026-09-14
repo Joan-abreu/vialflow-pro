@@ -18,15 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Loader2, CalendarIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { updateMaterialStock } from "@/services/inventory";
+import { Plus, Loader2, RefreshCw, Dices, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  generateBatchNumber,
+  generateUniqueBatchNumber,
+  BatchStrategy,
+  extractProductPrefix,
+} from "@/utils/batchGenerator";
 
 interface AddBatchDialogProps {
   onSuccess: () => void;
@@ -50,50 +51,67 @@ interface ProductVariant {
 const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [strategy, setStrategy] = useState<BatchStrategy>("hybrid");
+  const [preRegisterCoa, setPreRegisterCoa] = useState<boolean>(true);
+  const [supplierNotes, setSupplierNotes] = useState<string>("");
+
   const [formData, setFormData] = useState({
     batch_number: "",
     variant_id: "",
     quantity: "",
   });
 
-  useEffect(() => {
-    const generateBatchNumber = async () => {
-      // Get today's date in YYYYMMDD format
-      const today = new Date();
-      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+  const getSelectedVariant = () => {
+    return variants.find((v) => v.id === formData.variant_id);
+  };
 
-      // Get the latest batch created today to determine the next sequence number
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+  const regenerateBatch = async (strat: BatchStrategy = strategy, selectedVar?: ProductVariant) => {
+    setIsGenerating(true);
+    try {
+      const activeVariant = selectedVar || getSelectedVariant();
+      const productName = activeVariant?.products?.name || "Peptide";
 
-      const { data: latestBatches } = await supabase
-        .from("production_batches")
-        .select("batch_number")
-        .gte('created_at', startOfDay)
-        .lte('created_at', endOfDay)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      let nextSeq = 1;
+      if (strat === "sequential_date") {
+        const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
 
-      let nextNumber = 1;
+        const { data: latestBatches } = await supabase
+          .from("production_batches")
+          .select("batch_number")
+          .gte("created_at", startOfDay)
+          .lte("created_at", endOfDay)
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-      if (latestBatches && latestBatches.length > 0) {
-        const lastBatchNumber = latestBatches[0].batch_number;
-        // Assuming format BATCH-YYYYMMDD-XXX
-        const parts = lastBatchNumber.split('-');
-        if (parts.length === 3) {
-          const lastSequence = parseInt(parts[2]);
-          if (!isNaN(lastSequence)) {
-            nextNumber = lastSequence + 1;
+        if (latestBatches && latestBatches.length > 0) {
+          const lastBatch = latestBatches[0].batch_number;
+          const parts = lastBatch.split("-");
+          if (parts.length >= 3) {
+            const lastSeq = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
           }
         }
       }
 
-      const batchNumber = `BATCH-${dateStr}-${String(nextNumber).padStart(3, '0')}`;
+      const newBatch = await generateUniqueBatchNumber({
+        productName,
+        strategy: strat,
+        sequentialNumber: nextSeq,
+      });
 
-      setFormData(prev => ({ ...prev, batch_number: batchNumber }));
-    };
+      setFormData((prev) => ({ ...prev, batch_number: newBatch }));
+    } catch (err) {
+      console.error("Error generating batch:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
+  useEffect(() => {
     const fetchVariants = async () => {
       const { data } = await supabase
         .from("product_variants")
@@ -113,15 +131,31 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
 
     if (open) {
       fetchVariants();
-      generateBatchNumber();
+      regenerateBatch("hybrid");
     }
   }, [open]);
+
+  // When variant changes, adapt batch number prefix
+  const handleVariantChange = (variantId: string) => {
+    const chosen = variants.find((v) => v.id === variantId);
+    setFormData((prev) => ({ ...prev, variant_id: variantId }));
+    if (chosen) {
+      regenerateBatch(strategy, chosen);
+    }
+  };
+
+  const handleStrategyChange = (newStrat: BatchStrategy) => {
+    setStrategy(newStrat);
+    regenerateBatch(newStrat);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       toast.error("User not authenticated");
@@ -135,14 +169,21 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       return;
     }
 
-    const selectedVariant = variants.find(v => v.id === formData.variant_id);
+    const selectedVariant = variants.find((v) => v.id === formData.variant_id);
     if (!selectedVariant) {
       toast.error("Invalid variant selected");
       setLoading(false);
       return;
     }
 
-    const quantity = parseInt(formData.quantity);
+    const cleanBatchNumber = formData.batch_number.trim().toUpperCase();
+    if (!cleanBatchNumber) {
+      toast.error("Please enter or generate a batch number");
+      setLoading(false);
+      return;
+    }
+
+    const quantity = parseInt(formData.quantity, 10);
     if (isNaN(quantity) || quantity <= 0) {
       toast.error("Please enter a valid quantity");
       setLoading(false);
@@ -150,238 +191,294 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
     }
 
     // Calculate total bottles
-    const totalBottles = selectedVariant.sale_type === "pack"
-      ? quantity * selectedVariant.pack_size
-      : quantity;
+    const totalBottles =
+      selectedVariant.sale_type === "pack"
+        ? quantity * selectedVariant.pack_size
+        : quantity;
 
-    // Fetch production configurations
-    const { data: configurations, error: configError } = await supabase
-      .from("production_configurations")
-      .select(`
-        raw_material_id,
-        quantity_per_unit,
-        quantity_usage,
-        application_basis,
-        calculation_type,
-        percentage_value,
-        percentage_of_material_id,
-        raw_materials!production_configurations_raw_material_id_fkey (
-          id,
-          name,
-          current_stock,
-          unit,
-          purchase_unit_id,
-          usage_unit_id,
-          qty_per_container
-        )
-      `)
-      .eq("product_id", selectedVariant.product_id)
-      .eq("vial_type_id", selectedVariant.vial_type_id);
+    // Check if batch number already exists
+    const { data: existingBatch } = await supabase
+      .from("production_batches")
+      .select("id")
+      .eq("batch_number", cleanBatchNumber)
+      .maybeSingle();
 
-    if (configError) {
-      toast.error("Error fetching configurations: " + configError.message);
+    if (existingBatch) {
+      toast.error(`Batch number "${cleanBatchNumber}" is already in use. Please generate another.`);
       setLoading(false);
       return;
     }
 
-    // Check stock and calculate needed quantities
-    const insufficientMaterials: string[] = [];
-    const materialUpdates: Array<{ id: string; newStock: number }> = [];
+    // 1. Create the production batch
+    const { data: createdBatch, error: batchError } = await supabase
+      .from("production_batches")
+      .insert({
+        batch_number: cleanBatchNumber,
+        product_id: selectedVariant.id,
+        variant_id: selectedVariant.id,
+        quantity: totalBottles,
+        sale_type: selectedVariant.sale_type,
+        pack_quantity: selectedVariant.sale_type === "pack" ? selectedVariant.pack_size : 1,
+        created_by: user.id,
+        status: "pending",
+        started_at: null,
+        waste_notes: supplierNotes ? `Supplier Intake: ${supplierNotes}` : null,
+      })
+      .select("id")
+      .single();
 
-    for (const vm of configurations || []) {
-      const material = vm.raw_materials as any;
-
-      // Skip if material doesn't exist
-      if (!material) {
-        console.warn(`Material not found for vial type material ${vm.raw_material_id}`);
-        continue;
-      }
-
-      let neededQuantity = 0;
-
-      // Calculate needed quantity based on application basis
-      if (vm.calculation_type === 'fixed') {
-        if (vm.application_basis === 'per_batch') {
-          neededQuantity = vm.quantity_usage || 0;
-        } else {
-          // For per_pack, per_inner_unit, etc., quantity_per_unit is already calculated as "per pack" in the config dialog
-          // So we just multiply by the number of packs (quantity)
-          // Note: formData.quantity is "units/packs". If sale_type is individual, it's units. If pack, it's packs.
-          // quantity_per_unit in config is "per production unit" (which corresponds to the variant)
-          neededQuantity = quantity * vm.quantity_per_unit;
-        }
-      } else if (vm.calculation_type === 'per_box') {
-        // Logic for per_box (if needed for batch creation, or maybe only for shipping?)
-        // Assuming 1 per box, but we need to know how many boxes. 
-        // For now, ignoring or assuming 1 per pack if mapped? 
-        // Actually, per_box usually implies shipping boxes. 
-        // If it's a production material like a "Case", we might need box config.
-        // For simplicity, if per_box, we might skip or approximate.
-        // Let's assume quantity_per_unit holds the value per pack if it was calculated?
-        // In ManageProductionMaterials, per_box sets quantity_per_unit = 1.
-        // This might be wrong if it's 1 box per 10 packs.
-        // But for now, let's stick to the main logic.
-        neededQuantity = quantity * vm.quantity_per_unit;
-      } else if (vm.calculation_type === 'percentage') {
-        // Percentage logic would require 2 passes or dependency resolution. 
-        // Skipping for now or assuming simple order.
-        // If it depends on another material's quantity.
-        // This is complex. For now, let's assume 0 or skip.
-        console.warn("Percentage calculation not fully implemented in batch creation yet");
-      }
-
-      if (neededQuantity > 0) {
-        // Get current stock in usage units
-        const { data: stockData, error: stockError } = await supabase
-          .rpc('get_material_stock_in_usage_units', { material_id: material.id });
-
-        if (stockError) {
-          toast.error(`Error checking stock for ${material.name}`);
-          setLoading(false);
-          return;
-        }
-
-        const availableStock = stockData || 0;
-
-        if (availableStock < neededQuantity) {
-          insufficientMaterials.push(
-            `${material.name}: need ${neededQuantity.toFixed(2)} ${material.unit}, available ${availableStock.toFixed(2)}`
-          );
-        } else {
-          // Calculate new stock in purchase units
-          const conversionFactor = material.qty_per_container || 1;
-          const stockInPurchaseUnits = material.current_stock;
-          const neededInPurchaseUnits = neededQuantity / conversionFactor;
-
-          materialUpdates.push({
-            id: material.id,
-            newStock: stockInPurchaseUnits - neededInPurchaseUnits
-          });
-        }
-      }
-    }
-
-    if (insufficientMaterials.length > 0) {
-      toast.error("Insufficient materials:\n" + insufficientMaterials.join("\n"), {
-        duration: 8000,
-      });
+    if (batchError) {
+      toast.error("Error creating batch: " + batchError.message);
       setLoading(false);
       return;
     }
 
-    // Create the batch
-    const { error } = await supabase.from("production_batches").insert({
-      batch_number: formData.batch_number.trim(),
-      product_id: selectedVariant.id,
-      quantity: totalBottles,
-      sale_type: selectedVariant.sale_type,
-      pack_quantity: selectedVariant.sale_type === 'pack' ? selectedVariant.pack_size : 1,
-      created_by: user.id,
-      status: "pending",
-      started_at: null,
-    });
+    // 2. Optionally pre-register draft COA for tracking testing status
+    if (preRegisterCoa) {
+      try {
+        const todayStr = new Date().toISOString().split("T")[0];
+        await supabase.from("product_coas" as any).insert({
+          batch_number: cleanBatchNumber,
+          product_id: selectedVariant.product_id,
+          product_ids: [selectedVariant.product_id],
+          test_date: todayStr,
+          pdf_url: "",
+          sterility_status: "Pending Test",
+          lab_name: "3rd Party Accredited US Lab",
+          is_active: false,
+          is_featured: false,
+        });
+      } catch (coaErr) {
+        console.warn("Could not pre-register COA draft:", coaErr);
+      }
+    }
 
     setLoading(false);
-
-    if (error) {
-      toast.error("Error creating batch: " + error.message);
-    }
-    else {
-      // // Update material stocks using inventory service
-      // try {
-      //   for (const update of materialUpdates) {
-      //     // Calculate quantity to deduct (difference from current stock)
-      //     const { data: currentMaterial } = await supabase
-      //       .from("raw_materials")
-      //       .select("current_stock")
-      //       .eq("id", update.id)
-      //       .single();
-
-      //     if (currentMaterial) {
-      //       const quantityToDeduct = currentMaterial.current_stock - update.newStock;
-      //       await updateMaterialStock(update.id, quantityToDeduct, "deduct");
-      //     }
-      //   }
-      toast.success("Production batch created successfully");
-      // } catch (inventoryError: any) {
-      //   toast.error("Batch created but error updating inventory: " + inventoryError.message);
-      // }
-      setOpen(false);
-      setFormData({
-        batch_number: "",
-        variant_id: "",
-        quantity: "",
-      });
-      onSuccess();
-    }
+    toast.success(`Batch ${cleanBatchNumber} created successfully!`);
+    setOpen(false);
+    setFormData({
+      batch_number: "",
+      variant_id: "",
+      quantity: "",
+    });
+    setSupplierNotes("");
+    onSuccess();
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="font-bold">
           <Plus className="mr-2 h-4 w-4" />
           New Batch
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[540px] max-h-[92vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create Production Batch</DialogTitle>
-            <DialogDescription>
-              Start a new production batch
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                📦
+              </span>
+              Create Production / Supplier Batch
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Assign a certified lot number to incoming or manufactured peptide vials.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="batch_number">Batch Number (Auto-generated)</Label>
-              <Input
-                id="batch_number"
-                value={formData.batch_number}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="variant">Product Variant *</Label>
+
+          <div className="grid gap-4 py-3 text-xs sm:text-sm">
+            {/* Variant Selector */}
+            <div className="grid gap-1.5">
+              <Label htmlFor="variant" className="font-bold">
+                Product Variant *
+              </Label>
               <Select
                 value={formData.variant_id}
-                onValueChange={(value) => setFormData({ ...formData, variant_id: value })}
+                onValueChange={handleVariantChange}
               >
-                <SelectTrigger id="variant">
+                <SelectTrigger id="variant" className="h-9">
                   <SelectValue placeholder="Select product variant" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-56">
                   {variants.map((variant) => {
-                    const saleTypeText = variant.sale_type === 'pack'
-                      ? `Pack (${variant.pack_size}x)`
-                      : 'Individual';
+                    const saleTypeText =
+                      variant.sale_type === "pack"
+                        ? `Pack (${variant.pack_size}x)`
+                        : "Individual";
                     return (
                       <SelectItem key={variant.id} value={variant.id}>
-                        {variant.products.name} - {variant.vial_types.name} ({variant.vial_types.capacity_ml}ml{variant.vial_types.color ? ` - ${variant.vial_types.color}` : ''}{variant.vial_types.shape ? ` - ${variant.vial_types.shape}` : ''}) - {saleTypeText}
+                        {variant.products.name} - {variant.vial_types.name} (
+                        {variant.vial_types.capacity_ml}ml
+                        {variant.vial_types.color ? ` - ${variant.vial_types.color}` : ""}
+                        {variant.vial_types.shape ? ` - ${variant.vial_types.shape}` : ""}
+                        ) - {saleTypeText}
                       </SelectItem>
                     );
                   })}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quantity">Quantity (units/packs) *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                required
+
+            {/* Batch Strategy & Generator Box */}
+            <div className="p-3 bg-muted/40 border rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Lot Number Generator
+                </span>
+                <span className="text-[11px] font-semibold text-primary">
+                  US Laboratory Standard
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleStrategyChange("hybrid")}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    strategy === "hybrid"
+                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                      : "bg-background hover:bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  <p className="font-bold leading-tight text-[11px]">Híbrido Lab</p>
+                  <p className="text-[9.5px] opacity-80 mt-0.5 font-mono">BPC-2609-7X2</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleStrategyChange("random_safe")}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    strategy === "random_safe"
+                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                      : "bg-background hover:bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  <p className="font-bold leading-tight text-[11px]">Aleatorio Safe</p>
+                  <p className="text-[9.5px] opacity-80 mt-0.5 font-mono">BPC-8K9N2W</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleStrategyChange("sequential_date")}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    strategy === "sequential_date"
+                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                      : "bg-background hover:bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  <p className="font-bold leading-tight text-[11px]">Secuencial</p>
+                  <p className="text-[9.5px] opacity-80 mt-0.5 font-mono">BPC-260914-01</p>
+                </button>
+              </div>
+
+              {/* Editable Batch Input + Regenerate Button */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="batch_number"
+                    value={formData.batch_number}
+                    onChange={(e) =>
+                      setFormData({ ...formData, batch_number: e.target.value.toUpperCase() })
+                    }
+                    placeholder="e.g. BPC-2609-7X2"
+                    className="font-mono font-bold text-sm uppercase tracking-wider h-10 bg-background"
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => regenerateBatch(strategy)}
+                  disabled={isGenerating}
+                  title="Generate new random batch number"
+                  className="h-10 w-10 shrink-0 border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                {strategy === "hybrid" &&
+                  "✨ Combina el prefijo del producto, año/mes de recepción y 3 caracteres aleatorios (Crockford Base32) para total privacidad comercial."}
+                {strategy === "random_safe" &&
+                  "🔒 6 caracteres alfanuméricos criptográficamente seguros excluyendo caracteres ambiguos (0, O, 1, I, L)."}
+                {strategy === "sequential_date" &&
+                  "📅 Formato cGMP cronológico estándar basado en fecha calendario y correlativo diario."}
+              </p>
+            </div>
+
+            {/* Quantity */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="quantity" className="font-bold">
+                  Quantity (Units / Packs) *
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  placeholder="e.g. 50"
+                  className="h-9"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="supplierNotes" className="font-bold">
+                  Supplier / PO Ref (Optional)
+                </Label>
+                <Input
+                  id="supplierNotes"
+                  value={supplierNotes}
+                  onChange={(e) => setSupplierNotes(e.target.value)}
+                  placeholder="e.g. PO #1049 - Supplier Lot"
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            {/* Pre-register COA Draft Option */}
+            <div className="flex items-start gap-2.5 p-2.5 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40">
+              <Checkbox
+                id="preRegisterCoa"
+                checked={preRegisterCoa}
+                onCheckedChange={(checked) => setPreRegisterCoa(!!checked)}
+                className="mt-0.5"
               />
+              <div className="grid gap-0.5 leading-none">
+                <label
+                  htmlFor="preRegisterCoa"
+                  className="text-xs font-bold text-emerald-900 dark:text-emerald-300 cursor-pointer"
+                >
+                  Pre-registrar borrador en COAs ("Sample Sent to Lab")
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  Crea automáticamente el registro del lote en el módulo de COAs para cuando recibas el reporte analítico del laboratorio.
+                </p>
+              </div>
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto text-xs sm:text-sm">
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="w-full sm:w-auto text-xs sm:text-sm"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto text-xs sm:text-sm">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full sm:w-auto text-xs sm:text-sm font-bold bg-primary"
+            >
               {loading && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />}
               Create Batch
             </Button>

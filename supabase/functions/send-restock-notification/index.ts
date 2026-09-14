@@ -131,9 +131,13 @@ serve(async (req) => {
                 </div>
             `;
 
+            const emailSubject = `🎉 Back in Stock: ${productName} + ${discountPercent}% OFF Code!`;
+            let sendStatus = "failed";
+            let resendResponseData: any = null;
+
             if (RESEND_API_KEY) {
                 try {
-                    await fetch("https://api.resend.com/emails", {
+                    const resendRes = await fetch("https://api.resend.com/emails", {
                         method: "POST",
                         headers: {
                             "Authorization": `Bearer ${RESEND_API_KEY}`,
@@ -142,27 +146,60 @@ serve(async (req) => {
                         body: JSON.stringify({
                             from: "Liv Well Research Labs <orders@livwellresearchlabs.com>",
                             to: [notif.email],
-                            subject: `🎉 Back in Stock: ${productName} + ${discountPercent}% OFF Code!`,
+                            subject: emailSubject,
                             html: emailHtml
                         })
                     });
-                    notifiedCount++;
+                    resendResponseData = await resendRes.json();
+                    if (resendRes.ok) {
+                        sendStatus = "sent";
+                        notifiedCount++;
+                    } else {
+                        console.error("Resend API error for", notif.email, resendResponseData);
+                    }
                 } catch (e) {
-                    console.error("Resend API error for", notif.email, e);
+                    console.error("Resend API network error for", notif.email, e);
                 }
             } else {
                 console.log(`[Simulated Email] Sent restock alert to ${notif.email} for ${productName}`);
+                sendStatus = "sent";
                 notifiedCount++;
             }
 
+            // Log email to email_logs so it appears in /manufacturing/communications
+            try {
+                await supabase.from("email_logs").insert({
+                    recipient: notif.email,
+                    subject: emailSubject,
+                    content: emailHtml,
+                    status: sendStatus,
+                    type: "restock_notification",
+                    related_id: variant_id,
+                    metadata: {
+                        product_name: productName,
+                        product_id: (variant.product as any)?.id,
+                        variant_id: variant_id,
+                        vial_type: sizeLabel,
+                        discount_percent: discountPercent,
+                        coupon_code: couponCode,
+                        notification_id: notif.id,
+                        resend_response: resendResponseData,
+                    }
+                });
+            } catch (logErr) {
+                console.warn("Failed to insert email_log for restock notification:", logErr);
+            }
+
             // Mark notification entry as notified
-            await supabase
-                .from("restock_notifications")
-                .update({
-                    status: "notified",
-                    notified_at: new Date().toISOString()
-                })
-                .eq("id", notif.id);
+            if (sendStatus === "sent") {
+                await supabase
+                    .from("restock_notifications")
+                    .update({
+                        status: "notified",
+                        notified_at: new Date().toISOString()
+                    })
+                    .eq("id", notif.id);
+            }
         }
 
         return new Response(JSON.stringify({

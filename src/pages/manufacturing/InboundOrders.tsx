@@ -365,6 +365,13 @@ export default function InboundOrders() {
             console.warn("Error pre-registering COA:", coaErr);
           }
         }
+
+        // Auto-trigger restock notification for customers on waitlist
+        if (item.quantityToAdd > 0) {
+          supabase.functions.invoke("send-restock-notification", {
+            body: { variant_id: item.variantId },
+          }).catch((e) => console.warn("Auto restock notification error:", e));
+        }
       }
 
       // 2. Save receiving order in audit_logs

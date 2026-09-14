@@ -161,6 +161,7 @@ const CommunicationLogs = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Types</SelectItem>
+                                <SelectItem value="restock_notification">Restock Alerts</SelectItem>
                                 <SelectItem value="order_confirmation">Order Confirmed</SelectItem>
                                 <SelectItem value="shipped">Order Shipped</SelectItem>
                                 <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
@@ -208,7 +209,9 @@ const CommunicationLogs = () => {
                                                 {format(new Date(log.created_at), "MMM d, yyyy h:mm a")}
                                             </TableCell>
                                             <TableCell className="capitalize">
-                                                {log.type.replace(/_/g, " ")}
+                                                <Badge variant="outline" className={log.type === "restock_notification" ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : ""}>
+                                                    {log.type.replace(/_/g, " ")}
+                                                </Badge>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">
@@ -216,7 +219,7 @@ const CommunicationLogs = () => {
                                                         {log.metadata?.customer_name || 
                                                          log.metadata?.event_data?.customerName || 
                                                          log.metadata?.event_data?.customer_name || 
-                                                         ""}
+                                                         (log.metadata?.product_name ? `Product: ${log.metadata.product_name}` : "")}
                                                     </span>
                                                     <span className="text-xs text-muted-foreground">{log.recipient}</span>
                                                 </div>

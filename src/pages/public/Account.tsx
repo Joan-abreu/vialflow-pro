@@ -260,6 +260,8 @@ const Account = () => {
             case "out_for_delivery": return "bg-indigo-100 text-indigo-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
+            case "carrier_exception":
+            case "exception": return "bg-amber-100 text-amber-800";
             default: return "bg-gray-100 text-gray-800";
         }
     };
@@ -275,6 +277,8 @@ const Account = () => {
             case "cancelled": return "Cancelled";
             case "pickup_scheduled": return "In Transit";
             case "ready_to_ship": return "Ready to Ship";
+            case "carrier_exception":
+            case "exception": return "In Review";
             default: return status?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Pending";
         }
     };

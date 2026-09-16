@@ -10,7 +10,8 @@ import {
   getPaymentDeclinedEmail,
   getAdminP2PReceiptAlertEmail,
   getP2PRejectionNoticeEmail,
-  getP2PMaxRetriesExceededEmail
+  getP2PMaxRetriesExceededEmail,
+  getAdminCarrierExceptionAlertEmail
 } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -34,12 +35,15 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   order_id: string;
-  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined" | "admin_p2p_receipt_alert" | "p2p_rejection_notice" | "p2p_max_retries_exceeded";
+  type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined" | "admin_p2p_receipt_alert" | "p2p_rejection_notice" | "p2p_max_retries_exceeded" | "carrier_exception_alert";
   status_details?: string;
   status_date?: string;
   reason?: string;
   card_brand?: string;
   last_4?: string;
+  carrier?: string;
+  tracking_number?: string;
+  exception_reason?: string;
 }
 
 
@@ -191,7 +195,8 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       // 2. Prevent duplicate status update for exact same stage
-      if (type !== "admin_notification") {
+      const isAdminType = type.startsWith("admin_") || type === "carrier_exception_alert";
+      if (!isAdminType) {
         const alreadySentExactStatus = previousLogs.some(log => {
           const logSubject = (log.subject || "").toLowerCase();
           const targetFormatted = targetStatusKey.replace(/_/g, " ");
@@ -508,6 +513,49 @@ const handler = async (req: Request): Promise<Response> => {
         orderNumber: order.id.slice(0, 8),
         customerName: customerName,
         reason: payloadReq.reason || order.p2p_rejection_reason,
+      });
+    }
+
+    // CARRIER EXCEPTION ALERT (Sent to Admins)
+    else if (type === "carrier_exception_alert") {
+      emailTo = ADMIN_EMAILS.length > 0 ? ADMIN_EMAILS : ["sales@livwellresearchlabs.com"];
+      subject = `🚨 [CARRIER EXCEPTION] Issue on Order #${order.id.slice(0, 8)}`;
+
+      const payloadReq = await req.clone().json().catch(() => ({}));
+
+      let trackingUrl = undefined;
+      const activeShipment = order.order_shipments?.find((s: any) => s.status !== 'cancelled' && s.tracking_url);
+      const trackingNum = payloadReq.tracking_number || activeShipment?.tracking_number || order.tracking_number;
+      const carrierName = payloadReq.carrier || activeShipment?.carrier || order.shipping_carrier || "USPS";
+
+      if (activeShipment?.tracking_url) {
+        trackingUrl = activeShipment.tracking_url;
+      } else if (trackingNum) {
+        const cLower = carrierName.toLowerCase();
+        if (cLower.includes("fedex")) {
+          trackingUrl = `https://www.fedex.com/fedextrack/?trknbr=${trackingNum}`;
+        } else if (cLower.includes("ups")) {
+          trackingUrl = `https://www.ups.com/track?tracknum=${trackingNum}`;
+        } else if (cLower.includes("usps")) {
+          trackingUrl = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNum}`;
+        } else if (cLower.includes("dhl")) {
+          trackingUrl = `https://www.dhl.com/en/express/tracking.html?AWB=${trackingNum}`;
+        } else {
+          trackingUrl = `https://www.google.com/search?q=track+${trackingNum}`;
+        }
+      }
+
+      htmlContent = getAdminCarrierExceptionAlertEmail({
+        orderId: order.id,
+        orderNumber: order.id.slice(0, 8),
+        customerName: customerName,
+        customerEmail: customerEmail,
+        carrier: carrierName,
+        trackingNumber: trackingNum,
+        trackingUrl: trackingUrl,
+        exceptionReason: payloadReq.exception_reason || "Carrier Exception / Flagged Postage",
+        statusDetails: status_details || payloadReq.status_details,
+        statusDate: status_date || payloadReq.status_date,
       });
     }
 

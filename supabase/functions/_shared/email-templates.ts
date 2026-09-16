@@ -1140,5 +1140,81 @@ export function getP2PMaxRetriesExceededEmail(data: {
     return getEmailTemplate(content);
 }
 
+export function getAdminCarrierExceptionAlertEmail(data: {
+    orderId: string;
+    orderNumber?: string;
+    customerName?: string;
+    customerEmail?: string;
+    carrier?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+    exceptionReason?: string;
+    statusDetails?: string;
+    statusDate?: string;
+}): string {
+    const displayNum = data.orderNumber || data.orderId.slice(0, 8).toUpperCase();
+    const carrierName = data.carrier || "Carrier";
+    const exceptionText = data.exceptionReason || "Carrier Delivery Exception / Seizure Flag";
+    const detailsText = data.statusDetails || "No additional carrier details provided";
 
+    const content = `
+        <div style="background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+            <h1 style="color: #991b1b; margin-top: 0; font-size: 22px; display: flex; align-items: center; gap: 8px;">
+                🚨 Carrier Exception Alert
+            </h1>
+            <p style="font-size: 15px; line-height: 1.5; color: #7f1d1d; margin: 5px 0 0 0;">
+                A critical shipping exception was detected for Order <strong>#${displayNum}</strong>.
+                <strong>Automated customer notification emails have been suppressed.</strong>
+            </p>
+        </div>
 
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; font-size: 14px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px;">Carrier Event Summary</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin: 10px 0 0 0;">
+                <tr>
+                    <td style="padding: 6px 0; color: #6b7280; width: 140px; font-weight: 500;">Exception Category:</td>
+                    <td style="padding: 6px 0; color: #b91c1c; font-weight: 700;">${exceptionText}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; color: #6b7280; font-weight: 500;">Raw Carrier Status:</td>
+                    <td style="padding: 6px 0; color: #111827; font-family: monospace; font-weight: 600; background-color: #fee2e2; padding: 4px 8px; border-radius: 4px;">
+                        ${detailsText}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; color: #6b7280; font-weight: 500;">Carrier:</td>
+                    <td style="padding: 6px 0; color: #111827; font-weight: 600;">${carrierName}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; color: #6b7280; font-weight: 500;">Tracking Number:</td>
+                    <td style="padding: 6px 0; color: #111827;">
+                        ${data.trackingUrl ? `<a href="${data.trackingUrl}" target="_blank" style="color: #2563eb; font-weight: 600; text-decoration: underline;">${data.trackingNumber || 'Track Shipment'}</a>` : `<strong>${data.trackingNumber || 'N/A'}</strong>`}
+                    </td>
+                </tr>
+                ${data.statusDate ? `
+                <tr>
+                    <td style="padding: 6px 0; color: #6b7280; font-weight: 500;">Timestamp:</td>
+                    <td style="padding: 6px 0; color: #4b5563;">${data.statusDate}</td>
+                </tr>` : ''}
+            </table>
+        </div>
+
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+            <h3 style="margin-top: 0; font-size: 14px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px;">Customer & Order Details</h3>
+            <p style="margin: 4px 0; font-size: 14px;"><strong>Customer:</strong> ${data.customerName || 'N/A'}</p>
+            <p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> ${data.customerEmail || 'N/A'}</p>
+            <p style="margin: 4px 0; font-size: 14px;"><strong>Order ID:</strong> <span style="font-family: monospace;">#${displayNum}</span> (${data.orderId})</p>
+        </div>
+
+        <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 14px; border-radius: 6px; margin-bottom: 24px;">
+            <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: 700;">Recommended Next Steps:</p>
+            <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 13px; color: #b45309;">
+                <li>Verify tracking directly on official carrier portal (<a href="${data.trackingUrl || '#'}" style="color: #b45309; text-decoration: underline;">Carrier Tracking</a>).</li>
+                <li>Prepare a replacement package with a new shipping label if package was seized or marked counterfeit.</li>
+                <li>Contact customer directly from support to reassure them before they view the carrier's tracking page.</li>
+            </ul>
+        </div>
+    `;
+
+    return getEmailTemplate(content);
+}

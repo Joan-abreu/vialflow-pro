@@ -617,6 +617,8 @@ const OrderManagement = () => {
             case "out_for_delivery": return "bg-sky-100 text-sky-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
+            case "carrier_exception":
+            case "exception": return "bg-red-100 text-red-800 border border-red-300 font-semibold";
             default: return "bg-gray-100 text-gray-800";
         }
     };
@@ -686,11 +688,72 @@ const OrderManagement = () => {
         );
     };
 
+    const isOrderCarrierException = (order: Order | any) => {
+        if (!order) return false;
+        const st = (order.status || "").toLowerCase();
+        if (st === 'carrier_exception' || st === 'exception') return true;
+
+        // If an order is already delivered or cancelled, it is resolved and not an active exception
+        if (st === 'delivered' || st === 'cancelled') return false;
+
+        if (order.order_shipments && Array.isArray(order.order_shipments)) {
+            return order.order_shipments.some((s: any) => {
+                if (s.status === 'exception') return true;
+                const respStr = JSON.stringify(s.carrier_response || {}).toLowerCase();
+                const matched = (
+                    respStr.includes("seized") ||
+                    respStr.includes("cntrft") ||
+                    respStr.includes("counterfeit") ||
+                    respStr.includes("law enforcement") ||
+                    respStr.includes("return to sender") ||
+                    respStr.includes("package_damaged") ||
+                    respStr.includes("undeliverable")
+                );
+                if (matched) {
+                    const matchedWords = ["seized", "cntrft", "counterfeit", "law enforcement", "return to sender", "package_damaged", "undeliverable"].filter(w => respStr.includes(w));
+                    console.log(`[Carrier Exception Detected] Order #${order.id.slice(0, 8)} (${order.customer_email}): matched words [${matchedWords.join(", ")}] on tracking ${s.tracking_number}`);
+                }
+                return matched;
+            });
+        }
+        return false;
+    };
+
+    const getOrderCarrierExceptionText = (order: Order | any): string | null => {
+        if (!order) return null;
+        if (order.order_shipments && Array.isArray(order.order_shipments)) {
+            for (const s of order.order_shipments) {
+                if (s.carrier_response?.last_exception?.details) {
+                    return s.carrier_response.last_exception.details;
+                }
+                const updateStr = s.carrier_response?.tracking_update?.tracking_status?.status_details;
+                if (updateStr) {
+                    const lower = updateStr.toLowerCase();
+                    if (lower.includes("seized") || lower.includes("cntrft") || lower.includes("counterfeit") || lower.includes("law enforcement") || lower.includes("return to sender") || lower.includes("undeliverable")) {
+                        return updateStr;
+                    }
+                }
+                const trackStr = s.carrier_response?.tracking_status?.status_details;
+                if (trackStr) {
+                    const lower = trackStr.toLowerCase();
+                    if (lower.includes("seized") || lower.includes("cntrft") || lower.includes("counterfeit") || lower.includes("law enforcement") || lower.includes("return to sender") || lower.includes("undeliverable")) {
+                        return trackStr;
+                    }
+                }
+            }
+        }
+        if (order.status === 'carrier_exception' || order.status === 'exception') {
+            return "Carrier Exception Flagged";
+        }
+        return null;
+    };
+
     const TABS = [
         { id: 'to_ship', label: 'To Ship', statuses: ['processing', 'in_production', 'ready_to_ship'] },
         { id: 'awaiting_collection', label: 'Awaiting Collection', statuses: ['label_created', 'pickup_scheduled'] },
         { id: 'shipped', label: 'Shipped', statuses: ['shipped'] },
         { id: 'in_transit', label: 'In Transit', statuses: ['in_transit', 'out_for_delivery'] },
+        { id: 'carrier_exceptions', label: 'Issues / Exceptions', statuses: ['carrier_exception', 'exception'] },
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
         { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
@@ -706,7 +769,11 @@ const OrderManagement = () => {
             all: orders?.length || 0,
         };
         TABS.filter(t => t.id !== 'all').forEach(tab => {
-            counts[tab.id] = orders?.filter(o => tab.statuses.includes(o.status)).length || 0;
+            if (tab.id === 'carrier_exceptions') {
+                counts[tab.id] = orders?.filter(isOrderCarrierException).length || 0;
+            } else {
+                counts[tab.id] = orders?.filter(o => tab.statuses.includes(o.status)).length || 0;
+            }
         });
         return counts;
     }, [orders]);
@@ -714,9 +781,15 @@ const OrderManagement = () => {
     const filteredOrders = orders?.filter((order) => {
         // First filter by tab
         if (activeTab !== 'all') {
-            const currentTab = TABS.find(t => t.id === activeTab);
-            if (currentTab && !currentTab.statuses.includes(order.status)) {
-                return false;
+            if (activeTab === 'carrier_exceptions') {
+                if (!isOrderCarrierException(order)) {
+                    return false;
+                }
+            } else {
+                const currentTab = TABS.find(t => t.id === activeTab);
+                if (currentTab && !currentTab.statuses.includes(order.status)) {
+                    return false;
+                }
             }
         }
 
@@ -902,12 +975,19 @@ const OrderManagement = () => {
                                 value={tab.id}
                                 className="px-4 py-2 text-sm whitespace-nowrap"
                             >
+                                {tab.id === 'carrier_exceptions' && (
+                                    <AlertTriangle className={cn("w-3.5 h-3.5 mr-1.5 shrink-0", tabCounts[tab.id] > 0 ? "text-red-600" : "text-amber-500")} />
+                                )}
                                 {tab.label}
-                                {tabCounts[tab.id] > 0 && (
+                                {tab.id === 'carrier_exceptions' && tabCounts[tab.id] > 0 ? (
+                                    <Badge variant="destructive" className="ml-2 text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center bg-red-600 text-white font-bold animate-pulse">
+                                        {tabCounts[tab.id]}
+                                    </Badge>
+                                ) : tabCounts[tab.id] > 0 ? (
                                     <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center">
                                         {tabCounts[tab.id]}
                                     </Badge>
-                                )}
+                                ) : null}
                             </TabsTrigger>
                         ))}
                     </TabsList>
@@ -971,6 +1051,7 @@ const OrderManagement = () => {
                                 <SelectItem value="in_transit">In Transit</SelectItem>
                                 <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                                 <SelectItem value="delivered">Delivered</SelectItem>
+                                <SelectItem value="carrier_exception">Carrier Exception</SelectItem>
                                 <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                         </Select>
@@ -1200,7 +1281,12 @@ const OrderManagement = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                {(order as any).p2p_status === 'pending_verification' ? (
+                                                {isOrderCarrierException(order) ? (
+                                                    <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-400 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
+                                                        <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                                                        Carrier Exception
+                                                    </Badge>
+                                                ) : (order as any).p2p_status === 'pending_verification' ? (
                                                     <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-400 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap animate-pulse">
                                                         <ShieldCheck className="w-3 h-3 text-purple-600" />
                                                         P2P Pending Verification
@@ -1351,6 +1437,7 @@ const OrderManagement = () => {
                                                             <SelectItem value="in_transit">In Transit</SelectItem>
                                                             <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                                                             <SelectItem value="delivered">Delivered</SelectItem>
+                                                            <SelectItem value="carrier_exception">Carrier Exception</SelectItem>
                                                             <SelectItem value="cancelled">Cancelled</SelectItem>
                                                         </SelectContent>
                                                     </Select>
@@ -1396,6 +1483,16 @@ const OrderManagement = () => {
                                             </TableCell>
                                             <TableCell className="w-[240px] min-w-[240px]">
                                                 <div className="flex flex-col gap-1">
+                                                    {/* Carrier Exception Alert banner if detected */}
+                                                    {getOrderCarrierExceptionText(order) && (
+                                                        <div className="bg-red-50 border border-red-200 rounded p-1 text-[10px] text-red-700 font-semibold flex items-start gap-1 leading-tight">
+                                                            <AlertTriangle className="w-3 h-3 text-red-600 shrink-0 mt-0.5" />
+                                                            <span className="line-clamp-2" title={getOrderCarrierExceptionText(order)!}>
+                                                                {getOrderCarrierExceptionText(order)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
                                                     {/* Line 1: Logo / Shippo / Carrier service */}
                                                     {getCarrierBadge(order.shipping_carrier, order.shipping_service)}
                                                     

@@ -302,15 +302,49 @@ const handler = async (req: Request): Promise<Response> => {
                 if (result.success) {
                     console.log(`[Shipping Handler] Tracking success for ${data.shipmentId}. New status: ${result.status}`);
                     
+                    const rawStatusDetails = result.statusDetails || "";
+                    const detailText = rawStatusDetails.toLowerCase();
+                    const status = result.status?.toLowerCase();
+                    const substatus = (result.rawResponse?.tracking_status?.substatus?.code || "").toLowerCase();
+
+                    const isException = 
+                        detailText.includes("seized") ||
+                        detailText.includes("cntrft") ||
+                        detailText.includes("counterfeit") ||
+                        detailText.includes("law enforcement") ||
+                        detailText.includes("confiscated") ||
+                        detailText.includes("return to sender") ||
+                        detailText.includes("returned to sender") ||
+                        detailText.includes("undeliverable") ||
+                        detailText.includes("damaged in transit") ||
+                        detailText.includes("destroyed") ||
+                        substatus.includes("return_to_sender") ||
+                        substatus.includes("package_damaged") ||
+                        status === "failure" ||
+                        substatus.includes("exception") ||
+                        substatus.includes("failure") ||
+                        substatus === "action_required";
+
+                    const exceptionReason = (
+                        detailText.includes("seized") || detailText.includes("cntrft") || detailText.includes("counterfeit") || detailText.includes("law enforcement")
+                    ) ? "Seized by Law Enforcement / Counterfeit Postage" : "Carrier Exception / Delivery Issue";
+
+                    const shipmentStatusToSave = isException ? "exception" : result.status;
+
                     const { error: shipmentUpdateError } = await supabase
                         .from("order_shipments")
                         .update({
-                            status: result.status,
+                            status: shipmentStatusToSave,
                             actual_delivery_date: result.deliveredAt,
                             updated_at: new Date().toISOString(),
                             carrier_response: {
                                 ...trackShipment.carrier_response,
-                                tracking_update: result.rawResponse
+                                tracking_update: result.rawResponse,
+                                last_exception: isException ? {
+                                    reason: exceptionReason,
+                                    details: rawStatusDetails,
+                                    date: result.statusDate || new Date().toISOString()
+                                } : (trackShipment.carrier_response?.last_exception || null)
                             }
                         })
                         .eq("id", data.shipmentId);
@@ -319,66 +353,102 @@ const handler = async (req: Request): Promise<Response> => {
                         console.error("[Shipping Handler] Error updating shipment:", shipmentUpdateError);
                     }
 
-                    // If status is delivered or shipped (or in transit), update the order as well
-                    const status = result.status?.toLowerCase();
-                    const isShipped = ["shipped", "transit", "in_transit", "out_for_delivery", "pre_transit"].includes(status);
-                    const isDelivered = status === "delivered";
-
-                    console.log(`[Shipping Handler] Logic checks: isShipped=${isShipped}, isDelivered=${isDelivered}, currentOrderStatus=${trackShipment.orders?.status}`);
-
-                    if (isShipped || isDelivered) {
-                        // Determine the internal status based on priority
-                        // pre_transit or shipped -> shipped
-                        // transit -> in_transit
-                        // out_for_delivery -> out_for_delivery
-                        // delivered -> delivered
-                        const newOrderStatus = isDelivered ? "delivered" : 
-                                              (status === "out_for_delivery" ? "out_for_delivery" : 
-                                              (["transit", "in_transit"].includes(status) ? "in_transit" : "shipped"));
-                        
+                    if (isException) {
+                        console.warn(`[Shipping Handler] 🚨 Carrier exception flagged: ${rawStatusDetails}`);
                         if (trackShipment.order_id) {
-                            console.log(`[Shipping Handler] Attempting to update order ${trackShipment.order_id} to ${newOrderStatus}`);
-                            
-                            const { data: updatedOrder, error: orderUpdateError } = await supabase
+                            await supabase
                                 .from("orders")
-                                .update({
-                                    status: newOrderStatus
-                                })
-                                .eq("id", trackShipment.order_id)
-                                .select();
-                            
-                            if (orderUpdateError) {
-                                console.error("[Shipping Handler] Error updating order:", orderUpdateError);
-                            } else {
-                                console.log(`[Shipping Handler] Order successfully updated. New data:`, updatedOrder);
-                                
-                                // Check if we should send email
-                                // Handle case where orders might be an array or object
-                                const orderData = Array.isArray(trackShipment.orders) ? trackShipment.orders[0] : trackShipment.orders;
-                                const oldStatus = orderData?.status;
+                                .update({ status: "carrier_exception" })
+                                .eq("id", trackShipment.order_id);
 
-                                if (newOrderStatus !== oldStatus) {
-                                    console.log(`[Shipping Handler] Status changed from ${oldStatus} to ${newOrderStatus}. Triggering email.`);
-                                    await fetch(
-                                        `${SUPABASE_URL}/functions/v1/send-order-email`,
-                                        {
-                                            method: "POST",
-                                            headers: {
-                                                "Content-Type": "application/json",
-                                                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                                            },
-                                            body: JSON.stringify({
-                                                order_id: trackShipment.order_id,
-                                                type: newOrderStatus,
-                                                status_details: result.statusDetails,
-                                                status_date: result.statusDate,
-                                            }),
-                                        }
-                                    );
+                            // Add order note
+                            try {
+                                await supabase.from("order_notes").insert({
+                                    order_id: trackShipment.order_id,
+                                    author_name: "Carrier System (USPS/Shippo)",
+                                    note: `🚨 CARRIER EXCEPTION: [${rawStatusDetails || exceptionReason}]. Tracking: ${trackShipment.tracking_number}. Customer update suppressed.`,
+                                });
+                            } catch (e) {
+                                console.error("Error writing exception note:", e);
+                            }
+
+                            // Trigger admin alert email
+                            try {
+                                await fetch(
+                                    `${SUPABASE_URL}/functions/v1/send-order-email`,
+                                    {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                        },
+                                        body: JSON.stringify({
+                                            order_id: trackShipment.order_id,
+                                            type: "carrier_exception_alert",
+                                            carrier: trackShipment.carrier || "USPS",
+                                            tracking_number: trackShipment.tracking_number,
+                                            exception_reason: exceptionReason,
+                                            status_details: rawStatusDetails,
+                                            status_date: result.statusDate,
+                                        }),
+                                    }
+                                );
+                            } catch (e) {
+                                console.error("Error sending admin alert:", e);
+                            }
+                        }
+                    } else {
+                        // If status is delivered or shipped (or in transit), update the order as well
+                        const isShipped = ["shipped", "transit", "in_transit", "out_for_delivery", "pre_transit"].includes(status);
+                        const isDelivered = status === "delivered";
+
+                        console.log(`[Shipping Handler] Logic checks: isShipped=${isShipped}, isDelivered=${isDelivered}, currentOrderStatus=${trackShipment.orders?.status}`);
+
+                        if (isShipped || isDelivered) {
+                            const newOrderStatus = isDelivered ? "delivered" : 
+                                                  (status === "out_for_delivery" ? "out_for_delivery" : 
+                                                  (["transit", "in_transit"].includes(status) ? "in_transit" : "shipped"));
+                            
+                            if (trackShipment.order_id) {
+                                console.log(`[Shipping Handler] Attempting to update order ${trackShipment.order_id} to ${newOrderStatus}`);
+                                
+                                const { data: updatedOrder, error: orderUpdateError } = await supabase
+                                    .from("orders")
+                                    .update({
+                                        status: newOrderStatus
+                                    })
+                                    .eq("id", trackShipment.order_id)
+                                    .select();
+                                
+                                if (orderUpdateError) {
+                                    console.error("[Shipping Handler] Error updating order:", orderUpdateError);
+                                } else {
+                                    console.log(`[Shipping Handler] Order successfully updated. New data:`, updatedOrder);
+                                    
+                                    const orderData = Array.isArray(trackShipment.orders) ? trackShipment.orders[0] : trackShipment.orders;
+                                    const oldStatus = orderData?.status;
+
+                                    if (newOrderStatus !== oldStatus) {
+                                        console.log(`[Shipping Handler] Status changed from ${oldStatus} to ${newOrderStatus}. Triggering email.`);
+                                        await fetch(
+                                            `${SUPABASE_URL}/functions/v1/send-order-email`,
+                                            {
+                                                method: "POST",
+                                                headers: {
+                                                    "Content-Type": "application/json",
+                                                    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                                                },
+                                                body: JSON.stringify({
+                                                    order_id: trackShipment.order_id,
+                                                    type: newOrderStatus,
+                                                    status_details: result.statusDetails,
+                                                    status_date: result.statusDate,
+                                                }),
+                                            }
+                                        );
+                                    }
                                 }
                             }
-                        } else {
-                            console.warn("[Shipping Handler] No order_id found on shipment record");
                         }
                     }
                 }

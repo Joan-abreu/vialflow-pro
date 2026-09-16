@@ -113,6 +113,7 @@ const SiteSettings = () => {
     const [cutoffMinute, setCutoffMinute] = useState<number>(DEFAULT_SHIPPING_CONFIG.cutoffMinute);
     const [timeZone, setTimeZone] = useState<string>(DEFAULT_SHIPPING_CONFIG.timeZone);
     const [cutoffDisplayLabel, setCutoffDisplayLabel] = useState<string>(DEFAULT_SHIPPING_CONFIG.cutoffDisplayLabel);
+    const [freeShippingEnabled, setFreeShippingEnabled] = useState<boolean>(DEFAULT_SHIPPING_CONFIG.freeShippingEnabled);
     const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(DEFAULT_SHIPPING_CONFIG.freeShippingThreshold);
     const [deliveryMinDays, setDeliveryMinDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.min);
     const [deliveryMaxDays, setDeliveryMaxDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.max);
@@ -279,6 +280,7 @@ const SiteSettings = () => {
                     "shipping_cutoff_minute",
                     "shipping_timezone",
                     "shipping_cutoff_label",
+                    "shipping_free_enabled",
                     "shipping_free_threshold",
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
@@ -427,6 +429,7 @@ const SiteSettings = () => {
                 const min = data.find((s: any) => s.key === "shipping_cutoff_minute");
                 const tz = data.find((s: any) => s.key === "shipping_timezone");
                 const label = data.find((s: any) => s.key === "shipping_cutoff_label");
+                const freeEnabled = data.find((s: any) => s.key === "shipping_free_enabled");
                 const threshold = data.find((s: any) => s.key === "shipping_free_threshold");
                 const minDays = data.find((s: any) => s.key === "shipping_delivery_min_days");
                 const maxDays = data.find((s: any) => s.key === "shipping_delivery_max_days");
@@ -454,6 +457,7 @@ const SiteSettings = () => {
                 if (min) setCutoffMinute(Number(min.value));
                 if (tz) setTimeZone(tz.value);
                 if (label) setCutoffDisplayLabel(label.value);
+                if (freeEnabled) setFreeShippingEnabled(freeEnabled.value === "true");
                 if (threshold) setFreeShippingThreshold(Number(threshold.value));
                 if (minDays) setDeliveryMinDays(Number(minDays.value));
                 if (maxDays) setDeliveryMaxDays(Number(maxDays.value));
@@ -783,6 +787,7 @@ const SiteSettings = () => {
                 { key: "shipping_cutoff_minute", value: String(cutoffMinute), updated_at: now },
                 { key: "shipping_timezone", value: timeZone, updated_at: now },
                 { key: "shipping_cutoff_label", value: cutoffDisplayLabel, updated_at: now },
+                { key: "shipping_free_enabled", value: String(freeShippingEnabled), updated_at: now },
                 { key: "shipping_free_threshold", value: String(freeShippingThreshold), updated_at: now },
                 { key: "shipping_delivery_min_days", value: String(deliveryMinDays), updated_at: now },
                 { key: "shipping_delivery_max_days", value: String(deliveryMaxDays), updated_at: now },
@@ -2095,22 +2100,51 @@ const SiteSettings = () => {
                                 </p>
                             </div>
 
-                            {/* Free Shipping Threshold */}
-                            <div className="space-y-2">
-                                <Label htmlFor="freeShippingThreshold" className="font-semibold">
-                                    Free Shipping Order Threshold ($ USD)
-                                </Label>
-                                <Input
-                                    id="freeShippingThreshold"
-                                    type="number"
-                                    min="0"
-                                    value={freeShippingThreshold}
-                                    onChange={(e) => setFreeShippingThreshold(Number(e.target.value))}
-                                    placeholder="100"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Displayed as <em>"Free standard shipping on orders over ${freeShippingThreshold}"</em>.
-                                </p>
+                            {/* Free Shipping Threshold Configuration */}
+                            <div className="space-y-3 rounded-lg border p-4 bg-muted/20 md:col-span-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="freeShippingEnabled" className="font-semibold text-sm cursor-pointer">
+                                            Enable Free Shipping Threshold
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            When enabled, qualifying orders receive free standard ground shipping. Express and Overnight services remain full price.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        id="freeShippingEnabled"
+                                        checked={freeShippingEnabled}
+                                        onCheckedChange={setFreeShippingEnabled}
+                                    />
+                                </div>
+
+                                {freeShippingEnabled && (
+                                    <div className="pt-3 border-t space-y-2 animate-in fade-in duration-200">
+                                        <Label htmlFor="freeShippingThreshold" className="font-semibold text-xs">
+                                            Free Shipping Order Threshold ($ USD)
+                                        </Label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="relative w-40">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">$</span>
+                                                <Input
+                                                    id="freeShippingThreshold"
+                                                    type="number"
+                                                    min="0"
+                                                    className="pl-7 h-9 font-semibold"
+                                                    value={freeShippingThreshold}
+                                                    onChange={(e) => setFreeShippingThreshold(Number(e.target.value))}
+                                                    placeholder="100"
+                                                />
+                                            </div>
+                                            <span className="text-xs text-muted-foreground">
+                                                Displayed as: <em>"Free standard shipping on orders over ${freeShippingThreshold}"</em>
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground/80 italic">
+                                            * Note: In checkout, $0.00 is strictly applied to the most affordable standard ground rate (e.g. USPS Ground Advantage / UPS Ground). Expedited options (Overnight, Priority Mail Express) continue to charge full carrier rates.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Estimated Delivery Window */}

@@ -4,7 +4,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import UniversalCheckout from "@/components/checkout/UniversalCheckout";
-import { Loader2, LogIn, AlertTriangle, Package, Sparkles } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle, Package, Sparkles, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,25 +70,31 @@ const Checkout = () => {
     const [showValidationModal, setShowValidationModal] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
     const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
+    const [freeShippingEnabled, setFreeShippingEnabled] = useState(true);
+    const [freeShippingThreshold, setFreeShippingThreshold] = useState(100);
 
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
     const checkoutStartedRef = useRef<boolean>(false);
 
     useEffect(() => {
-        const fetchLoginSetting = async () => {
+        const fetchStoreSettings = async () => {
             try {
                 const { data } = await supabase
                     .from("app_settings" as any)
-                    .select("value")
-                    .eq("key", "require_login_for_checkout")
-                    .maybeSingle();
-                if (data && data.value !== undefined) {
-                    setRequireLoginForCheckout(data.value === "true");
+                    .select("key, value")
+                    .in("key", ["require_login_for_checkout", "shipping_free_enabled", "shipping_free_threshold"]);
+                if (data && data.length > 0) {
+                    const reqLogin = data.find((s: any) => s.key === "require_login_for_checkout");
+                    const freeEnabled = data.find((s: any) => s.key === "shipping_free_enabled");
+                    const threshold = data.find((s: any) => s.key === "shipping_free_threshold");
+                    if (reqLogin && reqLogin.value !== undefined) setRequireLoginForCheckout(reqLogin.value === "true");
+                    if (freeEnabled && freeEnabled.value !== undefined) setFreeShippingEnabled(freeEnabled.value === "true");
+                    if (threshold && threshold.value !== undefined) setFreeShippingThreshold(Number(threshold.value) || 100);
                 }
             } catch (e) {}
         };
-        fetchLoginSetting();
+        fetchStoreSettings();
     }, []);
 
     useEffect(() => {
@@ -202,13 +208,15 @@ const Checkout = () => {
         }
     };
 
-    const calculateRates = async (address: any) => {
+    const calculateRates = async (address: any, customSubtotal?: number) => {
         setIsCalculatingShipping(true);
+        const subtotalToUse = typeof customSubtotal === 'number' ? customSubtotal : displaySubtotal;
         try {
             const { data, error } = await supabase.functions.invoke('calculate-shipping', {
                 body: { 
                     weight: totalWeight, 
                     address,
+                    subtotal: subtotalToUse,
                     items: items.map(item => {
                         const isBulkItem = item.is_bulk || item.variant.bulk_only;
                         const itemWeight = isBulkItem 
@@ -270,7 +278,8 @@ const Checkout = () => {
     };
 
     const handleShippingSelect = (rate: any) => {
-        const cost = rate.rate || rate.cost;
+        const isFree = rate.is_free || rate.cost === 0;
+        const cost = isFree ? 0 : (rate.rate || rate.cost || 0);
         setShippingCost(cost);
         setShippingService(rate.serviceName || rate.service || rate.service_name);
         setShippingServiceCode(rate.serviceCode || rate.service_code || rate.service); 
@@ -353,6 +362,10 @@ const Checkout = () => {
             setFinalSubtotal(data.subtotal);
             setFinalShipping(data.shipping);
             setPendingCouponCode("");
+
+            if (currentAddress && shippingRates.length > 0) {
+                calculateRates(currentAddress, data.subtotal);
+            }
             
             if (!codesInput) {
                 if (data.appliedDiscounts.length > appliedDiscounts.length) {
@@ -396,6 +409,9 @@ const Checkout = () => {
             setAppliedDiscounts([]);
             setFinalSubtotal(cartTotal);
             setFinalShipping(shippingCost);
+            if (currentAddress && shippingRates.length > 0) {
+                calculateRates(currentAddress, cartTotal);
+            }
         } else {
             handleApplyCoupon(newCodes);
         }
@@ -534,28 +550,66 @@ const Checkout = () => {
                                     </div>
                                 ) : shippingRates.length > 0 ? (
                                     <div className="space-y-3">
-                                        {shippingRates.map((rate, idx) => (
-                                            <div
-                                                key={idx}
-                                                className={`
-                                                    flex justify-between items-center p-4 rounded-lg border-2 cursor-pointer transition-all
-                                                    ${shippingService === (rate.serviceName || rate.service) 
-                                                        ? 'border-primary bg-primary/5 shadow-sm' 
-                                                        : 'border-border hover:border-primary/50 hover:bg-muted/50'}
-                                                `}
-                                                onClick={() => handleShippingSelect(rate)}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-base">{rate.serviceName || rate.service}</span>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {(rate.carrier || rate.provider || 'FEDEX').toUpperCase()} — Est. {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
-                                                    </span>
+                                        {freeShippingEnabled && (
+                                            displaySubtotal >= freeShippingThreshold ? (
+                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                                                    <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>🎉 You unlocked Free Standard Shipping on this order!</span>
                                                 </div>
-                                                <span className="font-bold text-lg">
-                                                    ${(rate.rate || rate.cost).toFixed(2)}
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ) : (
+                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
+                                                    <Truck className="h-4 w-4 shrink-0 text-primary" />
+                                                    <span>Add <strong className="text-foreground font-bold">${(freeShippingThreshold - displaySubtotal).toFixed(2)}</strong> more to unlock <strong>Free Standard Shipping</strong>!</span>
+                                                </div>
+                                            )
+                                        )}
+
+                                        {shippingRates.map((rate, idx) => {
+                                            const isSelected = shippingService === (rate.serviceName || rate.service);
+                                            const isFree = rate.is_free || rate.cost === 0;
+                                            const originalCost = rate.original_cost || rate.originalCost;
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`
+                                                        flex justify-between items-center p-4 rounded-lg border-2 cursor-pointer transition-all
+                                                        ${isSelected 
+                                                            ? 'border-primary bg-primary/5 shadow-sm' 
+                                                            : 'border-border hover:border-primary/50 hover:bg-muted/50'}
+                                                    `}
+                                                    onClick={() => handleShippingSelect(rate)}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-base">{rate.serviceName || rate.service}</span>
+                                                            {isFree && (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                                                    Free Standard
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {(rate.carrier || rate.provider || 'FEDEX').toUpperCase()} — Est. {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        {isFree ? (
+                                                            <div className="flex items-center gap-1.5 justify-end">
+                                                                {originalCost && (
+                                                                    <span className="line-through text-xs text-muted-foreground">${originalCost.toFixed(2)}</span>
+                                                                )}
+                                                                <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">FREE</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="font-bold text-lg">
+                                                                ${(rate.rate || rate.cost).toFixed(2)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="p-8 text-center border-2 border-dashed rounded-lg">
@@ -684,13 +738,21 @@ const Checkout = () => {
                                             <span className="line-through text-muted-foreground text-sm font-normal">${shippingCost.toFixed(2)}</span>
                                         )}
                                         <span>
-                                            {shippingCost > 0 ? `$${displayShipping.toFixed(2)}` : (step === 'address' ? '--' : 'Select method')}
+                                            {shippingService ? (
+                                                displayShipping === 0 ? (
+                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">FREE</span>
+                                                ) : (
+                                                    `$${displayShipping.toFixed(2)}`
+                                                )
+                                            ) : (
+                                                step === 'address' ? '--' : 'Select method'
+                                            )}
                                         </span>
                                     </div>
                                 </div>
-                                {shippingService && shippingCost > 0 && (
+                                {shippingService && (
                                     <div className="text-xs text-muted-foreground text-right -mt-1 italic">
-                                        {shippingService}
+                                        {shippingService} {displayShipping === 0 && "(Free Ground)"}
                                     </div>
                                 )}
                                 <div className="flex justify-between font-bold text-lg pt-2 border-t">

@@ -19,25 +19,30 @@ serve(async (req) => {
     }
 
     try {
-        const { weight, address, items } = await req.json()
+        const { weight, address, items, subtotal } = await req.json()
 
-        console.log(`Calculating shipping for weight: ${weight}, address: ${JSON.stringify(address)}`);
+        console.log(`Calculating shipping for weight: ${weight}, subtotal: ${subtotal}, address: ${JSON.stringify(address)}`);
 
         // Initialize Supabase Client
         const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // 1. Fetch Carrier Settings
-        const { data: settingsData, error: settingsError } = await supabase
-            .from('carrier_settings')
-            .select('*')
-            .eq('is_active', true);
+        // 1. Fetch Carrier Settings & Free Shipping Store Settings in parallel
+        const [settingsResult, appSettingsResult] = await Promise.all([
+            supabase.from('carrier_settings').select('*').eq('is_active', true),
+            supabase.from('app_settings').select('key, value').in('key', ['shipping_free_enabled', 'shipping_free_threshold'])
+        ]);
 
-        if (settingsError) {
-            console.error("Error fetching carrier settings:", settingsError);
+        const settingsData = settingsResult.data || [];
+        if (settingsResult.error) {
+            console.error("Error fetching carrier settings:", settingsResult.error);
             throw new Error("Failed to load shipping configurations");
         }
+
+        const appSettings = appSettingsResult.data || [];
+        const isFreeShippingEnabled = appSettings.find((s: any) => s.key === 'shipping_free_enabled')?.value !== 'false';
+        const freeShippingThreshold = parseFloat(appSettings.find((s: any) => s.key === 'shipping_free_threshold')?.value || '100');
 
         const activeCarriers: { instance: ICarrier, settings: any }[] = [];
 
@@ -250,6 +255,43 @@ serve(async (req) => {
 
         // Sort by cost ascending
         allRates.sort((a, b) => a.cost - b.cost);
+
+        // 6. Apply Free Shipping Threshold if qualified
+        // Free shipping applies STRICTLY to the cheapest Ground / Standard Economy service.
+        // Express, 2-Day, Overnight, and Priority Mail Express ALWAYS remain at full carrier cost.
+        const orderSubtotal = typeof subtotal === 'number' ? subtotal : null;
+        
+        if (isFreeShippingEnabled && orderSubtotal !== null && orderSubtotal >= freeShippingThreshold && allRates.length > 0) {
+            const isExpressOrOvernight = (rate: any) => {
+                const text = ((rate.serviceName || rate.service || "") + " " + (rate.serviceCode || rate.service_code || "")).toUpperCase();
+                return (
+                    text.includes("EXPRESS") ||
+                    text.includes("OVERNIGHT") ||
+                    text.includes("2DAY") ||
+                    text.includes("2_DAY") ||
+                    text.includes("NEXT DAY") ||
+                    text.includes("NEXT_DAY") ||
+                    text.includes("1DAY") ||
+                    text.includes("SAME DAY") ||
+                    text.includes("SAME_DAY") ||
+                    text.includes("PRIORITY MAIL EXPRESS") ||
+                    text.includes("AIR")
+                );
+            };
+
+            // Find the lowest cost ground/standard rate (allRates is sorted by cost ascending)
+            const groundRate = allRates.find((r: any) => !isExpressOrOvernight(r));
+            if (groundRate) {
+                groundRate.original_cost = groundRate.cost;
+                groundRate.cost = 0;
+                groundRate.is_free = true;
+                groundRate.free_shipping_reason = `Free standard shipping on orders over $${freeShippingThreshold}`;
+                console.log(`🎉 Free shipping applied to ${groundRate.serviceName || groundRate.service} (Subtotal: $${orderSubtotal} >= Threshold: $${freeShippingThreshold})`);
+                
+                // Re-sort so the free ground rate is guaranteed first
+                allRates.sort((a, b) => a.cost - b.cost);
+            }
+        }
 
         console.log(`Found ${allRates.length} shipping rates.`);
 

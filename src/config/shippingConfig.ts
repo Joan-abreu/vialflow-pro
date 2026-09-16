@@ -19,6 +19,8 @@ export interface StoreShippingConfig {
     timeZone: string;
     /** Friendly text for the cutoff time shown to customers */
     cutoffDisplayLabel: string;
+    /** Whether free shipping threshold is active storewide */
+    freeShippingEnabled: boolean;
     /** Free shipping minimum order threshold in USD */
     freeShippingThreshold: number;
     /** Estimated business days for standard delivery (min and max) */
@@ -37,6 +39,7 @@ export const DEFAULT_SHIPPING_CONFIG: StoreShippingConfig = {
     cutoffMinute: 0,
     timeZone: "America/New_York", // Eastern Time
     cutoffDisplayLabel: "3:00 PM ET (12:00 PM PT)",
+    freeShippingEnabled: true,
     freeShippingThreshold: 100,
     estimatedDeliveryDays: {
         min: 2,

@@ -75,7 +75,7 @@ export const AddressAutocomplete = ({
             const data = await response.json();
             setSuggestions(data);
         } catch (error) {
-            console.error("Address search error:", error);
+            // Silently ignore search error
         } finally {
             setLoading(false);
         }

@@ -93,8 +93,7 @@ export default function RestockNotificationModal({
             setIsSuccess(true);
             toast.success(`You're on the list! We'll email you with a ${discountPercent}% OFF code when restocked.`);
         } catch (err: any) {
-            console.error("Restock notification signup error:", err);
-            toast.error(err.message || "Failed to sign up for restock notifications.");
+            toast.error("Failed to sign up for restock notifications. Please try again.");
         } finally {
             setIsSubmitting(false);
         }

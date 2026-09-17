@@ -872,7 +872,7 @@ const UniversalCheckout = ({
 
             if (!response.ok) {
                 if (result.isCriticalAccountError && gatewaySettings.autoFailoverEnabled && gatewaySettings.backupProvider !== activeProvider) {
-                    toast.error(`Primary payment processor temporarily unavailable. Switching to secure backup processor...`);
+                    toast.error("Card processing temporarily unavailable. Switching to secure backup processor...", { id: "payment-error" });
                     setActiveProvider(gatewaySettings.backupProvider);
                     setLoading(false);
                     return result;
@@ -908,19 +908,25 @@ const UniversalCheckout = ({
             else if (error?.error && typeof error.error === "string") msg = error.error;
             else if (error?.error?.message) msg = error.error.message;
 
-            if (msg.toLowerCase().includes("one or more validation errors") || msg.toLowerCase().includes("validation error")) {
+            const lower = msg.toLowerCase();
+            if (lower.includes("one or more validation errors") || lower.includes("validation error") || lower.includes("invalid card") || lower.includes("expiration") || lower.includes("cvv") || lower.includes("security code")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
-            } else if (msg.toLowerCase().includes("already completed") || msg.toLowerCase().includes("not been charged again")) {
-                msg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
-            } else if (msg.toLowerCase().includes("session") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("basis_theory") || msg.toLowerCase().includes("unverifiable")) {
-                msg = "Unable to process payment with this card. Please verify your card details or try another card.";
+            } else if (lower.includes("insufficient funds") || lower.includes("balance")) {
+                msg = "Payment declined due to insufficient funds. Please use an alternate card.";
+            } else if (lower.includes("declined") || lower.includes("do not honor") || lower.includes("card_declined")) {
+                msg = "Your card was declined by the issuer. Please try another card or contact your bank.";
+            } else if (lower.includes("already completed") || lower.includes("not been charged again")) {
+                msg = "This payment attempt has expired. Please re-enter your card details to complete your order.";
+            } else if (lower.includes("session") || lower.includes("token") || lower.includes("basis_theory") || lower.includes("unverifiable") || lower.includes("gateway") || lower.includes("failed to process") || lower.includes("500") || lower.includes("400") || lower.includes("failed to initialize")) {
+                msg = "Unable to process payment with this card. Please verify your card details or try another payment method.";
             }
+
             trackFunnelStep("payment_failed", {
                 error: msg,
                 provider: activeProvider,
                 amount,
             });
-            toast.error(msg);
+            toast.error(msg, { id: "payment-error" });
             return { error: msg, ok: false };
         } finally {
             setLoading(false);
@@ -931,23 +937,23 @@ const UniversalCheckout = ({
     const handleAuthorizeNetSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (requireResearchAck && (!ackResearch || !ackTerms)) {
-            toast.error("Please acknowledge terms before proceeding.");
+            toast.error("Please acknowledge terms before proceeding.", { id: "checkout-ack" });
             return;
         }
 
         if (!shippingService || shippingCost === undefined) {
-            toast.error("Please select a shipping method before paying.");
+            toast.error("Please select a shipping method before paying.", { id: "checkout-shipping" });
             return;
         }
 
         if (!gatewaySettings.authorizenet.apiLoginId || !gatewaySettings.authorizenet.clientKey) {
-            toast.error("Authorize.Net API Login ID or Client Key is missing in Site Settings.");
+            toast.error("Payment method currently unavailable. Please select an alternate payment method.", { id: "payment-error" });
             return;
         }
 
         const accept = (window as any).Accept;
         if (!accept) {
-            toast.error("Authorize.Net security library is loading. Please try again in a few seconds.");
+            toast.error("Secure payment fields are loading. Please try again in a few seconds.", { id: "payment-error" });
             return;
         }
 

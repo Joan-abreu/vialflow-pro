@@ -22,7 +22,6 @@ export async function downloadCoaPdf(url: string, filename: string) {
         // Clean up object URL after download trigger
         setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err: any) {
-        console.error("COA download error:", err);
         // Fallback: open in new tab
         window.open(url, "_blank");
     }

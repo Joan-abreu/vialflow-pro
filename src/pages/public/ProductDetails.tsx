@@ -82,7 +82,6 @@ const ProductDetails = () => {
                 .order("test_date", { ascending: false });
 
             if (error) {
-                console.warn("Non-fatal error loading COAs:", error);
                 return [];
             }
             return (data || []) as COARecord[];
@@ -143,7 +142,7 @@ const ProductDetails = () => {
                 });
 
             if (error) {
-                toast.error(`Upload failed: ${error.message}`);
+                toast.error("Upload failed. Please check file format and size, then try again.");
                 return;
             }
 
@@ -151,7 +150,7 @@ const ProductDetails = () => {
             setCustomLabelImageUrl(publicData?.publicUrl || "");
             toast.success("Label artwork uploaded successfully!");
         } catch (err: any) {
-            toast.error(`Upload error: ${err.message}`);
+            toast.error("Upload failed. Please check file format and size, then try again.");
         } finally {
             setLabelUploading(false);
         }
@@ -214,7 +213,6 @@ const ProductDetails = () => {
             }
 
             if (productError) {
-                console.error("[ProductDetails] Database error fetching product:", productError);
                 throw productError;
             }
 
@@ -236,7 +234,6 @@ const ProductDetails = () => {
 
             // Check if product is published or archived (only block if not admin)
             if ((productData.is_published === false || (productData as any).is_archived === true) && !isAdmin) {
-                console.warn(`[ProductDetails] Product "${productData.name}" is draft or archived.`);
                 throw new Error("Product not found");
             }
 
@@ -255,7 +252,6 @@ const ProductDetails = () => {
                 }
                 
                 if (!hasAccess) {
-                    console.warn(`[ProductDetails] Access denied to private VIP product "${productData.name}".`);
                     throw new Error("Product not found");
                 }
             }
@@ -274,11 +270,9 @@ const ProductDetails = () => {
 
                 if (!vErr && data) {
                     variantsData = data;
-                } else if (vErr) {
-                    console.warn("[ProductDetails] Non-fatal error fetching variants:", vErr);
                 }
             } catch (err) {
-                console.warn("[ProductDetails] Exception fetching variants:", err);
+                // Silently ignore variant fetch errors
             }
 
             // Fetch real sales count for this product
@@ -290,7 +284,7 @@ const ProductDetails = () => {
                     .eq("product_id", productData.id);
                 realSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
             } catch (e) {
-                console.warn("[ProductDetails] Non-fatal error fetching sales count:", e);
+                // Silently ignore sales count fetch errors
             }
 
             const salesCount = realSales + getBaseSalesCount(productData.id, productData.is_private, productData.name, (productData as any).product_categories?.name || productData.category);

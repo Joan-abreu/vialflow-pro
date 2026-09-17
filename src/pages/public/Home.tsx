@@ -125,7 +125,6 @@ const Home = () => {
                 .eq("product.is_published", true) as any);
 
             if (error) {
-                console.error("Error checking active bulk products:", error);
                 return false;
             }
 

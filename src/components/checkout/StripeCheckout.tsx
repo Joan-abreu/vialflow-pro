@@ -101,8 +101,7 @@ const StripeCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .eq('user_id', user.id);
 
                 if (profileError) {
-                    console.error("Error saving address:", profileError);
-                    toast.error("Failed to save address, but proceeding with payment.");
+                    // Silently ignore address save failure
                 }
             }
 
@@ -162,13 +161,12 @@ const StripeCheckout = ({ amount, shippingCost, shippingService, shippingService
                         });
 
                         if (updateError) {
-                            console.error("Failed to link order to payment intent:", updateError);
-                            toast.error("Warning: Could not link order to payment. Please contact support if issues arise.");
+                            // Silently ignore linking failure
                         }
                     }
                 }
             } catch (linkError) {
-                console.error("Failed to retrieve or link payment intent:", linkError);
+                // Silently ignore linking error
             }
 
             // 5. Confirm Payment
@@ -184,7 +182,6 @@ const StripeCheckout = ({ amount, shippingCost, shippingService, shippingService
             }
             // Cart will be cleared on the OrderConfirmation page
         } catch (error: any) {
-            console.error("Payment error:", error);
             toast.error(error.message || "Payment failed");
         } finally {
             setLoading(false);

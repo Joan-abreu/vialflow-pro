@@ -102,12 +102,11 @@ const Register = () => {
             toast.success("Registration successful! Please check your email to verify your account.");
             navigate("/login");
         } catch (error: any) {
-            console.error("Registration error:", error);
-            const msg = error.message || "Error registering";
+            const msg = error.message || "";
             if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("email_exists") || msg.includes("User already exists")) {
                 toast.error("This email address is already registered. Please sign in or use a different email.");
             } else {
-                toast.error(msg);
+                toast.error("Registration could not be completed. Please verify your information and try again.");
             }
         } finally {
             setLoading(false);

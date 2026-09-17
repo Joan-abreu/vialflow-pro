@@ -135,8 +135,7 @@ export const UploadPaymentProofDialog: React.FC<UploadPaymentProofDialogProps> =
             onOpenChange(false);
 
         } catch (err: any) {
-            console.error("Error uploading receipt:", err);
-            toast.error(err.message || "Failed to submit receipt proof");
+            toast.error("Failed to upload receipt. Please check file format and try again.");
         } finally {
             setLoading(false);
         }

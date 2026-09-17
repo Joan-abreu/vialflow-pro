@@ -109,7 +109,6 @@ const Products = () => {
             const { data, error } = await query;
 
             if (error) {
-                console.error("Error fetching products:", error);
                 throw error;
             }
 

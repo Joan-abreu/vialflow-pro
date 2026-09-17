@@ -391,6 +391,10 @@ const Checkout = () => {
             } else if (error.message && !error.message.includes("non-2xx")) {
                 message = error.message;
             }
+
+            if (message.toLowerCase().includes("non-2xx") || message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("internal") || message.toLowerCase().includes("edge function")) {
+                message = "This code could not be applied. Please check it and try again.";
+            }
             
             toast.error(message);
         } finally {

@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 setSession(session);
                 setUser(session?.user ?? null);
             } catch (error) {
-                console.error("Error checking auth session:", error);
+                // Silently catch session check error
             } finally {
                 setLoading(false);
             }

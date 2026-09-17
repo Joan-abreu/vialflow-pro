@@ -84,7 +84,7 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
             return geo;
         }
     } catch (err) {
-        console.debug("Provider 1 (geo-lookup edge function) failed, trying fallback:", err);
+        // Silently fallback to provider 2
     }
 
     // Provider 2 Fallback: ipwho.is (fast, unblocked, complete geolocation)
@@ -118,7 +118,7 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
             }
         }
     } catch (err) {
-        console.debug("Provider 2 (ipwho.is) failed, trying fallback:", err);
+        // Silently fallback to provider 3
     }
 
     // Provider 3 Fallback: freeipapi.com
@@ -152,7 +152,7 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
             }
         }
     } catch (err) {
-        console.debug("Provider 2 (freeipapi.com) failed, trying fallback:", err);
+        // Silently fallback to provider 4
     }
 
     // Provider 3 Fallback: api.ipify.org (Guarantees public IP address)
@@ -181,7 +181,7 @@ export const getGeoIpInfo = async (): Promise<GeoIpInfo> => {
             }
         }
     } catch (err) {
-        console.debug("Provider 3 (ipify.org) failed:", err);
+        // Silently catch error
     }
 
     return memoryGeoInfo || {};
@@ -248,7 +248,7 @@ export const captureUtmParams = (): UtmParams => {
             return JSON.parse(stored);
         }
     } catch (e) {
-        console.debug("Failed to capture UTM params:", e);
+        // Silently catch error
     }
 
     return {};
@@ -278,7 +278,6 @@ export const trackFunnelStep = async (
             });
     } catch (err) {
         // Silently catch to never break client execution
-        console.debug("Funnel event tracking debug:", err);
     }
 };
 
@@ -304,6 +303,6 @@ export const trackAnalyticsEvent = async (
                 metadata,
             });
     } catch (err) {
-        console.debug("Analytics event tracking debug:", err);
+        // Silently catch error
     }
 };

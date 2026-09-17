@@ -61,7 +61,7 @@ export const ProductShippingPerks = ({
                         parsedPM = parsed;
                     }
                 } catch (e) {
-                    console.warn("Error parsing payment methods from DB:", e);
+                    // Silently ignore parse error
                 }
             }
 

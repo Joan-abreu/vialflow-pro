@@ -178,7 +178,7 @@ const Account = () => {
                 });
             }
         } catch (err) {
-            console.error("Failed to load promoter status for account:", err);
+            // Silently ignore promoter status fetch error
         }
 
         setLoading(false);
@@ -243,7 +243,6 @@ const Account = () => {
             setIsEditingPhone(false);
         } catch (error: any) {
             toast.error("Failed to update profile");
-            console.error(error);
         } finally {
             setUpdating(false);
         }
@@ -384,7 +383,6 @@ const Account = () => {
                 navigate("/cart");
             }
         } catch (error: any) {
-            console.error("Reorder error:", error);
             toast.error("Failed to reorder. Please try again.");
         } finally {
             setReordering(null);

@@ -85,7 +85,7 @@ const Cart = () => {
                     setRequireResearchAck(data.value === "true");
                 }
             } catch (err) {
-                console.error("Error fetching require_research_acknowledgment setting:", err);
+                // Silently ignore settings fetch error
             }
         };
         fetchAckSetting();

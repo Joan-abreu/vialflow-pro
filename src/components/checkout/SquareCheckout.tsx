@@ -55,7 +55,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     setRequireResearchAck(data.value === "true");
                 }
             } catch (err) {
-                console.error("Error fetching require_research_acknowledgment:", err);
+                // Silently ignore settings fetch error
             }
         };
         fetchAckSetting();
@@ -266,7 +266,7 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
                     .eq('user_id', user.id);
 
                 if (profileError) {
-                    console.error("Error saving address:", profileError);
+                    // Silently ignore address save error
                 }
             }
 
@@ -363,7 +363,6 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
 
             if (paymentError || !paymentResult || paymentResult.success === false) {
                 const rawError = paymentResult?.error || paymentError?.message || "Payment declined";
-                console.error("Square Detailed Error (Raw):", rawError);
                 throw new Error(translateSquareError(rawError));
             }
 
@@ -420,7 +419,6 @@ const SquareCheckout = ({ amount, shippingCost, shippingService, shippingService
             navigate(`/order-confirmation/${order.id}`);
 
         } catch (error: any) {
-            console.error("Square Payment Error:", error);
             toast.error(error.message || "Payment failed");
             setLoading(false);
         }

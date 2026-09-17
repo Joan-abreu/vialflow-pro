@@ -151,7 +151,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                         return;
                     }
                 } catch (e) {
-                    console.warn("Failed to recover cart from token:", e);
+                    // Silently ignore recovery failure
                 }
             }
 
@@ -161,7 +161,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 try {
                     setItems(JSON.parse(savedCart));
                 } catch (error) {
-                    console.error("Failed to parse cart from local storage", error);
+                    // Silently ignore corrupted storage
                 }
             }
         };
@@ -313,7 +313,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             }
         } catch (err) {
-            console.debug("Cart session sync error (non-fatal):", err);
+            // Silently handle non-fatal sync error
         }
     }, [cartSessionId]);
 
@@ -374,7 +374,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
                 .eq("session_id", sessionId)
                 .in("status", ["active", "abandoned", "recovered"]);
         } catch (e) {
-            console.debug("Failed to update cart contact info:", e);
+            // Silently ignore update error
         }
     };
 
@@ -394,7 +394,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
             clearCart();
         } catch (e) {
-            console.debug("Failed to mark cart converted:", e);
+            // Silently ignore mark converted error
         }
     };
 

@@ -146,8 +146,7 @@ export default function PeptideUpsellModal({
             onClose();
             navigate("/checkout");
         } catch (error) {
-            console.error("Error adding peptide upsell:", error);
-            toast.error("Failed to add peptide. Please try again.");
+            toast.error("Failed to add product. Please try again.");
         } finally {
             setAddingVariantId(null);
         }

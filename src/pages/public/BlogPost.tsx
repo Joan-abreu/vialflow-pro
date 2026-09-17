@@ -72,8 +72,8 @@ const BlogPostPage = () => {
                 .then(() => {
                     // Silently incremented
                 })
-                .catch((e) => {
-                    console.warn("View increment failed:", e);
+                .catch(() => {
+                    // Silently ignore increment error
                 });
         }
     }, [post?.slug]);

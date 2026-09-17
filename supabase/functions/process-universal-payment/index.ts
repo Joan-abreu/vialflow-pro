@@ -111,6 +111,7 @@ serve(async (req) => {
         const {
             provider = "square",
             sourceId,
+            sessionId,
             paymentIntentId,
             paypalOrderId,
             opaqueData,

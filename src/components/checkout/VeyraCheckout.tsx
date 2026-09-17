@@ -278,7 +278,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             else if (err?.error && typeof err.error === "string") msg = err.error;
             else if (err?.error?.message) msg = err.error.message;
             setErrorMessage(msg);
-            toast.error(msg);
+            // UniversalCheckout already displays the toast error to avoid duplicate alerts
         } finally {
             setIsLocalProcessing(false);
         }

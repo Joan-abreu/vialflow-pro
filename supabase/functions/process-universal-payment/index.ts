@@ -14,6 +14,7 @@ const cloverPrivateToken = Deno.env.get("CLOVER_API_KEY") || "";
 const nmiSecurityKeyEnv = Deno.env.get("NMI_SECURITY_KEY") || "";
 const paypalSecretEnv = Deno.env.get("PAYPAL_CLIENT_SECRET") || "";
 const tagadaApiKeyEnv = Deno.env.get("TAGADAPAY_API_KEY") || "";
+const veyraSecretEnv = Deno.env.get("VEYRA_SECRET_KEY") || "";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,85 @@ serve(async (req) => {
 
     try {
         const body = await req.json();
+
+        // 0. Veyra Session Creation Action
+        if (body.action === "create_veyra_session") {
+            let effectiveVeyraSecret = body.veyraSecretKey || veyraSecretEnv;
+            if (!effectiveVeyraSecret) {
+                const { data: sData } = await supabase.from("app_settings").select("value").eq("key", "payment_veyra_config").maybeSingle();
+                if (sData?.value) {
+                    try {
+                        const parsed = JSON.parse(sData.value);
+                        effectiveVeyraSecret = parsed.secretKey || "";
+                    } catch (_) {}
+                }
+            }
+            if (!effectiveVeyraSecret) {
+                effectiveVeyraSecret = "vg_sk_live_PLdndlxlj6JijCuSgcozKfpchpgvahTE";
+            }
+
+            const amountInCents = Math.round(parseFloat((body.amount || 0).toString()) * 100);
+            const channel = body.channel || "livwell_direct";
+            const sAddress = body.shippingAddress;
+            const bDetails = body.billingDetails || {
+                name: sAddress?.firstName ? `${sAddress.firstName} ${sAddress.lastName || ''}`.trim() : (body.customerEmail?.split("@")[0] || "Customer"),
+                email: body.customerEmail || "customer@livwellresearchlabs.com",
+                phone: sAddress?.phone || "+14125550123",
+                address: {
+                    line1: sAddress?.addressLine1 || sAddress?.line1 || "100 Main St",
+                    city: sAddress?.locality || sAddress?.city || "Pittsburgh",
+                    state: sAddress?.administrativeDistrictLevel1 || sAddress?.state || "PA",
+                    postal_code: sAddress?.postalCode || sAddress?.postal_code || "15216",
+                    country: sAddress?.country || "US",
+                }
+            };
+
+            const sDetails = sAddress ? {
+                name: `${sAddress.firstName || ''} ${sAddress.lastName || ''}`.trim() || "Customer",
+                address: {
+                    line1: sAddress.addressLine1 || sAddress.line1 || "",
+                    line2: sAddress.addressLine2 || sAddress.line2 || "",
+                    city: sAddress.locality || sAddress.city || "",
+                    state: sAddress.administrativeDistrictLevel1 || sAddress.state || "",
+                    postal_code: sAddress.postalCode || sAddress.postal_code || "",
+                    country: sAddress.country || "US"
+                }
+            } : undefined;
+
+            const sessionPayload = {
+                amount_cents: amountInCents,
+                currency: (body.currency || "usd").toLowerCase(),
+                channel: channel,
+                customer_email: body.customerEmail,
+                billing_details: bDetails,
+                shipping_details: sDetails,
+                return_url: body.returnUrl || `https://livwellresearchlabs.com/order-confirmation?orderId=${body.orderId || ''}`,
+                cancel_url: body.cancelUrl || `https://livwellresearchlabs.com/checkout`,
+                metadata: {
+                    order_id: body.orderId || `LW-${Date.now()}`
+                }
+            };
+
+            console.log("👉 [Veyra] Creating checkout session:", JSON.stringify(sessionPayload, null, 2));
+
+            const vRes = await fetch("https://veyragate.com/api/v1/checkout_sessions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${effectiveVeyraSecret}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(sessionPayload)
+            });
+
+            const vData = await vRes.json().catch(() => ({}));
+            console.log("👈 [Veyra] Session created response:", vRes.status, JSON.stringify(vData));
+
+            return new Response(JSON.stringify(vData), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: vRes.status
+            });
+        }
+
         const {
             provider = "square",
             sourceId,
@@ -537,6 +617,86 @@ serve(async (req) => {
             }
         }
 
+        // 3.6. Veyra Processing (Inline Hosted Fields BasisTheory Token Intent & 3DS Gateway)
+        if (provider === "veyra") {
+            let effectiveVeyraSecret = body.veyraSecretKey || veyraSecretEnv;
+            if (!effectiveVeyraSecret) {
+                const { data: sData } = await supabase.from("app_settings").select("value").eq("key", "payment_veyra_config").maybeSingle();
+                if (sData?.value) {
+                    try {
+                        const parsed = JSON.parse(sData.value);
+                        effectiveVeyraSecret = parsed.secretKey || "";
+                    } catch (_) {}
+                }
+            }
+            if (!effectiveVeyraSecret) {
+                effectiveVeyraSecret = "vg_sk_live_PLdndlxlj6JijCuSgcozKfpchpgvahTE";
+            }
+
+            const effectiveSessionId = sessionId || body.session_id || body.sessionId;
+            const effectiveTokenIntentId = sourceId || body.tokenIntentId || body.basis_theory_token_intent_id;
+
+            if (!effectiveSessionId || !effectiveTokenIntentId) {
+                throw new Error("Missing Veyra session ID or card token intent ID.");
+            }
+
+            const confirmPayload = {
+                session_id: effectiveSessionId,
+                basis_theory_token_intent_id: effectiveTokenIntentId,
+                customer_email: customerEmail,
+                idempotency_key: `${orderId || 'LW'}-attempt-${Date.now()}`
+            };
+
+            console.log("👉 [Veyra] Confirming checkout session charge:", JSON.stringify(confirmPayload, null, 2));
+
+            const confirmRes = await fetch("https://veyragate.com/api/v1/checkout_sessions/confirm", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${effectiveVeyraSecret}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(confirmPayload)
+            });
+
+            const confirmData = await confirmRes.json().catch(() => ({}));
+            console.log("👈 [Veyra] Confirm Response:", confirmRes.status, JSON.stringify(confirmData, null, 2));
+
+            const status = String(confirmData.status || "").toLowerCase();
+            const isSuccess = confirmRes.ok && (status === "succeeded" || confirmData.ok === true);
+            const requiresAction = confirmRes.ok && (status === "requires_action" || Boolean(confirmData.redirect_url));
+
+            const resolvedTransactionId = confirmData.transaction_id || confirmData.session_id || effectiveSessionId;
+
+            if (isSuccess) {
+                await completeSuccessfulOrder("veyra", resolvedTransactionId);
+                return new Response(JSON.stringify({
+                    success: true,
+                    status: "COMPLETED",
+                    provider: "veyra",
+                    paymentId: resolvedTransactionId,
+                    orderId: orderId
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200,
+                });
+            } else if (requiresAction) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    status: "REQUIRES_ACTION",
+                    provider: "veyra",
+                    redirectUrl: confirmData.redirect_url,
+                    transactionId: resolvedTransactionId,
+                    orderId: orderId
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200,
+                });
+            } else {
+                const errMsg = confirmData.message || confirmData.error || "Payment was declined or could not be processed. Please try another card.";
+                throw new Error(errMsg);
+            }
+        }
+
         // 4. Authorize.Net Processing (Accept.js Tokenized Charge)
         if (provider === "authorizenet") {
             const endpoint = isProduction 
@@ -837,6 +997,7 @@ serve(async (req) => {
             errMessage.includes("Security Key Invalid") ||
             errMessage.includes("Merchant disabled") ||
             errMessage.includes("TAGADAPAY_API_KEY") ||
+            errMessage.includes("VEYRA_SECRET_KEY") ||
             errMessage.includes("Invalid API Key") ||
             errMessage.includes("Store not found");
 

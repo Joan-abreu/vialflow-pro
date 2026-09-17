@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import crypto from "node:crypto";
+import { Buffer } from "node:buffer";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -11,10 +13,11 @@ const stripeWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const authNetSignatureKey = Deno.env.get("AUTHORIZENET_SIGNATURE_KEY") || "";
 const cloverWebhookSecret = Deno.env.get("CLOVER_WEBHOOK_SECRET") || "";
 const nmiSecurityKey = Deno.env.get("NMI_SECURITY_KEY") || "";
+const veyraWebhookSecretEnv = Deno.env.get("VEYRA_WEBHOOK_SECRET") || "";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature, x-square-hmacsha256-signature, x-anet-signature",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature, x-square-hmacsha256-signature, x-anet-signature, veyragate-signature",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -401,6 +404,117 @@ serve(async (req) => {
             return new Response(JSON.stringify({ 
                 received: true, 
                 provider: "tagadapay", 
+                eventId: eventId,
+                status: "acknowledged" 
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
+
+        // -------------------------------------------------------------
+        // 8. Veyra Webhook Handler (Official Spec)
+        // -------------------------------------------------------------
+        const veyraSig = req.headers.get("veyragate-signature") || req.headers.get("Veyragate-Signature");
+        if (queryProvider === "veyra" || veyraSig) {
+            let veyraWebhookSecret = veyraWebhookSecretEnv;
+            if (!veyraWebhookSecret) {
+                const { data: sData } = await supabase.from("app_settings").select("value").eq("key", "payment_veyra_config").maybeSingle();
+                if (sData?.value) {
+                    try {
+                        const parsed = JSON.parse(sData.value);
+                        veyraWebhookSecret = parsed.webhookSecret || "";
+                    } catch (_) {}
+                }
+            }
+
+            // Verify HMAC-SHA256 signature if secret and signature header are present
+            if (veyraSig && veyraWebhookSecret) {
+                try {
+                    const parts = Object.fromEntries(veyraSig.split(",").map((p: string) => p.split("=")));
+                    const t = Number(parts.t);
+                    if (!t || Math.abs(Date.now() / 1000 - t) > 300) {
+                        console.warn("[Veyra Webhook] Timestamp expired or missing:", t);
+                        return new Response(JSON.stringify({ error: "Timestamp expired" }), { status: 400, headers: corsHeaders });
+                    }
+                    const expected = crypto.createHmac("sha256", veyraWebhookSecret)
+                        .update(`${t}.${bodyText}`).digest("hex");
+                    const a = Buffer.from(expected);
+                    const b = Buffer.from(parts.v1 || "");
+                    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+                        console.warn("[Veyra Webhook] Invalid signature verification.");
+                        return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401, headers: corsHeaders });
+                    }
+                } catch (sigErr) {
+                    console.warn("[Veyra Webhook] Error during signature verification:", sigErr);
+                }
+            }
+
+            const event = JSON.parse(bodyText);
+            const eventType = String(event?.type || event?.event || "").toLowerCase();
+            const eventId = event?.id || event?.event_id;
+            const dataObj = event?.data?.object || event?.data || event;
+
+            console.log(`[Veyra Webhook] Processing event: ${eventType} (ID: ${eventId || "N/A"})`);
+            console.log(`[Veyra Webhook] Payload:`, bodyText);
+
+            const orderId = 
+                dataObj?.metadata?.order_id ||
+                dataObj?.metadata?.orderId ||
+                event?.metadata?.order_id ||
+                event?.metadata?.orderId ||
+                dataObj?.order_id ||
+                dataObj?.orderId;
+
+            const txId = dataObj?.transaction_id || event?.transaction_id;
+            const sessId = dataObj?.session_id || event?.session_id;
+            const paymentId = txId || sessId || eventId;
+
+            // Robust multi-key lookup to guarantee order identification
+            const findOrder = async () => {
+                if (orderId) {
+                    const { data: byId } = await supabase.from("orders").select("id").eq("id", orderId).maybeSingle();
+                    if (byId) return byId;
+                }
+                if (txId) {
+                    const { data: byTx } = await supabase.from("orders").select("id").eq("payment_intent_id", txId).maybeSingle();
+                    if (byTx) return byTx;
+                }
+                if (sessId) {
+                    const { data: bySess } = await supabase.from("orders").select("id").eq("payment_intent_id", sessId).maybeSingle();
+                    if (bySess) return bySess;
+                }
+                if (paymentId) {
+                    const { data: byPayment } = await supabase.from("orders").select("id").eq("payment_intent_id", paymentId).maybeSingle();
+                    if (byPayment) return byPayment;
+                }
+                return null;
+            };
+
+            if (eventType === "charge.succeeded" || eventType === "payment.succeeded" || eventType === "checkout.session.completed") {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await markOrderAsPaid(targetOrder.id, "veyra", paymentId);
+                } else {
+                    console.warn(`[Veyra Webhook] Could not match order for event ${eventId}. OrderId: ${orderId}, TxId: ${txId}, SessId: ${sessId}`);
+                }
+            } else if (eventType === "charge.refunded" || eventType === "payment.refunded") {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await markOrderAsRefunded(targetOrder.id, "veyra");
+                }
+            } else if (eventType === "dispute.created" || eventType === "charge.dispute.created") {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await markOrderAsDisputed(targetOrder.id, "veyra");
+                }
+            } else if (eventType === "charge.failed") {
+                console.warn(`[Veyra Webhook] Charge failed for order ${orderId || 'N/A'}:`, dataObj?.message || dataObj?.failure_message);
+            }
+
+            return new Response(JSON.stringify({ 
+                received: true, 
+                provider: "veyra", 
                 eventId: eventId,
                 status: "acknowledged" 
             }), {

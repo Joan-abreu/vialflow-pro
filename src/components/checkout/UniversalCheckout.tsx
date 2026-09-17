@@ -17,6 +17,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider, PaymentGatewaysSettings } from "@/config/paymentGateways";
 import { SmartCreditCardForm } from "./SmartCreditCardForm";
 import { TagadaCheckout } from "./TagadaCheckout";
+import { VeyraCheckout } from "./VeyraCheckout";
 import { P2PPaymentDisplay } from "./P2PPaymentDisplay";
 import { UploadPaymentProofDialog } from "./UploadPaymentProofDialog";
 
@@ -233,6 +234,7 @@ const UniversalCheckout = ({
                         "payment_nmi_config",
                         "payment_paypal_config",
                         "payment_tagadapay_config",
+                        "payment_veyra_config",
                         "payment_manual_config",
                         "payment_p2p_config"
                     ]);
@@ -251,18 +253,27 @@ const UniversalCheckout = ({
                     const nmiCfg = data.find(s => s.key === "payment_nmi_config");
                     const paypalCfg = data.find(s => s.key === "payment_paypal_config");
                     const tagadaCfg = data.find(s => s.key === "payment_tagadapay_config");
+                    const veyraCfg = data.find(s => s.key === "payment_veyra_config");
                     const manualCfg = data.find(s => s.key === "payment_manual_config");
                     const p2pCfg = data.find(s => s.key === "payment_p2p_config");
 
                     if (ack) setRequireResearchAck(ack.value === "true");
                     if (reqLogin) setRequireLoginForCheckout(reqLogin.value === "true");
                     
-                    const newProvider = (activeP?.value as PaymentGatewayProvider) || DEFAULT_PAYMENT_SETTINGS.activeProvider;
+                    let newProvider = (activeP?.value as PaymentGatewayProvider) || DEFAULT_PAYMENT_SETTINGS.activeProvider;
+                    
+                    // Admin preview override (allows safe testing via ?preview_gateway=veyra without affecting live customers)
+                    const searchParams = new URLSearchParams(window.location.search);
+                    const previewGateway = searchParams.get("preview_gateway");
+                    if (previewGateway === "veyra" || previewGateway === "tagadapay") {
+                        newProvider = previewGateway as PaymentGatewayProvider;
+                    }
                     setActiveProvider(newProvider);
 
                     const parsedManual = manualCfg?.value ? JSON.parse(manualCfg.value) : {};
                     const parsedP2P = p2pCfg?.value ? JSON.parse(p2pCfg.value) : {};
                     const parsedTagada = tagadaCfg?.value ? JSON.parse(tagadaCfg.value) : {};
+                    const parsedVeyra = veyraCfg?.value ? JSON.parse(veyraCfg.value) : {};
 
                     const zelleIsOn = typeof parsedManual.zelleEnabled === "boolean" ? parsedManual.zelleEnabled : (typeof parsedP2P.zelle?.enabled === "boolean" ? parsedP2P.zelle.enabled : true);
                     const venmoIsOn = typeof parsedManual.venmoEnabled === "boolean" ? parsedManual.venmoEnabled : (typeof parsedP2P.venmo?.enabled === "boolean" ? parsedP2P.venmo.enabled : true);
@@ -277,6 +288,7 @@ const UniversalCheckout = ({
                         square: squareCfg?.value ? { ...prev.square, ...JSON.parse(squareCfg.value) } : prev.square,
                         stripe: stripeCfg?.value ? { ...prev.stripe, ...JSON.parse(stripeCfg.value) } : prev.stripe,
                         tagadapay: { ...prev.tagadapay, ...parsedTagada },
+                        veyra: { ...prev.veyra, ...parsedVeyra },
                         authorizenet: authNetCfg?.value ? { ...prev.authorizenet, ...JSON.parse(authNetCfg.value) } : prev.authorizenet,
                         clover: cloverCfg?.value ? { ...prev.clover, ...JSON.parse(cloverCfg.value) } : prev.clover,
                         nmi: nmiCfg?.value ? { ...prev.nmi, ...JSON.parse(nmiCfg.value) } : prev.nmi,
@@ -781,22 +793,35 @@ const UniversalCheckout = ({
     // -------------------------------------------------------------
     // Generic Universal Payment Execution
     // -------------------------------------------------------------
-    const handleProcessPayment = async (sourceId?: string, paymentIntentId?: string, opaqueData?: any, paypalOrderId?: string) => {
+    const handleProcessPayment = async (
+        sourceId?: string, 
+        paymentIntentId?: string, 
+        opaqueData?: any, 
+        paypalOrderId?: string,
+        additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any }
+    ) => {
         setLoading(true);
 
         try {
             const orderId = await createDraftOrder();
 
-            const response = await fetch(`${supabase.supabaseUrl}/functions/v1/process-universal-payment`, {
+            const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
+            const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+            const response = await fetch(`${baseUrl}/functions/v1/process-universal-payment`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${supabase.supabaseKey}`,
-                    "apikey": supabase.supabaseKey,
+                    "Authorization": `Bearer ${apiKey}`,
+                    "apikey": apiKey,
                 },
                 body: JSON.stringify({
                     provider: activeProvider,
                     sourceId,
+                    sessionId: additionalData?.sessionId,
+                    tokenIntentId: additionalData?.basis_theory_token_intent_id || sourceId,
+                    channel: gatewaySettings.veyra.channel || "livwell_direct",
+                    veyraSecretKey: gatewaySettings.veyra.secretKey,
                     paymentIntentId,
                     paypalOrderId,
                     opaqueData,
@@ -815,6 +840,7 @@ const UniversalCheckout = ({
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :
                         activeProvider === "tagadapay" ? gatewaySettings.tagadapay.environment === "production" :
+                        activeProvider === "veyra" ? gatewaySettings.veyra.environment === "production" :
                         activeProvider === "authorizenet" ? gatewaySettings.authorizenet.environment === "production" :
                         activeProvider === "clover" ? gatewaySettings.clover.environment === "production" :
                         gatewaySettings.paypal.environment === "production",
@@ -1390,6 +1416,48 @@ const UniversalCheckout = ({
                                     }
                                     onTokenized={async (tagadaToken) => {
                                         return await handleProcessPayment(tagadaToken);
+                                    }}
+                                />
+                            ) : activeProvider === "veyra" ? (
+                                /* Case Veyra: Veyra Hosted Fields 3DS Card Checkout */
+                                <VeyraCheckout
+                                    amount={amount}
+                                    config={gatewaySettings.veyra}
+                                    customerEmail={user ? user.email : addressState.email}
+                                    shippingAddress={{
+                                        firstName: addressState.full_name.split(' ')[0] || '',
+                                        lastName: addressState.full_name.split(' ').slice(1).join(' ') || '',
+                                        addressLine1: addressState.line1,
+                                        addressLine2: addressState.line2,
+                                        locality: addressState.city,
+                                        administrativeDistrictLevel1: addressState.state,
+                                        postalCode: addressState.postal_code,
+                                        country: addressState.country || 'US',
+                                        phone: addressState.phone || ''
+                                    }}
+                                    billingAddress={{
+                                        name: addressState.full_name,
+                                        email: user ? user.email : addressState.email,
+                                        phone: addressState.phone || '',
+                                        line1: addressState.line1,
+                                        city: addressState.city,
+                                        state: addressState.state,
+                                        postal_code: addressState.postal_code,
+                                        country: addressState.country || 'US'
+                                    }}
+                                    loading={loading}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabledReason={
+                                        isCalculating
+                                            ? "Calculating Shipping..."
+                                            : !shippingService || shippingCost === undefined
+                                                ? "Select Shipping Method"
+                                                : requireResearchAck && (!ackResearch || !ackTerms)
+                                                    ? "Acknowledge terms to pay"
+                                                    : undefined
+                                    }
+                                    onTokenized={async (tokenIntentId, sessionId, cardSummary) => {
+                                        return await handleProcessPayment(tokenIntentId, undefined, undefined, undefined, { sessionId, basis_theory_token_intent_id: tokenIntentId, cardSummary });
                                     }}
                                 />
                             ) : activeProvider === "stripe" ? (

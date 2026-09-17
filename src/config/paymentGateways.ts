@@ -2,6 +2,7 @@ export type PaymentGatewayProvider =
     | "square" 
     | "stripe" 
     | "tagadapay"
+    | "veyra"
     | "authorizenet" 
     | "clover"
     | "nmi"
@@ -9,6 +10,14 @@ export type PaymentGatewayProvider =
     | "manual"
     | "manual_terminal"
     | "offline_card";
+
+export interface VeyraGatewayConfig {
+    publishableKey: string;
+    channel: string;
+    secretKey?: string;
+    webhookSecret?: string;
+    environment: "sandbox" | "production";
+}
 
 export interface SquareGatewayConfig {
     appId: string;
@@ -91,6 +100,7 @@ export interface PaymentGatewaysSettings {
     square: SquareGatewayConfig;
     stripe: StripeGatewayConfig;
     tagadapay: TagadaPayGatewayConfig;
+    veyra: VeyraGatewayConfig;
     authorizenet: AuthorizeNetGatewayConfig;
     clover: CloverGatewayConfig;
     nmi: NMIGatewayConfig;
@@ -118,6 +128,13 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         publicKey: import.meta.env.VITE_TAGADAPAY_PUBLIC_KEY || "",
         paymentFlowId: import.meta.env.VITE_TAGADAPAY_PAYMENT_FLOW_ID || "",
         environment: "sandbox",
+    },
+    veyra: {
+        publishableKey: import.meta.env.VITE_VEYRA_PUBLISHABLE_KEY || "vg_pk_live_8mErDBD6gy87FvBUXdmDsMoQiFSyKLAE",
+        channel: "livwell_direct",
+        secretKey: "",
+        webhookSecret: "",
+        environment: "production",
     },
     authorizenet: {
         apiLoginId: "",

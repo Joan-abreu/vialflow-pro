@@ -145,6 +145,17 @@ const SiteSettings = () => {
     const [showTagadaApiKey, setShowTagadaApiKey] = useState<boolean>(false);
     const [copiedApiKey, setCopiedApiKey] = useState<boolean>(false);
     const [tagadaEnv, setTagadaEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.tagadapay.environment);
+    
+    // Veyra Live Gateway Settings
+    const [veyraPublishableKey, setVeyraPublishableKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.veyra.publishableKey);
+    const [veyraSecretKey, setVeyraSecretKey] = useState<string>("");
+    const [showVeyraSecretKey, setShowVeyraSecretKey] = useState<boolean>(false);
+    const [copiedVeyraKey, setCopiedVeyraKey] = useState<boolean>(false);
+    const [veyraChannel, setVeyraChannel] = useState<string>(DEFAULT_PAYMENT_SETTINGS.veyra.channel || "livwell_direct");
+    const [veyraWebhookSecret, setVeyraWebhookSecret] = useState<string>("");
+    const [showVeyraWebhookSecret, setShowVeyraWebhookSecret] = useState<boolean>(false);
+    const [copiedVeyraWebhookUrl, setCopiedVeyraWebhookUrl] = useState<boolean>(false);
+    const [veyraEnv, setVeyraEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.veyra.environment);
     const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
     const [zelleName, setZelleName] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleName || "");
@@ -297,6 +308,7 @@ const SiteSettings = () => {
                     "payment_nmi_config",
                     "payment_paypal_config",
                     "payment_tagadapay_config",
+                    "payment_veyra_config",
                     "payment_manual_config",
                     "enable_strict_stock_enforcement",
                     "enable_restock_notifications",
@@ -538,6 +550,18 @@ const SiteSettings = () => {
                     } catch (e) {}
                 }
 
+                const veyraCfg = data.find((s: any) => s.key === "payment_veyra_config");
+                if (veyraCfg?.value) {
+                    try {
+                        const vy = JSON.parse(veyraCfg.value);
+                        if (vy.publishableKey) setVeyraPublishableKey(vy.publishableKey);
+                        if (vy.secretKey) setVeyraSecretKey(vy.secretKey);
+                        if (vy.channel) setVeyraChannel(vy.channel);
+                        if (vy.webhookSecret) setVeyraWebhookSecret(vy.webhookSecret);
+                        if (vy.environment) setVeyraEnv(vy.environment);
+                    } catch (e) {}
+                }
+
                 if (manualCfg?.value) {
                     try {
                         const mn = JSON.parse(manualCfg.value);
@@ -719,6 +743,14 @@ const SiteSettings = () => {
                 environment: tagadaEnv
             });
 
+            const veyraConfig = JSON.stringify({
+                publishableKey: veyraPublishableKey,
+                secretKey: veyraSecretKey,
+                channel: veyraChannel,
+                webhookSecret: veyraWebhookSecret,
+                environment: veyraEnv
+            });
+
             const manualConfig = JSON.stringify({
                 zelleEnabled,
                 zelleEmail,
@@ -756,6 +788,7 @@ const SiteSettings = () => {
                 { key: "payment_nmi_config", value: nmiConfig, updated_at: now },
                 { key: "payment_paypal_config", value: paypalConfig, updated_at: now },
                 { key: "payment_tagadapay_config", value: tagadapayConfig, updated_at: now },
+                { key: "payment_veyra_config", value: veyraConfig, updated_at: now },
                 { key: "payment_manual_config", value: manualConfig, updated_at: now },
                 { key: "payment_p2p_config", value: p2pConfig, updated_at: now },
 
@@ -1087,6 +1120,7 @@ const SiteSettings = () => {
                                     activeGateway === 'square' ? 'bg-black text-white dark:bg-white dark:text-black' :
                                     activeGateway === 'stripe' ? 'bg-indigo-600 text-white' :
                                     activeGateway === 'tagadapay' ? 'bg-emerald-600 text-white' :
+                                    activeGateway === 'veyra' ? 'bg-teal-600 text-white' :
                                     activeGateway === 'authorizenet' ? 'bg-blue-700 text-white' :
                                     activeGateway === 'clover' ? 'bg-emerald-700 text-white' :
                                     activeGateway === 'nmi' ? 'bg-slate-800 text-white' :
@@ -1114,9 +1148,10 @@ const SiteSettings = () => {
                                         <SelectValue placeholder="Select active processor" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
+                                        <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
                                         <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
-                                        <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
                                         <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
@@ -1141,6 +1176,7 @@ const SiteSettings = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
+                                        <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
                                         <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
@@ -1178,16 +1214,16 @@ const SiteSettings = () => {
                         <div className="space-y-3 pt-2">
                             <Label className="font-semibold text-sm">Processor Credentials & Keys</Label>
                             <Tabs defaultValue="square" className="w-full">
-                                <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full">
+                                <TabsList className="grid grid-cols-4 md:grid-cols-9 w-full">
                                     <TabsTrigger value="square" className="text-[11px] px-1">Square</TabsTrigger>
                                     <TabsTrigger value="stripe" className="text-[11px] px-1">Stripe</TabsTrigger>
                                     <TabsTrigger value="tagadapay" className="text-[11px] px-1 font-semibold text-emerald-600 dark:text-emerald-400">TagadaPay</TabsTrigger>
+                                    <TabsTrigger value="veyra" className="text-[11px] px-1 font-bold text-teal-600 dark:text-teal-400">⚡ Veyra</TabsTrigger>
                                     <TabsTrigger value="nmi" className="text-[11px] px-1">NMI</TabsTrigger>
                                     <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
                                     <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
                                     <TabsTrigger value="paypal" className="text-[11px] px-1">PayPal</TabsTrigger>
-                                    <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">⚡ P2P Direct</TabsTrigger>
-
+                                    <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">P2P</TabsTrigger>
                                 </TabsList>
 
                                 {/* Square Settings */}
@@ -1414,6 +1450,189 @@ const SiteSettings = () => {
                                     <p className="text-[11px] text-muted-foreground">
                                         Note: Secret API Bearer Token (<code>TAGADAPAY_API_KEY</code>) is stored securely in Supabase Edge Functions Secrets.
                                     </p>
+                                </TabsContent>
+
+                                {/* Veyra Settings */}
+                                <TabsContent value="veyra" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="p-3 bg-teal-500/10 border border-teal-500/30 rounded-lg text-xs space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <strong className="text-teal-700 dark:text-teal-300 font-bold flex items-center gap-1.5">
+                                                <Zap className="h-4 w-4 text-teal-600" />
+                                                Veyra Live Gateway (Inline Hosted Fields & 3-D Secure)
+                                            </strong>
+                                            <Badge variant="outline" className="text-[10px] bg-teal-500/20 text-teal-700 border-teal-600 font-bold">
+                                                Live Mode Ready
+                                            </Badge>
+                                        </div>
+                                        <p className="text-muted-foreground text-[11px]">
+                                            Cards run inline on your domain via <code>https://veyragate.com/v1/hosted-fields.js</code>. Statement descriptor: <strong className="text-foreground">LIVWELL</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="veyraPk" className="text-xs font-semibold">Publishable Key (Browser)</Label>
+                                            <Input
+                                                id="veyraPk"
+                                                value={veyraPublishableKey}
+                                                onChange={(e) => setVeyraPublishableKey(e.target.value)}
+                                                placeholder="vg_pk_live_..."
+                                                className="font-mono text-xs"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Must begin with <code>vg_pk_live_</code>. Safe in client JavaScript.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="veyraSk" className="text-xs font-semibold">Secret Key (Server Only)</Label>
+                                                {veyraSecretKey && (
+                                                    <span className="text-[10px] text-teal-600 font-medium flex items-center gap-1">
+                                                        <Check className="h-3 w-3" /> Configured
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative flex items-center">
+                                                <Input
+                                                    id="veyraSk"
+                                                    type={showVeyraSecretKey ? "text" : "password"}
+                                                    value={veyraSecretKey}
+                                                    onChange={(e) => setVeyraSecretKey(e.target.value)}
+                                                    placeholder="Secret Key (Leave blank to use default)"
+                                                    className="pr-16 font-mono text-xs"
+                                                />
+                                                <div className="absolute right-1 flex items-center gap-0.5">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                        onClick={() => setShowVeyraSecretKey(!showVeyraSecretKey)}
+                                                    >
+                                                        {showVeyraSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                    {veyraSecretKey && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(veyraSecretKey);
+                                                                setCopiedVeyraKey(true);
+                                                                toast.success("Secret key copied!");
+                                                                setTimeout(() => setCopiedVeyraKey(false), 2000);
+                                                            }}
+                                                        >
+                                                            {copiedVeyraKey ? <Check className="h-3.5 w-3.5 text-teal-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Used by Supabase Edge Functions to create sessions and charge cards.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="veyraCh" className="text-xs font-semibold">Checkout Channel</Label>
+                                            <Input
+                                                id="veyraCh"
+                                                value={veyraChannel}
+                                                onChange={(e) => setVeyraChannel(e.target.value)}
+                                                placeholder="livwell_direct"
+                                                className="font-mono text-xs"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Required on every session for store reporting and webhook attribution. Default: <code>livwell_direct</code>.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="veyraEnv" className="text-xs font-semibold">Veyra Environment</Label>
+                                            <Select value={veyraEnv} onValueChange={(val: any) => setVeyraEnv(val)}>
+                                                <SelectTrigger id="veyraEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="production">Production (Live Charges Enabled)</SelectItem>
+                                                    <SelectItem value="sandbox">Sandbox / Testing</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Charges are live on <code>livwellresearchlabs.com</code>.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Webhook Endpoint Info Box */}
+                                    <div className="p-3 bg-muted/40 rounded-lg border space-y-2">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                            <div>
+                                                <div className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                    <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
+                                                    Veyra Webhook Integration
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Provide this HTTPS URL to Veyra support (<code>support@veyragate.com</code>) scoped to <code>livwell_direct</code>:
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="text-xs font-semibold shrink-0 gap-1.5"
+                                                onClick={() => {
+                                                    const webhookUrl = `${supabase.supabaseUrl}/functions/v1/universal-payment-webhook?provider=veyra`;
+                                                    navigator.clipboard.writeText(webhookUrl);
+                                                    setCopiedVeyraWebhookUrl(true);
+                                                    toast.success("Webhook URL copied to clipboard!");
+                                                    setTimeout(() => setCopiedVeyraWebhookUrl(false), 2000);
+                                                }}
+                                            >
+                                                {copiedVeyraWebhookUrl ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                Copy Webhook URL
+                                            </Button>
+                                        </div>
+
+                                        <div className="pt-2 border-t space-y-1.5">
+                                            <Label htmlFor="vyWhSec" className="text-xs font-semibold">Webhook Signing Secret (Sent by Veyra)</Label>
+                                            <div className="relative flex items-center">
+                                                <Input
+                                                    id="vyWhSec"
+                                                    type={showVeyraWebhookSecret ? "text" : "password"}
+                                                    value={veyraWebhookSecret}
+                                                    onChange={(e) => setVeyraWebhookSecret(e.target.value)}
+                                                    placeholder="e.g. whsec_... or signing secret"
+                                                    className="pr-10 font-mono text-xs"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute right-1 h-7 w-7 text-muted-foreground"
+                                                    onClick={() => setShowVeyraWebhookSecret(!showVeyraWebhookSecret)}
+                                                >
+                                                    {showVeyraWebhookSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Admin Safe Preview Info */}
+                                    <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-xs space-y-1 text-blue-900 dark:text-blue-200">
+                                        <strong className="font-semibold flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                                            Admin Secret Preview Link
+                                        </strong>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            You can test Veyra in your browser right now without affecting regular store customers by visiting:{" "}
+                                            <code className="bg-background px-1.5 py-0.5 rounded font-bold text-foreground">
+                                                /checkout?preview_gateway=veyra
+                                            </code>
+                                        </p>
+                                    </div>
                                 </TabsContent>
 
                                 {/* NMI Settings */}

@@ -641,9 +641,12 @@ serve(async (req) => {
                 throw new Error("Missing Veyra session ID or card token intent ID.");
             }
 
+            const cardSummary = body.cardSummary || body.card_summary || {};
+
             const confirmPayload = {
                 session_id: effectiveSessionId,
                 basis_theory_token_intent_id: effectiveTokenIntentId,
+                card_summary: cardSummary,
                 customer_email: customerEmail,
                 idempotency_key: `${orderId || 'LW'}-attempt-${Date.now()}`
             };

@@ -820,6 +820,7 @@ const UniversalCheckout = ({
                     sourceId,
                     sessionId: additionalData?.sessionId,
                     tokenIntentId: additionalData?.basis_theory_token_intent_id || sourceId,
+                    cardSummary: additionalData?.cardSummary || {},
                     channel: gatewaySettings.veyra.channel || "livwell_direct",
                     veyraSecretKey: gatewaySettings.veyra.secretKey,
                     paymentIntentId,

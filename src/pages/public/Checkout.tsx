@@ -152,10 +152,14 @@ const Checkout = () => {
     const validateAndProceed = async () => {
         if (requireLoginForCheckout && !session) {
             toast.error("Please sign in or create an account to proceed.");
+            document.getElementById("checkout-auth-card")?.scrollIntoView({ behavior: 'smooth' });
             return;
         }
 
-        if (!currentAddress) return;
+        if (!currentAddress) {
+            toast.error("Please provide your shipping address.");
+            return;
+        }
         
         // Strict Full Name check
         if (!currentAddress.full_name || currentAddress.full_name.trim().length < 3) {
@@ -250,7 +254,15 @@ const Checkout = () => {
                 });
             }
             setShippingRates(rates);
-            if (rates.length === 0) toast.error("No shipping rates found.");
+            if (rates.length > 0) {
+                // Auto-select the lowest cost / free rate immediately so the Continue button is active
+                const defaultRate = rates.find((r: any) => r.is_free || r.cost === 0 || r.rate === 0) || rates[0];
+                if (defaultRate) {
+                    handleShippingSelect(defaultRate);
+                }
+            } else {
+                toast.error("No shipping rates found.");
+            }
         } catch (error: any) {
             toast.error("Error calculating shipping rates.");
         } finally {
@@ -422,7 +434,16 @@ const Checkout = () => {
     const nextStep = () => {
         if (step === 'address') {
             validateAndProceed();
-        } else if (step === 'shipping' && shippingService) {
+        } else if (step === 'shipping') {
+            if (!shippingService) {
+                if (shippingRates.length > 0) {
+                    const defaultRate = shippingRates.find((r: any) => r.is_free || r.cost === 0 || r.rate === 0) || shippingRates[0];
+                    handleShippingSelect(defaultRate);
+                } else {
+                    toast.error("Please select a shipping method to continue.");
+                    return;
+                }
+            }
             trackFunnelStep("payment_selected", {
                 subtotal: displaySubtotal,
                 shipping: displayShipping,
@@ -577,23 +598,28 @@ const Checkout = () => {
                                                     className={`
                                                         flex justify-between items-center p-4 rounded-lg border-2 cursor-pointer transition-all
                                                         ${isSelected 
-                                                            ? 'border-primary bg-primary/5 shadow-sm' 
+                                                            ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20' 
                                                             : 'border-border hover:border-primary/50 hover:bg-muted/50'}
                                                     `}
                                                     onClick={() => handleShippingSelect(rate)}
                                                 >
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-base">{rate.serviceName || rate.service}</span>
-                                                            {isFree && (
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                                                                    Free Standard
-                                                                </span>
-                                                            )}
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                                                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                                                         </div>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            {(rate.carrier || rate.provider || 'FEDEX').toUpperCase()} — Est. {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
-                                                        </span>
+                                                        <div className="flex flex-col">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-base">{rate.serviceName || rate.service}</span>
+                                                                {isFree && (
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                                                        Free Standard
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {(rate.carrier || rate.provider || 'FEDEX').toUpperCase()} — Est. {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right">
                                                         {isFree ? (
@@ -639,7 +665,7 @@ const Checkout = () => {
                             {step !== 'payment' && (
                                 <Button 
                                     onClick={nextStep} 
-                                    disabled={!canGoNext() || isValidating}
+                                    disabled={isValidating || isCalculatingShipping}
                                     className="px-8 font-semibold shadow-lg hover:scale-105 active:scale-95 transition-all"
                                 >
                                     {step === 'address' ? (
@@ -648,8 +674,15 @@ const Checkout = () => {
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                                 <span>Verifying...</span>
                                             </div>
-                                        ) : 'Select Shipping'
-                                    ) : 'Continue to Payment'}
+                                        ) : 'Continue to Shipping'
+                                    ) : (
+                                        isCalculatingShipping ? (
+                                            <div className="flex items-center gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Calculating...</span>
+                                            </div>
+                                        ) : 'Continue to Payment'
+                                    )}
                                 </Button>
                             )}
                         </div>

@@ -991,7 +991,7 @@ const UniversalCheckout = ({
                     /* Custom Address Collection / Auth Guard */
                     <div className="space-y-4">
                         {requireLoginForCheckout && !user ? (
-                            <div className="border-2 border-primary/20 rounded-xl p-5 bg-card shadow-sm space-y-4 animate-in fade-in-50 duration-300">
+                            <div id="checkout-auth-card" className="border-2 border-primary/20 rounded-xl p-5 bg-card shadow-sm space-y-4 animate-in fade-in-50 duration-300">
                                 <div className="flex items-center gap-3 border-b pb-3">
                                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
                                         <Lock className="h-5 w-5" />
@@ -1071,6 +1071,16 @@ const UniversalCheckout = ({
                                                     </>
                                                 )}
                                             </Button>
+                                            <p className="text-center text-xs text-muted-foreground pt-2">
+                                                First time ordering?{" "}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAuthTab("register")}
+                                                    className="text-primary font-semibold hover:underline cursor-pointer"
+                                                >
+                                                    Create an account here
+                                                </button>
+                                            </p>
                                         </form>
                                     </TabsContent>
 
@@ -1166,6 +1176,16 @@ const UniversalCheckout = ({
                                                     </>
                                                 )}
                                             </Button>
+                                            <p className="text-center text-xs text-muted-foreground pt-2">
+                                                Already have an account?{" "}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAuthTab("signin")}
+                                                    className="text-primary font-semibold hover:underline cursor-pointer"
+                                                >
+                                                    Sign in here
+                                                </button>
+                                            </p>
                                         </form>
                                     </TabsContent>
                                 </Tabs>

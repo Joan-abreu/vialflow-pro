@@ -666,13 +666,7 @@ serve(async (req) => {
             console.log("👈 [Veyra] Confirm Response:", confirmRes.status, JSON.stringify(confirmData, null, 2));
 
             const status = String(confirmData.status || "").toLowerCase();
-            const rawErrMsg = confirmData.message || confirmData.error?.message || confirmData.error || "";
-            const errStr = typeof rawErrMsg === "string" ? rawErrMsg : JSON.stringify(rawErrMsg);
-            const isAlreadyCompleted = 
-                errStr.toLowerCase().includes("already completed") ||
-                errStr.toLowerCase().includes("not been charged again");
-
-            const isSuccess = (confirmRes.ok && (status === "succeeded" || confirmData.ok === true)) || isAlreadyCompleted;
+            const isSuccess = confirmRes.ok && status === "succeeded";
             const requiresAction = confirmRes.ok && (status === "requires_action" || Boolean(confirmData.redirect_url));
 
             const resolvedTransactionId = confirmData.transaction_id || confirmData.session_id || effectiveSessionId;
@@ -684,8 +678,7 @@ serve(async (req) => {
                     status: "COMPLETED",
                     provider: "veyra",
                     paymentId: resolvedTransactionId,
-                    orderId: orderId,
-                    alreadyCompleted: isAlreadyCompleted
+                    orderId: orderId
                 }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                     status: 200,

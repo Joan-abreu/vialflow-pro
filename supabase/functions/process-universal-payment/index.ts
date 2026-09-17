@@ -693,7 +693,16 @@ serve(async (req) => {
                     status: 200,
                 });
             } else {
-                const errMsg = confirmData.message || confirmData.error || "Payment was declined or could not be processed. Please try another card.";
+                let errMsg = "Payment was declined or could not be processed. Please try another card.";
+                if (typeof confirmData.message === "string") {
+                    errMsg = confirmData.message;
+                } else if (typeof confirmData.error === "string") {
+                    errMsg = confirmData.error;
+                } else if (confirmData.error && typeof confirmData.error === "object") {
+                    errMsg = confirmData.error.message || confirmData.error.description || confirmData.error.code || JSON.stringify(confirmData.error);
+                } else if (confirmData.errors && Array.isArray(confirmData.errors) && confirmData.errors.length > 0) {
+                    errMsg = confirmData.errors[0]?.message || confirmData.errors[0]?.description || JSON.stringify(confirmData.errors[0]);
+                }
                 throw new Error(errMsg);
             }
         }
@@ -987,7 +996,16 @@ serve(async (req) => {
     } catch (error: any) {
         console.error("Universal Payment Processing Error:", error);
 
-        const errMessage = String(error?.message || error || "");
+        let errMessage = "Failed to process payment";
+        if (typeof error?.message === "string" && error.message !== "[object Object]") {
+            errMessage = error.message;
+        } else if (typeof error?.error === "string") {
+            errMessage = error.error;
+        } else if (error?.error?.message) {
+            errMessage = error.error.message;
+        } else if (typeof error === "string") {
+            errMessage = error;
+        }
         const isCriticalAccountError = 
             errMessage.includes("UNAUTHORIZED") ||
             errMessage.includes("ACCOUNT_DISABLED") ||

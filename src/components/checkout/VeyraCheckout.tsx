@@ -242,7 +242,11 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             console.log("👉 [Veyra] Tokenize Result:", tokenResult);
 
             if (!tokenResult?.ok || !tokenResult?.basis_theory_token_intent_id) {
-                const failureReason = tokenResult?.message || tokenResult?.error || "Please verify your card number, expiration, and CVV.";
+                const failureReason = 
+                    typeof tokenResult?.error === "string" ? tokenResult.error :
+                    tokenResult?.error?.message ? tokenResult.error.message :
+                    typeof tokenResult?.message === "string" ? tokenResult.message :
+                    "Please verify your card number, expiration, and CVV.";
                 throw new Error(failureReason);
             }
 
@@ -261,11 +265,18 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             }
 
             if (paymentRes?.error) {
-                throw new Error(paymentRes.error);
+                const errText = typeof paymentRes.error === "string" 
+                    ? paymentRes.error 
+                    : paymentRes.error?.message || "Payment declined. Please try another card.";
+                throw new Error(errText);
             }
         } catch (err: any) {
             console.error("❌ Veyra payment processing error:", err);
-            const msg = err.message || "Payment declined. Please try another card.";
+            let msg = "Payment declined. Please try another card.";
+            if (typeof err === "string") msg = err;
+            else if (err?.message && typeof err.message === "string" && err.message !== "[object Object]") msg = err.message;
+            else if (err?.error && typeof err.error === "string") msg = err.error;
+            else if (err?.error?.message) msg = err.error.message;
             setErrorMessage(msg);
             toast.error(msg);
         } finally {

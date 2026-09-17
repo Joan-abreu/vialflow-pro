@@ -881,7 +881,10 @@ const UniversalCheckout = ({
                     setLoading(false);
                     return result;
                 }
-                throw new Error(result.error || "Payment failed");
+                const errText = typeof result.error === "string" && result.error !== "[object Object]"
+                    ? result.error
+                    : result.error?.message || (typeof result.message === "string" ? result.message : "Payment failed");
+                throw new Error(errText);
             }
 
             if (result.requireAction === "threeds_auth" || result.requireAction === "redirect") {
@@ -904,7 +907,12 @@ const UniversalCheckout = ({
 
         } catch (error: any) {
             console.error("Payment execution error:", error);
-            let msg = error.message || "Failed to process payment";
+            let msg = "Failed to process payment";
+            if (typeof error === "string") msg = error;
+            else if (error?.message && typeof error.message === "string" && error.message !== "[object Object]") msg = error.message;
+            else if (error?.error && typeof error.error === "string") msg = error.error;
+            else if (error?.error?.message) msg = error.error.message;
+
             if (msg.toLowerCase().includes("one or more validation errors") || msg.toLowerCase().includes("validation error")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
             }
@@ -914,6 +922,7 @@ const UniversalCheckout = ({
                 amount,
             });
             toast.error(msg);
+            return { error: msg, ok: false };
         } finally {
             setLoading(false);
         }

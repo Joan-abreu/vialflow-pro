@@ -49,7 +49,19 @@ serve(async (req) => {
             const amountInCents = Math.round(parseFloat((body.amount || 0).toString()) * 100);
             const channel = body.channel || "livwell_direct";
             const sAddress = body.shippingAddress;
-            const bDetails = body.billingDetails || {
+            const rawBilling = body.billingAddress || body.billingDetails;
+            const bDetails = rawBilling ? {
+                name: rawBilling.name || (sAddress?.firstName ? `${sAddress.firstName} ${sAddress.lastName || ''}`.trim() : (body.customerEmail?.split("@")[0] || "Customer")),
+                email: rawBilling.email || body.customerEmail || "customer@livwellresearchlabs.com",
+                phone: rawBilling.phone || sAddress?.phone || "+14125550123",
+                address: {
+                    line1: rawBilling.line1 || rawBilling.addressLine1 || sAddress?.addressLine1 || sAddress?.line1 || "100 Main St",
+                    city: rawBilling.city || rawBilling.locality || sAddress?.locality || sAddress?.city || "Pittsburgh",
+                    state: rawBilling.state || rawBilling.administrativeDistrictLevel1 || sAddress?.administrativeDistrictLevel1 || sAddress?.state || "PA",
+                    postal_code: rawBilling.postal_code || rawBilling.postalCode || sAddress?.postalCode || sAddress?.postal_code || "15216",
+                    country: rawBilling.country || sAddress?.country || "US",
+                }
+            } : {
                 name: sAddress?.firstName ? `${sAddress.firstName} ${sAddress.lastName || ''}`.trim() : (body.customerEmail?.split("@")[0] || "Customer"),
                 email: body.customerEmail || "customer@livwellresearchlabs.com",
                 phone: sAddress?.phone || "+14125550123",
@@ -706,6 +718,21 @@ serve(async (req) => {
                 } else if (confirmData.errors && Array.isArray(confirmData.errors) && confirmData.errors.length > 0) {
                     errMsg = confirmData.errors[0]?.message || confirmData.errors[0]?.description || JSON.stringify(confirmData.errors[0]);
                 }
+
+                if (orderId) {
+                    try {
+                        await supabase.from("orders").update({
+                            status: "failed",
+                            payment_status: "failed",
+                            p2p_rejection_reason: `[Veyra session: ${effectiveSessionId}] ${errMsg}`
+                        }).eq("id", orderId);
+                    } catch (_) {}
+                }
+
+                if (errMsg.toLowerCase().includes("already completed") || errMsg.toLowerCase().includes("not been charged again")) {
+                    errMsg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
+                }
+
                 throw new Error(errMsg);
             }
         }

@@ -76,6 +76,34 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
     const channel = config?.channel || "livwell_direct";
     const amountInCents = Math.round(amount * 100);
 
+    const safeDestroyController = () => {
+        if (controllerRef.current) {
+            try {
+                if (typeof controllerRef.current.destroy === "function") {
+                    controllerRef.current.destroy();
+                } else if (typeof controllerRef.current.unmount === "function") {
+                    controllerRef.current.unmount();
+                }
+            } catch (_) {}
+            controllerRef.current = null;
+        }
+        setIsMounted(false);
+    };
+
+    // Listen for bfcache restores (e.g. user hits Back from order confirmation)
+    useEffect(() => {
+        const handlePageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) {
+                console.log("🔄 [Veyra] Page restored from cache (bfcache). Forcing fresh session...");
+                safeDestroyController();
+                setSessionId(null);
+                setSessionRefreshTrigger(prev => prev + 1);
+            }
+        };
+        window.addEventListener("pageshow", handlePageShow);
+        return () => window.removeEventListener("pageshow", handlePageShow);
+    }, []);
+
     // 1. Dynamically inject Veyra Hosted Fields Script
     useEffect(() => {
         if (window.Veyra) {
@@ -112,14 +140,8 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             setErrorMessage(null);
 
             try {
-                // Safely unmount existing controller before making a new session
-                if (controllerRef.current) {
-                    try {
-                        controllerRef.current.unmount();
-                    } catch (_) {}
-                    controllerRef.current = null;
-                    setIsMounted(false);
-                }
+                // Safely destroy existing controller before making a new session
+                safeDestroyController();
 
                 const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
                 const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -181,14 +203,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
         const mountFields = async () => {
             try {
-                if (controllerRef.current) {
-                    try {
-                        controllerRef.current.unmount();
-                    } catch (_) {}
-                    controllerRef.current = null;
-                }
-
-                setIsMounted(false);
+                safeDestroyController();
 
                 const controller = window.Veyra!.init({
                     publishableKey,
@@ -220,13 +235,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
         return () => {
             active = false;
-            if (controllerRef.current) {
-                try {
-                    controllerRef.current.unmount();
-                } catch (_) {}
-                controllerRef.current = null;
-            }
-            setIsMounted(false);
+            safeDestroyController();
         };
     }, [sdkLoaded, sessionId, publishableKey, amountInCents]);
 
@@ -237,6 +246,8 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
         setIsLocalProcessing(true);
         setErrorMessage(null);
+
+        const currentSessionId = sessionId;
 
         try {
             const tokenResult = await controllerRef.current.tokenize();
@@ -254,7 +265,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             // Call universal handler to confirm charge on the server
             const paymentRes = await onTokenized(
                 tokenResult.basis_theory_token_intent_id,
-                sessionId,
+                currentSessionId,
                 tokenResult.card_summary
             );
 
@@ -270,11 +281,9 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                     ? paymentRes.error 
                     : paymentRes.error?.message || "Payment declined. Please try another card.";
                 
-                // If this session was already paid/completed, reset so subsequent attempts start fresh
-                if (errText.toLowerCase().includes("already completed") || errText.toLowerCase().includes("not been charged again")) {
-                    setSessionId(null);
-                    setSessionRefreshTrigger(prev => prev + 1);
-                }
+                // CRITICAL: Every confirmation consumes the session. A new session must always be created.
+                setSessionId(null);
+                setSessionRefreshTrigger(prev => prev + 1);
                 throw new Error(errText);
             }
 
@@ -283,13 +292,21 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             setSessionRefreshTrigger(prev => prev + 1);
         } catch (err: any) {
             console.error("❌ Veyra payment processing error:", err);
+            // CRITICAL: Ensure a fresh session is always created after any failed attempt
+            setSessionId(null);
+            setSessionRefreshTrigger(prev => prev + 1);
+
             let msg = "Payment declined. Please try another card.";
             if (typeof err === "string") msg = err;
             else if (err?.message && typeof err.message === "string" && err.message !== "[object Object]") msg = err.message;
             else if (err?.error && typeof err.error === "string") msg = err.error;
             else if (err?.error?.message) msg = err.error.message;
+
+            if (msg.toLowerCase().includes("already completed") || msg.toLowerCase().includes("not been charged again")) {
+                msg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
+            }
+
             setErrorMessage(msg);
-            // UniversalCheckout already displays the toast error to avoid duplicate alerts
         } finally {
             setIsLocalProcessing(false);
         }

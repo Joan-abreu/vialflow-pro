@@ -916,6 +916,8 @@ const UniversalCheckout = ({
 
             if (msg.toLowerCase().includes("one or more validation errors") || msg.toLowerCase().includes("validation error")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
+            } else if (msg.toLowerCase().includes("already completed") || msg.toLowerCase().includes("not been charged again")) {
+                msg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
             }
             trackFunnelStep("payment_failed", {
                 error: msg,

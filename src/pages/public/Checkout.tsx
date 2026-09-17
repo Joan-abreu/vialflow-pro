@@ -201,7 +201,6 @@ const Checkout = () => {
                 setStep('shipping');
             }
         } catch (error: any) {
-            console.error("Validation error:", error);
             toast.error("Could not verify address. Please try again.");
         } finally {
             setIsValidating(false);
@@ -377,8 +376,6 @@ const Checkout = () => {
                 }
             }
         } catch (error: any) {
-            console.error("Coupon error detail:", error);
-            
             let message = "This code could not be applied. Please check it and try again.";
             
             // Handle Supabase Functions error specifically
@@ -389,7 +386,7 @@ const Checkout = () => {
                         message = body.error;
                     }
                 } catch (e) {
-                    console.error("Could not parse error body", e);
+                    // Ignore parse error
                 }
             } else if (error.message && !error.message.includes("non-2xx")) {
                 message = error.message;

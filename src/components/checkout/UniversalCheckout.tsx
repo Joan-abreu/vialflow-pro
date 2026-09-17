@@ -103,7 +103,6 @@ const StripeFormInner = ({
                 setLoading(false);
             }
         } catch (err: any) {
-            console.error("Stripe payment error:", err);
             toast.error(err.message || "An unexpected error occurred");
             setLoading(false);
         }
@@ -329,7 +328,7 @@ const UniversalCheckout = ({
                 }
 
             } catch (err) {
-                console.error("Error fetching payment settings:", err);
+                // Silently fallback to default settings
             }
         };
         fetchSettings();
@@ -464,7 +463,6 @@ const UniversalCheckout = ({
                 if (onAddressChange) onAddressChange(savedAddress);
             }
         } catch (err: any) {
-            console.error("Sign in error:", err);
             toast.error(err.message || "Invalid email or password.");
         } finally {
             setAuthSubmitting(false);
@@ -553,7 +551,6 @@ const UniversalCheckout = ({
                 });
             }
         } catch (err: any) {
-            console.error("Register error:", err);
             toast.error(err.message || "Failed to create account.");
         } finally {
             setAuthSubmitting(false);
@@ -628,12 +625,11 @@ const UniversalCheckout = ({
                         await handleProcessPayment(undefined, undefined, undefined, details.id);
                     },
                     onError: (err: any) => {
-                        console.error("PayPal Error:", err);
                         toast.error("PayPal checkout error. Please try again.");
                     }
                 }).render(paypalContainerRef.current);
             } catch (e) {
-                console.error("Error rendering PayPal buttons:", e);
+                // Ignore render error
             }
         }
     }, [activeProvider, paypalSdkLoaded, amount]);
@@ -668,7 +664,7 @@ const UniversalCheckout = ({
                         setStripeClientSecret(data.clientSecret);
                     }
                 } catch (e) {
-                    console.warn("Could not create Stripe PaymentIntent:", e);
+                    // Ignore Stripe intent creation error
                 }
             };
             initStripeIntent();
@@ -707,7 +703,7 @@ const UniversalCheckout = ({
                     })
                     .eq('user_id', user.id);
             } catch (e) {
-                console.warn("Could not update user profile address:", e);
+                // Non-critical profile update error
             }
         }
 
@@ -876,7 +872,6 @@ const UniversalCheckout = ({
 
             if (!response.ok) {
                 if (result.isCriticalAccountError && gatewaySettings.autoFailoverEnabled && gatewaySettings.backupProvider !== activeProvider) {
-                    console.warn(`[Failover Triggered] Switching from ${activeProvider} to ${gatewaySettings.backupProvider}`);
                     toast.error(`Primary payment processor temporarily unavailable. Switching to secure backup processor...`);
                     setActiveProvider(gatewaySettings.backupProvider);
                     setLoading(false);
@@ -893,12 +888,12 @@ const UniversalCheckout = ({
             }
 
             try {
-                markCartConverted(orderId).catch((e) => console.debug("markCartConverted non-fatal:", e));
+                markCartConverted(orderId).catch(() => {});
                 trackFunnelStep("order_completed", {
                     orderId,
                     amount,
                     provider: activeProvider,
-                }).catch((e) => console.debug("trackFunnelStep non-fatal:", e));
+                }).catch(() => {});
             } catch {}
 
             clearCart();
@@ -907,7 +902,6 @@ const UniversalCheckout = ({
             return result;
 
         } catch (error: any) {
-            console.error("Payment execution error:", error);
             let msg = "Failed to process payment";
             if (typeof error === "string") msg = error;
             else if (error?.message && typeof error.message === "string" && error.message !== "[object Object]") msg = error.message;
@@ -918,6 +912,8 @@ const UniversalCheckout = ({
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
             } else if (msg.toLowerCase().includes("already completed") || msg.toLowerCase().includes("not been charged again")) {
                 msg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
+            } else if (msg.toLowerCase().includes("session") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("basis_theory") || msg.toLowerCase().includes("unverifiable")) {
+                msg = "Unable to process payment with this card. Please verify your card details or try another card.";
             }
             trackFunnelStep("payment_failed", {
                 error: msg,

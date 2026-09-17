@@ -304,7 +304,7 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
                     finalRawToken = tokenResult.rawToken;
                 }
             } catch (sdkErr) {
-                console.warn("Core SDK tokenization fallback triggered:", sdkErr);
+                // Fallback will be triggered silently
             }
 
             // 2. Direct BasisTheory fallback if SDK had any issue
@@ -354,8 +354,6 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
             }
 
         } catch (err: any) {
-            console.error("Card checkout error:", err);
-
             // Human-friendly error translation
             let friendlyMessage = err.message || tokenError || "Payment processing failed. Please check your card details.";
             const msgLower = friendlyMessage.toLowerCase();

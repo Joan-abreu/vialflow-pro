@@ -94,7 +94,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
             if (e.persisted) {
-                console.log("🔄 [Veyra] Page restored from cache (bfcache). Forcing fresh session...");
                 safeDestroyController();
                 setSessionId(null);
                 setSessionRefreshTrigger(prev => prev + 1);
@@ -123,7 +122,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
         script.async = true;
         script.onload = () => setSdkLoaded(true);
         script.onerror = () => {
-            console.error("Failed to load Veyra hosted-fields.js SDK");
             setErrorMessage("Unable to load secure card fields. Please refresh or check your internet connection.");
         };
         document.head.appendChild(script);
@@ -178,7 +176,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                 setSessionId(data.id);
             } catch (err: any) {
                 if (!isCancelled) {
-                    console.error("Veyra session creation error:", err);
                     setErrorMessage(err.message || "Could not start payment session. Please try again.");
                 }
             } finally {
@@ -214,7 +211,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                         if (active) setIsMounted(true);
                     },
                     onError: (err) => {
-                        console.error("Veyra field error:", err);
                         if (active) setErrorMessage(err?.message || "Invalid card details");
                     }
                 });
@@ -225,7 +221,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                 await controller.mount("#veyra-card-element");
             } catch (err: any) {
                 if (active) {
-                    console.error("Error mounting Veyra hosted fields:", err);
                     setErrorMessage("Failed to render card fields. Please try again.");
                 }
             }
@@ -251,7 +246,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
         try {
             const tokenResult = await controllerRef.current.tokenize();
-            console.log("👉 [Veyra] Tokenize Result:", tokenResult);
 
             if (!tokenResult?.ok || !tokenResult?.basis_theory_token_intent_id) {
                 const failureReason = 
@@ -291,7 +285,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             setSessionId(null);
             setSessionRefreshTrigger(prev => prev + 1);
         } catch (err: any) {
-            console.error("❌ Veyra payment processing error:", err);
             // CRITICAL: Ensure a fresh session is always created after any failed attempt
             setSessionId(null);
             setSessionRefreshTrigger(prev => prev + 1);
@@ -304,6 +297,8 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
             if (msg.toLowerCase().includes("already completed") || msg.toLowerCase().includes("not been charged again")) {
                 msg = "This payment session was already completed or expired. A fresh session has been created — please re-enter your card details to proceed.";
+            } else if (msg.toLowerCase().includes("session") || msg.toLowerCase().includes("token") || msg.toLowerCase().includes("basis_theory") || msg.toLowerCase().includes("unverifiable")) {
+                msg = "Unable to process payment with this card. Please verify your card details or try another card.";
             }
 
             setErrorMessage(msg);

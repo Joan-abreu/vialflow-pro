@@ -62,6 +62,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
     onTokenized
 }) => {
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionRefreshTrigger, setSessionRefreshTrigger] = useState<number>(0);
     const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
     const [isMounted, setIsMounted] = useState<boolean>(false);
     const [isLocalProcessing, setIsLocalProcessing] = useState<boolean>(false);
@@ -170,7 +171,7 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
         return () => {
             isCancelled = true;
         };
-    }, [amount, disabled, customerEmail, channel, orderId]);
+    }, [amount, disabled, customerEmail, channel, orderId, sessionRefreshTrigger]);
 
     // 3. Mount Veyra Hosted Fields when SDK + Session + DOM Container are ready
     useEffect(() => {
@@ -268,8 +269,18 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                 const errText = typeof paymentRes.error === "string" 
                     ? paymentRes.error 
                     : paymentRes.error?.message || "Payment declined. Please try another card.";
+                
+                // If this session was already paid/completed, reset so subsequent attempts start fresh
+                if (errText.toLowerCase().includes("already completed") || errText.toLowerCase().includes("not been charged again")) {
+                    setSessionId(null);
+                    setSessionRefreshTrigger(prev => prev + 1);
+                }
                 throw new Error(errText);
             }
+
+            // Successfully processed - clear sessionId so any new purchases start fresh
+            setSessionId(null);
+            setSessionRefreshTrigger(prev => prev + 1);
         } catch (err: any) {
             console.error("❌ Veyra payment processing error:", err);
             let msg = "Payment declined. Please try another card.";

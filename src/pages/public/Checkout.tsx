@@ -294,9 +294,10 @@ const Checkout = () => {
             estimatedDays: rate.estimated_days || rate.estimatedDays,
         }, cartSessionId);
 
-        // Re-validate coupons if shipping changes
-        if (appliedDiscounts.length > 0) {
-            handleApplyCoupon(appliedDiscounts.map(d => d.code), cost);
+        // Re-validate coupons only if an applied discount targets shipping
+        const hasShippingDiscount = appliedDiscounts.some(d => d.target === 'shipping' || d.target === 'all');
+        if (hasShippingDiscount) {
+            handleApplyCoupon(appliedDiscounts.map(d => d.code), cost, false);
         } else {
             setFinalShipping(cost);
         }
@@ -309,7 +310,7 @@ const Checkout = () => {
         if (refCode && appliedDiscounts.length === 0) {
             const cleanRef = refCode.trim().toUpperCase();
             localStorage.setItem('vialflow_referral_code', cleanRef);
-            handleApplyCoupon([cleanRef]);
+            handleApplyCoupon([cleanRef], undefined, false);
         }
     }, []);
 
@@ -320,12 +321,12 @@ const Checkout = () => {
             if (pendingCouponCode && appliedDiscounts.length === 0) {
                 const codeToRetry = pendingCouponCode;
                 setPendingCouponCode("");
-                handleApplyCoupon([codeToRetry]);
+                handleApplyCoupon([codeToRetry], undefined, false);
             }
         }
     }, [userEmailForCoupons]);
 
-    const handleApplyCoupon = async (codesInput?: string[], currentShipCost?: number) => {
+    const handleApplyCoupon = async (codesInput?: string[], currentShipCost?: number, shouldRecalculateRates = false) => {
         const currentlyApplied = appliedDiscounts.map(d => d.code);
         const codeTyped = couponCode.trim().toUpperCase();
         const codesToValidate = codesInput || (codeTyped ? [...currentlyApplied, codeTyped] : currentlyApplied);
@@ -363,7 +364,7 @@ const Checkout = () => {
             setFinalShipping(data.shipping);
             setPendingCouponCode("");
 
-            if (currentAddress && shippingRates.length > 0) {
+            if (shouldRecalculateRates && currentAddress && shippingRates.length > 0) {
                 calculateRates(currentAddress, data.subtotal);
             }
             

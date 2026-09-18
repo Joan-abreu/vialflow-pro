@@ -76,6 +76,33 @@ const Checkout = () => {
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
     const checkoutStartedRef = useRef<boolean>(false);
+    const checkoutTopRef = useRef<HTMLDivElement>(null);
+    const isFirstStepRender = useRef<boolean>(true);
+
+    // Automatically scroll to the top of the active step on mobile and desktop
+    useEffect(() => {
+        if (isFirstStepRender.current) {
+            isFirstStepRender.current = false;
+            return;
+        }
+
+        const scrollToCheckoutTop = () => {
+            if (checkoutTopRef.current) {
+                const elementPosition = checkoutTopRef.current.getBoundingClientRect().top + window.scrollY;
+                // 85px offset accounts for fixed navbar
+                const offsetPosition = Math.max(0, elementPosition - 85);
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: "smooth"
+                });
+            } else {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+        };
+
+        const timer = setTimeout(scrollToCheckoutTop, 60);
+        return () => clearTimeout(timer);
+    }, [step]);
 
     useEffect(() => {
         const fetchStoreSettings = async () => {
@@ -486,7 +513,7 @@ const Checkout = () => {
     }
 
     return (
-        <div className="container py-12">
+        <div className="container py-12" ref={checkoutTopRef}>
             
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <h1 className="text-3xl font-bold">Checkout</h1>

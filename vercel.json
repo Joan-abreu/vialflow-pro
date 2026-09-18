@@ -1,4 +1,19 @@
 {
+    "headers": [
+        {
+            "source": "/.well-known/apple-developer-merchantid-domain-association",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "text/plain; charset=utf-8"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=43200, s-maxage=43200"
+                }
+            ]
+        }
+    ],
     "rewrites": [
         {
             "source": "/.well-known/apple-developer-merchantid-domain-association",

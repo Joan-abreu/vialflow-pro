@@ -794,7 +794,7 @@ const UniversalCheckout = ({
         paymentIntentId?: string, 
         opaqueData?: any, 
         paypalOrderId?: string,
-        additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any }
+        additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any; walletType?: string }
     ) => {
         setLoading(true);
 
@@ -817,6 +817,7 @@ const UniversalCheckout = ({
                     sessionId: additionalData?.sessionId,
                     tokenIntentId: additionalData?.basis_theory_token_intent_id || sourceId,
                     cardSummary: additionalData?.cardSummary || {},
+                    walletType: additionalData?.walletType || (additionalData?.cardSummary?.brand === "apple_pay" ? "apple_pay" : undefined),
                     channel: gatewaySettings.veyra.channel || "livwell_direct",
                     veyraSecretKey: gatewaySettings.veyra.secretKey,
                     paymentIntentId,

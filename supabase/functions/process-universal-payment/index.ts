@@ -654,14 +654,18 @@ serve(async (req) => {
             }
 
             const cardSummary = body.cardSummary || body.card_summary || {};
+            const walletType = body.walletType || body.wallet_type || (cardSummary?.brand === "apple_pay" ? "apple_pay" : undefined);
 
-            const confirmPayload = {
+            const confirmPayload: Record<string, any> = {
                 session_id: effectiveSessionId,
                 basis_theory_token_intent_id: effectiveTokenIntentId,
                 card_summary: cardSummary,
                 customer_email: customerEmail,
                 idempotency_key: `${orderId || 'LW'}-attempt-${Date.now()}`
             };
+            if (walletType) {
+                confirmPayload.wallet_type = walletType;
+            }
 
             console.log("👉 [Veyra] Confirming checkout session charge:", JSON.stringify(confirmPayload, null, 2));
 

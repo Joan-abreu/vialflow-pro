@@ -67,6 +67,8 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
     const [isMounted, setIsMounted] = useState<boolean>(false);
     const [isLocalProcessing, setIsLocalProcessing] = useState<boolean>(false);
     const [sdkLoaded, setSdkLoaded] = useState<boolean>(false);
+    const [isApplePayAvailable, setIsApplePayAvailable] = useState<boolean>(false);
+    const [isApplePayProcessing, setIsApplePayProcessing] = useState<boolean>(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const controllerRef = useRef<any>(null);
@@ -125,6 +127,31 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
             setErrorMessage("Unable to load secure card fields. Please refresh or check your internet connection.");
         };
         document.head.appendChild(script);
+    }, []);
+
+    // 1b. Dynamically inject Apple Pay SDK and check browser capability
+    useEffect(() => {
+        const checkApplePay = () => {
+            if (typeof window !== "undefined" && (window as any).ApplePaySession) {
+                try {
+                    const canPay = (window as any).ApplePaySession.canMakePayments();
+                    if (canPay) {
+                        setIsApplePayAvailable(true);
+                    }
+                } catch (_) {}
+            }
+        };
+
+        checkApplePay();
+
+        if (!document.getElementById("apple-pay-sdk-script")) {
+            const script = document.createElement("script");
+            script.id = "apple-pay-sdk-script";
+            script.src = "https://applepay.cdn-apple.com/jsapi/v1/apple-pay-sdk.js";
+            script.async = true;
+            script.onload = checkApplePay;
+            document.head.appendChild(script);
+        }
     }, []);
 
     // 2. Create or Update Checkout Session when amount or order details settle
@@ -314,8 +341,162 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
         }
     };
 
-    const isBusy = parentLoading || isCreatingSession || isLocalProcessing;
+    // 5. Handle Apple Pay Submission
+    const handleApplePayClick = async (e?: React.MouseEvent) => {
+        if (e) e.preventDefault();
+        if (!sessionId || isBusy || disabled) return;
+
+        const ApplePaySession = (window as any).ApplePaySession;
+        if (!ApplePaySession) {
+            toast.error("Apple Pay is not supported on this browser.");
+            return;
+        }
+
+        setIsApplePayProcessing(true);
+        setErrorMessage(null);
+
+        try {
+            const paymentRequest = {
+                countryCode: "US",
+                currencyCode: "USD",
+                merchantCapabilities: ["supports3DS", "supportsCredit", "supportsDebit"],
+                supportedNetworks: ["visa", "masterCard", "amex", "discover"],
+                total: {
+                    label: "LIVWELL",
+                    amount: amount.toFixed(2),
+                    type: "final"
+                },
+                requiredBillingContactFields: ["name", "email"],
+                requiredShippingContactFields: ["postalAddress", "name", "phone"]
+            };
+
+            const apSession = new ApplePaySession(3, paymentRequest);
+
+            apSession.onvalidatemerchant = async (event: any) => {
+                try {
+                    const btKey = "key_prod_us_pub_Xu4pJrfLcTwegWJVxoRdiB";
+                    const host = window.location.host;
+                    const domain = host.includes("livwellresearchlabs.com") ? "www.livwellresearchlabs.com" : host;
+
+                    const res = await fetch("https://api.basistheory.com/apple-pay/session", {
+                        method: "POST",
+                        headers: {
+                            "BT-API-KEY": btKey,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            validation_url: event.validationURL,
+                            display_name: "LIVWELL",
+                            domain: domain
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const errText = await res.text().catch(() => "");
+                        console.error("[Apple Pay] Merchant validation non-2xx:", res.status, errText);
+                        try { apSession.abort(); } catch (_) {}
+                        setErrorMessage("Apple Pay merchant validation failed. Please pay with card below.");
+                        setIsApplePayProcessing(false);
+                        return;
+                    }
+
+                    const merchantSession = await res.json();
+                    apSession.completeMerchantValidation(merchantSession);
+                } catch (err: any) {
+                    console.error("[Apple Pay] Merchant validation threw:", err);
+                    try { apSession.abort(); } catch (_) {}
+                    setErrorMessage("Unable to validate Apple Pay. Please use card below.");
+                    setIsApplePayProcessing(false);
+                }
+            };
+
+            apSession.onpaymentauthorized = async (event: any) => {
+                try {
+                    const btKey = "key_prod_us_pub_Xu4pJrfLcTwegWJVxoRdiB";
+                    const paymentToken = event.payment?.token;
+
+                    if (!paymentToken) {
+                        try { apSession.completePayment(ApplePaySession.STATUS_FAILURE); } catch (_) {}
+                        throw new Error("Apple Pay payment token missing.");
+                    }
+
+                    // Vault into Basis Theory
+                    const btRes = await fetch("https://api.basistheory.com/apple-pay", {
+                        method: "POST",
+                        headers: {
+                            "BT-API-KEY": btKey,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            apple_payment_data: paymentToken
+                        })
+                    });
+
+                    if (!btRes.ok) {
+                        const btErr = await btRes.text().catch(() => "");
+                        console.error("[Apple Pay] Tokenization failed:", btRes.status, btErr);
+                        try { apSession.completePayment(ApplePaySession.STATUS_FAILURE); } catch (_) {}
+                        throw new Error("Failed to secure Apple Pay token.");
+                    }
+
+                    const btData = await btRes.json();
+                    const tokenId = btData?.apple_pay?.id || btData?.id || btData?.token?.id;
+
+                    if (!tokenId) {
+                        try { apSession.completePayment(ApplePaySession.STATUS_FAILURE); } catch (_) {}
+                        throw new Error("Invalid Apple Pay token ID.");
+                    }
+
+                    try { apSession.completePayment(ApplePaySession.STATUS_SUCCESS); } catch (_) {}
+
+                    const displayName = event.payment?.token?.paymentMethod?.displayName || "";
+                    const last4 = displayName.match(/\d{4}$/)?.[0] || "AP";
+
+                    // Call universal processor with the token
+                    const paymentRes = await onTokenized(
+                        tokenId,
+                        sessionId,
+                        { brand: "apple_pay", last4 }
+                    );
+
+                    if (paymentRes?.status === "REQUIRES_ACTION" && paymentRes?.redirectUrl) {
+                        window.location.href = paymentRes.redirectUrl;
+                        return;
+                    }
+
+                    if (paymentRes?.error) {
+                        setSessionId(null);
+                        setSessionRefreshTrigger(prev => prev + 1);
+                        throw new Error(typeof paymentRes.error === "string" ? paymentRes.error : "Payment declined.");
+                    }
+
+                    setSessionId(null);
+                    setSessionRefreshTrigger(prev => prev + 1);
+                } catch (err: any) {
+                    setSessionId(null);
+                    setSessionRefreshTrigger(prev => prev + 1);
+                    setErrorMessage(err?.message || "Payment declined with Apple Pay. Please try another card.");
+                } finally {
+                    setIsApplePayProcessing(false);
+                }
+            };
+
+            apSession.oncancel = () => {
+                setIsApplePayProcessing(false);
+            };
+
+            apSession.begin();
+        } catch (err: any) {
+            console.error("[Apple Pay] Launch failed:", err);
+            setIsApplePayProcessing(false);
+            setErrorMessage("Unable to launch Apple Pay. Please use card below.");
+        }
+    };
+
+    const isBusy = parentLoading || isCreatingSession || isLocalProcessing || isApplePayProcessing;
     const isButtonEnabled = isMounted && !isBusy && !disabled;
+    const isApplePayButtonEnabled = Boolean(sessionId) && !isBusy && !disabled;
+    const isPreviewMode = typeof window !== "undefined" && window.location.search.includes("preview_gateway=veyra");
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
@@ -339,6 +520,64 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                         <strong className="font-semibold block">Card Processing Notice:</strong>
                         <span>{errorMessage}</span>
                     </div>
+                </div>
+            )}
+
+            {/* Apple Pay Express Section */}
+            {isApplePayAvailable && (
+                <div className="space-y-3">
+                    <button
+                        type="button"
+                        onClick={handleApplePayClick}
+                        disabled={!isApplePayButtonEnabled}
+                        className={`w-full h-12 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md ${
+                            isApplePayButtonEnabled
+                                ? "bg-black hover:bg-neutral-900 active:scale-[0.99] text-white"
+                                : "bg-neutral-300 dark:bg-neutral-800 opacity-60 cursor-not-allowed text-neutral-500"
+                        }`}
+                        style={{
+                            WebkitAppearance: "-apple-pay-button",
+                            // @ts-ignore
+                            ApplePayButtonType: "buy",
+                            ApplePayButtonStyle: "black"
+                        }}
+                        aria-label="Pay with Apple Pay"
+                    >
+                        {isApplePayProcessing ? (
+                            <span className="flex items-center gap-2 text-sm font-medium text-white">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Connecting to Apple Pay...
+                            </span>
+                        ) : (
+                            <span className="flex items-center justify-center gap-1.5 font-semibold text-base text-white">
+                                Pay with <span className="font-bold tracking-tight text-lg">Pay</span>
+                            </span>
+                        )}
+                    </button>
+
+                    <div className="relative flex items-center justify-center my-2">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-border" />
+                        </div>
+                        <div className="relative bg-card px-3 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                            Or pay with debit / credit card
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Preview indicator when viewing on non-Safari browser in preview mode */}
+            {isPreviewMode && !isApplePayAvailable && (
+                <div className="p-3 rounded-lg bg-neutral-900 text-white border border-neutral-800 text-xs flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-2">
+                        <span className="text-base font-bold">Pay</span>
+                        <span className="text-[11px] text-neutral-300">
+                            Apple Pay is active. Open this preview on Safari / iPhone with Apple Wallet to test.
+                        </span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold uppercase">
+                        Active
+                    </span>
                 </div>
             )}
 

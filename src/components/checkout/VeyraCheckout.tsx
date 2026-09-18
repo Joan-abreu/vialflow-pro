@@ -500,17 +500,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
-            {/* Security Guarantee Header */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-medium">
-                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                    <span>256-Bit SSL Encrypted & PCI-DSS Level 1 Vault</span>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <span>Inline Secure</span>
-                </div>
-            </div>
 
             {/* Error Message Display */}
             {errorMessage && (
@@ -543,14 +532,10 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                         }}
                         aria-label="Pay with Apple Pay"
                     >
-                        {isApplePayProcessing ? (
-                            <span className="flex items-center gap-2 text-sm font-medium text-white">
+                        {isApplePayProcessing && (
+                            <span className="flex items-center justify-center gap-2 text-sm font-medium text-white h-full bg-black/80 rounded-xl">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 Connecting to Apple Pay...
-                            </span>
-                        ) : (
-                            <span className="flex items-center justify-center gap-1.5 font-semibold text-base text-white">
-                                Pay with <span className="font-bold tracking-tight text-lg">Pay</span>
                             </span>
                         )}
                     </button>
@@ -583,15 +568,15 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
 
             {/* Card Fields Container */}
             <div className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-3">
-                <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b">
-                    <span className="font-semibold text-foreground flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5 text-primary" />
+                <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground pb-2 border-b">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5 whitespace-nowrap">
+                        <CreditCard className="h-3.5 w-3.5 text-primary shrink-0" />
                         Credit or Debit Card
                     </span>
-                    <div className="flex items-center gap-1 text-[11px]">
+                    <div className="flex items-center gap-1 text-[11px] shrink-0 text-muted-foreground">
                         <span>Visa</span>
                         <span>•</span>
-                        <span>Mastercard</span>
+                        <span>MC</span>
                         <span>•</span>
                         <span>Amex</span>
                         <span>•</span>

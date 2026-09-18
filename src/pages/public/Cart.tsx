@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift, Lock } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -352,9 +352,10 @@ const Cart = () => {
                                 </Button>
                             )}
 
-                            <p className="text-xs text-muted-foreground text-center pt-1">
-                                Secure checkout powered by TagadaPay
-                            </p>
+                            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground text-center pt-1">
+                                <Lock className="h-3 w-3 shrink-0" />
+                                <span>Guaranteed safe & secure checkout</span>
+                            </div>
                         </div>
                     </div>
                 </div>

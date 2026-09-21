@@ -127,6 +127,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             // Check if URL has a recovery token (?recover=... or ?recovery_token=...)
             const urlParams = new URLSearchParams(window.location.search);
             const recoveryToken = urlParams.get("recover") || urlParams.get("recovery_token");
+            const promoRef = urlParams.get("ref") || urlParams.get("coupon");
+            if (promoRef) {
+                localStorage.setItem("vialflow_referral_code", promoRef.trim().toUpperCase());
+            }
 
             if (recoveryToken) {
                 try {

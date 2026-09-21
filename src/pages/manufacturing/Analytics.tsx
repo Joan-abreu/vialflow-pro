@@ -70,6 +70,7 @@ import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter"
 import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
 import { getCountryFlagEmoji } from "@/utils/sessionTracker";
 import { useAnalyticsSettings } from "@/hooks/useAnalyticsSettings";
+import { RecoverCartEmailDialog } from "@/components/admin/RecoverCartEmailDialog";
 
 export interface CartSessionRecord {
     id: string;
@@ -111,6 +112,8 @@ export default function Analytics() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState<string | null>(null);
     const [copiedToken, setCopiedToken] = useState<string | null>(null);
+    const [recoveryModalCart, setRecoveryModalCart] = useState<CartSessionRecord | null>(null);
+    const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
     // Global Date Range Filter (Default: Last 30 Days)
     const [dateRange, setDateRange] = useState<DateRange>({
@@ -455,29 +458,13 @@ export default function Analytics() {
         setTimeout(() => setCopiedToken(null), 3000);
     };
 
-    const handleSendRecoveryEmail = async (cart: CartSessionRecord) => {
+    const handleOpenRecoveryModal = (cart: CartSessionRecord) => {
         if (!cart.email) {
             toast.error("This cart session does not have an associated email address.");
             return;
         }
-
-        setIsSendingEmail(cart.id);
-        try {
-            const { data, error } = await supabase.functions.invoke("send-cart-recovery-email", {
-                body: { cart_session_id: cart.id }
-            });
-
-            if (error) throw error;
-            if (data?.error) throw new Error(data.error);
-
-            toast.success(`Recovery email sent successfully to ${cart.email}!`);
-            refetchCarts();
-        } catch (err: any) {
-            console.error("Error sending recovery email:", err);
-            toast.error(err.message || "Failed to send recovery email");
-        } finally {
-            setIsSendingEmail(null);
-        }
+        setRecoveryModalCart(cart);
+        setIsRecoveryModalOpen(true);
     };
 
     const getStatusBadge = (status: string, lastActive: string) => {
@@ -1167,15 +1154,10 @@ export default function Analytics() {
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border-emerald-500/30"
-                                                                        disabled={isSendingEmail === cart.id}
-                                                                        onClick={() => handleSendRecoveryEmail(cart)}
+                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                                                                        onClick={() => handleOpenRecoveryModal(cart)}
                                                                     >
-                                                                        {isSendingEmail === cart.id ? (
-                                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                        ) : (
-                                                                            <Send className="h-3.5 w-3.5" />
-                                                                        )}
+                                                                        <Send className="h-3.5 w-3.5" />
                                                                         <span>Recover</span>
                                                                     </Button>
                                                                 )}
@@ -1397,14 +1379,9 @@ export default function Analytics() {
                                 {selectedCart.email && selectedCart.status !== "converted" && (
                                     <Button
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-2"
-                                        disabled={isSendingEmail === selectedCart.id}
-                                        onClick={() => handleSendRecoveryEmail(selectedCart)}
+                                        onClick={() => handleOpenRecoveryModal(selectedCart)}
                                     >
-                                        {isSendingEmail === selectedCart.id ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Send className="h-4 w-4" />
-                                        )}
+                                        <Send className="h-4 w-4" />
                                         Send Recovery Email Now
                                     </Button>
                                 )}
@@ -1413,6 +1390,26 @@ export default function Analytics() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Custom Recovery Email Dialog with Live Preview */}
+            <RecoverCartEmailDialog
+                isOpen={isRecoveryModalOpen}
+                onClose={() => {
+                    setIsRecoveryModalOpen(false);
+                    setRecoveryModalCart(null);
+                }}
+                cart={recoveryModalCart}
+                onEmailSent={() => {
+                    refetchCarts();
+                    if (selectedCart && recoveryModalCart && selectedCart.id === recoveryModalCart.id) {
+                        setSelectedCart({
+                            ...selectedCart,
+                            recovery_email_sent_count: (selectedCart.recovery_email_sent_count || 0) + 1,
+                            last_recovery_email_at: new Date().toISOString(),
+                        });
+                    }
+                }}
+            />
         </div>
     );
 }

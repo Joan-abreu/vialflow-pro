@@ -16,11 +16,19 @@ serve(async (req: Request) => {
         const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
         const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
         const fromEmail = Deno.env.get("FROM_SALES_EMAIL") || "Liv Well Research Labs <sales@livwellresearchlabs.com>";
-        const siteDomain = Deno.env.get("DOMAIN") || "https://livwellresearchlabs.com";
+        const siteDomain = (Deno.env.get("DOMAIN") || "https://livwellresearchlabs.com").trim().replace(/\/$/, "");
 
         const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-        const { cart_session_id } = await req.json();
+        const { 
+            cart_session_id,
+            custom_subject,
+            custom_message,
+            include_discount,
+            coupon_code,
+            discount_percentage,
+            discount_type
+        } = await req.json();
         if (!cart_session_id) {
             return new Response(JSON.stringify({ error: "cart_session_id is required" }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,15 +68,36 @@ serve(async (req: Request) => {
         let discountEnabled = false;
         let couponCode = "COMEBACK10";
         let discountPercentage = "10";
+        let discountType = "percentage";
 
         if (settings && Array.isArray(settings)) {
             settings.forEach((s: any) => {
                 if (s.key === "recovery_email_subject" && s.value) subject = s.value;
                 if (s.key === "recovery_email_custom_message" && s.value) customMessage = s.value;
                 if (s.key === "recovery_discount_enabled") discountEnabled = s.value === "true";
-                if (s.key === "recovery_discount_coupon_code" && s.value) couponCode = s.value;
+                if (s.key === "recovery_discount_coupon_code") couponCode = s.value;
                 if (s.key === "recovery_discount_percentage" && s.value) discountPercentage = s.value;
             });
+        }
+
+        // Apply administrator manual overrides if provided
+        if (custom_subject && typeof custom_subject === "string" && custom_subject.trim()) {
+            subject = custom_subject.trim();
+        }
+        if (custom_message && typeof custom_message === "string" && custom_message.trim()) {
+            customMessage = custom_message.trim();
+        }
+        if (typeof include_discount === "boolean") {
+            discountEnabled = include_discount;
+        }
+        if (coupon_code && typeof coupon_code === "string" && coupon_code.trim()) {
+            couponCode = coupon_code.trim().toUpperCase();
+        }
+        if (discount_percentage !== undefined && discount_percentage !== null && String(discount_percentage).trim()) {
+            discountPercentage = String(discount_percentage).trim();
+        }
+        if (discount_type && typeof discount_type === "string") {
+            discountType = discount_type.trim();
         }
 
         const recoveryUrl = `${siteDomain}/cart?recover=${cart.recovery_token}${discountEnabled ? `&ref=${couponCode}` : ''}`;
@@ -97,6 +126,8 @@ serve(async (req: Request) => {
                 </tr>
             `;
         }).join("");
+
+        const discountDisplay = discountType === "fixed_amount" ? `$${discountPercentage}` : `${discountPercentage}%`;
 
         // 4. Build Complete Email HTML
         const emailHtml = `
@@ -133,7 +164,7 @@ serve(async (req: Request) => {
                             <div class="discount-box">
                                 <span style="font-size: 12px; font-weight: bold; color: #065f46; text-transform: uppercase; letter-spacing: 1px;">Exclusive Promo Code</span>
                                 <div style="font-size: 22px; font-weight: 900; color: #047857; margin: 6px 0; font-family: monospace;">${couponCode}</div>
-                                <span style="font-size: 13px; color: #065f46;">Use this code to get <strong>${discountPercentage}% OFF</strong> your reserved order!</span>
+                                <span style="font-size: 13px; color: #065f46;">Use this code to get <strong>${discountDisplay} OFF</strong> your reserved order!</span>
                             </div>
                         ` : ''}
 
@@ -222,6 +253,9 @@ serve(async (req: Request) => {
                     subtotal: cart.subtotal,
                     items_count: itemsList.length,
                     coupon_applied: discountEnabled ? couponCode : null,
+                    discount_percentage: discountEnabled ? discountPercentage : null,
+                    discount_type: discountEnabled ? discountType : null,
+                    is_customized: Boolean(custom_subject || custom_message || include_discount !== undefined || coupon_code),
                 }
             });
 

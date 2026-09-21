@@ -435,6 +435,7 @@ const SiteSettings = () => {
                 if (leadTime) setRestockLeadTimeDays(Number(leadTime.value) || 14);
                 if (discount) setRestockDiscountPercent(Number(discount.value) || 40);
                 if (coupon) setRestockCouponCode(coupon.value || "RESTOCK40");
+                const maintenance = data.find((s: any) => s.key === "maintenance_mode");
                 const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
                 const requireLogin = data.find((s: any) => s.key === "require_login_for_checkout");
                 const hour = data.find((s: any) => s.key === "shipping_cutoff_hour");

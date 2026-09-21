@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles, Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlobalSearchModal from "@/components/public/GlobalSearchModal";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
@@ -15,6 +15,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ResearcherVerificationModal from "@/components/public/ResearcherVerificationModal";
+import PromoSplashModal from "@/components/public/PromoSplashModal";
+import { usePromoSplashSettings } from "@/hooks/usePromoSplashSettings";
+import { shouldShowPromoSplash } from "@/config/promoSplashConfig";
 
 const CartIcon = () => {
     const { cartCount, isAnimating } = useCart();
@@ -93,6 +96,42 @@ const PublicLayoutContent = () => {
         return checkIsExemptRouteSync(window.location.pathname, window.location.search);
     });
     const [isCheckingRoute, setIsCheckingRoute] = useState<boolean>(false);
+
+    // Promotional Campaigns & Announcement Settings
+    const { data: promoSettings } = usePromoSplashSettings();
+    const [isPromoSplashOpen, setIsPromoSplashOpen] = useState(false);
+    const hasDismissedPromoRef = useRef(false);
+
+    // Active campaigns eligible for site entry modal
+    const activeEntryCampaigns = promoSettings?.campaigns 
+        ? promoSettings.campaigns.filter(c => c.enabled && (c.triggerPlacement === "entry" || c.triggerPlacement === "both"))
+        : (promoSettings?.enabled && (promoSettings.triggerPlacement === "entry" || promoSettings.triggerPlacement === "both"))
+            ? [promoSettings as any]
+            : [];
+
+    useEffect(() => {
+        if (!promoSettings || !promoSettings.enabled || activeEntryCampaigns.length === 0) return;
+        if (hasDismissedPromoRef.current) return;
+
+        // Avoid triggering if researcher verification is pending
+        if (!isVerified && !isWaterPage && !isCheckingRoute) {
+            return;
+        }
+
+        // Avoid triggering if user is navigating admin or auth routes
+        if (location.pathname.startsWith("/manufacturing") || location.pathname.startsWith("/auth")) {
+            return;
+        }
+
+        if (shouldShowPromoSplash(promoSettings)) {
+            const timer = setTimeout(() => {
+                if (!hasDismissedPromoRef.current) {
+                    setIsPromoSplashOpen(true);
+                }
+            }, 1200);
+            return () => clearTimeout(timer);
+        }
+    }, [promoSettings, activeEntryCampaigns.length, isVerified, isWaterPage, isCheckingRoute, location.pathname]);
 
     useEffect(() => {
         const checkRolesAndPromoter = async () => {
@@ -195,26 +234,59 @@ const PublicLayoutContent = () => {
     return (
         <div className="min-h-screen flex flex-col bg-background">
             {/* Top Peptide Announcement Banner */}
-            {showPeptideBanner && (
-                <div className="bg-primary text-primary-foreground py-2.5 px-4 text-center text-xs md:text-sm font-medium flex items-center justify-center relative shadow-sm z-50">
-                    <div className="flex items-center gap-2 flex-wrap justify-center pr-6">
-                        <span className="inline-flex items-center gap-1 bg-white/20 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse">
-                            <Sparkles className="h-3 w-3" /> NEW RELEASE
-                        </span>
-                        <span>🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!</span>
-                        <Link to="/products?category=peptides" className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white">
-                            Shop Peptides <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
+            {showPeptideBanner && (() => {
+                const topCampaign = promoSettings?.campaigns?.find(c => c.enabled && c.syncTopBanner) 
+                    || (promoSettings?.enabled && promoSettings.syncTopBanner ? promoSettings : null);
+
+                return (
+                    <div className="bg-primary text-primary-foreground py-2.5 px-4 text-center text-xs md:text-sm font-medium flex items-center justify-center relative shadow-sm z-50">
+                        <div className="flex items-center gap-2 flex-wrap justify-center pr-6">
+                            <span 
+                                onClick={() => activeEntryCampaigns.length > 0 && setIsPromoSplashOpen(true)}
+                                className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors"
+                            >
+                                <Sparkles className="h-3 w-3" /> {topCampaign ? topCampaign.badgeText : "NEW RELEASE"}
+                            </span>
+                            <span>
+                                {topCampaign ? (
+                                    <strong 
+                                        onClick={() => activeEntryCampaigns.length > 0 && setIsPromoSplashOpen(true)}
+                                        className="cursor-pointer hover:underline"
+                                    >
+                                        {topCampaign.headline}
+                                    </strong>
+                                ) : (
+                                    <>🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!</>
+                                )}
+                            </span>
+                            <Link 
+                                to={topCampaign?.ctaUrl || "/products?category=peptides"} 
+                                className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white"
+                            >
+                                {topCampaign?.ctaText || "Shop Peptides"} <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </div>
+                        <button 
+                            onClick={() => setShowPeptideBanner(false)} 
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+                            title="Dismiss announcement"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
                     </div>
-                    <button 
-                        onClick={() => setShowPeptideBanner(false)} 
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-full transition-colors"
-                        title="Dismiss announcement"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-            )}
+                );
+            })()}
+
+            {/* Promotional Campaigns Modal on Entry */}
+            <PromoSplashModal
+                isOpen={isPromoSplashOpen}
+                onClose={() => {
+                    hasDismissedPromoRef.current = true;
+                    setIsPromoSplashOpen(false);
+                }}
+                settings={promoSettings}
+                campaigns={activeEntryCampaigns}
+            />
 
             <ResearcherVerificationModal
                 isOpen={!isVerified && !isWaterPage && !isCheckingRoute}

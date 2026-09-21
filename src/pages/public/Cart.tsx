@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift, Lock } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift, Lock, Truck, Tag, Layers } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,7 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import PeptideUpsellModal from "@/components/public/PeptideUpsellModal";
+import PromoSplashModal from "@/components/public/PromoSplashModal";
 import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
+import { usePromoSplashSettings } from "@/hooks/usePromoSplashSettings";
+import { 
+    getActiveCampaigns, 
+    resolveCartCampaigns, 
+    CampaignEvaluationResult 
+} from "@/config/promoSplashConfig";
 import { 
     DEFAULT_PEPTIDE_UPSELL_SETTINGS, 
     PeptideUpsellSettings, 
@@ -73,6 +80,11 @@ const Cart = () => {
     const [ackTerms, setAckTerms] = useState(false);
     const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
 
+    // Weekly Promo Splash Settings (Pre-Checkout Trigger)
+    const { data: promoSettings } = usePromoSplashSettings();
+    const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+    const [hasSeenPromoInCart, setHasSeenPromoInCart] = useState(false);
+
     useEffect(() => {
         const fetchAckSetting = async () => {
             try {
@@ -102,12 +114,34 @@ const Cart = () => {
 
     const finalSubtotal = Math.max(0, cartTotal - (upsellDiscount.isEligible ? upsellDiscount.discountAmount : 0));
 
-    // Handle proceed to checkout with smart upsell interception
+    // Active campaigns eligible for pre-checkout interception & cart milestone evaluation
+    const activeCheckoutCampaigns = useMemo(() => {
+        const rawCampaigns = promoSettings?.campaigns && promoSettings.campaigns.length > 0
+            ? promoSettings.campaigns
+            : (promoSettings?.enabled ? [promoSettings as any] : []);
+        return getActiveCampaigns(rawCampaigns, "checkout");
+    }, [promoSettings]);
+
+    const evaluatedCampaigns = useMemo(() => {
+        return resolveCartCampaigns(activeCheckoutCampaigns, items);
+    }, [activeCheckoutCampaigns, items]);
+
+    const hasUnlockedFreeShipping = useMemo(() => {
+        return evaluatedCampaigns.some(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "free_shipping");
+    }, [evaluatedCampaigns]);
+
+    // Handle proceed to checkout with smart upsell and promo splash interception
     const handleProceedToCheckout = () => {
         const onlyWater = cartHasOnlyWater(items);
 
         if (onlyWater && activeSettings.enabled) {
             setIsUpsellModalOpen(true);
+        } else if (
+            activeCheckoutCampaigns.length > 0 &&
+            !hasSeenPromoInCart
+        ) {
+            setHasSeenPromoInCart(true);
+            setIsPromoModalOpen(true);
         } else {
             navigate("/checkout");
         }
@@ -115,7 +149,16 @@ const Cart = () => {
 
     const handleDeclineUpsell = () => {
         setIsUpsellModalOpen(false);
-        navigate("/checkout");
+        // If not seen weekly promo yet, check if eligible for checkout promo
+        if (
+            activeCheckoutCampaigns.length > 0 &&
+            !hasSeenPromoInCart
+        ) {
+            setHasSeenPromoInCart(true);
+            setIsPromoModalOpen(true);
+        } else {
+            navigate("/checkout");
+        }
     };
 
     return (
@@ -268,7 +311,7 @@ const Cart = () => {
                     <div className="lg:col-span-1">
                         <div className="bg-card border rounded-lg p-6 sticky top-24 space-y-4">
                             <h3 className="font-semibold text-lg">Order Summary</h3>
-                            
+
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Subtotal</span>
@@ -288,7 +331,13 @@ const Cart = () => {
 
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Shipping</span>
-                                    <span>Calculated at checkout</span>
+                                    {hasUnlockedFreeShipping ? (
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                            <Truck className="h-3.5 w-3.5" /> FREE (Unlocked)
+                                        </span>
+                                    ) : (
+                                        <span>Calculated at checkout</span>
+                                    )}
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Tax</span>
@@ -299,6 +348,90 @@ const Cart = () => {
                                     <span>${finalSubtotal.toFixed(2)}</span>
                                 </div>
                             </div>
+
+                            {/* Active Store Promotions & Unlocked Perks */}
+                            {evaluatedCampaigns.length > 0 && (
+                                <div className="space-y-2 pt-2 border-t border-border/50">
+                                    <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-0.5">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                            <span>Active Research Perks</span>
+                                        </span>
+                                        <span 
+                                            onClick={() => setIsPromoModalOpen(true)}
+                                            className="text-[11px] text-primary hover:underline cursor-pointer lowercase first-letter:uppercase font-medium"
+                                        >
+                                            View all offers
+                                        </span>
+                                    </div>
+                                    {evaluatedCampaigns.map((result) => {
+                                        const { campaign: camp, isUnlocked, progressPercent, statusText, isSuppressed } = result;
+
+                                        return (
+                                            <div 
+                                                key={camp.id}
+                                                onClick={() => setIsPromoModalOpen(true)}
+                                                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                                    isSuppressed
+                                                        ? "bg-muted/30 border-dashed border-border/60 text-muted-foreground opacity-75"
+                                                        : isUnlocked 
+                                                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-300 hover:bg-emerald-500/15 shadow-xs" 
+                                                            : "bg-muted/40 border-border/60 hover:bg-muted/60 text-muted-foreground"
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                                                        {camp.offerMode === "free_shipping" ? (
+                                                            <Truck className={`h-3.5 w-3.5 ${isUnlocked ? "text-emerald-500" : "text-blue-500"}`} />
+                                                        ) : camp.offerMode === "gift_with_purchase" ? (
+                                                            <Gift className={`h-3.5 w-3.5 ${isUnlocked ? "text-emerald-500" : "text-primary"}`} />
+                                                        ) : (
+                                                            <Sparkles className={`h-3.5 w-3.5 ${isUnlocked ? "text-emerald-500" : "text-purple-500"}`} />
+                                                        )}
+                                                        {camp.badgeText || "PROMOTION"}
+                                                    </span>
+                                                    <span className={`font-semibold text-[11px] ${isUnlocked ? "text-emerald-600 dark:text-emerald-400 font-extrabold" : ""}`}>
+                                                        {statusText}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    {camp.offerMode === "gift_with_purchase" && camp.rewardProductImage && (
+                                                        <img 
+                                                            src={camp.rewardProductImage} 
+                                                            alt={camp.rewardProductName || "Free Gift"} 
+                                                            className="w-7 h-7 rounded-md object-cover border border-border/60 shrink-0 bg-muted"
+                                                        />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-medium text-foreground truncate">
+                                                            {camp.offerMode === "gift_with_purchase" && camp.rewardProductName 
+                                                                ? `+${camp.rewardQuantity || 1} Free ${camp.rewardProductName}` 
+                                                                : camp.offerMode === "free_shipping"
+                                                                    ? "Free Standard Carrier Shipping"
+                                                                    : camp.headline}
+                                                        </p>
+                                                        {camp.targetScope && camp.targetScope !== "all" && (
+                                                            <span className="text-[10px] text-muted-foreground block truncate">
+                                                                Scope: {camp.targetScope === "category" ? (camp.targetCategory || "Category") : (camp.targetProductName || "Selected Item")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {!isUnlocked && !isSuppressed && progressPercent < 100 && (
+                                                    <div className="w-full h-1.5 bg-muted rounded-full mt-2 overflow-hidden border border-border/40">
+                                                        <div 
+                                                            className="h-full bg-primary rounded-full transition-all duration-300" 
+                                                            style={{ width: `${progressPercent}%` }} 
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
 
                             {requireResearchAck && (
                                 <div className="p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-sm">
@@ -366,6 +499,21 @@ const Cart = () => {
                 isOpen={isUpsellModalOpen}
                 onClose={() => setIsUpsellModalOpen(false)}
                 onDecline={handleDeclineUpsell}
+            />
+
+            {/* Promotional Campaigns Modal (Pre-Checkout Interception) */}
+            <PromoSplashModal
+                isOpen={isPromoModalOpen}
+                onClose={() => {
+                    setIsPromoModalOpen(false);
+                    navigate("/checkout");
+                }}
+                onClaim={() => {
+                    setIsPromoModalOpen(false);
+                    navigate("/checkout");
+                }}
+                settings={promoSettings}
+                campaigns={activeCheckoutCampaigns}
             />
         </div>
     );

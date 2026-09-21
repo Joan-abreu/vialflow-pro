@@ -19,6 +19,8 @@ import {
     calculatePeptideUpsellDiscount 
 } from "@/config/upsellConfig";
 import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
+import { usePromoSplashSettings } from "@/hooks/usePromoSplashSettings";
+import { getActiveCampaigns, resolveCartCampaigns } from "@/config/promoSplashConfig";
 
 const Checkout = () => {
     const { items, cartTotal, updateCartContactInfo, cartSessionId } = useCart();
@@ -50,6 +52,23 @@ const Checkout = () => {
     const activeUpsellSettings = upsellSettings || DEFAULT_PEPTIDE_UPSELL_SETTINGS;
     const upsellDiscount = useMemo(() => calculatePeptideUpsellDiscount(items, activeUpsellSettings), [items, activeUpsellSettings]);
     const autoDiscountAmount = (upsellDiscount.isEligible && appliedDiscounts.length === 0) ? upsellDiscount.discountAmount : 0;
+
+    // Fetch active promotional splash campaigns and evaluate against cart
+    const { data: promoSettings } = usePromoSplashSettings();
+    const promoCampaigns = useMemo(() => {
+        const rawCampaigns = promoSettings?.campaigns && promoSettings.campaigns.length > 0
+            ? promoSettings.campaigns
+            : (promoSettings?.enabled ? [promoSettings as any] : []);
+        return getActiveCampaigns(rawCampaigns, "checkout");
+    }, [promoSettings]);
+
+    const evaluatedPromoCampaigns = useMemo(() => {
+        return resolveCartCampaigns(promoCampaigns, items);
+    }, [promoCampaigns, items]);
+
+    const hasCampaignFreeShipping = useMemo(() => {
+        return evaluatedPromoCampaigns.some(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "free_shipping");
+    }, [evaluatedPromoCampaigns]);
 
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
@@ -279,6 +298,29 @@ const Checkout = () => {
                     }
                     return true;
                 });
+
+                // Apply campaign-based free shipping if unlocked
+                if (hasCampaignFreeShipping) {
+                    const isExpressOrOvernight = (rate: any) => {
+                        const text = ((rate.serviceName || rate.service || "") + " " + (rate.serviceCode || rate.service_code || "")).toUpperCase();
+                        return (
+                            text.includes("EXPRESS") ||
+                            text.includes("OVERNIGHT") ||
+                            text.includes("2DAY") ||
+                            text.includes("2_DAY") ||
+                            text.includes("AIR")
+                        );
+                    };
+
+                    const groundRate = rates.find((r: any) => !isExpressOrOvernight(r));
+                    if (groundRate && !groundRate.is_free) {
+                        groundRate.original_cost = groundRate.cost;
+                        groundRate.cost = 0;
+                        groundRate.is_free = true;
+                        groundRate.free_shipping_reason = "Free shipping unlocked by active promotion";
+                        rates.sort((a: any, b: any) => a.cost - b.cost);
+                    }
+                }
             }
             setShippingRates(rates);
             if (rates.length > 0) {
@@ -600,19 +642,17 @@ const Checkout = () => {
                                     </div>
                                 ) : shippingRates.length > 0 ? (
                                     <div className="space-y-3">
-                                        {freeShippingEnabled && (
-                                            displaySubtotal >= freeShippingThreshold ? (
-                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
-                                                    <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                                                    <span>🎉 You unlocked Free Standard Shipping on this order!</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
-                                                    <Truck className="h-4 w-4 shrink-0 text-primary" />
-                                                    <span>Add <strong className="text-foreground font-bold">${(freeShippingThreshold - displaySubtotal).toFixed(2)}</strong> more to unlock <strong>Free Standard Shipping</strong>!</span>
-                                                </div>
-                                            )
-                                        )}
+                                        {(hasCampaignFreeShipping || (freeShippingEnabled && displaySubtotal >= freeShippingThreshold)) ? (
+                                            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                                                <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                                <span>🎉 You unlocked Free Standard Shipping on this order!</span>
+                                            </div>
+                                        ) : freeShippingEnabled ? (
+                                            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
+                                                <Truck className="h-4 w-4 shrink-0 text-primary" />
+                                                <span>Add <strong className="text-foreground font-bold">${(freeShippingThreshold - displaySubtotal).toFixed(2)}</strong> more to unlock <strong>Free Standard Shipping</strong>!</span>
+                                            </div>
+                                        ) : null}
 
                                         {shippingRates.map((rate, idx) => {
                                             const isSelected = shippingService === (rate.serviceName || rate.service);
@@ -762,6 +802,35 @@ const Checkout = () => {
                                     </div>
                                 );
                             })}
+                            
+                            {/* Promo Campaign Unlocked Free Gifts */}
+                            {evaluatedPromoCampaigns.filter(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "gift_with_purchase").map((giftPerk) => (
+                                <div key={giftPerk.campaign.id} className="flex justify-between items-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 bg-background rounded-md border flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                                            {giftPerk.campaign.rewardProductImage ? (
+                                                <img 
+                                                    src={giftPerk.campaign.rewardProductImage} 
+                                                    alt={giftPerk.campaign.rewardProductName || "Free Gift"} 
+                                                    className="h-full w-full object-cover" 
+                                                />
+                                            ) : (
+                                                <Package className="h-5 w-5 text-emerald-500" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                                                <Sparkles className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                                {giftPerk.campaign.rewardProductName || "Research Free Gift"}
+                                            </p>
+                                            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                                Free Promotional Perk • Qty: {giftPerk.campaign.rewardQuantity || 1}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">FREE</span>
+                                </div>
+                            ))}
 
                             <div className="border-t pt-4 space-y-2">
                                 <div className="flex justify-between text-sm">

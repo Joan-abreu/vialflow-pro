@@ -424,6 +424,41 @@ const Products = () => {
 
     const seo = getSEOConfig("products-catalog");
 
+    const getCategoryDisplayName = (catKeyOrName: string | null): string => {
+        if (!catKeyOrName) return "All Products";
+        const raw = catKeyOrName.trim();
+        const lower = raw.toLowerCase();
+
+        // 1. Exact match against DB category list
+        const exactMatch = categories?.find((c: string) => c.toLowerCase() === lower);
+        if (exactMatch) return exactMatch;
+
+        // 2. Semantic matching with DB categories or friendly defaults
+        if (lower === "peptides" || lower.includes("peptide")) {
+            const peptideDbMatch = categories?.find((c: string) => c.toLowerCase().includes("peptide"));
+            return peptideDbMatch || "Research Peptides";
+        }
+
+        if (lower === "water" || lower.includes("water") || lower.includes("reconstitution") || lower.includes("bac")) {
+            const waterDbMatch = categories?.find((c: string) => c.toLowerCase().includes("water") || c.toLowerCase().includes("reconstitution"));
+            return waterDbMatch || "Reconstitution Solutions & BAC Water";
+        }
+
+        if (lower === "bulk" || lower.includes("bulk")) {
+            const bulkDbMatch = categories?.find((c: string) => c.toLowerCase().includes("bulk"));
+            return bulkDbMatch || "Bulk & Wholesale Orders";
+        }
+
+        // 3. Fallback: Proper Title Case
+        return raw
+            .split(" ")
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" ");
+    };
+
+    const displayCategoryName = selectedCategory ? getCategoryDisplayName(selectedCategory) : null;
+    const seoTitle = displayCategoryName ? `${displayCategoryName} | ${seo.title}` : seo.title;
+
     const renderProductCard = (product: ProductWithVariants) => {
         const catInfo = normalizeCategory(product);
         const isPeptide = catInfo.key === "peptides";
@@ -443,8 +478,8 @@ const Products = () => {
                 key={product.id}
                 className="group relative bg-card rounded-xl border overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full hover:border-primary/40"
                 onClick={() => navigate(
-                    `/products/${product.slug || product.id}${selectedCategory ? `?fromCategory=${encodeURIComponent(selectedCategory)}` : ''}`,
-                    { state: { fromCategory: selectedCategory } }
+                    `/products/${product.slug || product.id}${selectedCategory ? `?fromCategory=${encodeURIComponent(getCategoryDisplayName(selectedCategory))}` : ''}`,
+                    { state: { fromCategory: getCategoryDisplayName(selectedCategory) } }
                 )}
             >
                 <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
@@ -525,7 +560,7 @@ const Products = () => {
 
     return (
         <div className="container py-12">
-            <SEO title={seo.title} description={seo.description} />
+            <SEO title={seoTitle} description={seo.description} />
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Our Products</h1>
@@ -667,7 +702,7 @@ const Products = () => {
                     {selectedCategory && (
                         <div className="flex items-center justify-between pb-2 border-b">
                             <h2 className="text-xl font-bold text-foreground">
-                                {selectedCategory} ({filteredProducts.length})
+                                {getCategoryDisplayName(selectedCategory)} ({filteredProducts.length})
                             </h2>
                             <Button
                                 variant="ghost"

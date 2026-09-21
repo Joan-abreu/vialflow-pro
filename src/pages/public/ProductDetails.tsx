@@ -605,7 +605,7 @@ const ProductDetails = () => {
                         {activeCategory && (
                             <>
                                 <span className="mx-1.5 text-muted-foreground/50">/</span>
-                                <span className="font-bold text-foreground hover:text-primary transition-colors">{activeCategory}</span>
+                                <span className="font-bold text-foreground hover:text-primary transition-colors capitalize">{activeCategory}</span>
                             </>
                         )}
                     </Link>

@@ -9,10 +9,12 @@ export interface PromoCampaign {
     description: string;
 
     // Scope Targeting
-    targetScope: "all" | "category" | "product";
+    targetScope: "all" | "category" | "product" | "group";
     targetCategory?: string;
     targetProductId?: string;
     targetProductName?: string;
+    targetProductIds?: string[];
+    targetGroupLabel?: string;
 
     // Requirement Threshold
     requirementType: "min_spend" | "min_quantity" | "none";
@@ -20,13 +22,22 @@ export interface PromoCampaign {
     minQuantity: number;    // for min_quantity (units)
 
     // Reward Definition
-    offerMode: "gift_with_purchase" | "free_shipping" | "coupon_code";
+    offerMode: "gift_with_purchase" | "free_shipping" | "coupon_code" | "group_discount";
 
     // Free Gift Details (when offerMode === "gift_with_purchase")
     rewardProductId?: string;
     rewardProductName?: string;
     rewardProductImage?: string;
     rewardQuantity?: number;
+    rewardSelectionMode?: "single" | "pool_choice";
+    rewardPoolProductIds?: string[];
+    rewardPoolLabel?: string;
+
+    // Group Discount Details (when offerMode === "group_discount")
+    rewardDiscountType?: "percentage" | "fixed_amount";
+    rewardDiscountValue?: number; // e.g. 20 (for 20%)
+    rewardDiscountProductIds?: string[];
+    rewardDiscountGroupLabel?: string;
 
     // Free Shipping Details (when offerMode === "free_shipping")
     shippingCarrierScope?: "all_standard" | "ground_only" | "usps" | "ups" | "fedex";
@@ -215,6 +226,9 @@ export interface CampaignEvaluationResult {
     statusText: string;
     rewardDescription: string;
     isSuppressed?: boolean;
+    rewardDiscountAmount?: number;
+    hasRewardDiscount?: boolean;
+    rewardMatchingItemCount?: number;
 }
 
 /**
@@ -230,12 +244,16 @@ export function evaluateCampaignForCart(
     const qualifyingItems = (cartItems || []).filter((item) => {
         if (scope === "all") return true;
         if (scope === "category" && campaign.targetCategory) {
-            const cat = item.variant?.product?.category || "";
+            const cat = item.variant?.product?.category || (item.variant?.product?.product_categories?.name) || "";
             return cat.toLowerCase() === campaign.targetCategory.toLowerCase();
         }
         if (scope === "product" && campaign.targetProductId) {
             const prodId = item.variant?.product_id || item.variant?.product?.id;
             return prodId === campaign.targetProductId;
+        }
+        if (scope === "group" && campaign.targetProductIds && campaign.targetProductIds.length > 0) {
+            const prodId = item.variant?.product_id || item.variant?.product?.id;
+            return campaign.targetProductIds.includes(prodId);
         }
         return true;
     });
@@ -284,8 +302,44 @@ export function evaluateCampaignForCart(
     }
 
     let rewardDescription = "";
-    if (campaign.offerMode === "gift_with_purchase") {
-        rewardDescription = `Free ${campaign.rewardQuantity || 1}x ${campaign.rewardProductName || "Research Gift"}`;
+    let rewardDiscountAmount = 0;
+    let rewardMatchingItemCount = 0;
+
+    if (campaign.offerMode === "group_discount") {
+        const discountProductIds = campaign.rewardDiscountProductIds || [];
+        const matchingRewardItems = (cartItems || []).filter((item) => {
+            const prodId = item.variant?.product_id || item.variant?.product?.id;
+            return discountProductIds.includes(prodId);
+        });
+
+        rewardMatchingItemCount = matchingRewardItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
+
+        if (isUnlocked && matchingRewardItems.length > 0) {
+            const discountPct = (campaign.rewardDiscountValue || 20) / 100;
+            rewardDiscountAmount = matchingRewardItems.reduce((acc, item) => {
+                const bulkPrice = item.variant?.bulk_price ?? null;
+                const labelFee = item.with_labels ? (item.variant?.bulk_label_fee ?? 0.15) : 0;
+                const unitPrice = item.is_bulk && bulkPrice !== null 
+                    ? (bulkPrice + labelFee) 
+                    : (item.variant?.bulk_only ? ((item.variant?.price || 0) + labelFee) : (item.variant?.price || 0));
+                const itemSpend = unitPrice * (item.quantity || 1);
+                return acc + (itemSpend * discountPct);
+            }, 0);
+        }
+
+        const pctVal = campaign.rewardDiscountValue || 20;
+        rewardDescription = `${pctVal}% OFF ${campaign.rewardDiscountGroupLabel || "Complementary Peptides"}`;
+        if (isUnlocked) {
+            statusText = rewardMatchingItemCount > 0
+                ? `Unlocked! 🎉 ($${rewardDiscountAmount.toFixed(2)} OFF saved)`
+                : `Unlocked! 🎉 (Add complementary item for ${pctVal}% OFF)`;
+        }
+    } else if (campaign.offerMode === "gift_with_purchase") {
+        if (campaign.rewardSelectionMode === "pool_choice") {
+            rewardDescription = `1x Free Gift Choice: ${campaign.rewardPoolLabel || `${campaign.rewardPoolProductIds?.length || 0} Options`}`;
+        } else {
+            rewardDescription = `Free ${campaign.rewardQuantity || 1}x ${campaign.rewardProductName || "Research Gift"}`;
+        }
     } else if (campaign.offerMode === "free_shipping") {
         rewardDescription = "Free Standard Shipping";
     } else if (campaign.offerMode === "coupon_code") {
@@ -303,6 +357,9 @@ export function evaluateCampaignForCart(
         remainingQuantity,
         statusText,
         rewardDescription,
+        rewardDiscountAmount,
+        hasRewardDiscount: rewardDiscountAmount > 0,
+        rewardMatchingItemCount,
     };
 }
 

@@ -1,7 +1,8 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles, Search } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { ShoppingCart, User, Menu, LogOut, X, ArrowRight, Sparkles, Search, ChevronLeft, ChevronRight, Tag, Copy, Check } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { toast } from "sonner";
 import GlobalSearchModal from "@/components/public/GlobalSearchModal";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CartProvider, useCart } from "@/contexts/CartContext";
@@ -103,11 +104,47 @@ const PublicLayoutContent = () => {
     const hasDismissedPromoRef = useRef(false);
 
     // Active campaigns eligible for site entry modal
-    const activeEntryCampaigns = promoSettings?.campaigns 
-        ? promoSettings.campaigns.filter(c => c.enabled && (c.triggerPlacement === "entry" || c.triggerPlacement === "both"))
-        : (promoSettings?.enabled && (promoSettings.triggerPlacement === "entry" || promoSettings.triggerPlacement === "both"))
-            ? [promoSettings as any]
-            : [];
+    const activeEntryCampaigns = useMemo(() => {
+        return promoSettings?.campaigns 
+            ? promoSettings.campaigns.filter(c => c.enabled && (c.triggerPlacement === "entry" || c.triggerPlacement === "both"))
+            : (promoSettings?.enabled && (promoSettings.triggerPlacement === "entry" || promoSettings.triggerPlacement === "both"))
+                ? [promoSettings as any]
+                : [];
+    }, [promoSettings]);
+
+    // Active campaigns configured to sync with the top announcement banner
+    const bannerCampaigns = useMemo(() => {
+        if (!promoSettings) return [];
+        const list = promoSettings.campaigns && Array.isArray(promoSettings.campaigns)
+            ? promoSettings.campaigns.filter(c => c.enabled && c.syncTopBanner !== false)
+            : (promoSettings.enabled && promoSettings.syncTopBanner !== false ? [promoSettings as any] : []);
+        return list;
+    }, [promoSettings]);
+
+    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+    const [isBannerHovered, setIsBannerHovered] = useState(false);
+    const [modalInitialSlide, setModalInitialSlide] = useState(0);
+    const [copiedBannerCode, setCopiedBannerCode] = useState<string | null>(null);
+
+    // Auto-rotate announcement banner every 4.5 seconds if multiple promotions are active
+    useEffect(() => {
+        if (bannerCampaigns.length <= 1 || isBannerHovered) return;
+
+        const timer = setInterval(() => {
+            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
+        }, 4500);
+
+        return () => clearInterval(timer);
+    }, [bannerCampaigns.length, isBannerHovered]);
+
+    const handleOpenPromoFromBanner = (campaignIndex: number) => {
+        const targetCamp = bannerCampaigns[campaignIndex];
+        const entryIdx = targetCamp 
+            ? activeEntryCampaigns.findIndex(c => c.id === targetCamp.id) 
+            : 0;
+        setModalInitialSlide(Math.max(0, entryIdx));
+        setIsPromoSplashOpen(true);
+    };
 
     useEffect(() => {
         if (!promoSettings || !promoSettings.enabled || activeEntryCampaigns.length === 0) return;
@@ -233,46 +270,140 @@ const PublicLayoutContent = () => {
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
-            {/* Top Peptide Announcement Banner */}
+            {/* Top Announcement Banner (Auto-rotating multi-promotions) */}
             {showPeptideBanner && (() => {
-                const topCampaign = promoSettings?.campaigns?.find(c => c.enabled && c.syncTopBanner) 
-                    || (promoSettings?.enabled && promoSettings.syncTopBanner ? promoSettings : null);
+                const currentCampaign = bannerCampaigns.length > 0
+                    ? bannerCampaigns[currentBannerIndex % bannerCampaigns.length]
+                    : null;
+
+                const hasMultipleBanners = bannerCampaigns.length > 1;
 
                 return (
-                    <div className="bg-primary text-primary-foreground py-2.5 px-4 text-center text-xs md:text-sm font-medium flex items-center justify-center relative shadow-sm z-50">
-                        <div className="flex items-center gap-2 flex-wrap justify-center pr-6">
-                            <span 
-                                onClick={() => activeEntryCampaigns.length > 0 && setIsPromoSplashOpen(true)}
-                                className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors"
+                    <div 
+                        onMouseEnter={() => setIsBannerHovered(true)}
+                        onMouseLeave={() => setIsBannerHovered(false)}
+                        className="bg-primary text-primary-foreground py-2 sm:py-2.5 px-3 sm:px-4 text-center text-xs md:text-sm font-medium flex items-center justify-between relative shadow-sm z-50 overflow-hidden"
+                    >
+                        {/* Optional Prev Arrow (if multiple promotions) */}
+                        {hasMultipleBanners && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
+                                }}
+                                className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer shrink-0 hidden sm:flex items-center justify-center text-white/80 hover:text-white"
+                                aria-label="Previous promotion"
                             >
-                                <Sparkles className="h-3 w-3" /> {topCampaign ? topCampaign.badgeText : "NEW RELEASE"}
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+
+                        <div 
+                            key={currentCampaign?.id || currentBannerIndex}
+                            className="flex-1 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center px-6 sm:px-2 min-w-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-1"
+                        >
+                            <span 
+                                onClick={() => handleOpenPromoFromBanner(currentBannerIndex % bannerCampaigns.length)}
+                                className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors shrink-0"
+                            >
+                                <Sparkles className="h-3 w-3" /> {currentCampaign ? currentCampaign.badgeText : "NEW RELEASE"}
                             </span>
-                            <span>
-                                {topCampaign ? (
+
+                            <span className="truncate max-w-[260px] sm:max-w-none">
+                                {currentCampaign ? (
                                     <strong 
-                                        onClick={() => activeEntryCampaigns.length > 0 && setIsPromoSplashOpen(true)}
+                                        onClick={() => handleOpenPromoFromBanner(currentBannerIndex % bannerCampaigns.length)}
                                         className="cursor-pointer hover:underline"
                                     >
-                                        {topCampaign.headline}
+                                        {currentCampaign.headline}
                                     </strong>
                                 ) : (
                                     <>🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!</>
                                 )}
                             </span>
+
+                            {/* Coupon Code 1-Click Copy Badge in Top Banner */}
+                            {currentCampaign?.offerMode === "coupon_code" && currentCampaign?.couponCode && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const code = currentCampaign.couponCode!.trim().toUpperCase();
+                                        navigator.clipboard.writeText(code);
+                                        localStorage.setItem("vialflow_referral_code", code);
+                                        setCopiedBannerCode(code);
+                                        toast.success(`Promo code "${code}" copied & applied!`);
+                                        setTimeout(() => setCopiedBannerCode(null), 2500);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 bg-white text-primary hover:bg-white/95 font-mono font-black text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full border border-white/60 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+                                    title="Click to copy promo code"
+                                >
+                                    <Tag className="h-3 w-3" />
+                                    <span>Code: <strong className="tracking-wider">{currentCampaign.couponCode}</strong></span>
+                                    {copiedBannerCode === currentCampaign.couponCode ? (
+                                        <Check className="h-3 w-3 text-emerald-600 animate-in zoom-in" />
+                                    ) : (
+                                        <Copy className="h-2.5 w-2.5 opacity-70" />
+                                    )}
+                                </button>
+                            )}
+
                             <Link 
-                                to={topCampaign?.ctaUrl || "/products?category=peptides"} 
-                                className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white"
+                                to={currentCampaign?.ctaUrl || "/products?category=peptides"} 
+                                className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white shrink-0"
                             >
-                                {topCampaign?.ctaText || "Shop Peptides"} <ArrowRight className="h-3.5 w-3.5" />
+                                {currentCampaign?.ctaText || "Shop Now"} <ArrowRight className="h-3.5 w-3.5" />
                             </Link>
+
+                            {/* Dots indicator for multiple banners on desktop */}
+                            {hasMultipleBanners && (
+                                <div className="hidden md:inline-flex items-center gap-1 ml-2 bg-black/15 px-2 py-0.5 rounded-full">
+                                    {bannerCampaigns.map((_, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrentBannerIndex(idx);
+                                            }}
+                                            className={`rounded-full transition-all cursor-pointer ${
+                                                idx === (currentBannerIndex % bannerCampaigns.length)
+                                                    ? "w-3 h-1.5 bg-white"
+                                                    : "w-1.5 h-1.5 bg-white/40 hover:bg-white/70"
+                                            }`}
+                                            aria-label={`Promo ${idx + 1}`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                        <button 
-                            onClick={() => setShowPeptideBanner(false)} 
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                            title="Dismiss announcement"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
+
+                        {/* Right Controls: Next Arrow & Dismiss Button */}
+                        <div className="flex items-center gap-1 shrink-0">
+                            {hasMultipleBanners && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
+                                    }}
+                                    className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
+                                    aria-label="Next promotion"
+                                >
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+
+                            <button 
+                                onClick={() => setShowPeptideBanner(false)} 
+                                className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer text-white/80 hover:text-white"
+                                title="Dismiss announcement"
+                                aria-label="Dismiss announcement"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
                 );
             })()}
@@ -286,6 +417,7 @@ const PublicLayoutContent = () => {
                 }}
                 settings={promoSettings}
                 campaigns={activeEntryCampaigns}
+                initialSlide={modalInitialSlide}
             />
 
             <ResearcherVerificationModal

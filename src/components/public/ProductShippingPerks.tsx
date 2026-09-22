@@ -27,8 +27,6 @@ export const ProductShippingPerks = ({
                     "shipping_cutoff_minute",
                     "shipping_timezone",
                     "shipping_cutoff_label",
-                    "shipping_free_enabled",
-                    "shipping_free_threshold",
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
                     "shipping_ships_saturday",
@@ -46,8 +44,6 @@ export const ProductShippingPerks = ({
             const min = dbSettings.find(s => s.key === "shipping_cutoff_minute");
             const tz = dbSettings.find(s => s.key === "shipping_timezone");
             const label = dbSettings.find(s => s.key === "shipping_cutoff_label");
-            const freeEnabled = dbSettings.find(s => s.key === "shipping_free_enabled");
-            const threshold = dbSettings.find(s => s.key === "shipping_free_threshold");
             const minDays = dbSettings.find(s => s.key === "shipping_delivery_min_days");
             const maxDays = dbSettings.find(s => s.key === "shipping_delivery_max_days");
             const sat = dbSettings.find(s => s.key === "shipping_ships_saturday");
@@ -70,8 +66,6 @@ export const ProductShippingPerks = ({
                 ...(min ? { cutoffMinute: Number(min.value) } : {}),
                 ...(tz ? { timeZone: tz.value } : {}),
                 ...(label ? { cutoffDisplayLabel: label.value } : {}),
-                ...(freeEnabled ? { freeShippingEnabled: freeEnabled.value === "true" } : {}),
-                ...(threshold ? { freeShippingThreshold: Number(threshold.value) } : {}),
                 ...(minDays || maxDays ? {
                     estimatedDeliveryDays: {
                         min: minDays ? Number(minDays.value) : DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.min,
@@ -246,9 +240,7 @@ export const ProductShippingPerks = ({
                         Arrives {arrivalRange.from ? `${arrivalRange.from} – ${arrivalRange.to}` : `in ${config.estimatedDeliveryDays.min}–${config.estimatedDeliveryDays.max} business days`}
                     </div>
                     <p className="text-[11px] sm:text-xs text-muted-foreground">
-                        {config.freeShippingEnabled !== false
-                            ? `Free standard shipping on orders over $${config.freeShippingThreshold}`
-                            : `Calculated standard ground shipping`}
+                        Standard carrier ground delivery
                     </p>
                 </div>
             </div>

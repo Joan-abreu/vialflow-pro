@@ -1029,7 +1029,7 @@ const ProductDetails = () => {
                         />
 
                         {/* Trust & Shipping Perks */}
-                        <ProductShippingPerks className="mt-2" freeShippingThreshold={100} />
+                        <ProductShippingPerks className="mt-2" />
 
                         {/* Research Peptides Promotion Banner for Ad Traffic */}
                         <div className="bg-gradient-to-br from-primary/10 via-emerald-500/10 to-teal-500/15 border-2 border-primary/25 rounded-2xl p-5 md:p-6 shadow-sm space-y-4">

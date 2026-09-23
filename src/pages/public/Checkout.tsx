@@ -461,14 +461,21 @@ const Checkout = () => {
         }
     }, []);
 
-    // Auto-retry pending or restricted coupon as soon as customer email becomes known
+    // Auto-retry pending or re-validate existing coupons as soon as customer email becomes known
     const userEmailForCoupons = session?.user?.email || currentAddress?.email;
+    const lastValidatedEmailRef = useRef<string>("");
+
     useEffect(() => {
-        if (userEmailForCoupons) {
-            if (pendingCouponCode && appliedDiscounts.length === 0) {
+        const cleanEmail = (userEmailForCoupons || "").trim().toLowerCase();
+        if (cleanEmail && cleanEmail !== lastValidatedEmailRef.current) {
+            lastValidatedEmailRef.current = cleanEmail;
+            if (pendingCouponCode) {
                 const codeToRetry = pendingCouponCode;
                 setPendingCouponCode("");
                 handleApplyCoupon([codeToRetry], undefined, false);
+            } else if (appliedDiscounts.length > 0) {
+                // Re-validate applied coupons against this email/user
+                handleApplyCoupon(appliedDiscounts.map(d => d.code), undefined, false);
             }
         }
     }, [userEmailForCoupons]);
@@ -543,6 +550,11 @@ const Checkout = () => {
             if (message.toLowerCase().includes("non-2xx") || message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("internal") || message.toLowerCase().includes("edge function")) {
                 message = "This code could not be applied. Please check it and try again.";
             }
+
+            // Clear invalid discounts so ineligible coupons cannot remain active
+            setAppliedDiscounts([]);
+            setFinalSubtotal(cartTotal);
+            setFinalShipping(shippingCost);
             
             toast.error(message);
         } finally {

@@ -112,63 +112,91 @@ serve(async (req) => {
 
                 // Anti-Fraud & Single-Use Check (by Email, User ID, and Shipping Address)
                 if (coupon.one_use_per_user) {
+                    if (!userEmail && !userId) {
+                        throw new Error(`This single-use coupon (${trimmedCode}) requires an email address. Please sign in or enter your contact email in Step 1 to apply it.`);
+                    }
+
                     let isAlreadyUsed = false;
+                    const targetCode = trimmedCode.trim().toUpperCase();
 
-                    const { data: recentOrders } = await supabase
-                        .from("orders")
-                        .select("id, user_id, customer_email, shipping_address, applied_coupons")
-                        .not("status", "in", '("cancelled", "failed")')
-                        .not("applied_coupons", "is", null)
-                        .limit(200);
+                    const checkOrderUsesCoupon = (o: any) => {
+                        if (!o?.applied_coupons) return false;
+                        const raw = o.applied_coupons;
+                        if (Array.isArray(raw)) {
+                            return raw.some((c: any) => {
+                                if (typeof c === "string") return c.trim().toUpperCase() === targetCode;
+                                if (typeof c === "object" && c?.code) return String(c.code).trim().toUpperCase() === targetCode;
+                                return false;
+                            });
+                        }
+                        if (typeof raw === "string") {
+                            return raw.trim().toUpperCase().includes(targetCode);
+                        }
+                        return false;
+                    };
 
-                    if (recentOrders && recentOrders.length > 0) {
-                        const targetCode = trimmedCode.trim().toUpperCase();
-                        
-                        const couponOrders = recentOrders.filter((o: any) => {
-                            if (!o.applied_coupons) return false;
-                            if (Array.isArray(o.applied_coupons)) {
-                                return o.applied_coupons.some((c: any) => {
-                                    if (typeof c === "string") return c.trim().toUpperCase() === targetCode;
-                                    if (typeof c === "object" && c?.code) return c.code.trim().toUpperCase() === targetCode;
-                                    return false;
-                                });
-                            }
-                            if (typeof o.applied_coupons === "string") {
-                                return o.applied_coupons.trim().toUpperCase().includes(targetCode);
-                            }
-                            return false;
-                        });
+                    // 1. Direct targeted check: Query past non-cancelled orders by customer email and/or user_id
+                    let customerOrders: any[] = [];
 
-                        if (couponOrders.length > 0) {
-                            // 1. Check email match
-                            if (userEmail && couponOrders.some((o: any) => o.customer_email?.trim().toLowerCase() === userEmail)) {
+                    if (userEmail) {
+                        const { data: byEmail, error: emailErr } = await supabase
+                            .from("orders")
+                            .select("id, user_id, customer_email, applied_coupons")
+                            .not("status", "in", '("cancelled", "failed")')
+                            .ilike("customer_email", userEmail);
+
+                        if (emailErr) console.error("Error checking customer orders by email:", emailErr);
+                        if (byEmail && byEmail.length > 0) customerOrders.push(...byEmail);
+                    }
+
+                    if (userId) {
+                        const { data: byUser, error: userErr } = await supabase
+                            .from("orders")
+                            .select("id, user_id, customer_email, applied_coupons")
+                            .not("status", "in", '("cancelled", "failed")')
+                            .eq("user_id", userId);
+
+                        if (userErr) console.error("Error checking customer orders by userId:", userErr);
+                        if (byUser && byUser.length > 0) customerOrders.push(...byUser);
+                    }
+
+                    if (customerOrders.length > 0 && customerOrders.some(checkOrderUsesCoupon)) {
+                        isAlreadyUsed = true;
+                    }
+
+                    // 2. Secondary check: Shipping address match against recent orders that used this coupon
+                    if (!isAlreadyUsed && shippingAddress?.line1 && (shippingAddress?.zip || shippingAddress?.postal_code)) {
+                        const cleanLine1 = shippingAddress.line1.trim().toLowerCase();
+                        const cleanZip = (shippingAddress.zip || shippingAddress.postal_code || "").trim().substring(0, 5);
+
+                        const { data: addressOrders, error: addrErr } = await supabase
+                            .from("orders")
+                            .select("id, shipping_address, applied_coupons")
+                            .not("status", "in", '("cancelled", "failed")')
+                            .order("created_at", { ascending: false })
+                            .limit(500);
+
+                        if (addrErr) {
+                            console.error("Error checking address orders for coupon:", addrErr);
+                        }
+
+                        if (addressOrders) {
+                            const addrMatch = addressOrders.some((o: any) => {
+                                if (!checkOrderUsesCoupon(o)) return false;
+                                const addr = o.shipping_address || {};
+                                const oLine1 = (addr.line1 || addr.street1 || "").trim().toLowerCase();
+                                const oZip = (addr.postal_code || addr.zip || "").trim().substring(0, 5);
+                                return oLine1 === cleanLine1 && oZip === cleanZip;
+                            });
+
+                            if (addrMatch) {
                                 isAlreadyUsed = true;
-                            }
-
-                            // 2. Check userId match
-                            if (!isAlreadyUsed && userId && couponOrders.some((o: any) => o.user_id === userId)) {
-                                isAlreadyUsed = true;
-                            }
-
-                            // 3. Check shipping address match
-                            if (!isAlreadyUsed && shippingAddress?.line1 && (shippingAddress?.zip || shippingAddress?.postal_code)) {
-                                const cleanLine1 = shippingAddress.line1.trim().toLowerCase();
-                                const cleanZip = (shippingAddress.zip || shippingAddress.postal_code || "").trim().substring(0, 5);
-
-                                const addrMatch = couponOrders.some((o: any) => {
-                                    const addr = o.shipping_address || {};
-                                    const oLine1 = (addr.line1 || addr.street1 || "").trim().toLowerCase();
-                                    const oZip = (addr.postal_code || addr.zip || "").trim().substring(0, 5);
-                                    return oLine1 === cleanLine1 && oZip === cleanZip;
-                                });
-
-                                if (addrMatch) isAlreadyUsed = true;
                             }
                         }
                     }
 
                     if (isAlreadyUsed) {
-                        throw new Error(`This single-use coupon (${trimmedCode}) has already been redeemed for this email address or shipping address.`);
+                        throw new Error(`This single-use coupon (${trimmedCode}) has already been redeemed for this email address or account.`);
                     }
                 }
 

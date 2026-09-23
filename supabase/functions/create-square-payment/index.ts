@@ -23,6 +23,50 @@ serve(async (req) => {
     try {
         const { sourceId, amount, currency = "USD", orderId, customerEmail, locationId, isProduction, items, shippingAddress, shippingCost, tax, applied_coupons, discounts } = await req.json();
 
+        // Pre-validate Single-Use Coupons server-side before executing charges or completing order
+        if (applied_coupons && Array.isArray(applied_coupons) && applied_coupons.length > 0 && customerEmail) {
+            const cleanCodes = applied_coupons
+                .map((c: any) => typeof c === 'string' ? c.trim().toUpperCase() : (c?.code || '').trim().toUpperCase())
+                .filter(Boolean);
+
+            if (cleanCodes.length > 0) {
+                const { data: singleUseCoupons } = await supabase
+                    .from("coupons")
+                    .select("code")
+                    .in("code", cleanCodes)
+                    .eq("one_use_per_user", true);
+
+                if (singleUseCoupons && singleUseCoupons.length > 0) {
+                    const singleCodes = singleUseCoupons.map((c: any) => c.code.toUpperCase());
+                    const cleanEmail = customerEmail.trim().toLowerCase();
+
+                    const { data: pastOrders } = await supabase
+                        .from("orders")
+                        .select("id, applied_coupons")
+                        .ilike("customer_email", cleanEmail)
+                        .not("status", "in", '("cancelled", "failed")')
+                        .neq("id", orderId || "");
+
+                    if (pastOrders && pastOrders.length > 0) {
+                        for (const code of singleCodes) {
+                            const alreadyUsed = pastOrders.some((po: any) => {
+                                const raw = po.applied_coupons;
+                                if (Array.isArray(raw)) {
+                                    return raw.some((c: any) => (typeof c === 'string' ? c.trim().toUpperCase() : c?.code?.trim()?.toUpperCase()) === code);
+                                }
+                                if (typeof raw === 'string') return raw.trim().toUpperCase().includes(code);
+                                return false;
+                            });
+
+                            if (alreadyUsed) {
+                                throw new Error(`Single-use coupon (${code}) has already been redeemed for ${cleanEmail}.`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
 
         // 1. Skip Square if amount is 0 (Free Order)
         if (amount <= 0) {

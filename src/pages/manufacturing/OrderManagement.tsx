@@ -108,7 +108,9 @@ interface Order {
     shipping_carrier?: string;
     payment_method?: string | null;
     payment_intent_id?: string | null;
+    payment_status?: string | null;
     p2p_status?: string | null;
+    p2p_rejection_reason?: string | null;
     p2p_submission_count?: number | null;
     p2p_proof_url?: string | null;
     order_items?: OrderItem[];
@@ -617,6 +619,8 @@ const OrderManagement = () => {
             case "out_for_delivery": return "bg-sky-100 text-sky-800";
             case "delivered": return "bg-green-100 text-green-800";
             case "cancelled": return "bg-red-100 text-red-800";
+            case "failed":
+            case "payment_failed": return "bg-rose-100 text-rose-800 border border-rose-300 font-semibold";
             case "carrier_exception":
             case "exception": return "bg-red-100 text-red-800 border border-red-300 font-semibold";
             default: return "bg-gray-100 text-gray-800";
@@ -755,7 +759,7 @@ const OrderManagement = () => {
         { id: 'in_transit', label: 'In Transit', statuses: ['in_transit', 'out_for_delivery'] },
         { id: 'carrier_exceptions', label: 'Issues / Exceptions', statuses: ['carrier_exception', 'exception'] },
         { id: 'completed', label: 'Completed', statuses: ['delivered'] },
-        { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment'] },
+        { id: 'unpaid', label: 'Unpaid / Pending', statuses: ['pending', 'pending_payment', 'failed', 'payment_failed'] },
         { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
         { id: 'all', label: 'All', statuses: [] },
     ];
@@ -1042,6 +1046,8 @@ const OrderManagement = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                                <SelectItem value="failed">Failed</SelectItem>
+                                <SelectItem value="payment_failed">Payment Failed</SelectItem>
                                 <SelectItem value="processing">Processing</SelectItem>
                                 <SelectItem value="in_production">In Production</SelectItem>
                                 <SelectItem value="ready_to_ship">Ready to Ship</SelectItem>
@@ -1306,6 +1312,21 @@ const OrderManagement = () => {
                                                         <Lock className="w-3 h-3 text-amber-600" />
                                                         Pending Manual Charge
                                                     </Badge>
+                                                ) : order.status === 'failed' || order.status === 'payment_failed' ? (
+                                                    <div className="flex flex-col gap-0.5 items-start">
+                                                        <Badge variant="outline" className="bg-rose-500/10 text-rose-700 border-rose-300 font-bold flex items-center gap-1 text-[10px] px-2 py-0.5 whitespace-nowrap">
+                                                            <XCircle className="w-3 h-3 text-rose-600" />
+                                                            {order.status === 'failed' ? 'Failed' : 'Payment Failed'}
+                                                        </Badge>
+                                                        {order.p2p_rejection_reason && (
+                                                            <span 
+                                                                className="text-[10px] text-rose-600 font-medium line-clamp-1 max-w-[150px] cursor-help" 
+                                                                title={order.p2p_rejection_reason}
+                                                            >
+                                                                {order.p2p_rejection_reason.replace(/^\[.*?\]\s*/, '')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <Badge variant="secondary" className={getStatusColor(order.status)}>
                                                         {order.status.replace(/_/g, " ")}
@@ -1428,6 +1449,8 @@ const OrderManagement = () => {
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                                                            <SelectItem value="failed">Failed</SelectItem>
+                                                            <SelectItem value="payment_failed">Payment Failed</SelectItem>
                                                             <SelectItem value="processing">Processing</SelectItem>
                                                             <SelectItem value="in_production">In Production</SelectItem>
                                                             <SelectItem value="ready_to_ship">Ready to Ship</SelectItem>
@@ -1626,8 +1649,14 @@ const OrderManagement = () => {
                                 <div className="text-right">
                                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Order Status</h4>
                                     <Badge variant="secondary" className={getStatusColor(selectedOrder.status)}>
-                                        {selectedOrder.status}
+                                        {selectedOrder.status.replace(/_/g, " ")}
                                     </Badge>
+                                    {selectedOrder.p2p_rejection_reason && (
+                                        <div className="mt-2 text-xs bg-red-50 border border-red-200 text-red-700 p-2 rounded text-left">
+                                            <span className="font-semibold block">Decline / Failure Reason:</span>
+                                            {selectedOrder.p2p_rejection_reason}
+                                        </div>
+                                    )}
                                     <p className="text-sm text-muted-foreground mt-2">
                                         Date: {format(new Date(selectedOrder.created_at), "PPP p")}
                                     </p>

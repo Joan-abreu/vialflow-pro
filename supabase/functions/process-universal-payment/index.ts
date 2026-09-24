@@ -30,6 +30,24 @@ serve(async (req) => {
     try {
         const body = await req.json();
 
+        // 0. Update Tagada Config Action
+        if (body.action === "update_tagada_config") {
+            const { data, error } = await supabase.from("app_settings").upsert({
+                key: "payment_tagadapay_config",
+                value: JSON.stringify({
+                    storeId: body.storeId || "store_54e87407e4ed",
+                    paymentFlowId: body.paymentFlowId || "flow_1dd0827fb396",
+                    apiKey: body.apiKey || "",
+                    environment: body.environment || "production"
+                }),
+                updated_at: new Date().toISOString()
+            }).select();
+            return new Response(JSON.stringify({ success: !error, data, error }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: error ? 400 : 200
+            });
+        }
+
         // 0. Veyra Session Creation Action
         if (body.action === "create_veyra_session") {
             let effectiveVeyraSecret = body.veyraSecretKey || veyraSecretEnv;
@@ -434,6 +452,73 @@ serve(async (req) => {
             });
         }
 
+        // Helpers for clean Tagada error formatting (prevents [object Object])
+        const extractTagadaInstrumentError = (data: any, status: number): string => {
+            if (!data) return `HTTP ${status}: Card verification failed`;
+            if (typeof data === "string" && data.trim()) return data.trim();
+            if (typeof data.message === "string" && data.message.trim()) return data.message.trim();
+            if (typeof data.data === "string" && data.data.trim()) return data.data.trim();
+            if (typeof data.error === "string" && data.error.trim()) return data.error.trim();
+            if (data.error && typeof data.error === "object") {
+                return data.error.processorMessage || data.error.message || data.error.description || data.error.code || JSON.stringify(data.error);
+            }
+            if (data.message && typeof data.message === "object") {
+                return data.message.message || data.message.description || JSON.stringify(data.message);
+            }
+            return `HTTP ${status}: Failed to register card instrument with Tagada`;
+        };
+
+        const formatTagadaErrorMessage = (payData: any, payment: any): string => {
+            const rawError = payment?.error || payData?.error;
+            const requireActionData = payment?.requireActionData || payData?.requireActionData;
+
+            // 1. Processor-specific message (highest precision from issuer/processor network)
+            if (rawError && typeof rawError === "object") {
+                if (typeof rawError.processorMessage === "string" && rawError.processorMessage.trim()) {
+                    return rawError.processorMessage.trim();
+                }
+                if (rawError.processorCode === "live_mode_test_card") {
+                    return "Your card was declined. Your request was in live mode, but used a known test card.";
+                }
+                if (typeof rawError.message === "string" && rawError.message.trim() && !rawError.message.toLowerCase().includes("transaction successful")) {
+                    return rawError.message.trim();
+                }
+                if (typeof rawError.description === "string" && rawError.description.trim()) {
+                    return rawError.description.trim();
+                }
+            }
+
+            // 2. Action error details
+            if (requireActionData && typeof requireActionData === "object") {
+                if (typeof requireActionData.message === "string" && requireActionData.message.trim() && !requireActionData.message.toLowerCase().includes("transaction successful")) {
+                    return requireActionData.message.trim();
+                }
+                if (requireActionData.errorCode === "live_mode_test_card") {
+                    return "Your card was declined. Your request was in live mode, but used a known test card.";
+                }
+            }
+
+            // 3. Top-level message
+            if (typeof payData?.message === "string" && payData.message.trim() && !payData.message.toLowerCase().includes("transaction successful")) {
+                return payData.message.trim();
+            }
+
+            // 4. Field validation errors
+            if (payData?.fieldErrors && typeof payData.fieldErrors === "object") {
+                const firstErr = Object.values(payData.fieldErrors)[0];
+                const str = Array.isArray(firstErr) ? firstErr[0] : String(firstErr);
+                if (str && str.trim()) return str.trim();
+            }
+
+            // 5. Decline substatus
+            const subStatus = payment?.subStatus || "";
+            if (subStatus && subStatus !== "declined") {
+                return `Transaction declined: ${subStatus}`;
+            }
+
+            return "Your card was declined by the issuer. Please check your card details or try a different card.";
+        };
+
         // 3.5. TagadaPay Processing (Tokenized BasisTheory Card & 3DS Gateway)
         if (provider === "tagadapay") {
             let effectiveApiKey = tagadaApiKey || body.apiKey || tagadaApiKeyEnv;
@@ -458,6 +543,10 @@ serve(async (req) => {
                 }
             }
 
+            if (!effectivePaymentFlowId) {
+                effectivePaymentFlowId = "flow_1dd0827fb396";
+            }
+
             if (!effectiveApiKey) {
                 throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY). Please set it in Site Settings > Payment Gateways > TagadaPay.");
             }
@@ -465,8 +554,7 @@ serve(async (req) => {
             const candidateBaseUrls = [
                 Deno.env.get("TAGADAPAY_BASE_URL"),
                 "https://api.tagada.io/api/public/v1",
-                "https://app.tagadapay.com/api/public/v1",
-                "https://api.tagadapay.com/api/public/v1"
+                "https://app.tagadapay.com/api/public/v1"
             ].filter(Boolean) as string[];
 
             const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
@@ -487,7 +575,8 @@ serve(async (req) => {
                         const instrumentRes = await fetch(`${baseUrl}/payment-instruments/create-from-token`, {
                             method: "POST",
                             headers: {
-                                "Authorization": `Bearer ${effectiveApiKey}`,
+                                "Authorization": `Bearer ${effectiveApiKey.trim()}`,
+                                "x-api-key": effectiveApiKey.trim(),
                                 "Content-Type": "application/json",
                                 "Accept": "application/json"
                             },
@@ -503,13 +592,15 @@ serve(async (req) => {
                         });
 
                         const instrumentData = await instrumentRes.json().catch(() => ({}));
+                        console.log(`[TagadaPay] create-from-token (${baseUrl}) status:`, instrumentRes.status, JSON.stringify(instrumentData));
+
                         if (instrumentRes.ok && (instrumentData.paymentInstrument?.id || instrumentData.id)) {
                             paymentInstrumentId = instrumentData.paymentInstrument?.id || instrumentData.id;
                             tagadaCustomerId = instrumentData.customer?.id || instrumentData.customerId;
                             instrumentCreated = true;
                             break;
                         } else if (instrumentRes.status !== 404) {
-                            lastInstrumentErr = instrumentData.message || instrumentData.error || lastInstrumentErr;
+                            lastInstrumentErr = extractTagadaInstrumentError(instrumentData, instrumentRes.status);
                             break;
                         }
                     } catch (err: any) {
@@ -518,6 +609,15 @@ serve(async (req) => {
                 }
 
                 if (!instrumentCreated && !paymentInstrumentId) {
+                    if (orderId) {
+                        try {
+                            await supabase.from("orders").update({
+                                status: "failed",
+                                payment_status: "failed",
+                                p2p_rejection_reason: `[TagadaPay Instrument] ${lastInstrumentErr}`
+                            }).eq("id", orderId);
+                        } catch (_) {}
+                    }
                     throw new Error(lastInstrumentErr);
                 }
             }
@@ -559,7 +659,8 @@ serve(async (req) => {
                     payRes = await fetch(`${baseUrl}/payments/process`, {
                         method: "POST",
                         headers: {
-                            "Authorization": `Bearer ${effectiveApiKey}`,
+                            "Authorization": `Bearer ${effectiveApiKey.trim()}`,
+                            "x-api-key": effectiveApiKey.trim(),
                             "Content-Type": "application/json",
                             "Accept": "application/json"
                         },
@@ -638,14 +739,8 @@ serve(async (req) => {
                     status: 200,
                 });
             } else {
-                let errMsg = payment.error || payData.message || payData.error;
-                if (!errMsg && payData.fieldErrors) {
-                    const firstErr = Object.values(payData.fieldErrors)[0];
-                    errMsg = Array.isArray(firstErr) ? firstErr[0] : String(firstErr);
-                }
-                if (!errMsg) {
-                    errMsg = `Tagada transaction ${payment.status || "declined"}`;
-                }
+                const errMsg = formatTagadaErrorMessage(payData, payment);
+                console.warn("[TagadaPay] Transaction declined:", errMsg, JSON.stringify(payData));
 
                 if (orderId) {
                     try {
@@ -1059,18 +1154,25 @@ serve(async (req) => {
 
 
     } catch (error: any) {
-        console.error("Universal Payment Processing Error:", error);
+        console.error("Universal Payment Processing Error:", error?.message || error);
 
         let errMessage = "Failed to process payment";
-        if (typeof error?.message === "string" && error.message !== "[object Object]") {
-            errMessage = error.message;
-        } else if (typeof error?.error === "string") {
-            errMessage = error.error;
-        } else if (error?.error?.message) {
-            errMessage = error.error.message;
-        } else if (typeof error === "string") {
-            errMessage = error;
+        if (typeof error?.message === "string" && error.message !== "[object Object]" && error.message.trim() !== "") {
+            errMessage = error.message.trim();
+        } else if (typeof error?.error === "string" && error.error !== "[object Object]" && error.error.trim() !== "") {
+            errMessage = error.error.trim();
+        } else if (error?.error?.message && typeof error.error.message === "string" && error.error.message !== "[object Object]") {
+            errMessage = error.error.message.trim();
+        } else if (typeof error === "string" && error !== "[object Object]" && error.trim() !== "") {
+            errMessage = error.trim();
+        } else if (error && typeof error === "object") {
+            try {
+                errMessage = JSON.stringify(error);
+            } catch (_) {
+                errMessage = "Payment processing failed";
+            }
         }
+
         const isCriticalAccountError = 
             errMessage.includes("UNAUTHORIZED") ||
             errMessage.includes("ACCOUNT_DISABLED") ||
@@ -1090,7 +1192,7 @@ serve(async (req) => {
         }
 
         return new Response(JSON.stringify({
-            error: error.message || "Failed to process payment",
+            error: errMessage,
             isCriticalAccountError,
         }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },

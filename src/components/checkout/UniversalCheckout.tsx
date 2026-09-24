@@ -911,7 +911,9 @@ const UniversalCheckout = ({
             else if (error?.error?.message) msg = error.error.message;
 
             const lower = msg.toLowerCase();
-            if (lower.includes("one or more validation errors") || lower.includes("validation error") || lower.includes("invalid card") || lower.includes("expiration") || lower.includes("cvv") || lower.includes("security code")) {
+            if (lower.includes("test card") || lower.includes("live_mode") || lower.includes("known test card")) {
+                msg = "Your card was declined: The gateway is in live mode and cannot accept test card numbers.";
+            } else if (lower.includes("one or more validation errors") || lower.includes("validation error") || lower.includes("invalid card") || lower.includes("expiration") || lower.includes("cvv") || lower.includes("security code")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";
             } else if (lower.includes("insufficient funds") || lower.includes("balance")) {
                 msg = "Payment declined due to insufficient funds. Please use an alternate card.";

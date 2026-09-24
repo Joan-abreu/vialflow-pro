@@ -358,16 +358,18 @@ export const TagadaCheckout: React.FC<TagadaCheckoutProps> = ({
             let friendlyMessage = err.message || tokenError || "Payment processing failed. Please check your card details.";
             const msgLower = friendlyMessage.toLowerCase();
             
-            if (msgLower.includes("one or more validation errors") || msgLower.includes("validation error")) {
+            if (msgLower.includes("test card") || msgLower.includes("live_mode") || msgLower.includes("known test card")) {
+                friendlyMessage = "Your card was declined: The gateway is in live mode and cannot accept test card numbers.";
+            } else if (msgLower.includes("one or more validation errors") || msgLower.includes("validation error")) {
                 friendlyMessage = "Please check your card details. The card number, expiration date, or CVV is invalid.";
-            } else if (msgLower.includes("invalid card number") || msgLower.includes("number") || msgLower.includes("luhn")) {
+            } else if (msgLower.includes("invalid card number") || msgLower.includes("luhn")) {
                 friendlyMessage = "The card number is invalid. Please check the digits and try again.";
             } else if (msgLower.includes("expired") || msgLower.includes("expiry") || msgLower.includes("expiration") || msgLower.includes("year")) {
                 friendlyMessage = "The expiration date entered is invalid or the card has expired.";
             } else if (msgLower.includes("cvc") || msgLower.includes("cvv")) {
                 friendlyMessage = "Invalid CVV security code. Please check the 3 or 4 digits on the back of your card.";
-            } else if (msgLower.includes("declined") || msgLower.includes("do not honor") || msgLower.includes("insufficient") || msgLower.includes("decline")) {
-                friendlyMessage = "Your card was declined by the issuer. Please check with your bank or try a different card.";
+            } else if (msgLower.includes("insufficient funds") || msgLower.includes("insufficient")) {
+                friendlyMessage = "Your card was declined due to insufficient funds. Please try another card.";
             } else if (msgLower.includes("failed to tokenize") || msgLower.includes("encrypt")) {
                 friendlyMessage = "Could not verify card details securely. Please check your card number and expiration date.";
             }

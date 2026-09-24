@@ -32,6 +32,7 @@ export interface StripeGatewayConfig {
 export interface TagadaPayGatewayConfig {
     storeId: string;
     publicKey?: string;
+    apiKey?: string;
     paymentFlowId?: string;
     environment: "sandbox" | "production";
 }

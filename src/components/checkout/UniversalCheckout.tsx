@@ -834,6 +834,7 @@ const UniversalCheckout = ({
                     nmiSecurityKey: gatewaySettings.nmi.securityKey,
                     storeId: gatewaySettings.tagadapay.storeId || import.meta.env.VITE_TAGADAPAY_STORE_ID,
                     paymentFlowId: gatewaySettings.tagadapay.paymentFlowId || import.meta.env.VITE_TAGADAPAY_PAYMENT_FLOW_ID,
+                    tagadaApiKey: gatewaySettings.tagadapay.apiKey,
                     cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :

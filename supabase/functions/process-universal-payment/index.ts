@@ -436,9 +436,30 @@ serve(async (req) => {
 
         // 3.5. TagadaPay Processing (Tokenized BasisTheory Card & 3DS Gateway)
         if (provider === "tagadapay") {
-            const effectiveApiKey = tagadaApiKey || tagadaApiKeyEnv;
+            let effectiveApiKey = tagadaApiKey || body.apiKey || tagadaApiKeyEnv;
+            let effectiveStoreId = storeId || body.storeId;
+            let effectivePaymentFlowId = paymentFlowId || body.paymentFlowId || Deno.env.get("TAGADAPAY_PAYMENT_FLOW_ID");
+
+            // Auto-fallback: Pull from app_settings if credentials are not in request or env
+            if (!effectiveApiKey || !effectiveStoreId) {
+                const { data: sData } = await supabase
+                    .from("app_settings")
+                    .select("value")
+                    .eq("key", "payment_tagadapay_config")
+                    .maybeSingle();
+
+                if (sData?.value) {
+                    try {
+                        const parsed = JSON.parse(sData.value);
+                        if (!effectiveApiKey) effectiveApiKey = parsed.apiKey || parsed.secretKey || "";
+                        if (!effectiveStoreId) effectiveStoreId = parsed.storeId || "";
+                        if (!effectivePaymentFlowId) effectivePaymentFlowId = parsed.paymentFlowId || "";
+                    } catch (_) {}
+                }
+            }
+
             if (!effectiveApiKey) {
-                throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY).");
+                throw new Error("TagadaPay API key is not configured (TAGADAPAY_API_KEY). Please set it in Site Settings > Payment Gateways > TagadaPay.");
             }
 
             const candidateBaseUrls = [
@@ -472,7 +493,7 @@ serve(async (req) => {
                             },
                             body: JSON.stringify({
                                 tagadaToken: sourceId,
-                                storeId: storeId,
+                                storeId: effectiveStoreId,
                                 customerData: {
                                     email: customerEmail,
                                     firstName,
@@ -508,7 +529,7 @@ serve(async (req) => {
             const processPayload: any = {
                 amount: amountInCents,
                 currency: (currency || "USD").toUpperCase(),
-                storeId: storeId,
+                storeId: effectiveStoreId,
                 paymentInstrumentId: paymentInstrumentId,
                 paymentMethod: "card",
                 mode: "purchase",
@@ -524,7 +545,6 @@ serve(async (req) => {
                 processPayload.customerId = tagadaCustomerId;
             }
 
-            const effectivePaymentFlowId = paymentFlowId || Deno.env.get("TAGADAPAY_PAYMENT_FLOW_ID");
             if (effectivePaymentFlowId) {
                 processPayload.paymentFlowId = effectivePaymentFlowId;
             }
@@ -626,6 +646,17 @@ serve(async (req) => {
                 if (!errMsg) {
                     errMsg = `Tagada transaction ${payment.status || "declined"}`;
                 }
+
+                if (orderId) {
+                    try {
+                        await supabase.from("orders").update({
+                            status: "failed",
+                            payment_status: "failed",
+                            p2p_rejection_reason: `[TagadaPay] ${errMsg}`
+                        }).eq("id", orderId);
+                    } catch (_) {}
+                }
+
                 throw new Error(errMsg);
             }
         }

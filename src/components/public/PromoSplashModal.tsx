@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,11 +62,21 @@ export default function PromoSplashModal({
     const activeCampaign = activeCampaignsList[activeIndex] || DEFAULT_PROMO_CAMPAIGN;
     const frequency = settings?.frequency || DEFAULT_PROMO_SPLASH_SETTINGS.frequency;
 
+    // Touch Swipe Gesture State & Refs
+    const touchStartXRef = useRef<number | null>(null);
+    const touchStartYRef = useRef<number | null>(null);
+    const touchDeltaXRef = useRef<number>(0);
+    const hasSwipedRef = useRef(false);
+    const [dragOffset, setDragOffset] = useState<number>(0);
+    const [isDragging, setIsDragging] = useState(false);
+
     // Reset slide when opened
     useEffect(() => {
         if (isOpen) {
             setCurrentSlide(initialSlide || 0);
             setCopied(false);
+            setDragOffset(0);
+            setIsDragging(false);
         }
     }, [isOpen, initialSlide]);
 
@@ -91,6 +101,7 @@ export default function PromoSplashModal({
 
     const handleCopyCode = (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (hasSwipedRef.current) return;
         navigator.clipboard.writeText(effectiveCouponCode);
         setCopied(true);
         localStorage.setItem("vialflow_referral_code", effectiveCouponCode);
@@ -99,6 +110,7 @@ export default function PromoSplashModal({
     };
 
     const handleClaimAction = () => {
+        if (hasSwipedRef.current) return;
         if (!isPreview) {
             markPromoSplashSeen({ frequency });
             if (activeCampaign.offerMode === "coupon_code" || activeCampaign.couponCode) {
@@ -122,6 +134,63 @@ export default function PromoSplashModal({
 
     const hasMultipleOffers = activeCampaignsList.length > 1;
 
+    // Touch Swipe Handlers for Mobile & Touchscreens
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (!hasMultipleOffers) return;
+        touchStartXRef.current = e.touches[0].clientX;
+        touchStartYRef.current = e.touches[0].clientY;
+        touchDeltaXRef.current = 0;
+        hasSwipedRef.current = false;
+        setIsDragging(true);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (touchStartXRef.current === null || touchStartYRef.current === null || !hasMultipleOffers) return;
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const diffX = currentX - touchStartXRef.current;
+        const diffY = currentY - touchStartYRef.current;
+
+        // If swipe is primarily horizontal, prevent interference and provide fluid drag feedback
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            touchDeltaXRef.current = diffX;
+            if (Math.abs(diffX) > 10) {
+                hasSwipedRef.current = true;
+            }
+            // Dampened tactile offset (max +- 80px)
+            const dampened = Math.sign(diffX) * Math.min(80, Math.abs(diffX) * 0.4);
+            setDragOffset(dampened);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (!hasMultipleOffers || touchStartXRef.current === null) {
+            setIsDragging(false);
+            setDragOffset(0);
+            return;
+        }
+
+        const diffX = touchDeltaXRef.current;
+        const swipeThreshold = 35; // Trigger threshold in pixels
+
+        if (diffX < -swipeThreshold) {
+            // Swiped Left -> Advance to next offer
+            handleNextSlide();
+        } else if (diffX > swipeThreshold) {
+            // Swiped Right -> Back to previous offer
+            handlePrevSlide();
+        }
+
+        setDragOffset(0);
+        setIsDragging(false);
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+        touchDeltaXRef.current = 0;
+        setTimeout(() => {
+            hasSwipedRef.current = false;
+        }, 150);
+    };
+
     // Requirement Badge Label Helper
     const getRequirementLabel = (camp: PromoCampaign) => {
         if (camp.requirementType === "min_quantity" && camp.minQuantity > 0) {
@@ -142,8 +211,18 @@ export default function PromoSplashModal({
                 hideCloseButton={true}
                 className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] p-0 flex flex-col overflow-hidden border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl rounded-2xl gap-0 animate-in fade-in-0 zoom-in-95 [&>button]:hidden"
             >
-                {/* Scrollable Modal Body for perfect rendering on any screen/device */}
-                <div className="flex flex-col overflow-y-auto max-h-[92vh] sm:max-h-[88vh]">
+                {/* Scrollable Modal Body for perfect rendering on any screen/device with touch swipe support */}
+                <div 
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
+                    className="flex flex-col overflow-y-auto max-h-[92vh] sm:max-h-[88vh] touch-pan-y select-none"
+                    style={{
+                        transform: dragOffset !== 0 ? `translateX(${dragOffset}px)` : undefined,
+                        transition: isDragging ? "none" : "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                    }}
+                >
                     {/* Visual Top Banner with Atmospheric Lighting & Carousel Controls */}
                     <div className="relative bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 sm:p-7 overflow-hidden border-b border-indigo-500/20 shrink-0">
                         {/* Glowing Accents */}
@@ -387,14 +466,35 @@ export default function PromoSplashModal({
                                 </button>
 
                                 {hasMultipleOffers && (
-                                    <button
-                                        type="button"
-                                        onClick={handleNextSlide}
-                                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer transition-colors"
-                                    >
-                                        <span>View next offer ({activeIndex + 1}/{activeCampaignsList.length})</span>
-                                        <ChevronRight className="h-3 w-3 shrink-0" />
-                                    </button>
+                                    <div className="flex items-center justify-between w-full pt-1.5 px-0.5 border-t border-border/40 text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePrevSlide();
+                                            }}
+                                            className="text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors py-1 px-1.5 rounded-md hover:bg-muted/50"
+                                        >
+                                            <ChevronLeft className="h-3.5 w-3.5" />
+                                            <span>Anterior</span>
+                                        </button>
+
+                                        <span className="text-[10px] text-muted-foreground/70 font-medium flex items-center gap-1 select-none">
+                                            ↔ Desliza con el dedo
+                                        </span>
+
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleNextSlide();
+                                            }}
+                                            className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer transition-colors py-1 px-1.5 rounded-md hover:bg-primary/10"
+                                        >
+                                            <span>Siguiente ({activeIndex + 1}/{activeCampaignsList.length})</span>
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>

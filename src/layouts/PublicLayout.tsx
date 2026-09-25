@@ -127,7 +127,13 @@ const PublicLayoutContent = () => {
     const [modalInitialSlide, setModalInitialSlide] = useState(0);
     const [copiedBannerCode, setCopiedBannerCode] = useState<string | null>(null);
 
-    const bannerTrackRef = useRef<HTMLDivElement | null>(null);
+    // Banner Touch Drag State
+    const [bannerDragOffset, setBannerDragOffset] = useState(0);
+    const [isBannerDragging, setIsBannerDragging] = useState(false);
+    const bannerTouchStartX = useRef<number | null>(null);
+    const bannerTouchStartY = useRef<number | null>(null);
+    const bannerTouchDeltaX = useRef<number>(0);
+    const hasBannerSwipedRef = useRef(false);
     const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const pauseBannerAutoRotate = () => {
@@ -138,54 +144,70 @@ const PublicLayoutContent = () => {
         }, 7000);
     };
 
-    const scrollToBannerIndex = (index: number, smooth: boolean = true) => {
-        if (!bannerTrackRef.current) return;
-        const width = bannerTrackRef.current.clientWidth;
-        bannerTrackRef.current.scrollTo({
-            left: index * width,
-            behavior: smooth ? "smooth" : "instant",
-        });
-        setCurrentBannerIndex(index);
+    const handleBannerTouchStart = (e: React.TouchEvent) => {
+        if (bannerCampaigns.length <= 1) return;
+        pauseBannerAutoRotate();
+        bannerTouchStartX.current = e.touches[0].clientX;
+        bannerTouchStartY.current = e.touches[0].clientY;
+        bannerTouchDeltaX.current = 0;
+        hasBannerSwipedRef.current = false;
+        setIsBannerDragging(true);
     };
 
-    const handleBannerScroll = () => {
-        if (!bannerTrackRef.current) return;
-        const el = bannerTrackRef.current;
-        const width = el.clientWidth;
-        if (width > 0) {
-            const newIdx = Math.round(el.scrollLeft / width);
-            if (newIdx !== currentBannerIndex && newIdx >= 0 && newIdx < bannerCampaigns.length) {
-                setCurrentBannerIndex(newIdx);
+    const handleBannerTouchMove = (e: React.TouchEvent) => {
+        if (bannerTouchStartX.current === null || bannerTouchStartY.current === null || bannerCampaigns.length <= 1) return;
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const diffX = currentX - bannerTouchStartX.current;
+        const diffY = currentY - bannerTouchStartY.current;
+
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            bannerTouchDeltaX.current = diffX;
+            if (Math.abs(diffX) > 8) {
+                hasBannerSwipedRef.current = true;
             }
+            setBannerDragOffset(diffX);
         }
+    };
+
+    const handleBannerTouchEnd = () => {
+        if (bannerCampaigns.length <= 1 || bannerTouchStartX.current === null) {
+            setIsBannerDragging(false);
+            setBannerDragOffset(0);
+            return;
+        }
+
+        const diffX = bannerTouchDeltaX.current;
+        const threshold = 35; // minimum px to trigger slide switch
+
+        if (diffX < -threshold) {
+            // Swiped left -> next promo
+            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
+        } else if (diffX > threshold) {
+            // Swiped right -> prev promo
+            setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
+        }
+
+        setBannerDragOffset(0);
+        setIsBannerDragging(false);
+        bannerTouchStartX.current = null;
+        bannerTouchStartY.current = null;
+        bannerTouchDeltaX.current = 0;
+        setTimeout(() => {
+            hasBannerSwipedRef.current = false;
+        }, 150);
     };
 
     // Auto-rotate announcement banner every 4.5 seconds if multiple promotions are active
     useEffect(() => {
-        if (bannerCampaigns.length <= 1 || isBannerHovered || isBannerInteracting) return;
+        if (bannerCampaigns.length <= 1 || isBannerHovered || isBannerInteracting || isBannerDragging) return;
 
         const timer = setInterval(() => {
-            if (!bannerTrackRef.current) return;
-            const nextIndex = (currentBannerIndex + 1) % bannerCampaigns.length;
-            scrollToBannerIndex(nextIndex, true);
+            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
         }, 4500);
 
         return () => clearInterval(timer);
-    }, [bannerCampaigns.length, isBannerHovered, isBannerInteracting, currentBannerIndex]);
-
-    // Handle screen resize so current banner stays centered
-    useEffect(() => {
-        const handleResize = () => {
-            if (!bannerTrackRef.current) return;
-            const width = bannerTrackRef.current.clientWidth;
-            bannerTrackRef.current.scrollTo({
-                left: currentBannerIndex * width,
-                behavior: "instant" as ScrollBehavior,
-            });
-        };
-        window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
-    }, [currentBannerIndex]);
+    }, [bannerCampaigns.length, isBannerHovered, isBannerInteracting, isBannerDragging]);
 
     const handleOpenPromoFromBanner = (campaignIndex: number) => {
         const targetCamp = bannerCampaigns[campaignIndex];
@@ -332,7 +354,7 @@ const PublicLayoutContent = () => {
                     <div 
                         onMouseEnter={() => setIsBannerHovered(true)}
                         onMouseLeave={() => setIsBannerHovered(false)}
-                        className="bg-primary text-primary-foreground h-10 sm:h-10.5 w-full text-xs md:text-sm font-medium relative shadow-sm z-50 overflow-hidden flex items-center select-none shrink-0"
+                        className="bg-primary text-primary-foreground h-10 sm:h-10.5 w-full max-w-[100vw] text-xs md:text-sm font-medium relative shadow-sm z-50 overflow-hidden flex items-center select-none shrink-0"
                     >
                         {/* Optional Prev Arrow (Desktop / Tablet) */}
                         {hasMultipleBanners && (
@@ -340,8 +362,7 @@ const PublicLayoutContent = () => {
                                 type="button"
                                 onClick={() => {
                                     pauseBannerAutoRotate();
-                                    const prevIdx = (currentBannerIndex - 1 + bannerCampaigns.length) % bannerCampaigns.length;
-                                    scrollToBannerIndex(prevIdx, true);
+                                    setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
                                 }}
                                 className="absolute left-1.5 sm:left-2 z-20 p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
                                 aria-label="Previous promotion"
@@ -350,97 +371,107 @@ const PublicLayoutContent = () => {
                             </button>
                         )}
 
-                        {/* Native Horizontal Scroll-Snap Track for 100% Fluid Touch Swiping */}
+                        {/* Transform Slider Track with Fluid Real-Time Touch Swiping */}
                         <div
-                            ref={bannerTrackRef}
-                            onScroll={handleBannerScroll}
-                            onTouchStart={pauseBannerAutoRotate}
-                            onTouchMove={pauseBannerAutoRotate}
-                            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden overscroll-x-contain"
-                            style={{
-                                scrollbarWidth: "none",
-                                msOverflowStyle: "none",
-                                WebkitOverflowScrolling: "touch",
-                            }}
+                            onTouchStart={handleBannerTouchStart}
+                            onTouchMove={handleBannerTouchMove}
+                            onTouchEnd={handleBannerTouchEnd}
+                            onTouchCancel={handleBannerTouchEnd}
+                            className="w-full h-full overflow-hidden relative touch-pan-y"
                         >
-                            {bannerCampaigns.length > 0 ? (
-                                bannerCampaigns.map((camp, idx) => (
-                                    <div
-                                        key={camp.id || idx}
-                                        className="w-full shrink-0 h-full snap-center snap-always flex items-center justify-center px-8 sm:px-14 text-center overflow-hidden"
-                                    >
-                                        <div className="flex items-center gap-1.5 sm:gap-2 justify-center max-w-full overflow-hidden whitespace-nowrap">
-                                            {/* Badge */}
-                                            <span
-                                                onClick={() => handleOpenPromoFromBanner(idx)}
-                                                className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[9px] sm:text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors shrink-0"
-                                            >
-                                                <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {camp.badgeText || "SPECIAL"}
-                                            </span>
-
-                                            {/* Headline - Truncated strictly on 1 line so banner NEVER shifts height */}
-                                            <span
-                                                onClick={() => handleOpenPromoFromBanner(idx)}
-                                                className="cursor-pointer hover:underline truncate max-w-[140px] xs:max-w-[200px] sm:max-w-md md:max-w-lg lg:max-w-xl text-white font-semibold text-xs sm:text-sm shrink min-w-0"
-                                                title={camp.headline}
-                                            >
-                                                {camp.headline}
-                                            </span>
-
-                                            {/* Coupon Code 1-Click Copy */}
-                                            {camp.offerMode === "coupon_code" && camp.couponCode && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const code = camp.couponCode!.trim().toUpperCase();
-                                                        navigator.clipboard.writeText(code);
-                                                        localStorage.setItem("vialflow_referral_code", code);
-                                                        setCopiedBannerCode(code);
-                                                        toast.success(`Promo code "${code}" copied & applied!`);
-                                                        setTimeout(() => setCopiedBannerCode(null), 2500);
+                            <div
+                                className="flex h-full w-full will-change-transform"
+                                style={{
+                                    transform: `translateX(calc(-${(currentBannerIndex % Math.max(1, bannerCampaigns.length)) * 100}% + ${bannerDragOffset}px))`,
+                                    transition: isBannerDragging ? "none" : "transform 350ms cubic-bezier(0.25, 1, 0.5, 1)",
+                                }}
+                            >
+                                {bannerCampaigns.length > 0 ? (
+                                    bannerCampaigns.map((camp, idx) => (
+                                        <div
+                                            key={camp.id || idx}
+                                            className="w-full min-w-full max-w-full shrink-0 h-full flex items-center justify-center px-7 sm:px-14 text-center overflow-hidden box-border"
+                                        >
+                                            <div className="flex items-center gap-1.5 sm:gap-2 justify-center max-w-full min-w-0 overflow-hidden whitespace-nowrap">
+                                                {/* Badge */}
+                                                <span
+                                                    onClick={() => {
+                                                        if (!hasBannerSwipedRef.current) handleOpenPromoFromBanner(idx);
                                                     }}
-                                                    className="inline-flex items-center gap-1 bg-white text-primary hover:bg-white/95 font-mono font-black text-[9px] sm:text-xs px-2 py-0.5 rounded-full border border-white/60 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
-                                                    title="Click to copy promo code"
+                                                    className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors shrink-0"
                                                 >
-                                                    <Tag className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                                    <span>{camp.couponCode}</span>
-                                                    {copiedBannerCode === camp.couponCode ? (
-                                                        <Check className="h-2.5 w-2.5 text-emerald-600 animate-in zoom-in" />
-                                                    ) : (
-                                                        <Copy className="h-2 w-2 opacity-70" />
-                                                    )}
-                                                </button>
-                                            )}
+                                                    <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {camp.badgeText || "SPECIAL"}
+                                                </span>
 
-                                            {/* CTA Link */}
-                                            <Link
-                                                to={camp.ctaUrl || "/products?category=peptides"}
-                                                className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-0.5 sm:gap-1 text-white shrink-0 text-xs sm:text-sm"
-                                            >
-                                                <span>{camp.ctaText || "Shop"}</span> <ArrowRight className="h-3 w-3" />
-                                            </Link>
+                                                {/* Headline - Strictly truncated on 1 line so banner NEVER shifts height or width */}
+                                                <span
+                                                    onClick={() => {
+                                                        if (!hasBannerSwipedRef.current) handleOpenPromoFromBanner(idx);
+                                                    }}
+                                                    className="cursor-pointer hover:underline truncate max-w-[130px] xs:max-w-[190px] sm:max-w-md md:max-w-lg lg:max-w-xl text-white font-semibold text-xs sm:text-sm shrink min-w-0"
+                                                    title={camp.headline}
+                                                >
+                                                    {camp.headline}
+                                                </span>
+
+                                                {/* Coupon Code 1-Click Copy */}
+                                                {camp.offerMode === "coupon_code" && camp.couponCode && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (hasBannerSwipedRef.current) return;
+                                                            const code = camp.couponCode!.trim().toUpperCase();
+                                                            navigator.clipboard.writeText(code);
+                                                            localStorage.setItem("vialflow_referral_code", code);
+                                                            setCopiedBannerCode(code);
+                                                            toast.success(`Promo code "${code}" copied & applied!`);
+                                                            setTimeout(() => setCopiedBannerCode(null), 2500);
+                                                        }}
+                                                        className="hidden xs:inline-flex items-center gap-1 bg-white text-primary hover:bg-white/95 font-mono font-black text-[9px] sm:text-xs px-2 py-0.5 rounded-full border border-white/60 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+                                                        title="Click to copy promo code"
+                                                    >
+                                                        <Tag className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                                        <span>{camp.couponCode}</span>
+                                                        {copiedBannerCode === camp.couponCode ? (
+                                                            <Check className="h-2.5 w-2.5 text-emerald-600 animate-in zoom-in" />
+                                                        ) : (
+                                                            <Copy className="h-2 w-2 opacity-70" />
+                                                        )}
+                                                    </button>
+                                                )}
+
+                                                {/* CTA Link */}
+                                                <Link
+                                                    to={camp.ctaUrl || "/products?category=peptides"}
+                                                    onClick={(e) => {
+                                                        if (hasBannerSwipedRef.current) e.preventDefault();
+                                                    }}
+                                                    className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-0.5 sm:gap-1 text-white shrink-0 text-xs sm:text-sm"
+                                                >
+                                                    <span>{camp.ctaText || "Shop"}</span> <ArrowRight className="h-3 w-3" />
+                                                </Link>
+                                            </div>
                                         </div>
+                                    ))
+                                ) : (
+                                    <div className="w-full min-w-full max-w-full shrink-0 h-full flex items-center justify-center px-8 text-center">
+                                        <span className="truncate text-xs sm:text-sm font-semibold">
+                                            🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!
+                                        </span>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="w-full shrink-0 h-full snap-center flex items-center justify-center px-8 text-center">
-                                    <span className="truncate text-xs sm:text-sm font-semibold">
-                                        🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!
-                                    </span>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
-                        {/* Right Controls: Next Arrow & Dismiss Button (Fixed position, never moves) */}
+                        {/* Right Controls: Next Arrow & Dismiss Button */}
                         <div className="absolute right-1.5 sm:right-2 z-20 flex items-center gap-1 shrink-0">
                             {hasMultipleBanners && (
                                 <button
                                     type="button"
                                     onClick={() => {
                                         pauseBannerAutoRotate();
-                                        const nextIdx = (currentBannerIndex + 1) % bannerCampaigns.length;
-                                        scrollToBannerIndex(nextIdx, true);
+                                        setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
                                     }}
                                     className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
                                     aria-label="Next promotion"
@@ -469,7 +500,7 @@ const PublicLayoutContent = () => {
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             pauseBannerAutoRotate();
-                                            scrollToBannerIndex(idx, true);
+                                            setCurrentBannerIndex(idx);
                                         }}
                                         className={`rounded-full transition-all cursor-pointer ${
                                             idx === (currentBannerIndex % bannerCampaigns.length)

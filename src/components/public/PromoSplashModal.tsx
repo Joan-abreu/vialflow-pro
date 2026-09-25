@@ -476,12 +476,8 @@ export default function PromoSplashModal({
                                             className="text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors py-1 px-1.5 rounded-md hover:bg-muted/50"
                                         >
                                             <ChevronLeft className="h-3.5 w-3.5" />
-                                            <span>Anterior</span>
+                                            <span>Previous</span>
                                         </button>
-
-                                        <span className="text-[10px] text-muted-foreground/70 font-medium flex items-center gap-1 select-none">
-                                            ↔ Desliza con el dedo
-                                        </span>
 
                                         <button
                                             type="button"
@@ -491,7 +487,7 @@ export default function PromoSplashModal({
                                             }}
                                             className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer transition-colors py-1 px-1.5 rounded-md hover:bg-primary/10"
                                         >
-                                            <span>Siguiente ({activeIndex + 1}/{activeCampaignsList.length})</span>
+                                            <span>Next ({activeIndex + 1}/{activeCampaignsList.length})</span>
                                             <ChevronRight className="h-3.5 w-3.5" />
                                         </button>
                                     </div>

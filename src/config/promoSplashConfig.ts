@@ -13,7 +13,10 @@ export interface PromoCampaign {
     targetCategory?: string;
     targetProductId?: string;
     targetProductName?: string;
+    targetVariantId?: string;
+    targetVariantName?: string;
     targetProductIds?: string[];
+    targetVariantIds?: string[];
     targetGroupLabel?: string;
 
     // Requirement Threshold
@@ -249,11 +252,29 @@ export function evaluateCampaignForCart(
         }
         if (scope === "product" && campaign.targetProductId) {
             const prodId = item.variant?.product_id || item.variant?.product?.id;
-            return prodId === campaign.targetProductId;
+            const matchesProduct = prodId === campaign.targetProductId;
+            if (!matchesProduct) return false;
+            if (campaign.targetVariantId) {
+                const varId = item.variant?.id;
+                return varId === campaign.targetVariantId;
+            }
+            return true;
         }
-        if (scope === "group" && campaign.targetProductIds && campaign.targetProductIds.length > 0) {
+        if (scope === "group") {
             const prodId = item.variant?.product_id || item.variant?.product?.id;
-            return campaign.targetProductIds.includes(prodId);
+            const varId = item.variant?.id;
+            const hasProductTargets = campaign.targetProductIds && campaign.targetProductIds.length > 0;
+            const hasVariantTargets = campaign.targetVariantIds && campaign.targetVariantIds.length > 0;
+            
+            if (!hasProductTargets && !hasVariantTargets) return false;
+
+            if (hasVariantTargets && varId && campaign.targetVariantIds!.includes(varId)) {
+                return true;
+            }
+            if (hasProductTargets && prodId && campaign.targetProductIds!.includes(prodId)) {
+                return true;
+            }
+            return false;
         }
         return true;
     });

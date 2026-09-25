@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift, Lock, Truck, Tag, Layers, Check } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, AlertTriangle, Sparkles, Gift, Lock, Truck, Tag, Layers, Check, Package } from "lucide-react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -263,20 +263,12 @@ const Cart = () => {
         return evaluatedCampaigns.some(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "free_shipping");
     }, [evaluatedCampaigns]);
 
-    // Handle proceed to checkout with smart upsell and promo splash interception
+    // Handle proceed to checkout directly without intercepting modal friction
     const handleProceedToCheckout = () => {
         const onlyWater = cartHasOnlyWater(items);
 
         if (onlyWater && activeSettings.enabled) {
             setIsUpsellModalOpen(true);
-        } else if (
-            activeCheckoutCampaigns.length > 0 &&
-            !hasSeenPromoInCart
-        ) {
-            setHasSeenPromoInCart(true);
-            setPromoModalIntent("checkout_intercept");
-            setModalInitialSlide(0);
-            setIsPromoModalOpen(true);
         } else {
             navigate("/checkout");
         }
@@ -284,18 +276,7 @@ const Cart = () => {
 
     const handleDeclineUpsell = () => {
         setIsUpsellModalOpen(false);
-        // If not seen weekly promo yet, check if eligible for checkout promo
-        if (
-            activeCheckoutCampaigns.length > 0 &&
-            !hasSeenPromoInCart
-        ) {
-            setHasSeenPromoInCart(true);
-            setPromoModalIntent("checkout_intercept");
-            setModalInitialSlide(0);
-            setIsPromoModalOpen(true);
-        } else {
-            navigate("/checkout");
-        }
+        navigate("/checkout");
     };
 
     return (
@@ -469,6 +450,74 @@ const Cart = () => {
                                 </div>
                             );
                         })}
+
+                        {/* Unlocked Single Free Gift Card (Gift with Purchase) */}
+                        {evaluatedCampaigns
+                            .filter(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "gift_with_purchase" && e.campaign.rewardSelectionMode !== "pool_choice")
+                            .map(evalResult => {
+                                const camp = evalResult.campaign;
+                                const giftName = camp.rewardProductName || "Research Free Gift";
+                                const giftImage = camp.rewardProductImage;
+                                const matchingCartItem = items.find(item => 
+                                    item.variant.product.name.toLowerCase().trim() === giftName.toLowerCase().trim() ||
+                                    giftName.toLowerCase().includes(item.variant.product.name.toLowerCase()) ||
+                                    item.variant.product.name.toLowerCase().includes(giftName.toLowerCase())
+                                );
+                                const hasSameItemInCart = !!matchingCartItem;
+
+                                return (
+                                    <div key={camp.id} className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-card to-emerald-500/5 border-2 border-emerald-500/30 space-y-3 shadow-xs animate-in fade-in-50 duration-300">
+                                        <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                                            <span className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-300 tracking-wide uppercase">
+                                                <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                Free Bonus Gift (Extra Item)
+                                            </span>
+                                            <Badge className="bg-emerald-500 text-emerald-950 font-extrabold text-[10px] uppercase tracking-wider">
+                                                100% Free Unlocked
+                                            </Badge>
+                                        </div>
+
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="flex items-center gap-3.5 min-w-0">
+                                                <div className="relative h-14 w-14 bg-background rounded-xl border border-emerald-500/30 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                                                    {giftImage ? (
+                                                        <img 
+                                                            src={giftImage} 
+                                                            alt={giftName} 
+                                                            className="h-full w-full object-cover" 
+                                                        />
+                                                    ) : (
+                                                        <Package className="h-6 w-6 text-emerald-500" />
+                                                    )}
+                                                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-xs">
+                                                        <Gift className="h-2.5 w-2.5" />
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-sm sm:text-base text-foreground truncate">
+                                                        {giftName}
+                                                    </p>
+                                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                                        +{camp.rewardQuantity || 1} Free Extra Unit (Will be packed with your order)
+                                                    </p>
+                                                    {hasSameItemInCart && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            *Included as an extra free unit in addition to the {matchingCartItem.quantity} unit(s) in your cart
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right flex-shrink-0">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                    100% FREE
+                                                </span>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5">$0.00 Gift</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
 
                         {/* Interactive Gift Choice Pool Card (Unlocked Pool Campaign) */}
                         {evaluatedCampaigns
@@ -780,8 +829,8 @@ const Cart = () => {
                                                                 Scope: {camp.targetScope === "category" 
                                                                     ? (camp.targetCategory || "Category") 
                                                                     : camp.targetScope === "group"
-                                                                        ? (camp.targetGroupLabel || `${camp.targetProductIds?.length || 0} Products`)
-                                                                        : (camp.targetProductName || "Selected Item")}
+                                                                        ? (camp.targetGroupLabel || `${(camp.targetProductIds?.length || 0) + (camp.targetVariantIds?.length || 0)} Items`)
+                                                                        : `${camp.targetProductName || "Selected Item"}${camp.targetVariantName ? ` (${camp.targetVariantName})` : ""}`}
                                                             </span>
                                                         )}
                                                     </div>

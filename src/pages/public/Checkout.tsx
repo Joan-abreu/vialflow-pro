@@ -4,7 +4,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import UniversalCheckout from "@/components/checkout/UniversalCheckout";
-import { Loader2, LogIn, AlertTriangle, Package, Sparkles, Truck } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle, Package, Sparkles, Truck, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -910,31 +910,63 @@ const Checkout = () => {
                                     }
                                 }
 
+                                const matchingCartItem = items.find(item => 
+                                    item.variant.product.name.toLowerCase().trim() === giftName.toLowerCase().trim() ||
+                                    giftName.toLowerCase().includes(item.variant.product.name.toLowerCase()) ||
+                                    item.variant.product.name.toLowerCase().includes(giftName.toLowerCase())
+                                );
+                                const hasSameItemInCart = !!matchingCartItem;
+
                                 return (
-                                    <div key={camp.id} className="flex justify-between items-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-12 w-12 bg-background rounded-md border flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
-                                                {giftImage ? (
-                                                    <img 
-                                                        src={giftImage} 
-                                                        alt={giftName} 
-                                                        className="h-full w-full object-cover" 
-                                                    />
-                                                ) : (
-                                                    <Package className="h-5 w-5 text-emerald-500" />
-                                                )}
+                                    <div key={camp.id} className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border-2 border-emerald-500/30 space-y-2.5 shadow-xs">
+                                        <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                                            <span className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-300 tracking-wide uppercase">
+                                                <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                {isPoolChoice ? "Choice Free Gift (Extra Item)" : "Free Bonus Gift (Extra Item)"}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                                Unlocked Promo Perk
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="relative h-12 w-12 bg-background rounded-lg border border-emerald-500/30 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                                                    {giftImage ? (
+                                                        <img 
+                                                            src={giftImage} 
+                                                            alt={giftName} 
+                                                            className="h-full w-full object-cover" 
+                                                        />
+                                                    ) : (
+                                                        <Package className="h-5 w-5 text-emerald-500" />
+                                                    )}
+                                                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-xs">
+                                                        <Gift className="h-2.5 w-2.5" />
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-sm text-foreground truncate">
+                                                        {giftName}
+                                                    </p>
+                                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                                        +{camp.rewardQuantity || 1} Free Extra Unit (Added to your shipment)
+                                                    </p>
+                                                    {hasSameItemInCart && (
+                                                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                            *Included as an extra free unit in addition to the {matchingCartItem.quantity} unit(s) in your cart
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                                                    <Sparkles className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                                    {giftName}
-                                                </p>
-                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                                    {isPoolChoice ? "Choice Free Gift" : "Free Promotional Perk"} • Qty: {camp.rewardQuantity || 1}
-                                                </p>
+
+                                            <div className="text-right flex-shrink-0">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                    100% FREE
+                                                </span>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5">$0.00 Gift</p>
                                             </div>
                                         </div>
-                                        <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">FREE</span>
                                     </div>
                                 );
                             })}
@@ -942,12 +974,7 @@ const Checkout = () => {
                             <div className="border-t pt-4 space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span>Subtotal</span>
-                                    <div className="flex items-center gap-2">
-                                        {displaySubtotal < cartTotal && (
-                                            <span className="line-through text-muted-foreground">${cartTotal.toFixed(2)}</span>
-                                        )}
-                                        <span className="font-medium">${displaySubtotal.toFixed(2)}</span>
-                                    </div>
+                                    <span className="font-medium">${cartTotal.toFixed(2)}</span>
                                 </div>
                                 {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && appliedDiscounts.length === 0 && (
                                     <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">

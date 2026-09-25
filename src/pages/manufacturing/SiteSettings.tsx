@@ -25,7 +25,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing, Flame, ExternalLink, Plus, Edit3, Layers, Tag, GripVertical } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing, Flame, ExternalLink, Plus, Edit3, Layers, Tag, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
 
 import {
     DndContext,
@@ -204,7 +204,7 @@ const SortableCampaignItem = ({
                         </span>
                         <span>•</span>
                         <span>
-                            Scope: <strong>{camp.targetScope === "group" ? `Group: ${camp.targetGroupLabel || `${camp.targetProductIds?.length || 0} Products`}` : camp.targetScope === "category" ? `Category (${camp.targetCategory || "All"})` : camp.targetScope === "product" ? `Product (${camp.targetProductName || "Selected"})` : "Entire Cart"}</strong>
+                            Scope: <strong>{camp.targetScope === "group" ? `Group: ${camp.targetGroupLabel || `${(camp.targetProductIds?.length || 0) + (camp.targetVariantIds?.length || 0)} Items`}` : camp.targetScope === "category" ? `Category (${camp.targetCategory || "All"})` : camp.targetScope === "product" ? `Product (${camp.targetProductName || "Selected"}${camp.targetVariantName ? ` - ${camp.targetVariantName}` : ""})` : "Entire Cart"}</strong>
                         </span>
                         <span>•</span>
                         <span>
@@ -353,9 +353,13 @@ const SiteSettings = () => {
     const [campaignFormTargetCategory, setCampaignFormTargetCategory] = useState<string>("");
     const [campaignFormTargetProductId, setCampaignFormTargetProductId] = useState<string>("");
     const [campaignFormTargetProductName, setCampaignFormTargetProductName] = useState<string>("");
+    const [campaignFormTargetVariantId, setCampaignFormTargetVariantId] = useState<string>("");
+    const [campaignFormTargetVariantName, setCampaignFormTargetVariantName] = useState<string>("");
     const [campaignFormTargetProductIds, setCampaignFormTargetProductIds] = useState<string[]>([]);
+    const [campaignFormTargetVariantIds, setCampaignFormTargetVariantIds] = useState<string[]>([]);
     const [campaignFormTargetGroupLabel, setCampaignFormTargetGroupLabel] = useState<string>("");
     const [productGroupSearch, setProductGroupSearch] = useState<string>("");
+    const [expandedGroupProductIds, setExpandedGroupProductIds] = useState<string[]>([]);
 
     // Requirement Threshold
     const [campaignFormRequirementType, setCampaignFormRequirementType] = useState<"min_spend" | "min_quantity" | "none">("min_spend");
@@ -421,7 +425,13 @@ const SiteSettings = () => {
         queryFn: async () => {
             const { data } = await supabase
                 .from("products")
-                .select("id, name, slug, image_url, category_id, product_categories(name)")
+                .select(`
+                    id, name, slug, image_url, category_id, product_categories(name),
+                    product_variants(
+                        id, price, pack_size, sku, stock_quantity,
+                        vial_type:vial_types(name, capacity_ml)
+                    )
+                `)
                 .eq("is_published", true)
                 .order("name");
             return data || [];
@@ -1464,9 +1474,13 @@ const SiteSettings = () => {
         setCampaignFormTargetCategory("");
         setCampaignFormTargetProductId("");
         setCampaignFormTargetProductName("");
+        setCampaignFormTargetVariantId("");
+        setCampaignFormTargetVariantName("");
         setCampaignFormTargetProductIds([]);
+        setCampaignFormTargetVariantIds([]);
         setCampaignFormTargetGroupLabel("");
         setProductGroupSearch("");
+        setExpandedGroupProductIds([]);
         setCampaignFormRequirementType("min_spend");
         setCampaignFormMinOrderAmount(50);
         setCampaignFormMinQuantity(1);
@@ -1508,9 +1522,13 @@ const SiteSettings = () => {
         setCampaignFormTargetCategory(camp.targetCategory || "");
         setCampaignFormTargetProductId(camp.targetProductId || "");
         setCampaignFormTargetProductName(camp.targetProductName || "");
+        setCampaignFormTargetVariantId(camp.targetVariantId || "");
+        setCampaignFormTargetVariantName(camp.targetVariantName || "");
         setCampaignFormTargetProductIds(camp.targetProductIds || []);
+        setCampaignFormTargetVariantIds(camp.targetVariantIds || []);
         setCampaignFormTargetGroupLabel(camp.targetGroupLabel || "");
         setProductGroupSearch("");
+        setExpandedGroupProductIds([]);
         setCampaignFormRequirementType(camp.requirementType || (camp.minOrderAmount > 0 ? "min_spend" : "none"));
         setCampaignFormMinOrderAmount(camp.minOrderAmount ?? 0);
         setCampaignFormMinQuantity(camp.minQuantity || 1);
@@ -1545,8 +1563,8 @@ const SiteSettings = () => {
             return;
         }
 
-        if (campaignFormScope === "group" && campaignFormTargetProductIds.length === 0) {
-            toast.error("Please select at least one product for the custom product group.");
+        if (campaignFormScope === "group" && campaignFormTargetProductIds.length === 0 && campaignFormTargetVariantIds.length === 0) {
+            toast.error("Please select at least one product or variant for the custom product group.");
             return;
         }
 
@@ -1580,8 +1598,11 @@ const SiteSettings = () => {
             targetCategory: campaignFormScope === "category" ? campaignFormTargetCategory : undefined,
             targetProductId: campaignFormScope === "product" ? campaignFormTargetProductId : undefined,
             targetProductName: campaignFormScope === "product" ? campaignFormTargetProductName : undefined,
-            targetProductIds: campaignFormScope === "group" ? campaignFormTargetProductIds : undefined,
-            targetGroupLabel: campaignFormScope === "group" ? (campaignFormTargetGroupLabel.trim() || `${campaignFormTargetProductIds.length} Selected Products`) : undefined,
+            targetVariantId: campaignFormScope === "product" && campaignFormTargetVariantId ? campaignFormTargetVariantId : undefined,
+            targetVariantName: campaignFormScope === "product" && campaignFormTargetVariantId ? campaignFormTargetVariantName : undefined,
+            targetProductIds: campaignFormScope === "group" && campaignFormTargetProductIds.length > 0 ? campaignFormTargetProductIds : undefined,
+            targetVariantIds: campaignFormScope === "group" && campaignFormTargetVariantIds.length > 0 ? campaignFormTargetVariantIds : undefined,
+            targetGroupLabel: campaignFormScope === "group" ? (campaignFormTargetGroupLabel.trim() || `${campaignFormTargetProductIds.length + campaignFormTargetVariantIds.length} Selected Items`) : undefined,
             requirementType: campaignFormRequirementType,
             minOrderAmount: campaignFormRequirementType === "min_spend" ? (Number(campaignFormMinOrderAmount) || 0) : 0,
             minQuantity: campaignFormRequirementType === "min_quantity" ? (Number(campaignFormMinQuantity) || 1) : 1,
@@ -4126,33 +4147,112 @@ const SiteSettings = () => {
 
                                 {/* Product Selector if product scope */}
                                 {campaignFormScope === "product" && (
-                                    <div className="space-y-1.5 md:col-span-2">
-                                        <Label className="text-xs font-semibold">Select Target Product</Label>
-                                        <Select
-                                            value={campaignFormTargetProductId}
-                                            onValueChange={(val) => {
-                                                setCampaignFormTargetProductId(val);
-                                                const found = catalogProducts?.find((p: any) => p.id === val);
-                                                if (found) {
-                                                    setCampaignFormTargetProductName(found.name);
-                                                }
-                                            }}
-                                        >
-                                            <SelectTrigger className="h-9 text-xs bg-background">
-                                                <SelectValue placeholder="Choose a product from catalog..." />
-                                            </SelectTrigger>
-                                            <SelectContent className="max-h-60">
-                                                {catalogProducts && catalogProducts.length > 0 ? (
-                                                    catalogProducts.map((p: any) => (
-                                                        <SelectItem key={p.id} value={p.id}>
-                                                            {p.name} {p.product_categories?.name ? `(${p.product_categories.name})` : ""}
+                                    <div className="space-y-3 md:col-span-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Select Target Product</Label>
+                                            <Select
+                                                value={campaignFormTargetProductId}
+                                                onValueChange={(val) => {
+                                                    setCampaignFormTargetProductId(val);
+                                                    const found = catalogProducts?.find((p: any) => p.id === val);
+                                                    if (found) {
+                                                        setCampaignFormTargetProductName(found.name);
+                                                    }
+                                                    setCampaignFormTargetVariantId("");
+                                                    setCampaignFormTargetVariantName("");
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-9 text-xs bg-background">
+                                                    <SelectValue placeholder="Choose a product from catalog..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-60">
+                                                    {catalogProducts && catalogProducts.length > 0 ? (
+                                                        catalogProducts.map((p: any) => (
+                                                            <SelectItem key={p.id} value={p.id}>
+                                                                {p.name} {p.product_categories?.name ? `(${p.product_categories.name})` : ""}
+                                                            </SelectItem>
+                                                        ))
+                                                    ) : (
+                                                        <SelectItem value="_empty" disabled>No products found</SelectItem>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Target Specific Variant / Dose Selector */}
+                                        {campaignFormTargetProductId && (
+                                            <div className="space-y-1.5 p-3 rounded-lg border bg-muted/20 border-border/60">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Tag className="h-3.5 w-3.5 text-primary" />
+                                                        <Label className="text-xs font-semibold">Target Specific Dose / Variant (Optional)</Label>
+                                                    </div>
+                                                    {campaignFormTargetVariantId && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer px-1.5"
+                                                            onClick={() => {
+                                                                setCampaignFormTargetVariantId("");
+                                                                setCampaignFormTargetVariantName("");
+                                                            }}
+                                                        >
+                                                            Reset to All Variants
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                <Select
+                                                    value={campaignFormTargetVariantId || "all_variants"}
+                                                    onValueChange={(val) => {
+                                                        if (val === "all_variants") {
+                                                            setCampaignFormTargetVariantId("");
+                                                            setCampaignFormTargetVariantName("");
+                                                        } else {
+                                                            setCampaignFormTargetVariantId(val);
+                                                            const selectedProd = catalogProducts?.find((p: any) => p.id === campaignFormTargetProductId);
+                                                            const v = selectedProd?.product_variants?.find((vr: any) => vr.id === val);
+                                                            const doseName = v?.vial_type?.name || (v?.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v?.sku || "Dose");
+                                                            const packText = v?.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                            setCampaignFormTargetVariantName(`${doseName}${packText}`);
+                                                        }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-9 text-xs bg-background">
+                                                        <SelectValue placeholder="✨ All Variants / Any Dose (Default)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="max-h-60">
+                                                        <SelectItem value="all_variants">
+                                                            ✨ All Variants & Doses (Any purchase of this product qualifies)
                                                         </SelectItem>
-                                                    ))
-                                                ) : (
-                                                    <SelectItem value="_empty" disabled>No products found</SelectItem>
-                                                )}
-                                            </SelectContent>
-                                        </Select>
+                                                        {(() => {
+                                                            const selectedProd = catalogProducts?.find((p: any) => p.id === campaignFormTargetProductId);
+                                                            const variants = selectedProd?.product_variants || [];
+                                                            return variants.map((v: any) => {
+                                                                const doseName = v.vial_type?.name || (v.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v.sku || "Dose");
+                                                                const packText = v.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                                const priceText = v.price != null ? ` — $${Number(v.price).toFixed(2)}` : "";
+                                                                return (
+                                                                    <SelectItem key={v.id} value={v.id}>
+                                                                        {doseName}{packText}{priceText}
+                                                                    </SelectItem>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    {campaignFormTargetVariantId ? (
+                                                        <span className="text-primary font-medium">
+                                                            🎯 Targeting only <strong>{campaignFormTargetVariantName || "selected variant"}</strong>. Other doses will not qualify.
+                                                        </span>
+                                                    ) : (
+                                                        "Leave on 'All Variants' so any dose or pack size of this product counts toward the promotion."
+                                                    )}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -4184,13 +4284,16 @@ const SiteSettings = () => {
                                                     <Sparkles className="h-3 w-3 text-amber-500" />
                                                     Select All GLP Core
                                                 </Button>
-                                                {campaignFormTargetProductIds.length > 0 && (
+                                                {(campaignFormTargetProductIds.length > 0 || campaignFormTargetVariantIds.length > 0) && (
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="ghost"
                                                         className="h-7 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                                                        onClick={() => setCampaignFormTargetProductIds([])}
+                                                        onClick={() => {
+                                                            setCampaignFormTargetProductIds([]);
+                                                            setCampaignFormTargetVariantIds([]);
+                                                        }}
                                                     >
                                                         Clear All
                                                     </Button>
@@ -4210,7 +4313,7 @@ const SiteSettings = () => {
                                             <Input
                                                 value={productGroupSearch}
                                                 onChange={(e) => setProductGroupSearch(e.target.value)}
-                                                placeholder="Search products to include in group..."
+                                                placeholder="Search products or doses to include in group..."
                                                 className="h-8 text-xs bg-background pl-8"
                                             />
                                             <div className="absolute left-2.5 top-2.5 text-muted-foreground">
@@ -4223,25 +4326,26 @@ const SiteSettings = () => {
                                         {/* Selected count and helper */}
                                         <div className="flex items-center justify-between text-[11px]">
                                             <span className="font-semibold text-foreground">
-                                                Selected Products ({campaignFormTargetProductIds.length}):
+                                                Targeted Selection ({campaignFormTargetProductIds.length} Whole Products, {campaignFormTargetVariantIds.length} Specific Doses):
                                             </span>
                                             <span className="text-muted-foreground text-[10px]">
-                                                Check or uncheck items below
+                                                Check whole product or expand doses
                                             </span>
                                         </div>
 
                                         {/* Selected preview chips */}
-                                        {campaignFormTargetProductIds.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-muted/20 rounded border border-border/40">
+                                        {(campaignFormTargetProductIds.length > 0 || campaignFormTargetVariantIds.length > 0) && (
+                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-muted/20 rounded border border-border/40">
+                                                {/* Whole products */}
                                                 {campaignFormTargetProductIds.map((id) => {
                                                     const prod = catalogProducts?.find((p: any) => p.id === id);
                                                     return (
                                                         <Badge
-                                                            key={id}
+                                                            key={`prod-${id}`}
                                                             variant="secondary"
                                                             className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-primary/10 text-primary border border-primary/20"
                                                         >
-                                                            <span className="max-w-[140px] truncate">{prod?.name || id}</span>
+                                                            <span className="max-w-[150px] truncate">{prod?.name || id} (All Doses)</span>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setCampaignFormTargetProductIds(prev => prev.filter(item => item !== id))}
@@ -4252,67 +4356,194 @@ const SiteSettings = () => {
                                                         </Badge>
                                                     );
                                                 })}
+
+                                                {/* Specific variants */}
+                                                {campaignFormTargetVariantIds.map((variantId) => {
+                                                    const parentProd = catalogProducts?.find((p: any) => p.product_variants?.some((v: any) => v.id === variantId));
+                                                    const variantObj = parentProd?.product_variants?.find((v: any) => v.id === variantId);
+                                                    const doseLabel = variantObj?.vial_type?.name || (variantObj?.vial_type?.capacity_ml ? `${variantObj.vial_type.capacity_ml}ml` : variantObj?.sku || "Dose");
+                                                    const packLabel = variantObj?.pack_size && variantObj.pack_size > 1 ? ` (${variantObj.pack_size}x)` : "";
+
+                                                    return (
+                                                        <Badge
+                                                            key={`var-${variantId}`}
+                                                            variant="secondary"
+                                                            className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                                                        >
+                                                            <Tag className="h-2.5 w-2.5 shrink-0" />
+                                                            <span className="max-w-[170px] truncate">{parentProd?.name || "Product"}: {doseLabel}{packLabel}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCampaignFormTargetVariantIds(prev => prev.filter(item => item !== variantId))}
+                                                                className="hover:bg-amber-500/20 rounded p-0.5 cursor-pointer"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </Badge>
+                                                    );
+                                                })}
                                             </div>
                                         )}
 
-                                        {/* Multi-select product list */}
-                                        <div className="max-h-52 overflow-y-auto space-y-1 rounded-md border border-border/60 bg-background/50 p-2 divide-y divide-border/30">
+                                        {/* Multi-select product and variant list */}
+                                        <div className="max-h-60 overflow-y-auto space-y-1.5 rounded-md border border-border/60 bg-background/50 p-2 divide-y divide-border/30">
                                             {(catalogProducts || [])
                                                 .filter((p: any) => {
                                                     if (!productGroupSearch.trim()) return true;
                                                     const query = productGroupSearch.toLowerCase();
-                                                    return p.name.toLowerCase().includes(query) || (p.product_categories?.name || "").toLowerCase().includes(query);
+                                                    const matchProd = p.name.toLowerCase().includes(query) || (p.product_categories?.name || "").toLowerCase().includes(query);
+                                                    const matchVariant = (p.product_variants || []).some((v: any) => 
+                                                        (v.vial_type?.name || "").toLowerCase().includes(query) || 
+                                                        (v.sku || "").toLowerCase().includes(query)
+                                                    );
+                                                    return matchProd || matchVariant;
                                                 })
                                                 .map((product: any) => {
-                                                    const isChecked = campaignFormTargetProductIds.includes(product.id);
+                                                    const isWholeProductChecked = campaignFormTargetProductIds.includes(product.id);
+                                                    const variants = product.product_variants || [];
+                                                    const targetedVariantCount = variants.filter((v: any) => campaignFormTargetVariantIds.includes(v.id)).length;
+                                                    const isExpanded = expandedGroupProductIds.includes(product.id);
+
                                                     return (
-                                                        <div
-                                                            key={product.id}
-                                                            className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors pt-2 ${
-                                                                isChecked ? "bg-primary/5 font-medium" : "hover:bg-muted/40"
-                                                            }`}
-                                                            onClick={() => {
-                                                                setCampaignFormTargetProductIds(prev =>
-                                                                    isChecked ? prev.filter(id => id !== product.id) : [...prev, product.id]
-                                                                );
-                                                            }}
-                                                        >
-                                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                                <Checkbox
-                                                                    checked={isChecked}
-                                                                    onCheckedChange={(checked) => {
-                                                                        setCampaignFormTargetProductIds(prev =>
-                                                                            checked ? [...prev, product.id] : prev.filter(id => id !== product.id)
-                                                                        );
-                                                                    }}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                />
-                                                                {product.image_url ? (
-                                                                    <img
-                                                                        src={product.image_url}
-                                                                        alt={product.name}
-                                                                        className="w-7 h-7 object-cover rounded border border-border/50 shrink-0"
+                                                        <div key={product.id} className="pt-2 first:pt-0">
+                                                            {/* Main Product Line */}
+                                                            <div
+                                                                className={`flex items-center justify-between p-2 rounded transition-colors ${
+                                                                    isWholeProductChecked ? "bg-primary/5 font-medium" : targetedVariantCount > 0 ? "bg-amber-500/5 font-medium" : "hover:bg-muted/40"
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    <Checkbox
+                                                                        checked={isWholeProductChecked}
+                                                                        onCheckedChange={(checked) => {
+                                                                            if (checked) {
+                                                                                // Add whole product, remove individual variant IDs of this product
+                                                                                setCampaignFormTargetProductIds(prev => [...prev.filter(id => id !== product.id), product.id]);
+                                                                                const variantIdsOfProd = variants.map((v: any) => v.id);
+                                                                                setCampaignFormTargetVariantIds(prev => prev.filter(vid => !variantIdsOfProd.includes(vid)));
+                                                                            } else {
+                                                                                setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                            }
+                                                                        }}
+                                                                        onClick={(e) => e.stopPropagation()}
                                                                     />
-                                                                ) : (
-                                                                    <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0 text-[10px] text-muted-foreground">
-                                                                        📦
+                                                                    {product.image_url ? (
+                                                                        <img
+                                                                            src={product.image_url}
+                                                                            alt={product.name}
+                                                                            className="w-7 h-7 object-cover rounded border border-border/50 shrink-0"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0 text-[10px] text-muted-foreground">
+                                                                            📦
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-xs text-foreground truncate">{product.name}</p>
                                                                     </div>
-                                                                )}
-                                                                <div className="min-w-0">
-                                                                    <p className="text-xs text-foreground truncate">{product.name}</p>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                                    {product.product_categories?.name && (
+                                                                        <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground hidden sm:inline-flex">
+                                                                            {product.product_categories.name}
+                                                                        </Badge>
+                                                                    )}
+
+                                                                    {variants.length > 0 && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-6 text-[10px] font-medium gap-1 px-1.5 text-muted-foreground hover:text-foreground cursor-pointer border border-border/40"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setExpandedGroupProductIds(prev => 
+                                                                                    isExpanded ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Tag className="h-2.5 w-2.5 text-primary" />
+                                                                            <span>
+                                                                                {isWholeProductChecked 
+                                                                                    ? "All Doses" 
+                                                                                    : targetedVariantCount > 0 
+                                                                                        ? `${targetedVariantCount} Dose(s)` 
+                                                                                        : `${variants.length} Doses`}
+                                                                            </span>
+                                                                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                            {product.product_categories?.name && (
-                                                                <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground ml-2">
-                                                                    {product.product_categories.name}
-                                                                </Badge>
+
+                                                            {/* Expandable Doses List */}
+                                                            {isExpanded && variants.length > 0 && (
+                                                                <div className="mt-1.5 ml-7 pl-3 border-l-2 border-primary/30 space-y-1 py-1 bg-muted/10 rounded-r-md">
+                                                                    <div className="text-[10px] text-muted-foreground flex items-center justify-between pr-2 pb-0.5">
+                                                                        <span>Pick specific doses:</span>
+                                                                        {isWholeProductChecked && (
+                                                                            <span className="text-primary font-medium text-[9px] bg-primary/10 px-1.5 py-0.2 rounded">
+                                                                                ✓ All doses currently active
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {variants.map((v: any) => {
+                                                                        const doseName = v.vial_type?.name || (v.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v.sku || "Dose");
+                                                                        const packText = v.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                                        const priceText = v.price != null ? ` • $${Number(v.price).toFixed(2)}` : "";
+                                                                        const isVariantChecked = isWholeProductChecked || campaignFormTargetVariantIds.includes(v.id);
+
+                                                                        return (
+                                                                            <div
+                                                                                key={v.id}
+                                                                                className={`flex items-center justify-between p-1.5 rounded text-xs transition-colors cursor-pointer ${
+                                                                                    isVariantChecked ? "bg-primary/10 font-medium" : "hover:bg-muted/40"
+                                                                                }`}
+                                                                                onClick={() => {
+                                                                                    if (isWholeProductChecked) {
+                                                                                        // Switch from whole product to just this variant
+                                                                                        setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                                        setCampaignFormTargetVariantIds(prev => [...prev.filter(id => id !== v.id), v.id]);
+                                                                                    } else {
+                                                                                        setCampaignFormTargetVariantIds(prev => 
+                                                                                            prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id]
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                                    <Checkbox
+                                                                                        checked={isVariantChecked}
+                                                                                        onCheckedChange={(checked) => {
+                                                                                            if (isWholeProductChecked) {
+                                                                                                setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                                                setCampaignFormTargetVariantIds(prev => [...prev.filter(id => id !== v.id), v.id]);
+                                                                                            } else {
+                                                                                                setCampaignFormTargetVariantIds(prev => 
+                                                                                                    checked ? [...prev, v.id] : prev.filter(id => id !== v.id)
+                                                                                                );
+                                                                                            }
+                                                                                        }}
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                    />
+                                                                                    <span className="truncate">{doseName}{packText}</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground shrink-0">
+                                                                                    {v.sku && <span className="font-mono text-[10px] opacity-75">{v.sku}</span>}
+                                                                                    <span className="font-semibold text-foreground">{priceText}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             )}
                                                         </div>
                                                     );
                                                 })}
                                         </div>
                                         <p className="text-[10px] text-muted-foreground">
-                                            Any product purchased from this custom group will count toward qualifying the campaign threshold.
+                                            Any product or specific dose selected from this group will count toward qualifying the promotion.
                                         </p>
                                     </div>
                                 )}

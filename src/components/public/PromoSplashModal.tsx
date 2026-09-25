@@ -231,7 +231,13 @@ export default function PromoSplashModal({
 
                                 {activeCampaign.targetScope === "product" && (
                                     <Badge variant="outline" className="text-[10px] font-medium text-sky-300 border-sky-400/30 bg-sky-500/10 shrink-0 max-w-[200px] truncate">
-                                        {activeCampaign.targetProductName || "Specific Product"}
+                                        {activeCampaign.targetProductName || "Specific Product"}{activeCampaign.targetVariantName ? ` (${activeCampaign.targetVariantName})` : ""}
+                                    </Badge>
+                                )}
+
+                                {activeCampaign.targetScope === "group" && (
+                                    <Badge variant="outline" className="text-[10px] font-medium text-sky-300 border-sky-400/30 bg-sky-500/10 shrink-0 max-w-[200px] truncate">
+                                        {activeCampaign.targetGroupLabel || "Selected Group"}
                                     </Badge>
                                 )}
                             </div>
@@ -363,7 +369,11 @@ export default function PromoSplashModal({
                                 size="lg"
                                 className="w-full h-11 sm:h-12 text-xs sm:text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all gap-2 cursor-pointer"
                             >
-                                <span className="truncate">{activeCampaign.ctaText || "Claim Offer & Shop Now"}</span>
+                                <span className="truncate">
+                                    {onClaim 
+                                        ? (activeCampaign.couponCode ? `Apply ${effectiveCouponCode} & Checkout` : "Proceed to Checkout")
+                                        : (activeCampaign.ctaText || "Claim Offer & Shop Now")}
+                                </span>
                                 <ArrowRight className="h-4 w-4 shrink-0" />
                             </Button>
 

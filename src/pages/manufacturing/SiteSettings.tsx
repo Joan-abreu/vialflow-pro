@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,40 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing } from "lucide-react";
+import { Loader2, Settings, Truck, Clock, Save, ShieldCheck, CreditCard, CheckSquare, Square, RefreshCw, Zap, AlertCircle, UploadCloud, X, Trash2, Image as ImageIcon, Eye, EyeOff, Copy, Check, Gift, Sparkles, BarChart3, ShoppingCart, MailCheck, MousePointerClick, Timer, BellRing, Flame, ExternalLink, Plus, Edit3, Layers, Tag, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
+
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { DEFAULT_SHIPPING_CONFIG, PaymentMethodKey } from "@/config/shippingConfig";
 import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider } from "@/config/paymentGateways";
 import { DEFAULT_PEPTIDE_UPSELL_SETTINGS } from "@/config/upsellConfig";
+import { DEFAULT_PROMO_SPLASH_SETTINGS, DEFAULT_PROMO_CAMPAIGN, PromoSplashSettings, PromoCampaign } from "@/config/promoSplashConfig";
+import PromoSplashModal from "@/components/public/PromoSplashModal";
 import { DEFAULT_ANALYTICS_SETTINGS } from "@/config/analyticsSettingsConfig";
 import { ANALYTICS_SETTINGS_QUERY_KEY } from "@/hooks/useAnalyticsSettings";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,6 +75,207 @@ const AVAILABLE_PAYMENT_METHODS: { id: PaymentMethodKey; label: string; sublabel
     { id: "venmo", label: "Venmo", sublabel: "Direct P2P", color: "text-sky-500 font-bold" },
     { id: "crypto", label: "Bitcoin / Crypto", sublabel: "BTC, ETH, USDT", color: "text-amber-600 dark:text-amber-400 font-bold" },
 ];
+
+interface SortableCampaignItemProps {
+    camp: PromoCampaign;
+    idx: number;
+    total: number;
+    toggleCampaign: (id: string) => void;
+    openEditCampaignDialog: (camp: PromoCampaign) => void;
+    duplicateCampaign: (camp: PromoCampaign) => void;
+    deleteCampaign: (id: string) => void;
+    onPreview: (camp: PromoCampaign) => void;
+}
+
+const SortableCampaignItem = ({
+    camp,
+    idx,
+    total,
+    toggleCampaign,
+    openEditCampaignDialog,
+    duplicateCampaign,
+    deleteCampaign,
+    onPreview,
+}: SortableCampaignItemProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: camp.id });
+
+    const style: React.CSSProperties = {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                isDragging
+                    ? "opacity-60 bg-accent/40 border-primary shadow-lg scale-[1.01]"
+                    : camp.enabled
+                        ? "bg-card border-amber-500/30 shadow-xs hover:border-amber-500/50"
+                        : "bg-muted/20 border-border/50 opacity-60"
+            }`}
+        >
+            <div className="flex items-start gap-3 min-w-0">
+                {/* Drag Handle */}
+                <button
+                    type="button"
+                    {...attributes}
+                    {...listeners}
+                    className="pt-1 text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted/60 transition-colors"
+                    title="Drag to reorder priority"
+                    aria-label="Drag to reorder priority"
+                >
+                    <GripVertical className="h-4 w-4" />
+                </button>
+
+                <div className="pt-0.5">
+                    <Switch
+                        checked={camp.enabled}
+                        onCheckedChange={() => toggleCampaign(camp.id)}
+                        title={camp.enabled ? "Disable promotion" : "Enable promotion"}
+                    />
+                </div>
+
+                <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-sm text-foreground truncate max-w-sm">
+                            {camp.name}
+                        </h4>
+                        <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-[10px] uppercase border-none px-2 py-0.5 shadow-2xs">
+                            {camp.badgeText}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] font-bold font-mono px-1.5 py-0.5 bg-background/50 text-muted-foreground border-border/70">
+                            #{idx + 1}
+                        </Badge>
+                        {camp.syncTopBanner && (
+                            <Badge variant="outline" className="text-[10px] font-semibold text-emerald-600 border-emerald-500/30 bg-emerald-500/5">
+                                Top Bar
+                            </Badge>
+                        )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground font-medium truncate max-w-xl">
+                        {camp.headline}
+                    </p>
+
+                    <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+                        <span className="flex items-center gap-1 font-semibold text-foreground">
+                            {camp.offerMode === "coupon_code" ? (
+                                <>
+                                    <Tag className="h-3 w-3 text-primary" />
+                                    <span>Code: <strong className="font-mono text-primary">{camp.couponCode || "WELCOME10"}</strong></span>
+                                </>
+                            ) : camp.offerMode === "group_discount" ? (
+                                <>
+                                    <Sparkles className="h-3 w-3 text-amber-500" />
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                        Discount: {camp.rewardDiscountValue || 20}% OFF ({camp.rewardDiscountGroupLabel || `${camp.rewardDiscountProductIds?.length || 0} Complementary Products`})
+                                    </span>
+                                </>
+                            ) : camp.offerMode === "free_shipping" ? (
+                                <>
+                                    <Truck className="h-3 w-3 text-sky-500" />
+                                    <span className="text-sky-600 dark:text-sky-400">Free Shipping</span>
+                                </>
+                            ) : camp.rewardSelectionMode === "pool_choice" ? (
+                                <>
+                                    <Gift className="h-3 w-3 text-emerald-500" />
+                                    <span className="text-emerald-600 dark:text-emerald-400">
+                                        Gift Choice: {camp.rewardPoolLabel || `${camp.rewardPoolProductIds?.length || 0} Items Pool`}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <Gift className="h-3 w-3 text-emerald-500" />
+                                    <span className="text-emerald-600 dark:text-emerald-400">
+                                        Gift: {camp.rewardProductName || "Free Gift"} ({camp.rewardQuantity || 1}x)
+                                    </span>
+                                </>
+                            )}
+                        </span>
+                        <span>•</span>
+                        <span>
+                            Scope: <strong>{camp.targetScope === "group" ? `Group: ${camp.targetGroupLabel || `${(camp.targetProductIds?.length || 0) + (camp.targetVariantIds?.length || 0)} Items`}` : camp.targetScope === "category" ? `Category (${camp.targetCategory || "All"})` : camp.targetScope === "product" ? `Product (${camp.targetProductName || "Selected"}${camp.targetVariantName ? ` - ${camp.targetVariantName}` : ""})` : "Entire Cart"}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                            Condition: <strong>
+                                {camp.requirementType === "min_quantity" 
+                                    ? `Buy ${camp.minQuantity || 1}+ units` 
+                                    : camp.requirementType === "min_spend" 
+                                        ? `$${camp.minOrderAmount || 0}+ spend` 
+                                        : "Any order"}
+                            </strong>
+                        </span>
+                        <span>•</span>
+                        <span className={camp.allowStacking !== false ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-amber-600 font-medium"}>
+                            {camp.allowStacking !== false ? "Stackable" : "Exclusive"}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onPreview(camp)}
+                    className="h-8 text-xs font-semibold gap-1 cursor-pointer"
+                    title="Test Preview"
+                >
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Preview</span>
+                </Button>
+
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEditCampaignDialog(camp)}
+                    className="h-8 text-xs font-semibold gap-1 cursor-pointer"
+                    title="Edit Campaign"
+                >
+                    <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Edit</span>
+                </Button>
+
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => duplicateCampaign(camp)}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Duplicate Campaign"
+                >
+                    <Copy className="h-3.5 w-3.5" />
+                </Button>
+
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteCampaign(camp.id)}
+                    disabled={total <= 1}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive cursor-pointer disabled:opacity-30"
+                    title="Delete Campaign"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+            </div>
+        </div>
+    );
+};
 
 const SiteSettings = () => {
     const queryClient = useQueryClient();
@@ -101,6 +330,127 @@ const SiteSettings = () => {
     const [peptideUpsellCtaText, setPeptideUpsellCtaText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.ctaButtonText);
     const [peptideUpsellDeclineText, setPeptideUpsellDeclineText] = useState(DEFAULT_PEPTIDE_UPSELL_SETTINGS.declineButtonText);
 
+    // Multi-Promotion Campaigns Hub Settings
+    const [promoCampaigns, setPromoCampaigns] = useState<PromoCampaign[]>([DEFAULT_PROMO_CAMPAIGN]);
+    const [promoSplashFrequency, setPromoSplashFrequency] = useState<"once_per_session" | "once_per_day" | "every_visit">(DEFAULT_PROMO_SPLASH_SETTINGS.frequency);
+    const [savingPromoSplash, setSavingPromoSplash] = useState<boolean>(false);
+    const [previewingCampaign, setPreviewingCampaign] = useState<PromoCampaign | null>(null);
+    const [showPromoSplashPreview, setShowPromoSplashPreview] = useState<boolean>(false);
+
+    // Create / Edit Campaign Dialog State
+    const [campaignDialogOpen, setCampaignDialogOpen] = useState<boolean>(false);
+    const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+    const [campaignFormName, setCampaignFormName] = useState<string>("");
+    const [campaignFormEnabled, setCampaignFormEnabled] = useState<boolean>(true);
+    const [campaignFormPlacement, setCampaignFormPlacement] = useState<"entry" | "checkout" | "both">("both");
+    const [campaignFormPriority, setCampaignFormPriority] = useState<number>(10);
+    const [campaignFormBadgeText, setCampaignFormBadgeText] = useState<string>("🔥 WEEKLY SPECIAL");
+    const [campaignFormHeadline, setCampaignFormHeadline] = useState<string>("");
+    const [campaignFormDescription, setCampaignFormDescription] = useState<string>("");
+    
+    // Scope Targeting
+    const [campaignFormScope, setCampaignFormScope] = useState<"all" | "category" | "product" | "group">("all");
+    const [campaignFormTargetCategory, setCampaignFormTargetCategory] = useState<string>("");
+    const [campaignFormTargetProductId, setCampaignFormTargetProductId] = useState<string>("");
+    const [campaignFormTargetProductName, setCampaignFormTargetProductName] = useState<string>("");
+    const [campaignFormTargetVariantId, setCampaignFormTargetVariantId] = useState<string>("");
+    const [campaignFormTargetVariantName, setCampaignFormTargetVariantName] = useState<string>("");
+    const [campaignFormTargetProductIds, setCampaignFormTargetProductIds] = useState<string[]>([]);
+    const [campaignFormTargetVariantIds, setCampaignFormTargetVariantIds] = useState<string[]>([]);
+    const [campaignFormTargetGroupLabel, setCampaignFormTargetGroupLabel] = useState<string>("");
+    const [productGroupSearch, setProductGroupSearch] = useState<string>("");
+    const [expandedGroupProductIds, setExpandedGroupProductIds] = useState<string[]>([]);
+
+    // Requirement Threshold
+    const [campaignFormRequirementType, setCampaignFormRequirementType] = useState<"min_spend" | "min_quantity" | "none">("min_spend");
+    const [campaignFormMinOrderAmount, setCampaignFormMinOrderAmount] = useState<number>(50);
+    const [campaignFormMinQuantity, setCampaignFormMinQuantity] = useState<number>(1);
+
+    // Reward Definition
+    const [campaignFormOfferMode, setCampaignFormOfferMode] = useState<"gift_with_purchase" | "free_shipping" | "coupon_code" | "group_discount">("gift_with_purchase");
+    const [campaignFormRewardProductId, setCampaignFormRewardProductId] = useState<string>("");
+    const [campaignFormRewardProductName, setCampaignFormRewardProductName] = useState<string>("");
+    const [campaignFormRewardProductImage, setCampaignFormRewardProductImage] = useState<string>("");
+    const [campaignFormRewardQuantity, setCampaignFormRewardQuantity] = useState<number>(1);
+    const [campaignFormRewardSelectionMode, setCampaignFormRewardSelectionMode] = useState<"single" | "pool_choice">("single");
+    const [campaignFormRewardPoolProductIds, setCampaignFormRewardPoolProductIds] = useState<string[]>([]);
+    const [campaignFormRewardPoolLabel, setCampaignFormRewardPoolLabel] = useState<string>("");
+    const [rewardPoolSearch, setRewardPoolSearch] = useState<string>("");
+
+    // Group Discount Reward States
+    const [campaignFormRewardDiscountType, setCampaignFormRewardDiscountType] = useState<"percentage" | "fixed_amount">("percentage");
+    const [campaignFormRewardDiscountValue, setCampaignFormRewardDiscountValue] = useState<number>(20);
+    const [campaignFormRewardDiscountProductIds, setCampaignFormRewardDiscountProductIds] = useState<string[]>([]);
+    const [campaignFormRewardDiscountGroupLabel, setCampaignFormRewardDiscountGroupLabel] = useState<string>("");
+    const [rewardDiscountSearch, setRewardDiscountSearch] = useState<string>("");
+
+    const [campaignFormShippingCarrierScope, setCampaignFormShippingCarrierScope] = useState<"all_standard" | "ground_only" | "usps" | "ups" | "fedex">("all_standard");
+    const [campaignFormCouponCode, setCampaignFormCouponCode] = useState<string>("");
+
+    // Stacking & Conflict
+    const [campaignFormAllowStacking, setCampaignFormAllowStacking] = useState<boolean>(true);
+
+    const [campaignFormCtaText, setCampaignFormCtaText] = useState<string>("Claim Offer & Shop Now");
+    const [campaignFormCtaUrl, setCampaignFormCtaUrl] = useState<string>("/products");
+    const [campaignFormDismissText, setCampaignFormDismissText] = useState<string>("No thanks, continue shopping");
+    const [campaignFormSyncTopBanner, setCampaignFormSyncTopBanner] = useState<boolean>(true);
+
+    // Fetch existing coupons from database for coupon code campaign selector
+    const { data: availableCoupons, isLoading: loadingCoupons } = useQuery({
+        queryKey: ["admin_available_coupons"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("coupons" as any)
+                .select("id, code, type, value, is_active, target, expires_at")
+                .order("created_at", { ascending: false });
+            if (error) {
+                console.error("Error fetching coupons for campaign selector:", error);
+                return [];
+            }
+            return (data as Array<{ id: string; code: string; type: string; value: number; is_active: boolean; target: string; expires_at: string | null }>) || [];
+        },
+    });
+
+    // Auto-select a valid coupon when reward type is set to coupon_code and code is currently blank
+    useEffect(() => {
+        if (campaignDialogOpen && campaignFormOfferMode === "coupon_code" && !campaignFormCouponCode.trim()) {
+            const defaultCode = availableCoupons?.find(c => c.is_active)?.code || availableCoupons?.[0]?.code || "WELCOME10";
+            setCampaignFormCouponCode(defaultCode.toUpperCase());
+        }
+    }, [campaignDialogOpen, campaignFormOfferMode, campaignFormCouponCode, availableCoupons]);
+
+    // Fetch published catalog products for targeting & free gift picker
+    const { data: catalogProducts } = useQuery({
+        queryKey: ["admin_catalog_products_for_promos"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("products")
+                .select(`
+                    id, name, slug, image_url, category_id, product_categories(name),
+                    product_variants(
+                        id, price, pack_size, sku, stock_quantity,
+                        vial_type:vial_types(name, capacity_ml)
+                    )
+                `)
+                .eq("is_published", true)
+                .order("name");
+            return data || [];
+        },
+    });
+
+    // Fetch product categories for category targeting selector
+    const { data: catalogCategories } = useQuery({
+        queryKey: ["admin_catalog_categories_for_promos"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("product_categories" as any)
+                .select("id, name")
+                .eq("active", true)
+                .order("name");
+            return data || [];
+        },
+    });
+
     // Inventory & Restock System Settings
     const [enableStrictStockEnforcement, setEnableStrictStockEnforcement] = useState(true);
     const [enableRestockNotifications, setEnableRestockNotifications] = useState(true);
@@ -113,8 +463,6 @@ const SiteSettings = () => {
     const [cutoffMinute, setCutoffMinute] = useState<number>(DEFAULT_SHIPPING_CONFIG.cutoffMinute);
     const [timeZone, setTimeZone] = useState<string>(DEFAULT_SHIPPING_CONFIG.timeZone);
     const [cutoffDisplayLabel, setCutoffDisplayLabel] = useState<string>(DEFAULT_SHIPPING_CONFIG.cutoffDisplayLabel);
-    const [freeShippingEnabled, setFreeShippingEnabled] = useState<boolean>(DEFAULT_SHIPPING_CONFIG.freeShippingEnabled);
-    const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(DEFAULT_SHIPPING_CONFIG.freeShippingThreshold);
     const [deliveryMinDays, setDeliveryMinDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.min);
     const [deliveryMaxDays, setDeliveryMaxDays] = useState<number>(DEFAULT_SHIPPING_CONFIG.estimatedDeliveryDays.max);
     const [shipsSaturday, setShipsSaturday] = useState<boolean>(DEFAULT_SHIPPING_CONFIG.shipsOnSaturday);
@@ -291,8 +639,6 @@ const SiteSettings = () => {
                     "shipping_cutoff_minute",
                     "shipping_timezone",
                     "shipping_cutoff_label",
-                    "shipping_free_enabled",
-                    "shipping_free_threshold",
                     "shipping_delivery_min_days",
                     "shipping_delivery_max_days",
                     "shipping_ships_saturday",
@@ -325,6 +671,20 @@ const SiteSettings = () => {
                     "peptide_upsell_badge_text",
                     "peptide_upsell_cta_text",
                     "peptide_upsell_decline_text",
+                    "promo_campaigns",
+                    "promo_splash_enabled",
+                    "promo_splash_trigger_placement",
+                    "promo_splash_frequency",
+                    "promo_splash_badge_text",
+                    "promo_splash_headline",
+                    "promo_splash_description",
+                    "promo_splash_min_order_amount",
+                    "promo_splash_offer_mode",
+                    "promo_splash_coupon_code",
+                    "promo_splash_cta_text",
+                    "promo_splash_cta_url",
+                    "promo_splash_dismiss_text",
+                    "promo_splash_sync_top_banner",
                     "abandoned_cart_tracking_enabled",
                     "abandoned_cart_threshold_minutes",
                     "guest_cart_tracking_enabled",
@@ -424,6 +784,63 @@ const SiteSettings = () => {
                 if (pUpsellCta) setPeptideUpsellCtaText(pUpsellCta.value);
                 if (pUpsellDecline) setPeptideUpsellDeclineText(pUpsellDecline.value);
 
+                const promoCampaignsRow = data.find((s: any) => s.key === "promo_campaigns");
+                const promoFreq = data.find((s: any) => s.key === "promo_splash_frequency");
+                if (promoFreq) setPromoSplashFrequency(promoFreq.value as any);
+
+                let loadedCampaigns: PromoCampaign[] | null = null;
+                if (promoCampaignsRow?.value) {
+                    try {
+                        const parsed = JSON.parse(promoCampaignsRow.value);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            loadedCampaigns = parsed.map((c: PromoCampaign) => {
+                                if (c.offerMode === "coupon_code" && !c.couponCode) {
+                                    return { ...c, couponCode: "WELCOME10" };
+                                }
+                                return c;
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse promo_campaigns:", e);
+                    }
+                }
+
+                if (!loadedCampaigns || loadedCampaigns.length === 0) {
+                    const promoEnabled = data.find((s: any) => s.key === "promo_splash_enabled");
+                    const promoPlacement = data.find((s: any) => s.key === "promo_splash_trigger_placement");
+                    const promoBadge = data.find((s: any) => s.key === "promo_splash_badge_text");
+                    const promoHead = data.find((s: any) => s.key === "promo_splash_headline");
+                    const promoDesc = data.find((s: any) => s.key === "promo_splash_description");
+                    const promoMin = data.find((s: any) => s.key === "promo_splash_min_order_amount");
+                    const promoMode = data.find((s: any) => s.key === "promo_splash_offer_mode");
+                    const promoCode = data.find((s: any) => s.key === "promo_splash_coupon_code");
+                    const promoCta = data.find((s: any) => s.key === "promo_splash_cta_text");
+                    const promoUrl = data.find((s: any) => s.key === "promo_splash_cta_url");
+                    const promoDismiss = data.find((s: any) => s.key === "promo_splash_dismiss_text");
+                    const promoSync = data.find((s: any) => s.key === "promo_splash_sync_top_banner");
+
+                    const migrated: PromoCampaign = {
+                        id: "migrated-default-campaign",
+                        name: "Primary Promotion",
+                        enabled: promoEnabled ? promoEnabled.value === "true" : true,
+                        triggerPlacement: (promoPlacement?.value as any) || "both",
+                        priority: 10,
+                        badgeText: promoBadge?.value || DEFAULT_PROMO_CAMPAIGN.badgeText,
+                        headline: promoHead?.value || DEFAULT_PROMO_CAMPAIGN.headline,
+                        description: promoDesc?.value || DEFAULT_PROMO_CAMPAIGN.description,
+                        minOrderAmount: promoMin ? (Number(promoMin.value) || 0) : DEFAULT_PROMO_CAMPAIGN.minOrderAmount,
+                        offerMode: (promoMode?.value as any) || DEFAULT_PROMO_CAMPAIGN.offerMode,
+                        couponCode: promoCode?.value || "",
+                        ctaText: promoCta?.value || DEFAULT_PROMO_CAMPAIGN.ctaText,
+                        ctaUrl: promoUrl?.value || DEFAULT_PROMO_CAMPAIGN.ctaUrl,
+                        dismissText: promoDismiss?.value || DEFAULT_PROMO_CAMPAIGN.dismissText,
+                        syncTopBanner: promoSync ? promoSync.value === "true" : true,
+                    };
+                    loadedCampaigns = [migrated];
+                }
+
+                setPromoCampaigns(loadedCampaigns);
+
                 const strictStock = data.find((s: any) => s.key === "enable_strict_stock_enforcement");
                 const restockNotify = data.find((s: any) => s.key === "enable_restock_notifications");
                 const leadTime = data.find((s: any) => s.key === "restock_lead_time_days");
@@ -442,8 +859,6 @@ const SiteSettings = () => {
                 const min = data.find((s: any) => s.key === "shipping_cutoff_minute");
                 const tz = data.find((s: any) => s.key === "shipping_timezone");
                 const label = data.find((s: any) => s.key === "shipping_cutoff_label");
-                const freeEnabled = data.find((s: any) => s.key === "shipping_free_enabled");
-                const threshold = data.find((s: any) => s.key === "shipping_free_threshold");
                 const minDays = data.find((s: any) => s.key === "shipping_delivery_min_days");
                 const maxDays = data.find((s: any) => s.key === "shipping_delivery_max_days");
                 const sat = data.find((s: any) => s.key === "shipping_ships_saturday");
@@ -470,8 +885,6 @@ const SiteSettings = () => {
                 if (min) setCutoffMinute(Number(min.value));
                 if (tz) setTimeZone(tz.value);
                 if (label) setCutoffDisplayLabel(label.value);
-                if (freeEnabled) setFreeShippingEnabled(freeEnabled.value === "true");
-                if (threshold) setFreeShippingThreshold(Number(threshold.value));
                 if (minDays) setDeliveryMinDays(Number(minDays.value));
                 if (maxDays) setDeliveryMaxDays(Number(maxDays.value));
                 if (sat) setShipsSaturday(sat.value === "true");
@@ -821,8 +1234,6 @@ const SiteSettings = () => {
                 { key: "shipping_cutoff_minute", value: String(cutoffMinute), updated_at: now },
                 { key: "shipping_timezone", value: timeZone, updated_at: now },
                 { key: "shipping_cutoff_label", value: cutoffDisplayLabel, updated_at: now },
-                { key: "shipping_free_enabled", value: String(freeShippingEnabled), updated_at: now },
-                { key: "shipping_free_threshold", value: String(freeShippingThreshold), updated_at: now },
                 { key: "shipping_delivery_min_days", value: String(deliveryMinDays), updated_at: now },
                 { key: "shipping_delivery_max_days", value: String(deliveryMaxDays), updated_at: now },
                 { key: "shipping_ships_saturday", value: String(shipsSaturday), updated_at: now },
@@ -943,6 +1354,288 @@ const SiteSettings = () => {
         } finally {
             setSavingPeptideUpsell(false);
         }
+    };
+
+    const handleSaveCampaigns = async (campaignsToSave: PromoCampaign[], freqToSave?: string) => {
+        setSavingPromoSplash(true);
+        const now = new Date().toISOString();
+        const activeFreq = freqToSave || promoSplashFrequency;
+
+        try {
+            const primary = campaignsToSave.find(c => c.enabled) || campaignsToSave[0] || DEFAULT_PROMO_CAMPAIGN;
+
+            const updates = [
+                { key: "promo_campaigns", value: JSON.stringify(campaignsToSave), updated_at: now },
+                { key: "promo_splash_frequency", value: activeFreq, updated_at: now },
+                // Sync legacy single keys for backward compatibility
+                { key: "promo_splash_enabled", value: String(campaignsToSave.some(c => c.enabled)), updated_at: now },
+                { key: "promo_splash_trigger_placement", value: primary.triggerPlacement, updated_at: now },
+                { key: "promo_splash_badge_text", value: primary.badgeText, updated_at: now },
+                { key: "promo_splash_headline", value: primary.headline, updated_at: now },
+                { key: "promo_splash_description", value: primary.description, updated_at: now },
+                { key: "promo_splash_min_order_amount", value: String(primary.minOrderAmount), updated_at: now },
+                { key: "promo_splash_offer_mode", value: primary.offerMode, updated_at: now },
+                { key: "promo_splash_coupon_code", value: (primary.couponCode || "").trim().toUpperCase(), updated_at: now },
+                { key: "promo_splash_cta_text", value: primary.ctaText, updated_at: now },
+                { key: "promo_splash_cta_url", value: primary.ctaUrl, updated_at: now },
+                { key: "promo_splash_dismiss_text", value: primary.dismissText, updated_at: now },
+                { key: "promo_splash_sync_top_banner", value: String(primary.syncTopBanner), updated_at: now },
+            ];
+
+            for (const item of updates) {
+                const { error } = await supabase
+                    .from("app_settings" as any)
+                    .upsert(item);
+                if (error) throw error;
+            }
+
+            setPromoCampaigns(campaignsToSave);
+            queryClient.invalidateQueries({ queryKey: ['promo-splash-settings'] });
+            toast.success("Promotional Campaigns saved successfully!");
+        } catch (error: any) {
+            console.error("Error saving promotional campaigns:", error);
+            toast.error("Failed to save promotional campaigns");
+        } finally {
+            setSavingPromoSplash(false);
+        }
+    };
+
+    const toggleCampaign = (id: string) => {
+        const updated = promoCampaigns.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c);
+        handleSaveCampaigns(updated);
+    };
+
+    const deleteCampaign = (id: string) => {
+        if (promoCampaigns.length <= 1) {
+            toast.error("You must keep at least one campaign configured.");
+            return;
+        }
+        const updated = promoCampaigns.filter(c => c.id !== id);
+        handleSaveCampaigns(updated);
+        toast.info("Campaign removed.");
+    };
+
+    const duplicateCampaign = (camp: PromoCampaign) => {
+        const copy: PromoCampaign = {
+            ...camp,
+            id: `camp-${Date.now()}`,
+            name: `${camp.name} (Copy)`,
+            enabled: false,
+        };
+        const updated = [...promoCampaigns, copy];
+        handleSaveCampaigns(updated);
+        toast.success(`Duplicated campaign "${copy.name}". Disabled by default.`);
+    };
+
+    // Drag and Drop Priority Reordering Sensors & Handler
+    const dndSensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = promoCampaigns.findIndex((c) => c.id === active.id);
+        const newIndex = promoCampaigns.findIndex((c) => c.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+            const reordered = arrayMove(promoCampaigns, oldIndex, newIndex);
+            
+            // Recompute descending priority so top item has highest priority
+            const updatedWithPriorities = reordered.map((camp, idx) => ({
+                ...camp,
+                priority: Math.max(1, (reordered.length - idx) * 10),
+            }));
+
+            setPromoCampaigns(updatedWithPriorities);
+            handleSaveCampaigns(updatedWithPriorities);
+            toast.success("Campaign priority updated!");
+        }
+    };
+
+    const openCreateCampaignDialog = () => {
+        setEditingCampaignId(null);
+        setCampaignFormName(`Promotion ${promoCampaigns.length + 1}`);
+        setCampaignFormEnabled(true);
+        setCampaignFormPlacement("both");
+        setCampaignFormPriority(10);
+        setCampaignFormBadgeText("🔥 WEEKLY SPECIAL");
+        setCampaignFormHeadline("");
+        setCampaignFormDescription("");
+        setCampaignFormScope("all");
+        setCampaignFormTargetCategory("");
+        setCampaignFormTargetProductId("");
+        setCampaignFormTargetProductName("");
+        setCampaignFormTargetVariantId("");
+        setCampaignFormTargetVariantName("");
+        setCampaignFormTargetProductIds([]);
+        setCampaignFormTargetVariantIds([]);
+        setCampaignFormTargetGroupLabel("");
+        setProductGroupSearch("");
+        setExpandedGroupProductIds([]);
+        setCampaignFormRequirementType("min_spend");
+        setCampaignFormMinOrderAmount(50);
+        setCampaignFormMinQuantity(1);
+        setCampaignFormOfferMode("gift_with_purchase");
+        setCampaignFormRewardProductId("");
+        setCampaignFormRewardProductName("");
+        setCampaignFormRewardProductImage("");
+        setCampaignFormRewardQuantity(1);
+        setCampaignFormRewardSelectionMode("single");
+        setCampaignFormRewardPoolProductIds([]);
+        setCampaignFormRewardPoolLabel("");
+        setRewardPoolSearch("");
+        setCampaignFormRewardDiscountType("percentage");
+        setCampaignFormRewardDiscountValue(20);
+        setCampaignFormRewardDiscountProductIds([]);
+        setCampaignFormRewardDiscountGroupLabel("");
+        setRewardDiscountSearch("");
+        setCampaignFormShippingCarrierScope("all_standard");
+        const defaultCoupon = availableCoupons?.find(c => c.is_active)?.code || availableCoupons?.[0]?.code || "WELCOME10";
+        setCampaignFormCouponCode(defaultCoupon.toUpperCase());
+        setCampaignFormAllowStacking(true);
+        setCampaignFormCtaText("Claim Offer & Shop Now");
+        setCampaignFormCtaUrl("/products");
+        setCampaignFormDismissText("No thanks, continue shopping");
+        setCampaignFormSyncTopBanner(true);
+        setCampaignDialogOpen(true);
+    };
+
+    const openEditCampaignDialog = (camp: PromoCampaign) => {
+        setEditingCampaignId(camp.id);
+        setCampaignFormName(camp.name);
+        setCampaignFormEnabled(camp.enabled);
+        setCampaignFormPlacement(camp.triggerPlacement);
+        setCampaignFormPriority(camp.priority || 10);
+        setCampaignFormBadgeText(camp.badgeText);
+        setCampaignFormHeadline(camp.headline);
+        setCampaignFormDescription(camp.description);
+        setCampaignFormScope(camp.targetScope || "all");
+        setCampaignFormTargetCategory(camp.targetCategory || "");
+        setCampaignFormTargetProductId(camp.targetProductId || "");
+        setCampaignFormTargetProductName(camp.targetProductName || "");
+        setCampaignFormTargetVariantId(camp.targetVariantId || "");
+        setCampaignFormTargetVariantName(camp.targetVariantName || "");
+        setCampaignFormTargetProductIds(camp.targetProductIds || []);
+        setCampaignFormTargetVariantIds(camp.targetVariantIds || []);
+        setCampaignFormTargetGroupLabel(camp.targetGroupLabel || "");
+        setProductGroupSearch("");
+        setExpandedGroupProductIds([]);
+        setCampaignFormRequirementType(camp.requirementType || (camp.minOrderAmount > 0 ? "min_spend" : "none"));
+        setCampaignFormMinOrderAmount(camp.minOrderAmount ?? 0);
+        setCampaignFormMinQuantity(camp.minQuantity || 1);
+        setCampaignFormOfferMode(camp.offerMode || "gift_with_purchase");
+        setCampaignFormRewardProductId(camp.rewardProductId || "");
+        setCampaignFormRewardProductName(camp.rewardProductName || "");
+        setCampaignFormRewardProductImage(camp.rewardProductImage || "");
+        setCampaignFormRewardQuantity(camp.rewardQuantity || 1);
+        setCampaignFormRewardSelectionMode(camp.rewardSelectionMode || "single");
+        setCampaignFormRewardPoolProductIds(camp.rewardPoolProductIds || []);
+        setCampaignFormRewardPoolLabel(camp.rewardPoolLabel || "");
+        setRewardPoolSearch("");
+        setCampaignFormRewardDiscountType(camp.rewardDiscountType || "percentage");
+        setCampaignFormRewardDiscountValue(camp.rewardDiscountValue ?? 20);
+        setCampaignFormRewardDiscountProductIds(camp.rewardDiscountProductIds || []);
+        setCampaignFormRewardDiscountGroupLabel(camp.rewardDiscountGroupLabel || "");
+        setRewardDiscountSearch("");
+        setCampaignFormShippingCarrierScope(camp.shippingCarrierScope || "all_standard");
+        const defaultCoupon = availableCoupons?.find(c => c.is_active)?.code || availableCoupons?.[0]?.code || "WELCOME10";
+        setCampaignFormCouponCode(camp.couponCode || (camp.offerMode === "coupon_code" ? defaultCoupon.toUpperCase() : ""));
+        setCampaignFormAllowStacking(camp.allowStacking !== false);
+        setCampaignFormCtaText(camp.ctaText);
+        setCampaignFormCtaUrl(camp.ctaUrl);
+        setCampaignFormDismissText(camp.dismissText);
+        setCampaignFormSyncTopBanner(camp.syncTopBanner);
+        setCampaignDialogOpen(true);
+    };
+
+    const saveCampaignFromForm = () => {
+        if (!campaignFormHeadline.trim()) {
+            toast.error("Please enter a campaign headline.");
+            return;
+        }
+
+        if (campaignFormScope === "group" && campaignFormTargetProductIds.length === 0 && campaignFormTargetVariantIds.length === 0) {
+            toast.error("Please select at least one product or variant for the custom product group.");
+            return;
+        }
+
+        if (campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "pool_choice" && campaignFormRewardPoolProductIds.length === 0) {
+            toast.error("Please select at least one gift product for the gift pool.");
+            return;
+        }
+
+        if (campaignFormOfferMode === "group_discount" && campaignFormRewardDiscountProductIds.length === 0) {
+            toast.error("Please select at least one complementary product eligible for the discount.");
+            return;
+        }
+
+        if (campaignFormOfferMode === "coupon_code" && !campaignFormCouponCode.trim()) {
+            toast.error("Please enter or select a valid coupon code for this promotion.");
+            return;
+        }
+
+        const fallbackCoupon = availableCoupons?.find(c => c.is_active)?.code || availableCoupons?.[0]?.code || "WELCOME10";
+
+        const campaignData: PromoCampaign = {
+            id: editingCampaignId || `camp-${Date.now()}`,
+            name: campaignFormName.trim() || "Promotional Campaign",
+            enabled: campaignFormEnabled,
+            triggerPlacement: campaignFormPlacement,
+            priority: Number(campaignFormPriority) || 10,
+            badgeText: campaignFormBadgeText.trim() || "🔥 SPECIAL",
+            headline: campaignFormHeadline.trim(),
+            description: campaignFormDescription.trim(),
+            targetScope: campaignFormScope,
+            targetCategory: campaignFormScope === "category" ? campaignFormTargetCategory : undefined,
+            targetProductId: campaignFormScope === "product" ? campaignFormTargetProductId : undefined,
+            targetProductName: campaignFormScope === "product" ? campaignFormTargetProductName : undefined,
+            targetVariantId: campaignFormScope === "product" && campaignFormTargetVariantId ? campaignFormTargetVariantId : undefined,
+            targetVariantName: campaignFormScope === "product" && campaignFormTargetVariantId ? campaignFormTargetVariantName : undefined,
+            targetProductIds: campaignFormScope === "group" && campaignFormTargetProductIds.length > 0 ? campaignFormTargetProductIds : undefined,
+            targetVariantIds: campaignFormScope === "group" && campaignFormTargetVariantIds.length > 0 ? campaignFormTargetVariantIds : undefined,
+            targetGroupLabel: campaignFormScope === "group" ? (campaignFormTargetGroupLabel.trim() || `${campaignFormTargetProductIds.length + campaignFormTargetVariantIds.length} Selected Items`) : undefined,
+            requirementType: campaignFormRequirementType,
+            minOrderAmount: campaignFormRequirementType === "min_spend" ? (Number(campaignFormMinOrderAmount) || 0) : 0,
+            minQuantity: campaignFormRequirementType === "min_quantity" ? (Number(campaignFormMinQuantity) || 1) : 1,
+            offerMode: campaignFormOfferMode,
+            rewardProductId: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductId : undefined,
+            rewardProductName: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductName : undefined,
+            rewardProductImage: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductImage : undefined,
+            rewardQuantity: campaignFormOfferMode === "gift_with_purchase" ? (Number(campaignFormRewardQuantity) || 1) : undefined,
+            rewardSelectionMode: campaignFormOfferMode === "gift_with_purchase" ? campaignFormRewardSelectionMode : undefined,
+            rewardPoolProductIds: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "pool_choice" ? campaignFormRewardPoolProductIds : undefined,
+            rewardPoolLabel: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "pool_choice" ? (campaignFormRewardPoolLabel.trim() || `${campaignFormRewardPoolProductIds.length} Complementary Gifts Pool`) : undefined,
+            rewardDiscountType: campaignFormOfferMode === "group_discount" ? campaignFormRewardDiscountType : undefined,
+            rewardDiscountValue: campaignFormOfferMode === "group_discount" ? (Number(campaignFormRewardDiscountValue) || 20) : undefined,
+            rewardDiscountProductIds: campaignFormOfferMode === "group_discount" ? campaignFormRewardDiscountProductIds : undefined,
+            rewardDiscountGroupLabel: campaignFormOfferMode === "group_discount" ? (campaignFormRewardDiscountGroupLabel.trim() || `${campaignFormRewardDiscountProductIds.length} Complementary Peptides`) : undefined,
+            shippingCarrierScope: campaignFormOfferMode === "free_shipping" ? campaignFormShippingCarrierScope : undefined,
+            couponCode: campaignFormOfferMode === "coupon_code" ? (campaignFormCouponCode.trim().toUpperCase() || fallbackCoupon.toUpperCase()) : "",
+            allowStacking: campaignFormAllowStacking,
+            ctaText: campaignFormCtaText.trim() || "Shop Now",
+            ctaUrl: campaignFormCtaUrl.trim() || "/products",
+            dismissText: campaignFormDismissText.trim() || "Continue shopping",
+            syncTopBanner: campaignFormSyncTopBanner,
+        };
+
+        let updated: PromoCampaign[];
+        if (editingCampaignId) {
+            updated = promoCampaigns.map(c => c.id === editingCampaignId ? campaignData : c);
+        } else {
+            updated = [...promoCampaigns, campaignData];
+        }
+
+        setCampaignDialogOpen(false);
+        handleSaveCampaigns(updated);
     };
 
     const handleSaveAnalyticsSettings = async () => {
@@ -2320,51 +3013,29 @@ const SiteSettings = () => {
                                 </p>
                             </div>
 
-                            {/* Free Shipping Threshold Configuration */}
-                            <div className="space-y-3 rounded-lg border p-4 bg-muted/20 md:col-span-2">
-                                <div className="flex items-center justify-between">
+                            {/* Free Shipping Campaign Informational Banner */}
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary shrink-0">
+                                        <Truck className="h-5 w-5" />
+                                    </div>
                                     <div className="space-y-0.5">
-                                        <Label htmlFor="freeShippingEnabled" className="font-semibold text-sm cursor-pointer">
-                                            Enable Free Shipping Threshold
-                                        </Label>
+                                        <h4 className="font-semibold text-sm text-foreground">Free Shipping Threshold is Managed in Promotions</h4>
                                         <p className="text-xs text-muted-foreground">
-                                            When enabled, qualifying orders receive free standard ground shipping. Express and Overnight services remain full price.
+                                            Free standard shipping thresholds, order minimums, product/category targeting, and banners are now unified under the <strong>Campaigns & Promotions Hub</strong>.
                                         </p>
                                     </div>
-                                    <Switch
-                                        id="freeShippingEnabled"
-                                        checked={freeShippingEnabled}
-                                        onCheckedChange={setFreeShippingEnabled}
-                                    />
                                 </div>
-
-                                {freeShippingEnabled && (
-                                    <div className="pt-3 border-t space-y-2 animate-in fade-in duration-200">
-                                        <Label htmlFor="freeShippingThreshold" className="font-semibold text-xs">
-                                            Free Shipping Order Threshold ($ USD)
-                                        </Label>
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="relative w-40">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">$</span>
-                                                <Input
-                                                    id="freeShippingThreshold"
-                                                    type="number"
-                                                    min="0"
-                                                    className="pl-7 h-9 font-semibold"
-                                                    value={freeShippingThreshold}
-                                                    onChange={(e) => setFreeShippingThreshold(Number(e.target.value))}
-                                                    placeholder="100"
-                                                />
-                                            </div>
-                                            <span className="text-xs text-muted-foreground">
-                                                Displayed as: <em>"Free standard shipping on orders over ${freeShippingThreshold}"</em>
-                                            </span>
-                                        </div>
-                                        <p className="text-[11px] text-muted-foreground/80 italic">
-                                            * Note: In checkout, $0.00 is strictly applied to the most affordable standard ground rate (e.g. USPS Ground Advantage / UPS Ground). Expedited options (Overnight, Priority Mail Express) continue to charge full carrier rates.
-                                        </p>
-                                    </div>
-                                )}
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setActiveTab("promos")} 
+                                    className="shrink-0 text-xs font-semibold cursor-pointer gap-1.5"
+                                >
+                                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                    Manage in Promotions
+                                </Button>
                             </div>
 
                             {/* Estimated Delivery Window */}
@@ -2850,6 +3521,132 @@ const SiteSettings = () => {
                     </CardContent>
                 </Card>
 
+                {/* 6B. Promotional Campaigns & Multi-Offer Hub */}
+                <Card className="border-amber-500/40 dark:border-amber-500/30 shadow-md">
+                    <CardHeader className="space-y-3 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-transparent border-b border-border/50 pb-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                    <Flame className="h-5 w-5" />
+                                    <CardTitle className="text-xl">Promotional Campaigns Hub</CardTitle>
+                                    <Badge variant="outline" className="text-[10px] text-amber-600 bg-amber-500/10 font-bold ml-1">
+                                        Multi-Offer Engine
+                                    </Badge>
+                                </div>
+                                <CardDescription>
+                                    Create and manage rotating promotions, tiered gifts, and discounts. Customers view active deals seamlessly in a single unified window with zero spam.
+                                </CardDescription>
+                            </div>
+                            
+                            <div className="flex items-center gap-2.5">
+                                <Button
+                                    type="button"
+                                    onClick={openCreateCampaignDialog}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs gap-1.5 shadow-sm h-9 cursor-pointer"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    New Promotion
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Top Global Frequency Bar */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs border-t border-border/40">
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold text-muted-foreground">Visitor Display Frequency:</span>
+                                <Select
+                                    value={promoSplashFrequency}
+                                    onValueChange={(val: any) => {
+                                        setPromoSplashFrequency(val);
+                                        handleSaveCampaigns(promoCampaigns, val);
+                                    }}
+                                >
+                                    <SelectTrigger className="h-8 text-xs w-[190px] bg-background">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="once_per_session">Once Per Session [Recommended]</SelectItem>
+                                        <SelectItem value="once_per_day">Once Per Day</SelectItem>
+                                        <SelectItem value="every_visit">Every Visit (Testing Mode)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                                <span>Total: <strong>{promoCampaigns.length}</strong> campaigns</span>
+                                <span>•</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    {promoCampaigns.filter(c => c.enabled).length} Active
+                                </span>
+                            </div>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-5 pt-5">
+                        {/* Drag & Drop Reorder Helper */}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1 pb-1">
+                            <span className="flex items-center gap-1.5 font-medium">
+                                <GripVertical className="h-3.5 w-3.5 text-primary" />
+                                <span>Drag cards by the handle to change priority (top campaign has highest priority)</span>
+                            </span>
+                            <span className="text-[11px] font-mono text-muted-foreground">
+                                Auto-saves on drop
+                            </span>
+                        </div>
+
+                        {/* Campaigns Table / List with DndContext */}
+                        <DndContext
+                            sensors={dndSensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={promoCampaigns.map(c => c.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                <div className="space-y-3">
+                                    {promoCampaigns.map((camp, idx) => (
+                                        <SortableCampaignItem
+                                            key={camp.id}
+                                            camp={camp}
+                                            idx={idx}
+                                            total={promoCampaigns.length}
+                                            toggleCampaign={toggleCampaign}
+                                            openEditCampaignDialog={openEditCampaignDialog}
+                                            duplicateCampaign={duplicateCampaign}
+                                            deleteCampaign={deleteCampaign}
+                                            onPreview={(targetCamp) => {
+                                                setPreviewingCampaign(targetCamp);
+                                                setShowPromoSplashPreview(true);
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
+
+                        {/* Customer Preview Launcher Bar */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/50">
+                            <div className="text-xs text-muted-foreground">
+                                Test how customers see active promotions grouped together in the unified Promo Hub.
+                            </div>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setPreviewingCampaign(null);
+                                    setShowPromoSplashPreview(true);
+                                }}
+                                className="text-xs font-semibold gap-1.5 w-full sm:w-auto cursor-pointer"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Test Customer Promo Hub ({promoCampaigns.filter(c => c.enabled).length} Active)
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* 7. E-Commerce Analytics, Funnel Tracking & Cart Recovery Engine */}
                 <Card className="border-2 border-primary/20 shadow-md">
                     <CardHeader className="space-y-1 bg-muted/10">
@@ -3226,6 +4023,1377 @@ const SiteSettings = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Create / Edit Campaign Modal Dialog */}
+            <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                            <Flame className="h-5 w-5 text-amber-500" />
+                            {editingCampaignId ? "Edit Promotional Campaign" : "Create New Promotional Campaign"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Configure promotional rules, threshold gifts, or coupon discounts. Active campaigns are presented seamlessly to customers in the unified Promo Hub.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {/* 1. Basic Information */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="camp-name" className="text-xs font-semibold">
+                                    Campaign Internal Name <span className="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    id="camp-name"
+                                    value={campaignFormName}
+                                    onChange={(e) => setCampaignFormName(e.target.value)}
+                                    placeholder="e.g. Free Retatrutide 10mg on Orders $50+"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/10">
+                                <div className="space-y-0.5">
+                                    <Label className="text-xs font-semibold">Campaign Status</Label>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {campaignFormEnabled ? "Active and visible" : "Disabled / Inactive"}
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={campaignFormEnabled}
+                                    onCheckedChange={setCampaignFormEnabled}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 2. Targeting & Scope */}
+                        <div className="p-3.5 rounded-lg border bg-muted/5 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                <Layers className="h-3.5 w-3.5 text-primary" />
+                                Targeting & Placement
+                            </h4>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Storefront Placement</Label>
+                                    <Select
+                                        value={campaignFormPlacement}
+                                        onValueChange={(val: any) => setCampaignFormPlacement(val)}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="both">Both (Site Entry & Cart/Checkout)</SelectItem>
+                                            <SelectItem value="entry">Site Entry Only (On Visitor Arrival)</SelectItem>
+                                            <SelectItem value="checkout">Cart & Pre-Checkout Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Applies To (Target Scope)</Label>
+                                    <Select
+                                        value={campaignFormScope}
+                                        onValueChange={(val: any) => {
+                                            setCampaignFormScope(val);
+                                            if (val === "all") {
+                                                setCampaignFormTargetCategory("");
+                                                setCampaignFormTargetProductId("");
+                                                setCampaignFormTargetProductName("");
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Entire Cart (All Products)</SelectItem>
+                                            <SelectItem value="category">Specific Category</SelectItem>
+                                            <SelectItem value="product">Specific Product</SelectItem>
+                                            <SelectItem value="group">Custom Product Group (Multi-Select GLPs / Products)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Category Selector if category scope */}
+                                {campaignFormScope === "category" && (
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label className="text-xs font-semibold">Select Target Category</Label>
+                                        <Select
+                                            value={campaignFormTargetCategory}
+                                            onValueChange={setCampaignFormTargetCategory}
+                                        >
+                                            <SelectTrigger className="h-9 text-xs bg-background">
+                                                <SelectValue placeholder="Choose a product category..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {catalogCategories && catalogCategories.length > 0 ? (
+                                                    catalogCategories.map((c: any) => (
+                                                        <SelectItem key={c.id || c.name} value={c.name}>
+                                                            {c.name}
+                                                        </SelectItem>
+                                                    ))
+                                                ) : (
+                                                    <SelectItem value="_empty" disabled>No categories found</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            Only purchases containing products in this category count toward the threshold.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Product Selector if product scope */}
+                                {campaignFormScope === "product" && (
+                                    <div className="space-y-3 md:col-span-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Select Target Product</Label>
+                                            <Select
+                                                value={campaignFormTargetProductId}
+                                                onValueChange={(val) => {
+                                                    setCampaignFormTargetProductId(val);
+                                                    const found = catalogProducts?.find((p: any) => p.id === val);
+                                                    if (found) {
+                                                        setCampaignFormTargetProductName(found.name);
+                                                    }
+                                                    setCampaignFormTargetVariantId("");
+                                                    setCampaignFormTargetVariantName("");
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-9 text-xs bg-background">
+                                                    <SelectValue placeholder="Choose a product from catalog..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-60">
+                                                    {catalogProducts && catalogProducts.length > 0 ? (
+                                                        catalogProducts.map((p: any) => (
+                                                            <SelectItem key={p.id} value={p.id}>
+                                                                {p.name} {p.product_categories?.name ? `(${p.product_categories.name})` : ""}
+                                                            </SelectItem>
+                                                        ))
+                                                    ) : (
+                                                        <SelectItem value="_empty" disabled>No products found</SelectItem>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Target Specific Variant / Dose Selector */}
+                                        {campaignFormTargetProductId && (
+                                            <div className="space-y-1.5 p-3 rounded-lg border bg-muted/20 border-border/60">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Tag className="h-3.5 w-3.5 text-primary" />
+                                                        <Label className="text-xs font-semibold">Target Specific Dose / Variant (Optional)</Label>
+                                                    </div>
+                                                    {campaignFormTargetVariantId && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer px-1.5"
+                                                            onClick={() => {
+                                                                setCampaignFormTargetVariantId("");
+                                                                setCampaignFormTargetVariantName("");
+                                                            }}
+                                                        >
+                                                            Reset to All Variants
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                <Select
+                                                    value={campaignFormTargetVariantId || "all_variants"}
+                                                    onValueChange={(val) => {
+                                                        if (val === "all_variants") {
+                                                            setCampaignFormTargetVariantId("");
+                                                            setCampaignFormTargetVariantName("");
+                                                        } else {
+                                                            setCampaignFormTargetVariantId(val);
+                                                            const selectedProd = catalogProducts?.find((p: any) => p.id === campaignFormTargetProductId);
+                                                            const v = selectedProd?.product_variants?.find((vr: any) => vr.id === val);
+                                                            const doseName = v?.vial_type?.name || (v?.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v?.sku || "Dose");
+                                                            const packText = v?.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                            setCampaignFormTargetVariantName(`${doseName}${packText}`);
+                                                        }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-9 text-xs bg-background">
+                                                        <SelectValue placeholder="✨ All Variants / Any Dose (Default)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="max-h-60">
+                                                        <SelectItem value="all_variants">
+                                                            ✨ All Variants & Doses (Any purchase of this product qualifies)
+                                                        </SelectItem>
+                                                        {(() => {
+                                                            const selectedProd = catalogProducts?.find((p: any) => p.id === campaignFormTargetProductId);
+                                                            const variants = selectedProd?.product_variants || [];
+                                                            return variants.map((v: any) => {
+                                                                const doseName = v.vial_type?.name || (v.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v.sku || "Dose");
+                                                                const packText = v.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                                const priceText = v.price != null ? ` — $${Number(v.price).toFixed(2)}` : "";
+                                                                return (
+                                                                    <SelectItem key={v.id} value={v.id}>
+                                                                        {doseName}{packText}{priceText}
+                                                                    </SelectItem>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    {campaignFormTargetVariantId ? (
+                                                        <span className="text-primary font-medium">
+                                                            🎯 Targeting only <strong>{campaignFormTargetVariantName || "selected variant"}</strong>. Other doses will not qualify.
+                                                        </span>
+                                                    ) : (
+                                                        "Leave on 'All Variants' so any dose or pack size of this product counts toward the promotion."
+                                                    )}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Custom Product Group Multi-Select Scope */}
+                                {campaignFormScope === "group" && (
+                                    <div className="space-y-3 md:col-span-2 p-3 rounded-lg border bg-background/60">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                            <div>
+                                                <Label className="text-xs font-semibold">Custom Product Group Name</Label>
+                                                <p className="text-[10px] text-muted-foreground">Give this target collection a recognizable name</p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-7 text-[11px] font-medium gap-1 cursor-pointer"
+                                                    onClick={() => {
+                                                        const glpIds = (catalogProducts || [])
+                                                            .filter((p: any) => /glp/i.test(p.name))
+                                                            .map((p: any) => p.id);
+                                                        setCampaignFormTargetProductIds(glpIds);
+                                                        if (!campaignFormTargetGroupLabel) {
+                                                            setCampaignFormTargetGroupLabel("Core GLP Peptides (GLP-1 / GLP-2 / GLP-3)");
+                                                        }
+                                                        toast.success(`Selected ${glpIds.length} GLP core products!`);
+                                                    }}
+                                                >
+                                                    <Sparkles className="h-3 w-3 text-amber-500" />
+                                                    Select All GLP Core
+                                                </Button>
+                                                {(campaignFormTargetProductIds.length > 0 || campaignFormTargetVariantIds.length > 0) && (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                                                        onClick={() => {
+                                                            setCampaignFormTargetProductIds([]);
+                                                            setCampaignFormTargetVariantIds([]);
+                                                        }}
+                                                    >
+                                                        Clear All
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <Input
+                                            value={campaignFormTargetGroupLabel}
+                                            onChange={(e) => setCampaignFormTargetGroupLabel(e.target.value)}
+                                            placeholder="e.g. Core GLP Peptides (GLP1, GLP2, GLP3)"
+                                            className="h-9 text-xs bg-background"
+                                        />
+
+                                        {/* Filter search */}
+                                        <div className="relative pt-1">
+                                            <Input
+                                                value={productGroupSearch}
+                                                onChange={(e) => setProductGroupSearch(e.target.value)}
+                                                placeholder="Search products or doses to include in group..."
+                                                className="h-8 text-xs bg-background pl-8"
+                                            />
+                                            <div className="absolute left-2.5 top-2.5 text-muted-foreground">
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+
+                                        {/* Selected count and helper */}
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <span className="font-semibold text-foreground">
+                                                Targeted Selection ({campaignFormTargetProductIds.length} Whole Products, {campaignFormTargetVariantIds.length} Specific Doses):
+                                            </span>
+                                            <span className="text-muted-foreground text-[10px]">
+                                                Check whole product or expand doses
+                                            </span>
+                                        </div>
+
+                                        {/* Selected preview chips */}
+                                        {(campaignFormTargetProductIds.length > 0 || campaignFormTargetVariantIds.length > 0) && (
+                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-muted/20 rounded border border-border/40">
+                                                {/* Whole products */}
+                                                {campaignFormTargetProductIds.map((id) => {
+                                                    const prod = catalogProducts?.find((p: any) => p.id === id);
+                                                    return (
+                                                        <Badge
+                                                            key={`prod-${id}`}
+                                                            variant="secondary"
+                                                            className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-primary/10 text-primary border border-primary/20"
+                                                        >
+                                                            <span className="max-w-[150px] truncate">{prod?.name || id} (All Doses)</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCampaignFormTargetProductIds(prev => prev.filter(item => item !== id))}
+                                                                className="hover:bg-primary/20 rounded p-0.5 cursor-pointer"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </Badge>
+                                                    );
+                                                })}
+
+                                                {/* Specific variants */}
+                                                {campaignFormTargetVariantIds.map((variantId) => {
+                                                    const parentProd = catalogProducts?.find((p: any) => p.product_variants?.some((v: any) => v.id === variantId));
+                                                    const variantObj = parentProd?.product_variants?.find((v: any) => v.id === variantId);
+                                                    const doseLabel = variantObj?.vial_type?.name || (variantObj?.vial_type?.capacity_ml ? `${variantObj.vial_type.capacity_ml}ml` : variantObj?.sku || "Dose");
+                                                    const packLabel = variantObj?.pack_size && variantObj.pack_size > 1 ? ` (${variantObj.pack_size}x)` : "";
+
+                                                    return (
+                                                        <Badge
+                                                            key={`var-${variantId}`}
+                                                            variant="secondary"
+                                                            className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                                                        >
+                                                            <Tag className="h-2.5 w-2.5 shrink-0" />
+                                                            <span className="max-w-[170px] truncate">{parentProd?.name || "Product"}: {doseLabel}{packLabel}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCampaignFormTargetVariantIds(prev => prev.filter(item => item !== variantId))}
+                                                                className="hover:bg-amber-500/20 rounded p-0.5 cursor-pointer"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </Badge>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Multi-select product and variant list */}
+                                        <div className="max-h-60 overflow-y-auto space-y-1.5 rounded-md border border-border/60 bg-background/50 p-2 divide-y divide-border/30">
+                                            {(catalogProducts || [])
+                                                .filter((p: any) => {
+                                                    if (!productGroupSearch.trim()) return true;
+                                                    const query = productGroupSearch.toLowerCase();
+                                                    const matchProd = p.name.toLowerCase().includes(query) || (p.product_categories?.name || "").toLowerCase().includes(query);
+                                                    const matchVariant = (p.product_variants || []).some((v: any) => 
+                                                        (v.vial_type?.name || "").toLowerCase().includes(query) || 
+                                                        (v.sku || "").toLowerCase().includes(query)
+                                                    );
+                                                    return matchProd || matchVariant;
+                                                })
+                                                .map((product: any) => {
+                                                    const isWholeProductChecked = campaignFormTargetProductIds.includes(product.id);
+                                                    const variants = product.product_variants || [];
+                                                    const targetedVariantCount = variants.filter((v: any) => campaignFormTargetVariantIds.includes(v.id)).length;
+                                                    const isExpanded = expandedGroupProductIds.includes(product.id);
+
+                                                    return (
+                                                        <div key={product.id} className="pt-2 first:pt-0">
+                                                            {/* Main Product Line */}
+                                                            <div
+                                                                className={`flex items-center justify-between p-2 rounded transition-colors ${
+                                                                    isWholeProductChecked ? "bg-primary/5 font-medium" : targetedVariantCount > 0 ? "bg-amber-500/5 font-medium" : "hover:bg-muted/40"
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    <Checkbox
+                                                                        checked={isWholeProductChecked}
+                                                                        onCheckedChange={(checked) => {
+                                                                            if (checked) {
+                                                                                // Add whole product, remove individual variant IDs of this product
+                                                                                setCampaignFormTargetProductIds(prev => [...prev.filter(id => id !== product.id), product.id]);
+                                                                                const variantIdsOfProd = variants.map((v: any) => v.id);
+                                                                                setCampaignFormTargetVariantIds(prev => prev.filter(vid => !variantIdsOfProd.includes(vid)));
+                                                                            } else {
+                                                                                setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                            }
+                                                                        }}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    />
+                                                                    {product.image_url ? (
+                                                                        <img
+                                                                            src={product.image_url}
+                                                                            alt={product.name}
+                                                                            className="w-7 h-7 object-cover rounded border border-border/50 shrink-0"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0 text-[10px] text-muted-foreground">
+                                                                            📦
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-xs text-foreground truncate">{product.name}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                                    {product.product_categories?.name && (
+                                                                        <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground hidden sm:inline-flex">
+                                                                            {product.product_categories.name}
+                                                                        </Badge>
+                                                                    )}
+
+                                                                    {variants.length > 0 && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-6 text-[10px] font-medium gap-1 px-1.5 text-muted-foreground hover:text-foreground cursor-pointer border border-border/40"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setExpandedGroupProductIds(prev => 
+                                                                                    isExpanded ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Tag className="h-2.5 w-2.5 text-primary" />
+                                                                            <span>
+                                                                                {isWholeProductChecked 
+                                                                                    ? "All Doses" 
+                                                                                    : targetedVariantCount > 0 
+                                                                                        ? `${targetedVariantCount} Dose(s)` 
+                                                                                        : `${variants.length} Doses`}
+                                                                            </span>
+                                                                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Expandable Doses List */}
+                                                            {isExpanded && variants.length > 0 && (
+                                                                <div className="mt-1.5 ml-7 pl-3 border-l-2 border-primary/30 space-y-1 py-1 bg-muted/10 rounded-r-md">
+                                                                    <div className="text-[10px] text-muted-foreground flex items-center justify-between pr-2 pb-0.5">
+                                                                        <span>Pick specific doses:</span>
+                                                                        {isWholeProductChecked && (
+                                                                            <span className="text-primary font-medium text-[9px] bg-primary/10 px-1.5 py-0.2 rounded">
+                                                                                ✓ All doses currently active
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {variants.map((v: any) => {
+                                                                        const doseName = v.vial_type?.name || (v.vial_type?.capacity_ml ? `${v.vial_type.capacity_ml}ml` : v.sku || "Dose");
+                                                                        const packText = v.pack_size && v.pack_size > 1 ? ` (${v.pack_size}x Pack)` : " (Single)";
+                                                                        const priceText = v.price != null ? ` • $${Number(v.price).toFixed(2)}` : "";
+                                                                        const isVariantChecked = isWholeProductChecked || campaignFormTargetVariantIds.includes(v.id);
+
+                                                                        return (
+                                                                            <div
+                                                                                key={v.id}
+                                                                                className={`flex items-center justify-between p-1.5 rounded text-xs transition-colors cursor-pointer ${
+                                                                                    isVariantChecked ? "bg-primary/10 font-medium" : "hover:bg-muted/40"
+                                                                                }`}
+                                                                                onClick={() => {
+                                                                                    if (isWholeProductChecked) {
+                                                                                        // Switch from whole product to just this variant
+                                                                                        setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                                        setCampaignFormTargetVariantIds(prev => [...prev.filter(id => id !== v.id), v.id]);
+                                                                                    } else {
+                                                                                        setCampaignFormTargetVariantIds(prev => 
+                                                                                            prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id]
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                                    <Checkbox
+                                                                                        checked={isVariantChecked}
+                                                                                        onCheckedChange={(checked) => {
+                                                                                            if (isWholeProductChecked) {
+                                                                                                setCampaignFormTargetProductIds(prev => prev.filter(id => id !== product.id));
+                                                                                                setCampaignFormTargetVariantIds(prev => [...prev.filter(id => id !== v.id), v.id]);
+                                                                                            } else {
+                                                                                                setCampaignFormTargetVariantIds(prev => 
+                                                                                                    checked ? [...prev, v.id] : prev.filter(id => id !== v.id)
+                                                                                                );
+                                                                                            }
+                                                                                        }}
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                    />
+                                                                                    <span className="truncate">{doseName}{packText}</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground shrink-0">
+                                                                                    {v.sku && <span className="font-mono text-[10px] opacity-75">{v.sku}</span>}
+                                                                                    <span className="font-semibold text-foreground">{priceText}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            Any product or specific dose selected from this group will count toward qualifying the promotion.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 3. Requirement Threshold */}
+                        <div className="p-3.5 rounded-lg border bg-muted/5 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                Requirement & Qualifying Threshold
+                            </h4>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Requirement Type</Label>
+                                    <Select
+                                        value={campaignFormRequirementType}
+                                        onValueChange={(val: any) => setCampaignFormRequirementType(val)}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="min_spend">Minimum Spend ($ USD)</SelectItem>
+                                            <SelectItem value="min_quantity">Minimum Quantity (Units)</SelectItem>
+                                            <SelectItem value="none">No Minimum (Any Qualifying Purchase)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {campaignFormRequirementType === "min_spend" && (
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold">Minimum Spend Amount ($ USD)</Label>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-muted-foreground">$</span>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                step="5"
+                                                value={campaignFormMinOrderAmount}
+                                                onChange={(e) => setCampaignFormMinOrderAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                                                placeholder="50"
+                                                className="h-9 text-xs bg-background"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {campaignFormRequirementType === "min_quantity" && (
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold">Minimum Item Count (Units)</Label>
+                                        <div className="flex items-center gap-1.5">
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={campaignFormMinQuantity}
+                                                onChange={(e) => setCampaignFormMinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                                placeholder="2"
+                                                className="h-9 text-xs bg-background"
+                                            />
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">units</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {campaignFormRequirementType === "none" && (
+                                    <div className="flex items-center text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-3">
+                                        Qualifies automatically with any purchase in target scope!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 4. Reward Definition */}
+                        <div className="p-3.5 rounded-lg border bg-muted/5 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                <Gift className="h-3.5 w-3.5 text-emerald-500" />
+                                Reward & Incentive
+                            </h4>
+
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Offer / Reward Type</Label>
+                                    <Select
+                                        value={campaignFormOfferMode}
+                                        onValueChange={(val: any) => {
+                                            setCampaignFormOfferMode(val);
+                                            if (val === "coupon_code" && !campaignFormCouponCode.trim()) {
+                                                const defaultCode = availableCoupons?.find(c => c.is_active)?.code || availableCoupons?.[0]?.code || "WELCOME10";
+                                                setCampaignFormCouponCode(defaultCode.toUpperCase());
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs bg-background">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="gift_with_purchase">🎁 Free Gift with Purchase (Single or Choice Pool)</SelectItem>
+                                            <SelectItem value="group_discount">🏷️ Complementary Group Discount (e.g. 20% OFF)</SelectItem>
+                                            <SelectItem value="free_shipping">🚚 Free Shipping Perk</SelectItem>
+                                            <SelectItem value="coupon_code">🏷️ Coupon Code / Discount</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Reward 1: Free Gift with Purchase */}
+                                {campaignFormOfferMode === "gift_with_purchase" && (
+                                    <div className="p-3 rounded-lg border bg-background/50 space-y-3">
+                                        {/* Gift Allocation Strategy (Single vs Choice Pool) */}
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Gift Allocation Strategy</Label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={campaignFormRewardSelectionMode === "single" ? "default" : "outline"}
+                                                    className="text-xs h-8 justify-start gap-1.5 cursor-pointer"
+                                                    onClick={() => setCampaignFormRewardSelectionMode("single")}
+                                                >
+                                                    📦 Single Fixed Gift
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={campaignFormRewardSelectionMode === "pool_choice" ? "default" : "outline"}
+                                                    className="text-xs h-8 justify-start gap-1.5 cursor-pointer"
+                                                    onClick={() => setCampaignFormRewardSelectionMode("pool_choice")}
+                                                >
+                                                    🎯 Gift Choice Pool (Multi-Select Pool)
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Single Fixed Gift Mode */}
+                                        {campaignFormRewardSelectionMode === "single" && (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div className="space-y-1.5 md:col-span-2">
+                                                    <Label className="text-xs font-semibold">Select Gift Product from Catalog</Label>
+                                                    <Select
+                                                        value={campaignFormRewardProductId}
+                                                        onValueChange={(val) => {
+                                                            setCampaignFormRewardProductId(val);
+                                                            const prod = catalogProducts?.find((p: any) => p.id === val);
+                                                            if (prod) {
+                                                                setCampaignFormRewardProductName(prod.name);
+                                                                setCampaignFormRewardProductImage(prod.image_url || "");
+                                                            }
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="h-9 text-xs bg-background">
+                                                            <SelectValue placeholder="Choose a product to give as free gift..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="max-h-60">
+                                                            {catalogProducts && catalogProducts.length > 0 ? (
+                                                                catalogProducts.map((p: any) => (
+                                                                    <SelectItem key={p.id} value={p.id}>
+                                                                        {p.name}
+                                                                    </SelectItem>
+                                                                ))
+                                                            ) : (
+                                                                <SelectItem value="_empty" disabled>No products found</SelectItem>
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold">Gift Quantity</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        max="10"
+                                                        value={campaignFormRewardQuantity}
+                                                        onChange={(e) => setCampaignFormRewardQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                                        className="h-9 text-xs bg-background"
+                                                    />
+                                                </div>
+
+                                                {/* Quick pick complementary peptides as rewards */}
+                                                <div className="space-y-1.5 md:col-span-3 pt-1 border-t border-border/40">
+                                                    <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                                                        <Sparkles className="h-3 w-3 text-amber-500" />
+                                                        Quick-Pick Complementary Peptide as Gift:
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {[
+                                                            { label: "BPC-157 (10mg)", search: "BPC" },
+                                                            { label: "TB-500 (10mg)", search: "TB-500" },
+                                                            { label: "GHK-Cu (50mg)", search: "GHK" },
+                                                            { label: "NAD+ (500mg)", search: "NAD" },
+                                                            { label: "Wolverine Blend", search: "Wolverine" },
+                                                            { label: "Bacteriostatic Water", search: "Water" },
+                                                        ].map((preset) => {
+                                                            const match = catalogProducts?.find((p: any) => 
+                                                                p.name.toLowerCase().includes(preset.search.toLowerCase())
+                                                            );
+                                                            if (!match) return null;
+                                                            const isSelected = campaignFormRewardProductId === match.id;
+                                                            return (
+                                                                <Button
+                                                                    key={preset.label}
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant={isSelected ? "default" : "outline"}
+                                                                    className="h-6 text-[10px] px-2 py-0 cursor-pointer transition-colors"
+                                                                    onClick={() => {
+                                                                        setCampaignFormRewardProductId(match.id);
+                                                                        setCampaignFormRewardProductName(match.name);
+                                                                        setCampaignFormRewardProductImage(match.image_url || "");
+                                                                        toast.success(`Selected ${match.name} as reward gift!`);
+                                                                    }}
+                                                                >
+                                                                    + {preset.label}
+                                                                </Button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {campaignFormRewardProductName && (
+                                                    <div className="md:col-span-3 flex items-center gap-3 p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-xs">
+                                                        {campaignFormRewardProductImage && (
+                                                            <img 
+                                                                src={campaignFormRewardProductImage} 
+                                                                alt={campaignFormRewardProductName} 
+                                                                className="w-9 h-9 object-cover rounded border"
+                                                            />
+                                                        )}
+                                                        <div>
+                                                            <strong className="text-emerald-700 dark:text-emerald-400">Selected Perk:</strong> {campaignFormRewardQuantity}x {campaignFormRewardProductName} ($0.00 FREE)
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Gift Pool Choice Mode */}
+                                        {campaignFormRewardSelectionMode === "pool_choice" && (
+                                            <div className="space-y-3 p-3 rounded-lg border bg-background/60">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <div>
+                                                        <Label className="text-xs font-semibold">Gift Pool Collection Name</Label>
+                                                        <p className="text-[10px] text-muted-foreground">Shoppers choose 1 free research gift from this pool in cart</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            className="h-7 text-[11px] font-medium gap-1 cursor-pointer"
+                                                            onClick={() => {
+                                                                const compIds = (catalogProducts || [])
+                                                                    .filter((p: any) => !/glp/i.test(p.name))
+                                                                    .map((p: any) => p.id);
+                                                                setCampaignFormRewardPoolProductIds(compIds);
+                                                                if (!campaignFormRewardPoolLabel) {
+                                                                    setCampaignFormRewardPoolLabel("Complementary Peptides Gift Pool");
+                                                                }
+                                                                toast.success(`Selected ${compIds.length} complementary products for gift pool!`);
+                                                            }}
+                                                        >
+                                                            <Sparkles className="h-3 w-3 text-amber-500" />
+                                                            Select All Complementary Peptides
+                                                        </Button>
+                                                        {campaignFormRewardPoolProductIds.length > 0 && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-7 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                onClick={() => setCampaignFormRewardPoolProductIds([])}
+                                                            >
+                                                                Clear All
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <Input
+                                                    value={campaignFormRewardPoolLabel}
+                                                    onChange={(e) => setCampaignFormRewardPoolLabel(e.target.value)}
+                                                    placeholder="e.g. Complementary Peptides (BPC-157, TB-500, GHK-Cu, NAD+)"
+                                                    className="h-9 text-xs bg-background"
+                                                />
+
+                                                {/* Search Filter */}
+                                                <div className="relative pt-1">
+                                                    <Input
+                                                        value={rewardPoolSearch}
+                                                        onChange={(e) => setRewardPoolSearch(e.target.value)}
+                                                        placeholder="Search products to include in gift pool..."
+                                                        className="h-8 text-xs bg-background pl-8"
+                                                    />
+                                                    <div className="absolute left-2.5 top-2.5 text-muted-foreground">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+
+                                                {/* Selected count */}
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="font-semibold text-foreground">
+                                                        Pool Eligible Items ({campaignFormRewardPoolProductIds.length}):
+                                                    </span>
+                                                    <span className="text-muted-foreground text-[10px]">
+                                                        Stock checked automatically at checkout
+                                                    </span>
+                                                </div>
+
+                                                {/* Selected preview chips */}
+                                                {campaignFormRewardPoolProductIds.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-muted/20 rounded border border-border/40">
+                                                        {campaignFormRewardPoolProductIds.map((id) => {
+                                                            const prod = catalogProducts?.find((p: any) => p.id === id);
+                                                            return (
+                                                                <Badge
+                                                                    key={id}
+                                                                    variant="secondary"
+                                                                    className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                                                                >
+                                                                    <span className="max-w-[140px] truncate">{prod?.name || id}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setCampaignFormRewardPoolProductIds(prev => prev.filter(item => item !== id))}
+                                                                        className="hover:bg-emerald-500/20 rounded p-0.5 cursor-pointer"
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </button>
+                                                                </Badge>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+
+                                                {/* Multi-select product list */}
+                                                <div className="max-h-52 overflow-y-auto space-y-1 rounded-md border border-border/60 bg-background/50 p-2 divide-y divide-border/30">
+                                                    {(catalogProducts || [])
+                                                        .filter((p: any) => {
+                                                            if (!rewardPoolSearch.trim()) return true;
+                                                            const query = rewardPoolSearch.toLowerCase();
+                                                            return p.name.toLowerCase().includes(query) || (p.product_categories?.name || "").toLowerCase().includes(query);
+                                                        })
+                                                        .map((product: any) => {
+                                                            const isChecked = campaignFormRewardPoolProductIds.includes(product.id);
+                                                            return (
+                                                                <div
+                                                                    key={product.id}
+                                                                    className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors pt-2 ${
+                                                                        isChecked ? "bg-emerald-500/5 font-medium" : "hover:bg-muted/40"
+                                                                    }`}
+                                                                    onClick={() => {
+                                                                        setCampaignFormRewardPoolProductIds(prev =>
+                                                                            isChecked ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                                        <Checkbox
+                                                                            checked={isChecked}
+                                                                            onCheckedChange={(checked) => {
+                                                                                setCampaignFormRewardPoolProductIds(prev =>
+                                                                                    checked ? [...prev, product.id] : prev.filter(id => id !== product.id)
+                                                                                );
+                                                                            }}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        />
+                                                                        {product.image_url ? (
+                                                                            <img
+                                                                                src={product.image_url}
+                                                                                alt={product.name}
+                                                                                className="w-7 h-7 object-cover rounded border border-border/50 shrink-0"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0 text-[10px] text-muted-foreground">
+                                                                                📦
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-xs text-foreground truncate">{product.name}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {product.product_categories?.name && (
+                                                                        <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground ml-2">
+                                                                            {product.product_categories.name}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+                                                    <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+                                                    <span><strong>Out-of-Stock Protection:</strong> If any product in this pool sells out, customers will choose from the remaining in-stock options automatically.</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Reward 2: Complementary Group Discount (e.g. 20% OFF) */}
+                                {campaignFormOfferMode === "group_discount" && (
+                                    <div className="space-y-3 p-3 rounded-lg border bg-background/50">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-semibold">Discount Percentage (%)</Label>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        max="100"
+                                                        value={campaignFormRewardDiscountValue}
+                                                        onChange={(e) => setCampaignFormRewardDiscountValue(Math.max(1, Math.min(100, parseInt(e.target.value) || 20)))}
+                                                        className="h-9 text-xs bg-background"
+                                                    />
+                                                    <span className="text-xs font-bold text-muted-foreground">% OFF</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-semibold">Complementary Group Label</Label>
+                                                <Input
+                                                    value={campaignFormRewardDiscountGroupLabel}
+                                                    onChange={(e) => setCampaignFormRewardDiscountGroupLabel(e.target.value)}
+                                                    placeholder="e.g. Complementary Peptides (BPC-157, TB-500, NAD+)"
+                                                    className="h-9 text-xs bg-background"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/40">
+                                            <div>
+                                                <Label className="text-xs font-semibold">Eligible Products for {campaignFormRewardDiscountValue}% Discount</Label>
+                                                <p className="text-[10px] text-muted-foreground">Select which complementary products receive the discount in cart</p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-7 text-[11px] font-medium gap-1 cursor-pointer"
+                                                    onClick={() => {
+                                                        const compIds = (catalogProducts || [])
+                                                            .filter((p: any) => !/glp/i.test(p.name))
+                                                            .map((p: any) => p.id);
+                                                        setCampaignFormRewardDiscountProductIds(compIds);
+                                                        if (!campaignFormRewardDiscountGroupLabel) {
+                                                            setCampaignFormRewardDiscountGroupLabel("Complementary Peptides (BPC-157, TB-500, etc.)");
+                                                        }
+                                                        toast.success(`Selected ${compIds.length} complementary products for discount!`);
+                                                    }}
+                                                >
+                                                    <Sparkles className="h-3 w-3 text-amber-500" />
+                                                    Select All Complementary Peptides
+                                                </Button>
+                                                {campaignFormRewardDiscountProductIds.length > 0 && (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                                                        onClick={() => setCampaignFormRewardDiscountProductIds([])}
+                                                    >
+                                                        Clear All
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Search filter for discount items */}
+                                        <div className="relative pt-1">
+                                            <Input
+                                                value={rewardDiscountSearch}
+                                                onChange={(e) => setRewardDiscountSearch(e.target.value)}
+                                                placeholder="Search products eligible for discount..."
+                                                className="h-8 text-xs bg-background pl-8"
+                                            />
+                                            <div className="absolute left-2.5 top-2.5 text-muted-foreground">
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+
+                                        {/* Selected preview chips */}
+                                        {campaignFormRewardDiscountProductIds.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-muted/20 rounded border border-border/40">
+                                                {campaignFormRewardDiscountProductIds.map((id) => {
+                                                    const prod = catalogProducts?.find((p: any) => p.id === id);
+                                                    return (
+                                                        <Badge
+                                                            key={id}
+                                                            variant="secondary"
+                                                            className="text-[11px] font-normal pl-2 pr-1 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                                                        >
+                                                            <span className="max-w-[140px] truncate">{prod?.name || id}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCampaignFormRewardDiscountProductIds(prev => prev.filter(item => item !== id))}
+                                                                className="hover:bg-amber-500/20 rounded p-0.5 cursor-pointer"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </Badge>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Multi-select product list */}
+                                        <div className="max-h-52 overflow-y-auto space-y-1 rounded-md border border-border/60 bg-background/50 p-2 divide-y divide-border/30">
+                                            {(catalogProducts || [])
+                                                .filter((p: any) => {
+                                                    if (!rewardDiscountSearch.trim()) return true;
+                                                    const query = rewardDiscountSearch.toLowerCase();
+                                                    return p.name.toLowerCase().includes(query) || (p.product_categories?.name || "").toLowerCase().includes(query);
+                                                })
+                                                .map((product: any) => {
+                                                    const isChecked = campaignFormRewardDiscountProductIds.includes(product.id);
+                                                    return (
+                                                        <div
+                                                            key={product.id}
+                                                            className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors pt-2 ${
+                                                                isChecked ? "bg-amber-500/5 font-medium" : "hover:bg-muted/40"
+                                                            }`}
+                                                            onClick={() => {
+                                                                setCampaignFormRewardDiscountProductIds(prev =>
+                                                                    isChecked ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                                                                );
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                                <Checkbox
+                                                                    checked={isChecked}
+                                                                    onCheckedChange={(checked) => {
+                                                                        setCampaignFormRewardDiscountProductIds(prev =>
+                                                                            checked ? [...prev, product.id] : prev.filter(id => id !== product.id)
+                                                                        );
+                                                                    }}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                                {product.image_url ? (
+                                                                    <img
+                                                                        src={product.image_url}
+                                                                        alt={product.name}
+                                                                        className="w-7 h-7 object-cover rounded border border-border/50 shrink-0"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0 text-[10px] text-muted-foreground">
+                                                                        📦
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs text-foreground truncate">{product.name}</p>
+                                                                </div>
+                                                            </div>
+                                                            {product.product_categories?.name && (
+                                                                <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground ml-2">
+                                                                    {product.product_categories.name}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                                            <Sparkles className="h-4 w-4 shrink-0 text-amber-600" />
+                                            <span>Shoppers qualifying in target scope get <strong>{campaignFormRewardDiscountValue}% instant discount</strong> on any of the selected complementary items they add to cart.</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Reward 2: Free Shipping */}
+                                {campaignFormOfferMode === "free_shipping" && (
+                                    <div className="p-3 rounded-lg border bg-background/50 space-y-2">
+                                        <Label className="text-xs font-semibold">Eligible Shipping Services</Label>
+                                        <Select
+                                            value={campaignFormShippingCarrierScope}
+                                            onValueChange={(val: any) => setCampaignFormShippingCarrierScope(val)}
+                                        >
+                                            <SelectTrigger className="h-9 text-xs bg-background">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all_standard">All Standard / Ground Services (Recommended)</SelectItem>
+                                                <SelectItem value="ground_only">Cheapest Ground Economy Only</SelectItem>
+                                                <SelectItem value="usps">USPS Ground Advantage Only</SelectItem>
+                                                <SelectItem value="ups">UPS Ground Only</SelectItem>
+                                                <SelectItem value="fedex">FedEx Ground Only</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            Checkout will automatically waive shipping charges for the lowest-cost qualifying service.
+                                        </p>
+                                        <p className="text-[11px] text-muted-foreground/90 italic pt-1 border-t border-border/40">
+                                            * Note: In checkout, $0.00 is strictly applied to the most affordable standard ground rate (e.g. USPS Ground Advantage / UPS Ground). Expedited options (Overnight, Priority Mail Express) continue to charge full carrier rates.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Reward 3: Coupon Code */}
+                                {campaignFormOfferMode === "coupon_code" && (
+                                    <div className="space-y-3 p-3.5 rounded-lg border bg-background/50">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-xs font-semibold flex items-center gap-1">
+                                                    Select Coupon From System <span className="text-destructive">*</span>
+                                                </Label>
+                                                <a
+                                                    href="/manufacturing/coupons"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-[11px] text-primary hover:underline font-medium inline-flex items-center gap-1"
+                                                >
+                                                    Manage Coupons <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </div>
+                                            
+                                            <Select
+                                                value={campaignFormCouponCode.toUpperCase()}
+                                                onValueChange={(val) => setCampaignFormCouponCode(val.toUpperCase())}
+                                            >
+                                                <SelectTrigger className={`h-9 text-xs bg-background ${!campaignFormCouponCode.trim() ? "border-destructive focus:ring-destructive" : ""}`}>
+                                                    <SelectValue placeholder={loadingCoupons ? "Loading coupons..." : "Choose an existing coupon..."} />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-64">
+                                                    {availableCoupons && !availableCoupons.some(c => c.code.toUpperCase() === campaignFormCouponCode.toUpperCase()) && campaignFormCouponCode && (
+                                                        <SelectItem value={campaignFormCouponCode.toUpperCase()}>
+                                                            <span className="font-mono font-bold tracking-wider">{campaignFormCouponCode.toUpperCase()}</span>
+                                                        </SelectItem>
+                                                    )}
+                                                    {availableCoupons && availableCoupons.length > 0 ? (
+                                                        availableCoupons.map((c) => {
+                                                            const codeUpper = c.code.toUpperCase();
+                                                            const discountLabel = c.type === "percentage" ? `${c.value}% OFF` : `$${c.value} OFF`;
+                                                            return (
+                                                                <SelectItem key={c.id || c.code} value={codeUpper}>
+                                                                    <div className="flex items-center justify-between gap-4 w-full">
+                                                                        <span className="font-mono font-bold tracking-wider">{codeUpper}</span>
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="text-[11px] font-semibold text-primary">{discountLabel}</span>
+                                                                            {!c.is_active && (
+                                                                                <Badge variant="outline" className="text-[9px] text-destructive bg-destructive/10 px-1 py-0 border-destructive/30">
+                                                                                    Inactive
+                                                                                </Badge>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <SelectItem value="_no_coupons" disabled>
+                                                            No coupons found in system
+                                                        </SelectItem>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+
+                                            {loadingCoupons && (
+                                                <div className="text-[10px] text-muted-foreground flex items-center gap-1 pt-0.5">
+                                                    <Loader2 className="h-3 w-3 animate-spin" /> Fetching coupons from system...
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Selected Coupon Read-Only Summary */}
+                                        {campaignFormCouponCode ? (() => {
+                                            const selected = availableCoupons?.find((c) => c.code.toUpperCase() === campaignFormCouponCode.toUpperCase());
+                                            const discountLabel = selected 
+                                                ? (selected.type === "percentage" ? `${selected.value}% OFF` : `$${selected.value} OFF`) 
+                                                : "Active Discount";
+
+                                            return (
+                                                <div className="p-2.5 rounded-lg border bg-background/80 space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                                                <Tag className="h-3.5 w-3.5" />
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-mono font-black text-xs tracking-wider text-foreground">
+                                                                    {campaignFormCouponCode}
+                                                                </span>
+                                                                <Badge variant="outline" className="text-[10px] font-bold text-primary border-primary/30 bg-primary/5 px-1.5 py-0">
+                                                                    {discountLabel}
+                                                                </Badge>
+                                                                {selected && !selected.is_active && (
+                                                                    <Badge variant="outline" className="text-[9px] text-destructive bg-destructive/10 border-destructive/30 px-1 py-0">
+                                                                        Inactive
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[10px] text-muted-foreground font-mono">1-click copy enabled</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-muted-foreground pl-9">
+                                                        This code will be automatically presented in promotional banners and copied with 1-click by shoppers.
+                                                    </p>
+                                                </div>
+                                            );
+                                        })() : (
+                                            <p className="text-[11px] text-destructive font-medium pt-0.5">
+                                                * Please select a coupon code from the system dropdown above.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 5. Stacking & Anti-Conflict Rules */}
+                        <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/10">
+                            <div className="space-y-0.5 max-w-[80%]">
+                                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                                    Allow Stacking With Other Offers
+                                </Label>
+                                <p className="text-[11px] text-muted-foreground">
+                                    When enabled, customers can combine this perk with other unlocked promotions (e.g. Free Shipping + Free Gift). When disabled, this offer is exclusive.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={campaignFormAllowStacking}
+                                onCheckedChange={setCampaignFormAllowStacking}
+                            />
+                        </div>
+
+                        {/* 3. Customer Visuals & Copy */}
+                        <div className="p-3.5 rounded-lg border bg-muted/5 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                <Tag className="h-3.5 w-3.5 text-amber-500" />
+                                Customer Copy & Presentation
+                            </h4>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label className="text-xs font-semibold">Badge Pill Text</Label>
+                                    <Input
+                                        value={campaignFormBadgeText}
+                                        onChange={(e) => setCampaignFormBadgeText(e.target.value)}
+                                        placeholder="e.g. 🔥 WEEKLY SPECIAL or 🏷️ LIMITED DEAL"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label className="text-xs font-semibold">
+                                        Headline <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        value={campaignFormHeadline}
+                                        onChange={(e) => setCampaignFormHeadline(e.target.value)}
+                                        placeholder="e.g. FREE Retatrutide 10mg With Any Order Over $50!"
+                                        className="h-9 text-xs font-semibold"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label className="text-xs font-semibold">Detailed Description</Label>
+                                    <Textarea
+                                        value={campaignFormDescription}
+                                        onChange={(e) => setCampaignFormDescription(e.target.value)}
+                                        placeholder="Explain the research perk, HPLC purity verification, or special instructions..."
+                                        rows={3}
+                                        className="text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Primary CTA Button Label</Label>
+                                    <Input
+                                        value={campaignFormCtaText}
+                                        onChange={(e) => setCampaignFormCtaText(e.target.value)}
+                                        placeholder="Claim Offer & Shop Now"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Button Destination Link</Label>
+                                    <Input
+                                        value={campaignFormCtaUrl}
+                                        onChange={(e) => setCampaignFormCtaUrl(e.target.value)}
+                                        placeholder="/products"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label className="text-xs font-semibold">Dismiss / Skip Link Label</Label>
+                                    <Input
+                                        value={campaignFormDismissText}
+                                        onChange={(e) => setCampaignFormDismissText(e.target.value)}
+                                        placeholder="No thanks, continue shopping"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 4. Top Banner Sync */}
+                        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/10">
+                            <div className="space-y-0.5">
+                                <Label className="text-xs font-semibold">Sync to Top Announcement Bar</Label>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Displays this promotion on the sticky top banner across the website. Clicking opens this promotion in the Promo Hub.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={campaignFormSyncTopBanner}
+                                onCheckedChange={setCampaignFormSyncTopBanner}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex items-center justify-between sm:justify-between pt-3 border-t">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setCampaignDialogOpen(false)}
+                            className="text-xs"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            type="button"
+                            onClick={saveCampaignFromForm}
+                            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                        >
+                            {editingCampaignId ? "Save Changes" : "Create Campaign"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Live Customer Preview Modal for Admin */}
+            <PromoSplashModal
+                isOpen={showPromoSplashPreview}
+                onClose={() => {
+                    setShowPromoSplashPreview(false);
+                    setPreviewingCampaign(null);
+                }}
+                campaigns={previewingCampaign ? [previewingCampaign] : promoCampaigns.filter(c => c.enabled)}
+                isPreview={true}
+            />
         </div>
     );
 };

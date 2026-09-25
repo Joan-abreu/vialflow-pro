@@ -4,7 +4,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import UniversalCheckout from "@/components/checkout/UniversalCheckout";
-import { Loader2, LogIn, AlertTriangle, Package, Sparkles, Truck } from "lucide-react";
+import { Loader2, LogIn, AlertTriangle, Package, Sparkles, Truck, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ import {
     calculatePeptideUpsellDiscount 
 } from "@/config/upsellConfig";
 import { usePeptideUpsellSettings } from "@/hooks/usePeptideUpsellSettings";
+import { usePromoSplashSettings } from "@/hooks/usePromoSplashSettings";
+import { getActiveCampaigns, resolveCartCampaigns } from "@/config/promoSplashConfig";
 
 const Checkout = () => {
     const { items, cartTotal, updateCartContactInfo, cartSessionId } = useCart();
@@ -51,6 +53,96 @@ const Checkout = () => {
     const upsellDiscount = useMemo(() => calculatePeptideUpsellDiscount(items, activeUpsellSettings), [items, activeUpsellSettings]);
     const autoDiscountAmount = (upsellDiscount.isEligible && appliedDiscounts.length === 0) ? upsellDiscount.discountAmount : 0;
 
+    // Fetch active promotional splash campaigns and evaluate against cart
+    const { data: promoSettings } = usePromoSplashSettings();
+    const promoCampaigns = useMemo(() => {
+        const rawCampaigns = promoSettings?.campaigns && promoSettings.campaigns.length > 0
+            ? promoSettings.campaigns
+            : (promoSettings?.enabled ? [promoSettings as any] : []);
+        return getActiveCampaigns(rawCampaigns);
+    }, [promoSettings]);
+
+    const evaluatedPromoCampaigns = useMemo(() => {
+        return resolveCartCampaigns(promoCampaigns, items);
+    }, [promoCampaigns, items]);
+
+    const promoGroupDiscounts = useMemo(() => {
+        return evaluatedPromoCampaigns
+            .filter(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "group_discount")
+            .reduce((sum, e) => sum + (e.rewardDiscountAmount || 0), 0);
+    }, [evaluatedPromoCampaigns]);
+
+    const [selectedPromoGifts] = useState<Record<string, string>>(() => {
+        try {
+            const stored = localStorage.getItem("vialflow_selected_promo_gifts");
+            return stored ? JSON.parse(stored) : {};
+        } catch {
+            return {};
+        }
+    });
+
+    const { data: checkoutCatalogProducts } = useQuery({
+        queryKey: ["checkout_catalog_products_for_promos"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("products")
+                .select("id, name, slug, image_url, category_id, product_variants(id, name, price, stock_quantity)")
+                .eq("is_published", true);
+            return data || [];
+        },
+    });
+
+    const hasCampaignFreeShipping = useMemo(() => {
+        return evaluatedPromoCampaigns.some(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "free_shipping");
+    }, [evaluatedPromoCampaigns]);
+
+    const activeFreeShippingCampaign = useMemo(() => {
+        return evaluatedPromoCampaigns.find(e => !e.isSuppressed && e.campaign.offerMode === "free_shipping");
+    }, [evaluatedPromoCampaigns]);
+
+    const freeGiftItems = useMemo(() => {
+        return evaluatedPromoCampaigns
+            .filter(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "gift_with_purchase")
+            .map(e => {
+                const camp = e.campaign;
+                if (camp.rewardSelectionMode === "pool_choice") {
+                    const chosenId = selectedPromoGifts[camp.id];
+                    const chosenProd = checkoutCatalogProducts?.find(p => p.id === chosenId);
+                    const defaultVariant = chosenProd?.product_variants?.[0];
+                    if (chosenProd && defaultVariant) {
+                        return {
+                            productId: chosenProd.id,
+                            variantId: defaultVariant.id,
+                            quantity: camp.rewardQuantity || 1
+                        };
+                    }
+                    // fallback to first in-stock in pool
+                    const poolIds = camp.rewardPoolProductIds || [];
+                    const fallbackProd = checkoutCatalogProducts?.find(p =>
+                        poolIds.includes(p.id) &&
+                        (p.product_variants || []).some((v: any) => (v.stock_quantity ?? 0) > 0)
+                    );
+                    const fallbackVariant = fallbackProd?.product_variants?.[0];
+                    if (fallbackProd && fallbackVariant) {
+                        return {
+                            productId: fallbackProd.id,
+                            variantId: fallbackVariant.id,
+                            quantity: camp.rewardQuantity || 1
+                        };
+                    }
+                }
+                if (camp.rewardProductId && camp.rewardVariantId) {
+                    return {
+                        productId: camp.rewardProductId,
+                        variantId: camp.rewardVariantId,
+                        quantity: camp.rewardQuantity || 1
+                    };
+                }
+                return null;
+            })
+            .filter(Boolean) as { productId: string; variantId: string; quantity: number }[];
+    }, [evaluatedPromoCampaigns, selectedPromoGifts, checkoutCatalogProducts]);
+
     // Calculate total weight (default to 1lb per item if weight is missing)
     const totalWeight = items.reduce((sum, item) => {
         const isBulkItem = item.is_bulk || item.variant.bulk_only;
@@ -60,8 +152,8 @@ const Checkout = () => {
         return sum + (itemWeight * item.quantity);
     }, 0);
     
-    // Use final values if coupons are applied, otherwise fallback to standard with auto promo discount
-    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : Math.max(0, cartTotal - autoDiscountAmount);
+    // Use final values if coupons are applied, otherwise fallback to standard with auto promo and group discounts
+    const displaySubtotal = appliedDiscounts.length > 0 ? finalSubtotal : Math.max(0, cartTotal - autoDiscountAmount - promoGroupDiscounts);
     const displayShipping = appliedDiscounts.length > 0 ? finalShipping : shippingCost;
     const totalAmount = Number((displaySubtotal + displayShipping).toFixed(2));
 
@@ -70,8 +162,6 @@ const Checkout = () => {
     const [showValidationModal, setShowValidationModal] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
     const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
-    const [freeShippingEnabled, setFreeShippingEnabled] = useState(true);
-    const [freeShippingThreshold, setFreeShippingThreshold] = useState(100);
 
     // Track the amount for which we calculated
     const intentAmountRef = useRef<number>(0);
@@ -110,14 +200,10 @@ const Checkout = () => {
                 const { data } = await supabase
                     .from("app_settings" as any)
                     .select("key, value")
-                    .in("key", ["require_login_for_checkout", "shipping_free_enabled", "shipping_free_threshold"]);
+                    .eq("key", "require_login_for_checkout");
                 if (data && data.length > 0) {
                     const reqLogin = data.find((s: any) => s.key === "require_login_for_checkout");
-                    const freeEnabled = data.find((s: any) => s.key === "shipping_free_enabled");
-                    const threshold = data.find((s: any) => s.key === "shipping_free_threshold");
                     if (reqLogin && reqLogin.value !== undefined) setRequireLoginForCheckout(reqLogin.value === "true");
-                    if (freeEnabled && freeEnabled.value !== undefined) setFreeShippingEnabled(freeEnabled.value === "true");
-                    if (threshold && threshold.value !== undefined) setFreeShippingThreshold(Number(threshold.value) || 100);
                 }
             } catch (e) {}
         };
@@ -279,6 +365,29 @@ const Checkout = () => {
                     }
                     return true;
                 });
+
+                // Apply campaign-based free shipping if unlocked
+                if (hasCampaignFreeShipping) {
+                    const isExpressOrOvernight = (rate: any) => {
+                        const text = ((rate.serviceName || rate.service || "") + " " + (rate.serviceCode || rate.service_code || "")).toUpperCase();
+                        return (
+                            text.includes("EXPRESS") ||
+                            text.includes("OVERNIGHT") ||
+                            text.includes("2DAY") ||
+                            text.includes("2_DAY") ||
+                            text.includes("AIR")
+                        );
+                    };
+
+                    const groundRate = rates.find((r: any) => !isExpressOrOvernight(r));
+                    if (groundRate && !groundRate.is_free) {
+                        groundRate.original_cost = groundRate.cost;
+                        groundRate.cost = 0;
+                        groundRate.is_free = true;
+                        groundRate.free_shipping_reason = "Free shipping unlocked by active promotion";
+                        rates.sort((a: any, b: any) => a.cost - b.cost);
+                    }
+                }
             }
             setShippingRates(rates);
             if (rates.length > 0) {
@@ -352,14 +461,21 @@ const Checkout = () => {
         }
     }, []);
 
-    // Auto-retry pending or restricted coupon as soon as customer email becomes known
+    // Auto-retry pending or re-validate existing coupons as soon as customer email becomes known
     const userEmailForCoupons = session?.user?.email || currentAddress?.email;
+    const lastValidatedEmailRef = useRef<string>("");
+
     useEffect(() => {
-        if (userEmailForCoupons) {
-            if (pendingCouponCode && appliedDiscounts.length === 0) {
+        const cleanEmail = (userEmailForCoupons || "").trim().toLowerCase();
+        if (cleanEmail && cleanEmail !== lastValidatedEmailRef.current) {
+            lastValidatedEmailRef.current = cleanEmail;
+            if (pendingCouponCode) {
                 const codeToRetry = pendingCouponCode;
                 setPendingCouponCode("");
                 handleApplyCoupon([codeToRetry], undefined, false);
+            } else if (appliedDiscounts.length > 0) {
+                // Re-validate applied coupons against this email/user
+                handleApplyCoupon(appliedDiscounts.map(d => d.code), undefined, false);
             }
         }
     }, [userEmailForCoupons]);
@@ -434,6 +550,11 @@ const Checkout = () => {
             if (message.toLowerCase().includes("non-2xx") || message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("internal") || message.toLowerCase().includes("edge function")) {
                 message = "This code could not be applied. Please check it and try again.";
             }
+
+            // Clear invalid discounts so ineligible coupons cannot remain active
+            setAppliedDiscounts([]);
+            setFinalSubtotal(cartTotal);
+            setFinalShipping(shippingCost);
             
             toast.error(message);
         } finally {
@@ -573,6 +694,7 @@ const Checkout = () => {
                             hideAddress={step !== 'address'}
                             hidePayment={step !== 'payment'}
                             appliedDiscounts={appliedDiscounts}
+                            freeGiftItems={freeGiftItems}
                         />
                         
                         {step === 'address' && validationResult && (
@@ -600,19 +722,17 @@ const Checkout = () => {
                                     </div>
                                 ) : shippingRates.length > 0 ? (
                                     <div className="space-y-3">
-                                        {freeShippingEnabled && (
-                                            displaySubtotal >= freeShippingThreshold ? (
-                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
-                                                    <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                                                    <span>🎉 You unlocked Free Standard Shipping on this order!</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
-                                                    <Truck className="h-4 w-4 shrink-0 text-primary" />
-                                                    <span>Add <strong className="text-foreground font-bold">${(freeShippingThreshold - displaySubtotal).toFixed(2)}</strong> more to unlock <strong>Free Standard Shipping</strong>!</span>
-                                                </div>
-                                            )
-                                        )}
+                                        {hasCampaignFreeShipping ? (
+                                            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                                                <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                                <span>🎉 You unlocked Free Standard Shipping on this order!</span>
+                                            </div>
+                                        ) : (activeFreeShippingCampaign && (activeFreeShippingCampaign.campaign.minOrderAmount ?? 0) > 0) ? (
+                                            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
+                                                <Truck className="h-4 w-4 shrink-0 text-primary" />
+                                                <span>Add <strong className="text-foreground font-bold">${Math.max(0, (activeFreeShippingCampaign.campaign.minOrderAmount! - (activeFreeShippingCampaign.qualifyingSpend || displaySubtotal))).toFixed(2)}</strong> more to unlock <strong>Free Standard Shipping</strong>!</span>
+                                            </div>
+                                        ) : null}
 
                                         {shippingRates.map((rate, idx) => {
                                             const isSelected = shippingService === (rate.serviceName || rate.service);
@@ -762,16 +882,99 @@ const Checkout = () => {
                                     </div>
                                 );
                             })}
+                            
+                            {/* Promo Campaign Unlocked Free Gifts */}
+                            {evaluatedPromoCampaigns.filter(e => e.isUnlocked && !e.isSuppressed && e.campaign.offerMode === "gift_with_purchase").map((giftPerk) => {
+                                const camp = giftPerk.campaign;
+                                let giftName = camp.rewardProductName || "Research Free Gift";
+                                let giftImage = camp.rewardProductImage;
+                                const isPoolChoice = camp.rewardSelectionMode === "pool_choice";
+
+                                if (isPoolChoice) {
+                                    const chosenId = selectedPromoGifts[camp.id];
+                                    const chosenProd = checkoutCatalogProducts?.find(p => p.id === chosenId);
+                                    if (chosenProd) {
+                                        giftName = chosenProd.name;
+                                        giftImage = chosenProd.image_url;
+                                    } else {
+                                        // Fallback to first in-stock product in pool
+                                        const poolIds = camp.rewardPoolProductIds || [];
+                                        const fallbackProd = checkoutCatalogProducts?.find(p =>
+                                            poolIds.includes(p.id) &&
+                                            (p.product_variants || []).some((v: any) => (v.stock_quantity ?? 0) > 0)
+                                        );
+                                        if (fallbackProd) {
+                                            giftName = fallbackProd.name;
+                                            giftImage = fallbackProd.image_url;
+                                        }
+                                    }
+                                }
+
+                                const matchingCartItem = items.find(item => 
+                                    item.variant.product.name.toLowerCase().trim() === giftName.toLowerCase().trim() ||
+                                    giftName.toLowerCase().includes(item.variant.product.name.toLowerCase()) ||
+                                    item.variant.product.name.toLowerCase().includes(giftName.toLowerCase())
+                                );
+                                const hasSameItemInCart = !!matchingCartItem;
+
+                                return (
+                                    <div key={camp.id} className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border-2 border-emerald-500/30 space-y-2.5 shadow-xs">
+                                        <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                                            <span className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-300 tracking-wide uppercase">
+                                                <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                {isPoolChoice ? "Choice Free Gift (Extra Item)" : "Free Bonus Gift (Extra Item)"}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                                Unlocked Promo Perk
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="relative h-12 w-12 bg-background rounded-lg border border-emerald-500/30 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                                                    {giftImage ? (
+                                                        <img 
+                                                            src={giftImage} 
+                                                            alt={giftName} 
+                                                            className="h-full w-full object-cover" 
+                                                        />
+                                                    ) : (
+                                                        <Package className="h-5 w-5 text-emerald-500" />
+                                                    )}
+                                                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-xs">
+                                                        <Gift className="h-2.5 w-2.5" />
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-sm text-foreground truncate">
+                                                        {giftName}
+                                                    </p>
+                                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                                        +{camp.rewardQuantity || 1} Free Extra Unit (Added to your shipment)
+                                                    </p>
+                                                    {hasSameItemInCart && (
+                                                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                            *Included as an extra free unit in addition to the {matchingCartItem.quantity} unit(s) in your cart
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right flex-shrink-0">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                    100% FREE
+                                                </span>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5">$0.00 Gift</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
 
                             <div className="border-t pt-4 space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span>Subtotal</span>
-                                    <div className="flex items-center gap-2">
-                                        {displaySubtotal < cartTotal && (
-                                            <span className="line-through text-muted-foreground">${cartTotal.toFixed(2)}</span>
-                                        )}
-                                        <span className="font-medium">${displaySubtotal.toFixed(2)}</span>
-                                    </div>
+                                    <span className="font-medium">${cartTotal.toFixed(2)}</span>
                                 </div>
                                 {upsellDiscount.isEligible && upsellDiscount.discountAmount > 0 && appliedDiscounts.length === 0 && (
                                     <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
@@ -780,6 +983,15 @@ const Checkout = () => {
                                             {upsellDiscount.discountLabel}
                                         </span>
                                         <span>-${upsellDiscount.discountAmount.toFixed(2)}</span>
+                                    </div>
+                                )}
+                                {promoGroupDiscounts > 0 && appliedDiscounts.length === 0 && (
+                                    <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            Promotional Group Discount
+                                        </span>
+                                        <span>-${promoGroupDiscounts.toFixed(2)}</span>
                                     </div>
                                 )}
                                 {appliedDiscounts.map((d, i) => (

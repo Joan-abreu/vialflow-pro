@@ -31,7 +31,7 @@ serve(async (req) => {
         // 1. Fetch Carrier Settings & Free Shipping Store Settings in parallel
         const [settingsResult, appSettingsResult] = await Promise.all([
             supabase.from('carrier_settings').select('*').eq('is_active', true),
-            supabase.from('app_settings').select('key, value').in('key', ['shipping_free_enabled', 'shipping_free_threshold'])
+            supabase.from('app_settings').select('key, value').in('key', ['promo_campaigns', 'shipping_free_enabled', 'shipping_free_threshold'])
         ]);
 
         const settingsData = settingsResult.data || [];
@@ -41,8 +41,31 @@ serve(async (req) => {
         }
 
         const appSettings = appSettingsResult.data || [];
-        const isFreeShippingEnabled = appSettings.find((s: any) => s.key === 'shipping_free_enabled')?.value !== 'false';
-        const freeShippingThreshold = parseFloat(appSettings.find((s: any) => s.key === 'shipping_free_threshold')?.value || '100');
+        const promoCampaignsRow = appSettings.find((s: any) => s.key === 'promo_campaigns');
+        let activeFreeShippingCampaign: any = null;
+        if (promoCampaignsRow?.value) {
+            try {
+                const campaigns = JSON.parse(promoCampaignsRow.value);
+                if (Array.isArray(campaigns)) {
+                    const now = new Date();
+                    activeFreeShippingCampaign = campaigns.find((c: any) => {
+                        if (!c.enabled || c.offerMode !== 'free_shipping') return false;
+                        if (c.startDate && new Date(c.startDate) > now) return false;
+                        if (c.endDate && new Date(c.endDate) < now) return false;
+                        return true;
+                    });
+                }
+            } catch (e) {
+                console.error("Error parsing promo_campaigns in calculate-shipping:", e);
+            }
+        }
+
+        const isFreeShippingEnabled = activeFreeShippingCampaign 
+            ? true 
+            : (appSettings.find((s: any) => s.key === 'shipping_free_enabled')?.value !== 'false');
+        const freeShippingThreshold = activeFreeShippingCampaign
+            ? (Number(activeFreeShippingCampaign.minOrderAmount) || 0)
+            : parseFloat(appSettings.find((s: any) => s.key === 'shipping_free_threshold')?.value || '100');
 
         const activeCarriers: { instance: ICarrier, settings: any }[] = [];
 
@@ -285,7 +308,9 @@ serve(async (req) => {
                 groundRate.original_cost = groundRate.cost;
                 groundRate.cost = 0;
                 groundRate.is_free = true;
-                groundRate.free_shipping_reason = `Free standard shipping on orders over $${freeShippingThreshold}`;
+                groundRate.free_shipping_reason = activeFreeShippingCampaign
+                    ? `Free shipping unlocked by ${activeFreeShippingCampaign.name || 'promotion'}`
+                    : `Free standard shipping on orders over $${freeShippingThreshold}`;
                 console.log(`🎉 Free shipping applied to ${groundRate.serviceName || groundRate.service} (Subtotal: $${orderSubtotal} >= Threshold: $${freeShippingThreshold})`);
                 
                 // Re-sort so the free ground rate is guaranteed first

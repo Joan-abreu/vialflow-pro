@@ -38,6 +38,7 @@ interface UniversalCheckoutProps {
     hideShipping?: boolean;
     hidePayment?: boolean;
     appliedDiscounts?: any[];
+    freeGiftItems?: { productId: string; variantId: string; quantity: number }[];
 }
 
 // -------------------------------------------------------------
@@ -157,7 +158,8 @@ const UniversalCheckout = ({
     hideAddress,
     hideShipping,
     hidePayment,
-    appliedDiscounts
+    appliedDiscounts,
+    freeGiftItems
 }: UniversalCheckoutProps) => {
     const { items, clearCart, markCartConverted } = useCart();
     const navigate = useNavigate();
@@ -756,7 +758,7 @@ const UniversalCheckout = ({
         if (orderError) throw orderError;
 
         // Insert Order Items
-        const orderItems = items.map((item) => {
+        const orderItems: any[] = items.map((item) => {
             const isBulk = item.is_bulk || item.variant.bulk_only;
             const singleVialPrice = item.variant.price / (item.variant.pack_size || 1);
             let itemPrice = isBulk ? (item.variant.bulk_price || singleVialPrice) : item.variant.price;
@@ -774,8 +776,23 @@ const UniversalCheckout = ({
                 custom_label_image_url: item.custom_label_url || null,
                 custom_label_instructions: item.custom_label_instructions || null,
             };
-
         });
+
+        if (freeGiftItems && freeGiftItems.length > 0) {
+            freeGiftItems.forEach(gift => {
+                orderItems.push({
+                    order_id: order.id,
+                    variant_id: gift.variantId,
+                    product_id: gift.productId,
+                    quantity: gift.quantity,
+                    unit_price: 0,
+                    price_at_time: 0,
+                    custom_label_url: null,
+                    custom_label_image_url: null,
+                    custom_label_instructions: "Free Promotional Perk",
+                });
+            });
+        }
 
         const { error: itemsError } = await supabase
             .from("order_items")

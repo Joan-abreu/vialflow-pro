@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText, BarChart3 } from "lucide-react";
+import { Package, Boxes, Truck, AlertTriangle, DollarSign, ShoppingCart, Users, UserPlus, FileText, BarChart3, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow, subDays, format, eachDayOfInterval, differenceInDays } from "date-fns";
 import { Link } from "react-router-dom";
@@ -14,6 +14,7 @@ import TopProductsList from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
 import { UnconvertedUsersDialog, UnconvertedUser } from "@/components/dashboard/UnconvertedUsersDialog";
 import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
+import CouponPerformanceCard, { CouponPerformanceStats } from "@/components/dashboard/CouponPerformanceCard";
 import { cn } from "@/lib/utils";
 
 interface Activity {
@@ -64,6 +65,16 @@ const Dashboard = () => {
     count: 0,
     lostRevenue: 0,
   });
+  const [couponStats, setCouponStats] = useState<CouponPerformanceStats>({
+    totalCouponOrders: 0,
+    totalOrders: 0,
+    adoptionRate: 0,
+    totalDiscountGiven: 0,
+    revenueWithCoupons: 0,
+    avgOrderWithCoupon: 0,
+    avgOrderWithoutCoupon: 0,
+    topCoupons: [],
+  });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -107,6 +118,9 @@ const Dashboard = () => {
             created_at,
             user_id,
             shipping_address,
+            applied_coupons,
+            product_discount,
+            shipping_discount,
             order_items (
               quantity,
               price_at_time,
@@ -376,6 +390,108 @@ const Dashboard = () => {
         count: abandonedCarts.length,
         lostRevenue,
       });
+
+      // 6. Coupon & Promotions Analytics
+      const extractOrderCouponCodes = (order: any): string[] => {
+        if (!order) return [];
+        const codes: string[] = [];
+        if (order.applied_coupons) {
+          const raw = order.applied_coupons;
+          if (Array.isArray(raw)) {
+            raw.forEach((c: any) => {
+              if (typeof c === "string") {
+                const clean = c.trim().toUpperCase();
+                if (clean && !codes.includes(clean)) codes.push(clean);
+              } else if (typeof c === "object" && c && c.code) {
+                const clean = String(c.code).trim().toUpperCase();
+                if (clean && !codes.includes(clean)) codes.push(clean);
+              }
+            });
+          } else if (typeof raw === "string") {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((c: any) => {
+                  const code = typeof c === "string" ? c : c?.code;
+                  if (code) {
+                    const clean = String(code).trim().toUpperCase();
+                    if (clean && !codes.includes(clean)) codes.push(clean);
+                  }
+                });
+              } else if (typeof parsed === "object" && parsed?.code) {
+                codes.push(String(parsed.code).trim().toUpperCase());
+              }
+            } catch (_) {
+              const clean = raw.trim().toUpperCase();
+              if (clean) codes.push(clean);
+            }
+          }
+        }
+        return codes;
+      };
+
+      const orderHasCouponCheck = (o: any) => {
+        return extractOrderCouponCodes(o).length > 0 || (Number(o.product_discount) || 0) > 0 || (Number(o.shipping_discount) || 0) > 0;
+      };
+
+      const couponOrders = validOrders.filter(orderHasCouponCheck);
+      const nonCouponOrders = validOrders.filter(o => !orderHasCouponCheck(o));
+
+      const totalCouponOrders = couponOrders.length;
+      const totalDiscountGiven = validOrders.reduce((sum: number, o: any) => {
+        const prod = Number(o.product_discount) || 0;
+        const ship = Number(o.shipping_discount) || 0;
+        return sum + prod + ship;
+      }, 0);
+
+      const revenueWithCoupons = couponOrders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0);
+      const revenueWithoutCoupons = nonCouponOrders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0);
+
+      const avgOrderWithCoupon = totalCouponOrders > 0 ? revenueWithCoupons / totalCouponOrders : 0;
+      const avgOrderWithoutCoupon = nonCouponOrders.length > 0 ? revenueWithoutCoupons / nonCouponOrders.length : 0;
+      const couponAdoptionRate = validOrders.length > 0 ? (totalCouponOrders / validOrders.length) * 100 : 0;
+
+      const couponMap: Record<string, { uses: number; revenue: number; discount: number }> = {};
+
+      couponOrders.forEach((o: any) => {
+        const codes = extractOrderCouponCodes(o);
+        const orderTotal = Number(o.total_amount) || 0;
+        const orderDisc = (Number(o.product_discount) || 0) + (Number(o.shipping_discount) || 0);
+
+        if (codes.length === 0) {
+          const fallback = "SPECIAL_PROMO";
+          if (!couponMap[fallback]) {
+            couponMap[fallback] = { uses: 0, revenue: 0, discount: 0 };
+          }
+          couponMap[fallback].uses += 1;
+          couponMap[fallback].revenue += orderTotal;
+          couponMap[fallback].discount += orderDisc;
+        } else {
+          codes.forEach((c) => {
+            if (!couponMap[c]) {
+              couponMap[c] = { uses: 0, revenue: 0, discount: 0 };
+            }
+            couponMap[c].uses += 1;
+            couponMap[c].revenue += orderTotal / codes.length;
+            couponMap[c].discount += orderDisc / codes.length;
+          });
+        }
+      });
+
+      const topCoupons = Object.entries(couponMap)
+        .map(([code, data]) => ({ code, ...data }))
+        .sort((a, b) => b.uses - a.uses);
+
+      setCouponStats({
+        totalCouponOrders,
+        totalOrders: validOrders.length,
+        adoptionRate: couponAdoptionRate,
+        totalDiscountGiven,
+        revenueWithCoupons,
+        avgOrderWithCoupon,
+        avgOrderWithoutCoupon,
+        topCoupons,
+      });
     };
 
     const fetchActivities = async () => {
@@ -547,7 +663,7 @@ const Dashboard = () => {
       {/* Group 1: E-Commerce Sales */}
       <div className="space-y-4 pt-2">
           <h2 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-200">E-Commerce Activity</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -560,6 +676,26 @@ const Dashboard = () => {
                     <div className="text-2xl font-bold">{stats.totalOrders}</div>
                 </CardContent>
             </Card>
+
+            <Link to="/manufacturing/orders?coupon=any_coupon">
+                <Card className="hover:border-emerald-500/50 transition-colors cursor-pointer group border-emerald-500/25 bg-emerald-50/20 dark:bg-emerald-950/15 h-full">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <div>
+                          <CardTitle className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Coupons & Promos</CardTitle>
+                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">{periodLabel}</span>
+                        </div>
+                        <Tag className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                            {couponStats.totalCouponOrders} <span className="text-xs font-normal text-muted-foreground">({couponStats.adoptionRate.toFixed(1)}%)</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            -${couponStats.totalDiscountGiven.toFixed(2)} saved • View orders &rarr;
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
 
             <Link to="/manufacturing/analytics">
                 <Card className="hover:border-destructive/50 transition-colors cursor-pointer group border-destructive/20 bg-destructive/5">
@@ -698,6 +834,7 @@ const Dashboard = () => {
             ordersCount={funnelData.orders}
             periodLabel={periodLabel}
         />
+        <CouponPerformanceCard stats={couponStats} periodLabel={periodLabel} />
         <RevenueTrendChart data={revenueData} periodLabel={periodLabel} />
         <OrderVolumeTrendChart data={orderVolumeData} periodLabel={periodLabel} />
         <OrderStatusChart data={statusData} />

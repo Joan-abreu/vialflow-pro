@@ -22,6 +22,7 @@ interface DataTablePaginationProps {
     totalItems?: number;
     pageSize?: number;
     onPageSizeChange?: (size: number) => void;
+    pageSizeOptions?: number[];
 }
 
 export function DataTablePagination({
@@ -31,7 +32,12 @@ export function DataTablePagination({
     totalItems,
     pageSize,
     onPageSizeChange,
+    pageSizeOptions = [10, 25, 50, 100, 200],
 }: DataTablePaginationProps) {
+    const availablePageSizes = Array.from(
+        new Set([...pageSizeOptions, ...(pageSize ? [pageSize] : [])])
+    ).sort((a, b) => a - b);
+
     const getPageNumbers = () => {
         const pages = [];
         const maxVisiblePages = 5;
@@ -92,11 +98,11 @@ export function DataTablePagination({
                                 onPageSizeChange(Number(value));
                             }}
                         >
-                            <SelectTrigger className="h-8 w-[70px]">
+                            <SelectTrigger className="h-8 w-[78px]">
                                 <SelectValue placeholder={pageSize} />
                             </SelectTrigger>
                             <SelectContent side="top">
-                                {[5, 10, 20, 30, 50].map((size) => (
+                                {availablePageSizes.map((size) => (
                                     <SelectItem key={size} value={`${size}`}>
                                         {size}
                                     </SelectItem>

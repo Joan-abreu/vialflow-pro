@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
     Table,
@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import {
@@ -38,7 +38,32 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Factory, Loader2, Eye, Tag, Truck, Search, Package, Trash2, Mail, RefreshCw, Printer, X, FileText, Lock, ShieldCheck, AlertTriangle, XCircle, Plus, Receipt } from "lucide-react";
+import { 
+    Factory, 
+    Loader2, 
+    Eye, 
+    Tag, 
+    Truck, 
+    Search, 
+    Package, 
+    Trash2, 
+    Mail, 
+    RefreshCw, 
+    Printer, 
+    X, 
+    FileText, 
+    Lock, 
+    ShieldCheck, 
+    AlertTriangle, 
+    XCircle, 
+    Plus, 
+    Receipt,
+    SlidersHorizontal,
+    CreditCard,
+    Percent,
+    Filter,
+    RotateCcw
+} from "lucide-react";
 
 import { MultiCarrierShippingDialog } from "@/components/shipping/MultiCarrierShippingDialog";
 import { CreateManualOrderDialog } from "@/components/orders/CreateManualOrderDialog";
@@ -154,6 +179,33 @@ const OrderManagement = () => {
     const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
     const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
     const [filterManualOnly, setFilterManualOnly] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlCoupon = searchParams.get("coupon");
+
+    const [filterCoupon, setFilterCoupon] = useState<string>(urlCoupon || "all");
+    const [filterPayment, setFilterPayment] = useState<string>("all");
+    const [filterProductType, setFilterProductType] = useState<string>("all");
+    const [filterCarrier, setFilterCarrier] = useState<string>("all");
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(Boolean(urlCoupon));
+
+    useEffect(() => {
+        if (urlCoupon && urlCoupon !== filterCoupon) {
+            setFilterCoupon(urlCoupon);
+            setShowAdvancedFilters(true);
+        }
+    }, [urlCoupon]);
+
+    const handleSetCouponFilter = (code: string) => {
+        setFilterCoupon(code);
+        setCurrentPage(1);
+        const nextParams = new URLSearchParams(searchParams);
+        if (code && code !== "all") {
+            nextParams.set("coupon", code);
+        } else {
+            nextParams.delete("coupon");
+        }
+        setSearchParams(nextParams, { replace: true });
+    };
 
     const handleOpenInvoice = (order: Order) => {
         setInvoiceOrder(order);
@@ -161,7 +213,7 @@ const OrderManagement = () => {
     };
 
     const queryClient = useQueryClient();
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
 
     const { data: orders, isLoading } = useQuery({
         queryKey: ["orders"],
@@ -764,9 +816,83 @@ const OrderManagement = () => {
         { id: 'all', label: 'All', statuses: [] },
     ];
 
+    const getOrderCouponCodes = (order: Order | any): string[] => {
+        if (!order) return [];
+        const list: string[] = [];
+        if (Array.isArray(order.applied_coupons)) {
+            order.applied_coupons.forEach((c: any) => {
+                if (typeof c === 'string' && c.trim()) list.push(c.trim().toUpperCase());
+                else if (c && typeof c === 'object' && c.code) list.push(String(c.code).trim().toUpperCase());
+            });
+        } else if (typeof order.applied_coupons === 'string' && order.applied_coupons.trim()) {
+            try {
+                const parsed = JSON.parse(order.applied_coupons);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach((c: any) => {
+                        if (typeof c === 'string' && c.trim()) list.push(c.trim().toUpperCase());
+                        else if (c && typeof c === 'object' && c.code) list.push(String(c.code).trim().toUpperCase());
+                    });
+                }
+            } catch {
+                list.push(order.applied_coupons.trim().toUpperCase());
+            }
+        }
+        return list;
+    };
+
+    const orderHasCoupon = (order: Order | any): boolean => {
+        if (!order) return false;
+        const codes = getOrderCouponCodes(order);
+        if (codes.length > 0) return true;
+        return (Number(order.product_discount) || 0) > 0 || (Number(order.shipping_discount) || 0) > 0;
+    };
+
     const totalManualOrdersCount = useMemo(() => {
         return orders?.filter(isInvoiceOrder).length || 0;
     }, [orders]);
+
+    const availableCouponCodes = useMemo(() => {
+        if (!orders) return [];
+        const map = new Map<string, number>();
+        orders.forEach(order => {
+            const codes = getOrderCouponCodes(order);
+            codes.forEach(code => {
+                map.set(code, (map.get(code) || 0) + 1);
+            });
+        });
+        return Array.from(map.entries())
+            .map(([code, count]) => ({ code, count }))
+            .sort((a, b) => b.count - a.count);
+    }, [orders]);
+
+    const totalOrdersWithCouponsCount = useMemo(() => {
+        return orders?.filter(orderHasCoupon).length || 0;
+    }, [orders]);
+
+    const totalBulkOrdersCount = useMemo(() => {
+        return orders?.filter(o => o.order_items?.some(i => i.is_bulk)).length || 0;
+    }, [orders]);
+
+    const activeFilterCount = useMemo(() => {
+        let count = 0;
+        if (filterCoupon !== "all") count++;
+        if (filterPayment !== "all") count++;
+        if (filterProductType !== "all") count++;
+        if (filterCarrier !== "all") count++;
+        if (filterManualOnly) count++;
+        return count;
+    }, [filterCoupon, filterPayment, filterProductType, filterCarrier, filterManualOnly]);
+
+    const handleClearAllFilters = () => {
+        handleSetCouponFilter("all");
+        setFilterPayment("all");
+        setFilterProductType("all");
+        setFilterCarrier("all");
+        setFilterManualOnly(false);
+        setSearchQuery("");
+        setCurrentPage(1);
+        toast.info("Filters cleared");
+    };
 
     const tabCounts = useMemo(() => {
         const counts: Record<string, number> = { 
@@ -802,6 +928,69 @@ const OrderManagement = () => {
             return false;
         }
 
+        // Filter by coupon
+        if (filterCoupon === "any_coupon") {
+            if (!orderHasCoupon(order)) return false;
+        } else if (filterCoupon === "no_coupon") {
+            if (orderHasCoupon(order)) return false;
+        } else if (filterCoupon !== "all") {
+            const codes = getOrderCouponCodes(order);
+            if (!codes.includes(filterCoupon.toUpperCase())) return false;
+        }
+
+        // Filter by payment method
+        if (filterPayment !== "all") {
+            const pMethod = (order.payment_method || "").toLowerCase();
+            if (filterPayment === "stripe") {
+                const isStripe = pMethod.includes("stripe") || Boolean(order.payment_intent_id?.startsWith("pi_"));
+                if (!isStripe) return false;
+            } else if (filterPayment === "square") {
+                if (!pMethod.includes("square")) return false;
+            } else if (filterPayment === "p2p_zelle") {
+                const isP2P = pMethod === "zelle" || pMethod === "cash_app" || pMethod === "cashapp" || pMethod === "venmo" || pMethod === "manual" || Boolean((order as any).p2p_status);
+                if (!isP2P) return false;
+            } else if (filterPayment === "invoice_manual") {
+                if (!isInvoiceOrder(order)) return false;
+            }
+        }
+
+        // Filter by product type
+        if (filterProductType !== "all") {
+            if (filterProductType === "bulk") {
+                if (!order.order_items?.some(i => i.is_bulk)) return false;
+            } else if (filterProductType === "peptides") {
+                const hasPeptide = order.order_items?.some(i => {
+                    const vName = (i.variant?.vial_type?.name || "").toLowerCase();
+                    const cat = (i.variant?.product?.category || (i.variant?.product as any)?.product_categories?.name || "").toLowerCase();
+                    const sku = (i.variant?.sku || "").toLowerCase();
+                    return vName.includes("mg") || cat.includes("peptide") || /^(rt|mots|nad|tr|glp|pep)/i.test(sku);
+                });
+                if (!hasPeptide) return false;
+            } else if (filterProductType === "solutions") {
+                const hasSolution = order.order_items?.some(i => {
+                    const vName = (i.variant?.vial_type?.name || "").toLowerCase();
+                    const pName = (i.variant?.product?.name || "").toLowerCase();
+                    const cat = (i.variant?.product?.category || "").toLowerCase();
+                    return pName.includes("water") || pName.includes("solution") || pName.includes("bac") || cat.includes("solution") || vName.includes("ml");
+                });
+                if (!hasSolution) return false;
+            }
+        }
+
+        // Filter by carrier / shipping fulfillment
+        if (filterCarrier !== "all") {
+            if (filterCarrier === "unfulfilled") {
+                if (order.tracking_number || (order.order_shipments && order.order_shipments.length > 0)) return false;
+            } else {
+                const target = filterCarrier.toLowerCase();
+                const mainCarrier = (order.shipping_carrier || "").toLowerCase();
+                const mainService = (order.shipping_service || "").toLowerCase();
+                const hasInShipments = order.order_shipments?.some(s => (s.carrier || "").toLowerCase().includes(target));
+                const matchesCarrier = mainCarrier.includes(target) || mainService.includes(target) || hasInShipments;
+                if (!matchesCarrier) return false;
+            }
+        }
+
         // Then filter by search query
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
@@ -810,6 +999,9 @@ const OrderManagement = () => {
         const isInvoiceKeyword = query === "invoice" || query === "invoices" || query === "manual";
         if (isInvoiceKeyword && isInvoiceOrder(order)) return true;
 
+        const couponCodes = getOrderCouponCodes(order);
+        const matchesCouponCode = couponCodes.some(c => c.toLowerCase().includes(query));
+
         const matchesOrder = (
             order.id.toLowerCase().includes(query) ||
             order.customer_email?.toLowerCase().includes(query) ||
@@ -817,7 +1009,8 @@ const OrderManagement = () => {
             order.status.toLowerCase().includes(query) ||
             (order.payment_method && order.payment_method.toLowerCase().includes(query)) ||
             (order.tracking_number && order.tracking_number.toLowerCase().includes(query)) ||
-            order.applied_coupons?.some(c => c.toLowerCase().includes(query))
+            matchesCouponCode ||
+            order.applied_coupons?.some((c: any) => typeof c === 'string' ? c.toLowerCase().includes(query) : c?.code?.toLowerCase().includes(query))
         );
 
         const matchesShipments = order.order_shipments?.some(shipment => 
@@ -904,18 +1097,18 @@ const OrderManagement = () => {
                 </div>
             </div>
 
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="relative flex items-center w-full sm:w-96">
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
+                    <div className="relative flex items-center w-full sm:w-80 md:w-96">
                         <Search className="w-4 h-4 text-muted-foreground absolute left-3 pointer-events-none" />
                         <Input
-                            placeholder="Search by ID, Customer, SKU, Product, Email, or Tracking #"
+                            placeholder="Search by ID, Customer, SKU, Product, Email, Tracking #, or Coupon"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
                                 setCurrentPage(1);
                             }}
-                            className="w-full pl-9 pr-9"
+                            className="w-full pl-9 pr-9 h-9 text-xs sm:text-sm"
                         />
                         {searchQuery && (
                             <button
@@ -932,8 +1125,9 @@ const OrderManagement = () => {
                         )}
                     </div>
 
-                    {/* Quick filter for Manual Orders / Invoices without disrupting lifecycle tabs */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Quick filter pills and advanced filter toggle */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Quick filter for Manual Orders / Invoices */}
                         <Button
                             type="button"
                             variant={filterManualOnly ? "default" : "outline"}
@@ -946,16 +1140,16 @@ const OrderManagement = () => {
                                 "h-9 text-xs font-semibold gap-1.5 transition-colors",
                                 filterManualOnly
                                     ? "bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
-                                    : "border-purple-200 text-purple-700 hover:bg-purple-50"
+                                    : "border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400"
                             )}
                         >
                             <Receipt className="h-3.5 w-3.5" />
-                            <span>{filterManualOnly ? "Showing Manual Orders Only" : "Filter: Manual Orders"}</span>
+                            <span>Manual Orders</span>
                             <Badge
                                 variant="secondary"
                                 className={cn(
                                     "text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center font-bold ml-0.5",
-                                    filterManualOnly ? "bg-white/25 text-white" : "bg-purple-100 text-purple-800"
+                                    filterManualOnly ? "bg-white/25 text-white" : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
                                 )}
                             >
                                 {totalManualOrdersCount}
@@ -964,8 +1158,208 @@ const OrderManagement = () => {
                                 <X className="h-3 w-3 ml-0.5 text-white/80" />
                             )}
                         </Button>
+
+                        {/* Advanced Filters Button */}
+                        <Button
+                            type="button"
+                            variant={showAdvancedFilters || activeFilterCount > 0 ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                            className={cn(
+                                "h-9 text-xs font-semibold gap-1.5 transition-colors",
+                                activeFilterCount > 0 && "border-primary/40 bg-primary/10 text-primary font-bold"
+                            )}
+                        >
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                            <span>Filters</span>
+                            {activeFilterCount > 0 && (
+                                <Badge
+                                    variant="default"
+                                    className="text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center font-bold bg-primary text-primary-foreground ml-0.5"
+                                >
+                                    {activeFilterCount}
+                                </Badge>
+                            )}
+                        </Button>
+
+                        {(activeFilterCount > 0 || searchQuery) && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearAllFilters}
+                                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground font-medium gap-1"
+                                title="Reset all filters"
+                            >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Reset</span>
+                            </Button>
+                        )}
                     </div>
                 </div>
+
+                {/* Collapsible Advanced Filters Bar */}
+                {showAdvancedFilters && (
+                    <div className="bg-muted/40 border rounded-lg p-3 space-y-3 animate-in fade-in slide-in-from-top-1 text-sm shadow-xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-border/60">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Filter className="w-3.5 h-3.5 text-primary" />
+                                Advanced Order Filters
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {activeFilterCount > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleClearAllFilters}
+                                        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive gap-1"
+                                    >
+                                        <RotateCcw className="w-3 h-3" />
+                                        Clear all
+                                    </Button>
+                                )}
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setShowAdvancedFilters(false)}
+                                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* 1. Coupon Applied */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <Tag className="w-3 h-3 text-emerald-600" />
+                                    Discount Coupon
+                                </label>
+                                <Select value={filterCoupon} onValueChange={(val) => handleSetCouponFilter(val)}>
+                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                        <SelectValue placeholder="All coupons" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">🎟️ All (No coupon filter)</SelectItem>
+                                        <SelectItem value="any_coupon">✨ Any coupon applied ({totalOrdersWithCouponsCount})</SelectItem>
+                                        <SelectItem value="no_coupon">🚫 No coupon applied</SelectItem>
+                                        {availableCouponCodes.length > 0 && (
+                                            <>
+                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                                    Used Codes
+                                                </div>
+                                                {availableCouponCodes.map((item) => (
+                                                    <SelectItem key={item.code} value={item.code}>
+                                                        🏷️ {item.code} ({item.count})
+                                                    </SelectItem>
+                                                ))}
+                                            </>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* 2. Payment Method */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <CreditCard className="w-3 h-3 text-blue-600" />
+                                    Payment Method
+                                </label>
+                                <Select value={filterPayment} onValueChange={(val) => { setFilterPayment(val); setCurrentPage(1); }}>
+                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                        <SelectValue placeholder="All payment methods" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">💳 All payment methods</SelectItem>
+                                        <SelectItem value="stripe">Stripe / Credit & Debit Card</SelectItem>
+                                        <SelectItem value="square">Square</SelectItem>
+                                        <SelectItem value="p2p_zelle">Zelle / P2P / Cash App</SelectItem>
+                                        <SelectItem value="invoice_manual">Manual Invoice / Offline</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* 3. Product Type */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <Package className="w-3 h-3 text-purple-600" />
+                                    Product Type
+                                </label>
+                                <Select value={filterProductType} onValueChange={(val) => { setFilterProductType(val); setCurrentPage(1); }}>
+                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                        <SelectValue placeholder="All products" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">📦 All product types</SelectItem>
+                                        <SelectItem value="peptides">🧪 Peptides (Vials / mg)</SelectItem>
+                                        <SelectItem value="solutions">💧 Solutions / BAC Water (ml)</SelectItem>
+                                        <SelectItem value="bulk">🏷️ Bulk Orders</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* 4. Shipping Carrier */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <Truck className="w-3 h-3 text-amber-600" />
+                                    Shipping Carrier
+                                </label>
+                                <Select value={filterCarrier} onValueChange={(val) => { setFilterCarrier(val); setCurrentPage(1); }}>
+                                    <SelectTrigger className="h-8 text-xs bg-background">
+                                        <SelectValue placeholder="All carriers" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">🚚 All carriers</SelectItem>
+                                        <SelectItem value="usps">USPS</SelectItem>
+                                        <SelectItem value="ups">UPS</SelectItem>
+                                        <SelectItem value="fedex">FedEx</SelectItem>
+                                        <SelectItem value="unfulfilled">⏳ Unfulfilled / No label</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Active filter badges row */}
+                        {activeFilterCount > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/40 text-xs">
+                                <span className="text-[11px] text-muted-foreground font-medium mr-1">Active:</span>
+                                {filterCoupon !== "all" && (
+                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Coupon: {filterCoupon === "any_coupon" ? "Any coupon" : filterCoupon === "no_coupon" ? "No coupon" : filterCoupon}</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-emerald-900" onClick={() => handleSetCouponFilter("all")} />
+                                    </Badge>
+                                )}
+                                {filterPayment !== "all" && (
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Payment: {filterPayment === "p2p_zelle" ? "Zelle / P2P" : filterPayment === "invoice_manual" ? "Manual Invoice" : filterPayment}</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-blue-900" onClick={() => { setFilterPayment("all"); setCurrentPage(1); }} />
+                                    </Badge>
+                                )}
+                                {filterProductType !== "all" && (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Type: {filterProductType === "peptides" ? "Peptides" : filterProductType === "solutions" ? "Solutions / BAC" : "Bulk"}</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-purple-900" onClick={() => { setFilterProductType("all"); setCurrentPage(1); }} />
+                                    </Badge>
+                                )}
+                                {filterCarrier !== "all" && (
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Carrier: {filterCarrier === "unfulfilled" ? "Unfulfilled" : filterCarrier.toUpperCase()}</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-amber-900" onClick={() => { setFilterCarrier("all"); setCurrentPage(1); }} />
+                                    </Badge>
+                                )}
+                                {filterManualOnly && (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Manual Only</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-purple-900" onClick={() => { setFilterManualOnly(false); setCurrentPage(1); }} />
+                                    </Badge>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <Tabs value={activeTab} onValueChange={(val) => {
                     setActiveTab(val);
@@ -1127,8 +1521,38 @@ const OrderManagement = () => {
             )}
 
             <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-xl">Orders ({filteredOrders?.length || 0})</CardTitle>
+                <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <CardTitle className="text-xl">Orders ({filteredOrders?.length || 0})</CardTitle>
+                        {filteredOrders && filteredOrders.length > 0 && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredOrders.length)}–{Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} orders
+                            </p>
+                        )}
+                    </div>
+                    {filteredOrders && filteredOrders.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground self-start sm:self-auto">
+                            <span>Per page:</span>
+                            <Select
+                                value={itemsPerPage.toString()}
+                                onValueChange={(val) => {
+                                    setItemsPerPage(Number(val));
+                                    setCurrentPage(1);
+                                }}
+                            >
+                                <SelectTrigger className="h-8 w-[78px] text-xs bg-background">
+                                    <SelectValue placeholder={itemsPerPage} />
+                                </SelectTrigger>
+                                <SelectContent side="bottom">
+                                    {[10, 25, 50, 100, 200].map((size) => (
+                                        <SelectItem key={size} value={`${size}`} className="text-xs">
+                                            {size}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-auto w-full border-t max-h-[calc(100vh-260px)] relative shadow-inner">
@@ -1171,12 +1595,9 @@ const OrderManagement = () => {
                                 filteredOrders
                                     ?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((order) => {
-                                        const hasCoupon = Boolean(
-                                            (order.applied_coupons && order.applied_coupons.length > 0) ||
-                                            (order.product_discount || 0) > 0 ||
-                                            (order.shipping_discount || 0) > 0
-                                        );
-                                        const couponCode = order.applied_coupons && order.applied_coupons.length > 0 ? order.applied_coupons[0] : null;
+                                        const hasCoupon = orderHasCoupon(order);
+                                        const codes = getOrderCouponCodes(order);
+                                        const couponCode = codes.length > 0 ? codes[0] : null;
 
                                         return (
                                         <TableRow 
@@ -1214,11 +1635,20 @@ const OrderManagement = () => {
                                                     {hasCoupon && (
                                                         <Badge 
                                                             variant="outline" 
-                                                            className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700 text-[9px] px-1.5 py-0 font-bold flex items-center gap-1 uppercase"
-                                                            title={order.applied_coupons?.length ? `Cupones aplicables: ${order.applied_coupons.join(", ")}` : 'Descuento aplicado'}
+                                                            className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700 text-[9px] px-1.5 py-0 font-bold flex items-center gap-1 uppercase cursor-pointer hover:bg-emerald-200 hover:scale-105 transition-all"
+                                                            title={codes.length > 0 ? `Click to filter by coupon: ${codes.join(", ")}` : 'Discount applied'}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (couponCode) {
+                                                                    handleSetCouponFilter(couponCode);
+                                                                    toast.info(`Filtering by coupon: ${couponCode}`);
+                                                                } else {
+                                                                    handleSetCouponFilter("any_coupon");
+                                                                }
+                                                            }}
                                                         >
                                                             <Tag className="w-2.5 h-2.5" />
-                                                            {couponCode || 'Cupón'}
+                                                            {couponCode || 'Coupon'}
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -1336,10 +1766,23 @@ const OrderManagement = () => {
                                             <TableCell className="text-right">
                                                 <div className="font-semibold">${order.total_amount.toFixed(2)}</div>
                                                 {hasCoupon && (
-                                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1 mt-0.5" title={order.applied_coupons?.join(", ") || "Descuento aplicado"}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (couponCode) {
+                                                                handleSetCouponFilter(couponCode);
+                                                                toast.info(`Filtering by coupon: ${couponCode}`);
+                                                            } else {
+                                                                handleSetCouponFilter("any_coupon");
+                                                            }
+                                                        }}
+                                                        className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-end gap-1 mt-0.5 hover:underline cursor-pointer ml-auto"
+                                                        title={codes.length > 0 ? `Click to filter by ${codes.join(", ")}` : "Discount applied"}
+                                                    >
                                                         <Tag className="w-2.5 h-2.5" />
-                                                        <span>{couponCode || 'Cupón'}</span>
-                                                    </div>
+                                                        <span>{couponCode || 'Coupon'}</span>
+                                                    </button>
                                                 )}
                                             </TableCell>
                                             <TableCell>
@@ -1579,6 +2022,7 @@ const OrderManagement = () => {
                             onPageChange={setCurrentPage}
                             totalItems={filteredOrders.length}
                             pageSize={itemsPerPage}
+                            pageSizeOptions={[10, 25, 50, 100, 200]}
                             onPageSizeChange={(size) => {
                                 setItemsPerPage(size);
                                 setCurrentPage(1);

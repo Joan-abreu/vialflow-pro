@@ -123,12 +123,11 @@ const PublicLayoutContent = () => {
 
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
     const [isBannerHovered, setIsBannerHovered] = useState(false);
+    const [isBannerInteracting, setIsBannerInteracting] = useState(false);
     const [modalInitialSlide, setModalInitialSlide] = useState(0);
     const [copiedBannerCode, setCopiedBannerCode] = useState<string | null>(null);
 
-    // Slide animation direction & touch swipe handling
-    const [bannerSlideDirection, setBannerSlideDirection] = useState<"next" | "prev">("next");
-    const [isBannerInteracting, setIsBannerInteracting] = useState(false);
+    const bannerTrackRef = useRef<HTMLDivElement | null>(null);
     const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const pauseBannerAutoRotate = () => {
@@ -136,7 +135,29 @@ const PublicLayoutContent = () => {
         if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
         pauseTimeoutRef.current = setTimeout(() => {
             setIsBannerInteracting(false);
-        }, 6000);
+        }, 7000);
+    };
+
+    const scrollToBannerIndex = (index: number, smooth: boolean = true) => {
+        if (!bannerTrackRef.current) return;
+        const width = bannerTrackRef.current.clientWidth;
+        bannerTrackRef.current.scrollTo({
+            left: index * width,
+            behavior: smooth ? "smooth" : "instant",
+        });
+        setCurrentBannerIndex(index);
+    };
+
+    const handleBannerScroll = () => {
+        if (!bannerTrackRef.current) return;
+        const el = bannerTrackRef.current;
+        const width = el.clientWidth;
+        if (width > 0) {
+            const newIdx = Math.round(el.scrollLeft / width);
+            if (newIdx !== currentBannerIndex && newIdx >= 0 && newIdx < bannerCampaigns.length) {
+                setCurrentBannerIndex(newIdx);
+            }
+        }
     };
 
     // Auto-rotate announcement banner every 4.5 seconds if multiple promotions are active
@@ -144,77 +165,29 @@ const PublicLayoutContent = () => {
         if (bannerCampaigns.length <= 1 || isBannerHovered || isBannerInteracting) return;
 
         const timer = setInterval(() => {
-            setBannerSlideDirection("next");
-            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
+            if (!bannerTrackRef.current) return;
+            const nextIndex = (currentBannerIndex + 1) % bannerCampaigns.length;
+            scrollToBannerIndex(nextIndex, true);
         }, 4500);
 
         return () => clearInterval(timer);
-    }, [bannerCampaigns.length, isBannerHovered, isBannerInteracting]);
+    }, [bannerCampaigns.length, isBannerHovered, isBannerInteracting, currentBannerIndex]);
 
-    // Touch swipe gesture support for mobile finger sliding
-    const touchStartXRef = useRef<number | null>(null);
-    const touchStartYRef = useRef<number | null>(null);
-    const hasSwipedRef = useRef<boolean>(false);
-    const [touchDeltaX, setTouchDeltaX] = useState<number>(0);
-    const [isDraggingTouch, setIsDraggingTouch] = useState<boolean>(false);
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (bannerCampaigns.length <= 1) return;
-        touchStartXRef.current = e.touches[0].clientX;
-        touchStartYRef.current = e.touches[0].clientY;
-        hasSwipedRef.current = false;
-        setIsDraggingTouch(true);
-        pauseBannerAutoRotate();
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (bannerCampaigns.length <= 1 || touchStartXRef.current === null || touchStartYRef.current === null) return;
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-        const diffX = currentX - touchStartXRef.current;
-        const diffY = currentY - touchStartYRef.current;
-
-        // If swipe is mostly horizontal, track drag and prevent click
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-            const dampened = diffX * 0.65;
-            setTouchDeltaX(dampened);
-            if (Math.abs(diffX) > 10) {
-                hasSwipedRef.current = true;
-            }
-        }
-    };
-
-    const handleTouchEnd = () => {
-        if (bannerCampaigns.length <= 1 || touchStartXRef.current === null) {
-            setTouchDeltaX(0);
-            setIsDraggingTouch(false);
-            return;
-        }
-
-        const threshold = 35;
-        if (touchDeltaX < -threshold) {
-            // Swiped left with finger -> Next banner
-            setBannerSlideDirection("next");
-            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
-        } else if (touchDeltaX > threshold) {
-            // Swiped right with finger -> Previous banner
-            setBannerSlideDirection("prev");
-            setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
-        }
-
-        setTouchDeltaX(0);
-        setIsDraggingTouch(false);
-        touchStartXRef.current = null;
-        touchStartYRef.current = null;
-
-        // Reset hasSwiped shortly after to prevent accidental clicks on children
-        setTimeout(() => {
-            hasSwipedRef.current = false;
-        }, 150);
-    };
+    // Handle screen resize so current banner stays centered
+    useEffect(() => {
+        const handleResize = () => {
+            if (!bannerTrackRef.current) return;
+            const width = bannerTrackRef.current.clientWidth;
+            bannerTrackRef.current.scrollTo({
+                left: currentBannerIndex * width,
+                behavior: "instant" as ScrollBehavior,
+            });
+        };
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, [currentBannerIndex]);
 
     const handleOpenPromoFromBanner = (campaignIndex: number) => {
-        if (hasSwipedRef.current) return;
         const targetCamp = bannerCampaigns[campaignIndex];
         const entryIdx = targetCamp 
             ? activeEntryCampaigns.findIndex(c => c.id === targetCamp.id) 
@@ -359,176 +332,153 @@ const PublicLayoutContent = () => {
                     <div 
                         onMouseEnter={() => setIsBannerHovered(true)}
                         onMouseLeave={() => setIsBannerHovered(false)}
-                        onTouchStart={handleTouchStart}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                        style={{ touchAction: "pan-y" }}
-                        className="bg-primary text-primary-foreground py-2 sm:py-2.5 px-3 sm:px-4 text-center text-xs md:text-sm font-medium flex flex-col justify-center relative shadow-sm z-50 overflow-hidden select-none"
+                        className="bg-primary text-primary-foreground h-10 sm:h-10.5 w-full text-xs md:text-sm font-medium relative shadow-sm z-50 overflow-hidden flex items-center select-none shrink-0"
                     >
-                        <div className="flex items-center justify-between w-full relative">
-                            {/* Optional Prev Arrow (if multiple promotions) */}
+                        {/* Optional Prev Arrow (Desktop / Tablet) */}
+                        {hasMultipleBanners && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    pauseBannerAutoRotate();
+                                    const prevIdx = (currentBannerIndex - 1 + bannerCampaigns.length) % bannerCampaigns.length;
+                                    scrollToBannerIndex(prevIdx, true);
+                                }}
+                                className="absolute left-1.5 sm:left-2 z-20 p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
+                                aria-label="Previous promotion"
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+
+                        {/* Native Horizontal Scroll-Snap Track for 100% Fluid Touch Swiping */}
+                        <div
+                            ref={bannerTrackRef}
+                            onScroll={handleBannerScroll}
+                            onTouchStart={pauseBannerAutoRotate}
+                            onTouchMove={pauseBannerAutoRotate}
+                            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden overscroll-x-contain"
+                            style={{
+                                scrollbarWidth: "none",
+                                msOverflowStyle: "none",
+                                WebkitOverflowScrolling: "touch",
+                            }}
+                        >
+                            {bannerCampaigns.length > 0 ? (
+                                bannerCampaigns.map((camp, idx) => (
+                                    <div
+                                        key={camp.id || idx}
+                                        className="w-full shrink-0 h-full snap-center snap-always flex items-center justify-center px-8 sm:px-14 text-center overflow-hidden"
+                                    >
+                                        <div className="flex items-center gap-1.5 sm:gap-2 justify-center max-w-full overflow-hidden whitespace-nowrap">
+                                            {/* Badge */}
+                                            <span
+                                                onClick={() => handleOpenPromoFromBanner(idx)}
+                                                className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[9px] sm:text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors shrink-0"
+                                            >
+                                                <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {camp.badgeText || "SPECIAL"}
+                                            </span>
+
+                                            {/* Headline - Truncated strictly on 1 line so banner NEVER shifts height */}
+                                            <span
+                                                onClick={() => handleOpenPromoFromBanner(idx)}
+                                                className="cursor-pointer hover:underline truncate max-w-[140px] xs:max-w-[200px] sm:max-w-md md:max-w-lg lg:max-w-xl text-white font-semibold text-xs sm:text-sm shrink min-w-0"
+                                                title={camp.headline}
+                                            >
+                                                {camp.headline}
+                                            </span>
+
+                                            {/* Coupon Code 1-Click Copy */}
+                                            {camp.offerMode === "coupon_code" && camp.couponCode && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const code = camp.couponCode!.trim().toUpperCase();
+                                                        navigator.clipboard.writeText(code);
+                                                        localStorage.setItem("vialflow_referral_code", code);
+                                                        setCopiedBannerCode(code);
+                                                        toast.success(`Promo code "${code}" copied & applied!`);
+                                                        setTimeout(() => setCopiedBannerCode(null), 2500);
+                                                    }}
+                                                    className="inline-flex items-center gap-1 bg-white text-primary hover:bg-white/95 font-mono font-black text-[9px] sm:text-xs px-2 py-0.5 rounded-full border border-white/60 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+                                                    title="Click to copy promo code"
+                                                >
+                                                    <Tag className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                                    <span>{camp.couponCode}</span>
+                                                    {copiedBannerCode === camp.couponCode ? (
+                                                        <Check className="h-2.5 w-2.5 text-emerald-600 animate-in zoom-in" />
+                                                    ) : (
+                                                        <Copy className="h-2 w-2 opacity-70" />
+                                                    )}
+                                                </button>
+                                            )}
+
+                                            {/* CTA Link */}
+                                            <Link
+                                                to={camp.ctaUrl || "/products?category=peptides"}
+                                                className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-0.5 sm:gap-1 text-white shrink-0 text-xs sm:text-sm"
+                                            >
+                                                <span>{camp.ctaText || "Shop"}</span> <ArrowRight className="h-3 w-3" />
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="w-full shrink-0 h-full snap-center flex items-center justify-center px-8 text-center">
+                                    <span className="truncate text-xs sm:text-sm font-semibold">
+                                        🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Controls: Next Arrow & Dismiss Button (Fixed position, never moves) */}
+                        <div className="absolute right-1.5 sm:right-2 z-20 flex items-center gap-1 shrink-0">
                             {hasMultipleBanners && (
                                 <button
                                     type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
+                                    onClick={() => {
                                         pauseBannerAutoRotate();
-                                        setBannerSlideDirection("prev");
-                                        setCurrentBannerIndex((prev) => (prev - 1 + bannerCampaigns.length) % bannerCampaigns.length);
+                                        const nextIdx = (currentBannerIndex + 1) % bannerCampaigns.length;
+                                        scrollToBannerIndex(nextIdx, true);
                                     }}
-                                    className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer shrink-0 hidden sm:flex items-center justify-center text-white/80 hover:text-white"
-                                    aria-label="Previous promotion"
+                                    className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
+                                    aria-label="Next promotion"
                                 >
-                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                    <ChevronRight className="h-3.5 w-3.5" />
                                 </button>
                             )}
 
-                            {/* Center Content with Touch Drag and Animated Directional Slide */}
-                            <div 
-                                key={currentCampaign?.id || currentBannerIndex}
-                                style={{
-                                    transform: touchDeltaX ? `translateX(${touchDeltaX}px)` : undefined,
-                                    transition: isDraggingTouch ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                                }}
-                                className={`flex-1 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center px-4 sm:px-2 min-w-0 transition-all duration-300 animate-in fade-in ${
-                                    bannerSlideDirection === "next" ? "slide-in-from-right-4" : "slide-in-from-left-4"
-                                }`}
+                            <button 
+                                onClick={() => setShowPeptideBanner(false)} 
+                                className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer text-white/80 hover:text-white"
+                                title="Dismiss announcement"
+                                aria-label="Dismiss announcement"
                             >
-                                <span 
-                                    onClick={() => handleOpenPromoFromBanner(currentBannerIndex % bannerCampaigns.length)}
-                                    className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse cursor-pointer transition-colors shrink-0"
-                                >
-                                    <Sparkles className="h-3 w-3" /> {currentCampaign ? currentCampaign.badgeText : "NEW RELEASE"}
-                                </span>
+                                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </button>
+                        </div>
 
-                                <span className="truncate max-w-[240px] sm:max-w-none">
-                                    {currentCampaign ? (
-                                        <strong 
-                                            onClick={() => handleOpenPromoFromBanner(currentBannerIndex % bannerCampaigns.length)}
-                                            className="cursor-pointer hover:underline"
-                                        >
-                                            {currentCampaign.headline}
-                                        </strong>
-                                    ) : (
-                                        <>🧪 <strong>Premium Research Peptides</strong> are officially live in our catalog!</>
-                                    )}
-                                </span>
-
-                                {/* Coupon Code 1-Click Copy Badge in Top Banner */}
-                                {currentCampaign?.offerMode === "coupon_code" && currentCampaign?.couponCode && (
+                        {/* Subtle Dots Indicator at Bottom Center */}
+                        {hasMultipleBanners && (
+                            <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-20 pointer-events-auto">
+                                {bannerCampaigns.map((_, idx) => (
                                     <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            if (hasSwipedRef.current) return;
-                                            e.stopPropagation();
-                                            const code = currentCampaign.couponCode!.trim().toUpperCase();
-                                            navigator.clipboard.writeText(code);
-                                            localStorage.setItem("vialflow_referral_code", code);
-                                            setCopiedBannerCode(code);
-                                            toast.success(`Promo code "${code}" copied & applied!`);
-                                            setTimeout(() => setCopiedBannerCode(null), 2500);
-                                        }}
-                                        className="inline-flex items-center gap-1.5 bg-white text-primary hover:bg-white/95 font-mono font-black text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full border border-white/60 shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
-                                        title="Click to copy promo code"
-                                    >
-                                        <Tag className="h-3 w-3" />
-                                        <span>Code: <strong className="tracking-wider">{currentCampaign.couponCode}</strong></span>
-                                        {copiedBannerCode === currentCampaign.couponCode ? (
-                                            <Check className="h-3 w-3 text-emerald-600 animate-in zoom-in" />
-                                        ) : (
-                                            <Copy className="h-2.5 w-2.5 opacity-70" />
-                                        )}
-                                    </button>
-                                )}
-
-                                <Link 
-                                    to={currentCampaign?.ctaUrl || "/products?category=peptides"} 
-                                    onClick={(e) => {
-                                        if (hasSwipedRef.current) e.preventDefault();
-                                    }}
-                                    className="underline underline-offset-4 hover:opacity-90 font-bold inline-flex items-center gap-1 ml-1 text-white shrink-0"
-                                >
-                                    {currentCampaign?.ctaText || "Shop Now"} <ArrowRight className="h-3.5 w-3.5" />
-                                </Link>
-
-                                {/* Dots indicator for multiple banners on desktop */}
-                                {hasMultipleBanners && (
-                                    <div className="hidden md:inline-flex items-center gap-1 ml-2 bg-black/15 px-2 py-0.5 rounded-full">
-                                        {bannerCampaigns.map((_, idx) => (
-                                            <button
-                                                key={idx}
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    pauseBannerAutoRotate();
-                                                    setBannerSlideDirection(idx > (currentBannerIndex % bannerCampaigns.length) ? "next" : "prev");
-                                                    setCurrentBannerIndex(idx);
-                                                }}
-                                                className={`rounded-full transition-all cursor-pointer ${
-                                                    idx === (currentBannerIndex % bannerCampaigns.length)
-                                                        ? "w-3 h-1.5 bg-white"
-                                                        : "w-1.5 h-1.5 bg-white/40 hover:bg-white/70"
-                                                }`}
-                                                aria-label={`Promo ${idx + 1}`}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Right Controls: Next Arrow & Dismiss Button */}
-                            <div className="flex items-center gap-1 shrink-0">
-                                {hasMultipleBanners && (
-                                    <button
+                                        key={idx}
                                         type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             pauseBannerAutoRotate();
-                                            setBannerSlideDirection("next");
-                                            setCurrentBannerIndex((prev) => (prev + 1) % bannerCampaigns.length);
+                                            scrollToBannerIndex(idx, true);
                                         }}
-                                        className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer hidden sm:flex items-center justify-center text-white/80 hover:text-white"
-                                        aria-label="Next promotion"
-                                    >
-                                        <ChevronRight className="h-3.5 w-3.5" />
-                                    </button>
-                                )}
-
-                                <button 
-                                    onClick={() => setShowPeptideBanner(false)} 
-                                    className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer text-white/80 hover:text-white"
-                                    title="Dismiss announcement"
-                                    aria-label="Dismiss announcement"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Mobile Swipe Dots & Indicator (shown on touch/small screens when > 1 banner) */}
-                        {hasMultipleBanners && (
-                            <div className="flex sm:hidden items-center justify-center gap-1.5 pt-1">
-                                {bannerCampaigns.map((_, idx) => {
-                                    const isActive = idx === (currentBannerIndex % bannerCampaigns.length);
-                                    return (
-                                        <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                pauseBannerAutoRotate();
-                                                setBannerSlideDirection(idx > (currentBannerIndex % bannerCampaigns.length) ? "next" : "prev");
-                                                setCurrentBannerIndex(idx);
-                                            }}
-                                            className={`rounded-full transition-all cursor-pointer ${
-                                                isActive
-                                                    ? "w-3.5 h-1 bg-white"
-                                                    : "w-1.5 h-1 bg-white/40"
-                                            }`}
-                                            aria-label={`Go to promotion ${idx + 1}`}
-                                        />
-                                    );
-                                })}
+                                        className={`rounded-full transition-all cursor-pointer ${
+                                            idx === (currentBannerIndex % bannerCampaigns.length)
+                                                ? "w-3 sm:w-3.5 h-1 bg-white shadow-xs"
+                                                : "w-1 sm:w-1.5 h-1 bg-white/40 hover:bg-white/70"
+                                        }`}
+                                        aria-label={`Go to promotion ${idx + 1}`}
+                                    />
+                                ))}
                             </div>
                         )}
                     </div>

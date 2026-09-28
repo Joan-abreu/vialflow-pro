@@ -321,7 +321,8 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                                 },
                             },
                             recipient: {
-                                name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || (item.order.shipping_address as any)?.name || "Customer",
+                                name: item.order.customer_profile?.full_name || item.order.customer_name || (item.order.shipping_address as any)?.full_name || (item.order.shipping_address as any)?.name || (item.order.customer_email ? item.order.customer_email.split('@')[0] : "Customer"),
+                                phone: (item.order.shipping_address as any)?.phone || "",
                                 address: item.order.shipping_address || {},
                             },
                             orderId: item.order.id,
@@ -389,7 +390,8 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                                 shippingCarrier: item.order.shipping_carrier,
                                 packages: item.packages,
                                 recipient: {
-                                    name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || "Customer",
+                                    name: item.order.customer_profile?.full_name || item.order.customer_name || (item.order.shipping_address as any)?.full_name || (item.order.shipping_address as any)?.name || (item.order.customer_email ? item.order.customer_email.split('@')[0] : "Customer"),
+                                    phone: (item.order.shipping_address as any)?.phone || "",
                                     address: item.order.shipping_address || {},
                                 },
                                 shipper: {
@@ -458,7 +460,8 @@ export const BulkShippingDialog = ({ orders, open, onOpenChange, onSuccess }: Bu
                                 orderId: item.order.id,
                                 packages: item.packages,
                                 recipient: {
-                                    name: item.order.customer_profile?.full_name || (item.order.shipping_address as any)?.full_name || "Customer",
+                                    name: item.order.customer_profile?.full_name || item.order.customer_name || (item.order.shipping_address as any)?.full_name || (item.order.shipping_address as any)?.name || (item.order.customer_email ? item.order.customer_email.split('@')[0] : "Customer"),
+                                    phone: (item.order.shipping_address as any)?.phone || "",
                                     address: item.order.shipping_address || {},
                                 },
                             },

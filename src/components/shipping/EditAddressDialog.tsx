@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit2, Loader2 } from "lucide-react";
+import { Edit2, Loader2, User, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 
@@ -27,6 +27,8 @@ export const EditAddressDialog = ({ orderId, currentAddress, onSuccess, trigger 
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [address, setAddress] = useState({
+        full_name: "",
+        phone: "",
         line1: "",
         line2: "",
         city: "",
@@ -38,11 +40,13 @@ export const EditAddressDialog = ({ orderId, currentAddress, onSuccess, trigger 
     useEffect(() => {
         if (currentAddress) {
             setAddress({
+                full_name: currentAddress.full_name || currentAddress.name || "",
+                phone: currentAddress.phone || "",
                 line1: currentAddress.line1 || "",
                 line2: currentAddress.line2 || "",
                 city: currentAddress.city || "",
                 state: currentAddress.state || "",
-                postal_code: currentAddress.postal_code || "",
+                postal_code: currentAddress.postal_code || currentAddress.zip || "",
                 country: currentAddress.country || "US"
             });
         }
@@ -60,26 +64,41 @@ export const EditAddressDialog = ({ orderId, currentAddress, onSuccess, trigger 
             city: addr.city,
             state: addr.state,
             postal_code: addr.zip,
-            country: addr.country
+            country: addr.country || "US"
         }));
     };
 
     const handleSave = async () => {
+        if (!address.full_name?.trim()) {
+            toast.error("Please enter the recipient customer name.");
+            return;
+        }
+
         if (!address.line1 || !address.city || !address.state || !address.postal_code) {
-            toast.error("Please fill in all required fields.");
+            toast.error("Please fill in all required address fields.");
             return;
         }
 
         setLoading(true);
         try {
+            const updatedAddress = {
+                ...(typeof currentAddress === "object" && currentAddress !== null ? currentAddress : {}),
+                ...address,
+                full_name: address.full_name.trim(),
+                phone: address.phone?.trim() || null,
+            };
+
             const { error } = await supabase
                 .from("orders")
-                .update({ shipping_address: address })
+                .update({ 
+                    shipping_address: updatedAddress,
+                    customer_name: updatedAddress.full_name || undefined
+                })
                 .eq("id", orderId);
 
             if (error) throw error;
 
-            toast.success("Shipping address updated successfully.");
+            toast.success("Shipping address and recipient details updated successfully.");
             setOpen(false);
             onSuccess();
         } catch (error: any) {
@@ -100,16 +119,47 @@ export const EditAddressDialog = ({ orderId, currentAddress, onSuccess, trigger 
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                    <DialogTitle>Update Shipping Address</DialogTitle>
+                    <DialogTitle>Update Recipient &amp; Shipping Address</DialogTitle>
                     <DialogDescription>
-                        Modify the destination address for this order.
+                        Modify the recipient name, phone, and destination address for this order.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                    {/* Recipient Full Name and Phone */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="full_name" className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1 font-bold">
+                                <User className="h-3.5 w-3.5 text-primary" />
+                                Recipient Name *
+                            </Label>
+                            <Input 
+                                id="full_name" 
+                                name="full_name" 
+                                value={address.full_name} 
+                                onChange={handleInputChange} 
+                                placeholder="e.g. Jane Doe"
+                                required
+                            />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1 font-bold">
+                                <Phone className="h-3.5 w-3.5 text-primary" />
+                                Phone Number
+                            </Label>
+                            <Input 
+                                id="phone" 
+                                name="phone" 
+                                value={address.phone} 
+                                onChange={handleInputChange} 
+                                placeholder="e.g. (407) 555-0199"
+                            />
+                        </div>
+                    </div>
+
                     <div className="grid gap-2">
-                        <Label htmlFor="line1" className="text-xs uppercase tracking-wider text-muted-foreground">Address Line 1</Label>
+                        <Label htmlFor="line1" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Address Line 1 *</Label>
                         <AddressAutocomplete 
                             value={address.line1}
                             onSelectAddress={handleAutocompleteSelect}
@@ -123,40 +173,43 @@ export const EditAddressDialog = ({ orderId, currentAddress, onSuccess, trigger 
                             name="line2" 
                             value={address.line2} 
                             onChange={handleInputChange} 
-                            placeholder="Suite 400"
+                            placeholder="Apt 501, Suite 200, etc."
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="city" className="text-xs uppercase tracking-wider text-muted-foreground">City</Label>
+                            <Label htmlFor="city" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">City *</Label>
                             <Input 
                                 id="city" 
                                 name="city" 
                                 value={address.city} 
                                 onChange={handleInputChange} 
                                 placeholder="City"
+                                required
                             />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="state" className="text-xs uppercase tracking-wider text-muted-foreground">State</Label>
+                            <Label htmlFor="state" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">State *</Label>
                             <Input 
                                 id="state" 
                                 name="state" 
                                 value={address.state} 
                                 onChange={handleInputChange} 
-                                placeholder="State"
+                                placeholder="State (e.g. FL)"
+                                required
                             />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="postal_code" className="text-xs uppercase tracking-wider text-muted-foreground">ZIP Code</Label>
+                            <Label htmlFor="postal_code" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">ZIP Code *</Label>
                             <Input 
                                 id="postal_code" 
                                 name="postal_code" 
                                 value={address.postal_code} 
                                 onChange={handleInputChange} 
                                 placeholder="12345"
+                                required
                             />
                         </div>
                         <div className="grid gap-2 opacity-70">

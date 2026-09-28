@@ -35,7 +35,7 @@ export class ShippoCarrier implements ICarrier {
                     state: shipment.shipper.address?.state || shipment.shipper.state,
                     zip: shipment.shipper.address?.postal_code || shipment.shipper.address?.zip || shipment.shipper.zip || shipment.shipper.postal_code,
                     country: shipment.shipper.address?.country || shipment.shipper.country || "US",
-                    phone: shipment.shipper.phone || "5555555555",
+                    phone: shipment.shipper.phone || "18004238002",
                     email: shipment.shipper.email || "shipper@example.com",
                 },
                 address_to: {
@@ -47,8 +47,8 @@ export class ShippoCarrier implements ICarrier {
                     state: shipment.recipient.address?.state || shipment.recipient.state,
                     zip: shipment.recipient.address?.postal_code || shipment.recipient.address?.zip || shipment.recipient.zip || shipment.recipient.postal_code,
                     country: shipment.recipient.address?.country || shipment.recipient.country || "US",
-                    phone: shipment.recipient.phone || "5555555555",
-                    email: shipment.recipient.email || "recipient@example.com",
+                    phone: shipment.recipient.phone || shipment.recipient.address?.phone || "",
+                    email: shipment.recipient.email || shipment.recipient.address?.email || "recipient@example.com",
                 },
                 parcels: shipment.packages.map((pkg: any) => ({
                     length: Math.max(parseFloat(pkg.length || "1"), 1.0).toString(),
@@ -600,7 +600,7 @@ export class ShippoCarrier implements ICarrier {
                         state: item.shipper?.address?.state || item.shipper?.state || "CA",
                         zip: item.shipper?.address?.postal_code || item.shipper?.address?.zip || item.shipper?.zip || "90210",
                         country: item.shipper?.address?.country || item.shipper?.country || "US",
-                        phone: item.shipper?.phone || "5555555555",
+                        phone: item.shipper?.phone || "18004238002",
                         email: item.shipper?.email || "sales@livwellresearchlabs.com",
                     },
                     address_to: {
@@ -612,7 +612,7 @@ export class ShippoCarrier implements ICarrier {
                         state: item.recipient?.address?.state || item.recipient?.state,
                         zip: item.recipient?.address?.postal_code || item.recipient?.address?.zip || item.recipient?.zip,
                         country: item.recipient?.address?.country || item.recipient?.country || "US",
-                        phone: item.recipient?.phone || "5555555555",
+                        phone: item.recipient?.phone || item.recipient?.address?.phone || "",
                         email: item.recipient?.email || "customer@example.com",
                     },
                     parcels: (item.packages || [{ weight: 1, length: 12, width: 8, height: 6 }]).map((pkg: any) => ({

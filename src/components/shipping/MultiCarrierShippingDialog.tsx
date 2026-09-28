@@ -475,7 +475,12 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                             },
                         },
                         recipient: {
-                            name: (order.shipping_address as any)?.full_name || (order.shipping_address as any)?.name || "Customer",
+                            name: (order.shipping_address as any)?.full_name || 
+                                  (order.shipping_address as any)?.name || 
+                                  order.customer_name || 
+                                  (order.customer_profile as any)?.full_name || 
+                                  "Customer",
+                            phone: (order.shipping_address as any)?.phone || (order as any)?.customer_phone || (order as any)?.phone || "",
                             address: order.shipping_address || {},
                         },
                         orderId: orderId,
@@ -562,7 +567,10 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
             }
             // ---------------------------------------
 
-            let customerName = (order.shipping_address as any)?.full_name || (order.shipping_address as any)?.name || "Customer";
+            let customerName = (order.shipping_address as any)?.full_name || 
+                               (order.shipping_address as any)?.name || 
+                               order.customer_name || 
+                               "";
 
             if (!customerName || customerName === "Customer") {
                 if (order.user_id) {
@@ -577,6 +585,15 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                     }
                 }
             }
+
+            if (!customerName || customerName === "Customer") {
+                customerName = order.customer_email ? order.customer_email.split('@')[0] : "Customer";
+            }
+
+            const customerPhone = (order.shipping_address as any)?.phone || 
+                                  (order as any)?.customer_phone || 
+                                  (order.customer_profile as any)?.phone || 
+                                  "";
 
             const finalPackages = packages.length > 0 ? packages.map(pkg => ({
                 weight: parseFloat(String(pkg.weight)),
@@ -612,6 +629,7 @@ export const MultiCarrierShippingDialog = ({ orderId, open, onOpenChange, onSucc
                         },
                         recipient: {
                             name: customerName,
+                            phone: customerPhone,
                             address: order.shipping_address || {},
                         },
                         packages: finalPackages,

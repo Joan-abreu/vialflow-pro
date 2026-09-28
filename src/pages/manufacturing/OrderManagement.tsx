@@ -59,7 +59,6 @@ import {
     Plus, 
     Receipt,
     SlidersHorizontal,
-    CreditCard,
     Percent,
     Filter,
     RotateCcw
@@ -178,12 +177,11 @@ const OrderManagement = () => {
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
     const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
-    const [filterManualOnly, setFilterManualOnly] = useState(false);
+    const [filterOrderSource, setFilterOrderSource] = useState<string>("all");
     const [searchParams, setSearchParams] = useSearchParams();
     const urlCoupon = searchParams.get("coupon");
 
     const [filterCoupon, setFilterCoupon] = useState<string>(urlCoupon || "all");
-    const [filterPayment, setFilterPayment] = useState<string>("all");
     const [filterProductType, setFilterProductType] = useState<string>("all");
     const [filterCarrier, setFilterCarrier] = useState<string>("all");
     const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(Boolean(urlCoupon));
@@ -851,6 +849,10 @@ const OrderManagement = () => {
         return orders?.filter(isInvoiceOrder).length || 0;
     }, [orders]);
 
+    const totalOnlineOrdersCount = useMemo(() => {
+        return orders?.filter(o => !isInvoiceOrder(o)).length || 0;
+    }, [orders]);
+
     const availableCouponCodes = useMemo(() => {
         if (!orders) return [];
         const map = new Map<string, number>();
@@ -876,19 +878,17 @@ const OrderManagement = () => {
     const activeFilterCount = useMemo(() => {
         let count = 0;
         if (filterCoupon !== "all") count++;
-        if (filterPayment !== "all") count++;
+        if (filterOrderSource !== "all") count++;
         if (filterProductType !== "all") count++;
         if (filterCarrier !== "all") count++;
-        if (filterManualOnly) count++;
         return count;
-    }, [filterCoupon, filterPayment, filterProductType, filterCarrier, filterManualOnly]);
+    }, [filterCoupon, filterOrderSource, filterProductType, filterCarrier]);
 
     const handleClearAllFilters = () => {
         handleSetCouponFilter("all");
-        setFilterPayment("all");
+        setFilterOrderSource("all");
         setFilterProductType("all");
         setFilterCarrier("all");
-        setFilterManualOnly(false);
         setSearchQuery("");
         setCurrentPage(1);
         toast.info("Filters cleared");
@@ -923,8 +923,10 @@ const OrderManagement = () => {
             }
         }
 
-        // Filter by manual-only toggle
-        if (filterManualOnly && !isInvoiceOrder(order)) {
+        // Filter by order source (manual vs online)
+        if (filterOrderSource === "manual" && !isInvoiceOrder(order)) {
+            return false;
+        } else if (filterOrderSource === "online" && isInvoiceOrder(order)) {
             return false;
         }
 
@@ -936,22 +938,6 @@ const OrderManagement = () => {
         } else if (filterCoupon !== "all") {
             const codes = getOrderCouponCodes(order);
             if (!codes.includes(filterCoupon.toUpperCase())) return false;
-        }
-
-        // Filter by payment method
-        if (filterPayment !== "all") {
-            const pMethod = (order.payment_method || "").toLowerCase();
-            if (filterPayment === "stripe") {
-                const isStripe = pMethod.includes("stripe") || Boolean(order.payment_intent_id?.startsWith("pi_"));
-                if (!isStripe) return false;
-            } else if (filterPayment === "square") {
-                if (!pMethod.includes("square")) return false;
-            } else if (filterPayment === "p2p_zelle") {
-                const isP2P = pMethod === "zelle" || pMethod === "cash_app" || pMethod === "cashapp" || pMethod === "venmo" || pMethod === "manual" || Boolean((order as any).p2p_status);
-                if (!isP2P) return false;
-            } else if (filterPayment === "invoice_manual") {
-                if (!isInvoiceOrder(order)) return false;
-            }
         }
 
         // Filter by product type
@@ -1127,38 +1113,6 @@ const OrderManagement = () => {
 
                     {/* Quick filter pills and advanced filter toggle */}
                     <div className="flex items-center gap-2 flex-wrap">
-                        {/* Quick filter for Manual Orders / Invoices */}
-                        <Button
-                            type="button"
-                            variant={filterManualOnly ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => {
-                                setFilterManualOnly(!filterManualOnly);
-                                setCurrentPage(1);
-                            }}
-                            className={cn(
-                                "h-9 text-xs font-semibold gap-1.5 transition-colors",
-                                filterManualOnly
-                                    ? "bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
-                                    : "border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400"
-                            )}
-                        >
-                            <Receipt className="h-3.5 w-3.5" />
-                            <span>Manual Orders</span>
-                            <Badge
-                                variant="secondary"
-                                className={cn(
-                                    "text-[10px] px-1.5 py-0 h-4 min-w-4 justify-center font-bold ml-0.5",
-                                    filterManualOnly ? "bg-white/25 text-white" : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
-                                )}
-                            >
-                                {totalManualOrdersCount}
-                            </Badge>
-                            {filterManualOnly && (
-                                <X className="h-3 w-3 ml-0.5 text-white/80" />
-                            )}
-                        </Button>
-
                         {/* Advanced Filters Button */}
                         <Button
                             type="button"
@@ -1262,22 +1216,20 @@ const OrderManagement = () => {
                                 </Select>
                             </div>
 
-                            {/* 2. Payment Method */}
+                            {/* 2. Order Source (Manual Orders / Online) */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                                    <CreditCard className="w-3 h-3 text-blue-600" />
-                                    Payment Method
+                                    <Receipt className="w-3 h-3 text-purple-600" />
+                                    Order Source
                                 </label>
-                                <Select value={filterPayment} onValueChange={(val) => { setFilterPayment(val); setCurrentPage(1); }}>
+                                <Select value={filterOrderSource} onValueChange={(val) => { setFilterOrderSource(val); setCurrentPage(1); }}>
                                     <SelectTrigger className="h-8 text-xs bg-background">
-                                        <SelectValue placeholder="All payment methods" />
+                                        <SelectValue placeholder="All orders" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">💳 All payment methods</SelectItem>
-                                        <SelectItem value="stripe">Stripe / Credit & Debit Card</SelectItem>
-                                        <SelectItem value="square">Square</SelectItem>
-                                        <SelectItem value="p2p_zelle">Zelle / P2P / Cash App</SelectItem>
-                                        <SelectItem value="invoice_manual">Manual Invoice / Offline</SelectItem>
+                                        <SelectItem value="all">📋 All orders</SelectItem>
+                                        <SelectItem value="manual">📝 Manual Orders only ({totalManualOrdersCount})</SelectItem>
+                                        <SelectItem value="online">🌐 Online Store only ({totalOnlineOrdersCount})</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1332,10 +1284,10 @@ const OrderManagement = () => {
                                         <X className="w-3 h-3 cursor-pointer hover:text-emerald-900" onClick={() => handleSetCouponFilter("all")} />
                                     </Badge>
                                 )}
-                                {filterPayment !== "all" && (
-                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
-                                        <span>Payment: {filterPayment === "p2p_zelle" ? "Zelle / P2P" : filterPayment === "invoice_manual" ? "Manual Invoice" : filterPayment}</span>
-                                        <X className="w-3 h-3 cursor-pointer hover:text-blue-900" onClick={() => { setFilterPayment("all"); setCurrentPage(1); }} />
+                                {filterOrderSource !== "all" && (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
+                                        <span>Source: {filterOrderSource === "manual" ? "Manual Orders" : "Online Store"}</span>
+                                        <X className="w-3 h-3 cursor-pointer hover:text-purple-900" onClick={() => { setFilterOrderSource("all"); setCurrentPage(1); }} />
                                     </Badge>
                                 )}
                                 {filterProductType !== "all" && (
@@ -1348,12 +1300,6 @@ const OrderManagement = () => {
                                     <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
                                         <span>Carrier: {filterCarrier === "unfulfilled" ? "Unfulfilled" : filterCarrier.toUpperCase()}</span>
                                         <X className="w-3 h-3 cursor-pointer hover:text-amber-900" onClick={() => { setFilterCarrier("all"); setCurrentPage(1); }} />
-                                    </Badge>
-                                )}
-                                {filterManualOnly && (
-                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 text-[11px] pl-2 pr-1 py-0.5 gap-1 font-medium">
-                                        <span>Manual Only</span>
-                                        <X className="w-3 h-3 cursor-pointer hover:text-purple-900" onClick={() => { setFilterManualOnly(false); setCurrentPage(1); }} />
                                     </Badge>
                                 )}
                             </div>

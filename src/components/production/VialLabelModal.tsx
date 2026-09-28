@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import QRCode from "qrcode";
 import {
   Dialog,
@@ -46,6 +46,8 @@ export const VialLabelModal: React.FC<VialLabelModalProps> = ({
   open,
   onOpenChange,
 }) => {
+  const [qrTargetMode, setQrTargetMode] = useState<"product" | "batch">("product");
+  const [customQrSlug, setCustomQrSlug] = useState<string>("rt10");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [printCopies, setPrintCopies] = useState<number>(batch?.quantity || 10);
   const [labelSize, setLabelSize] = useState<LabelSizePreset>("small_vial");
@@ -64,6 +66,25 @@ export const VialLabelModal: React.FC<VialLabelModalProps> = ({
 
     setPrintCopies(batch.quantity > 0 ? batch.quantity : 10);
 
+    // Derive recommended QR short code / slug from product name
+    const name = (batch.product_name || "").toLowerCase();
+    let defaultSlug = "lab-reports";
+    if (name.includes("rt") || name.includes("reta") || name.includes("glp3")) defaultSlug = "rt10";
+    else if (name.includes("tr") || name.includes("tirz") || name.includes("glp2")) defaultSlug = "tr30";
+    else if (name.includes("sm") || name.includes("sema") || name.includes("glp1")) defaultSlug = "sm10";
+    else if (name.includes("bpc")) defaultSlug = "bpc10";
+    else if (name.includes("tb")) defaultSlug = "tb10";
+    else if (name.includes("bac") || name.includes("water") || name.includes("recon")) defaultSlug = "bac";
+    else if (name.includes("nad")) defaultSlug = "nad500";
+    else if (name.includes("mots")) defaultSlug = "mots10";
+    else if (name.includes("klow")) defaultSlug = "klow";
+    else if (name.includes("wolv")) defaultSlug = "wolv";
+    else {
+      const clean = name.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      defaultSlug = clean || "lab-reports";
+    }
+    setCustomQrSlug(defaultSlug);
+
     // Default retest date 2 years after batch creation date
     const baseDate = batch.created_at ? new Date(batch.created_at) : new Date();
     const expYear = baseDate.getFullYear() + 2;
@@ -80,9 +101,15 @@ export const VialLabelModal: React.FC<VialLabelModalProps> = ({
   }, [batch]);
 
   // Generate dynamic QR code URL pointing to public COA verification
-  const coaPublicUrl = typeof window !== "undefined" && batch?.batch_number
-    ? `${window.location.origin}/coa/${encodeURIComponent(batch.batch_number.trim())}`
-    : "";
+  const coaPublicUrl = useMemo(() => {
+    if (typeof window === "undefined" || !batch) return "";
+    if (qrTargetMode === "product") {
+      const slug = (customQrSlug || "lab-reports").trim().toLowerCase();
+      return `${window.location.origin}/coa/${encodeURIComponent(slug)}`;
+    } else {
+      return `${window.location.origin}/coa/${encodeURIComponent(batch.batch_number.trim())}`;
+    }
+  }, [batch, qrTargetMode, customQrSlug]);
 
   useEffect(() => {
     if (!coaPublicUrl) return;
@@ -251,6 +278,57 @@ export const VialLabelModal: React.FC<VialLabelModalProps> = ({
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                 Copy COA Link
               </Button>
+            </div>
+
+            {/* QR Code Target Routing */}
+            <div className="space-y-2 p-3 bg-muted/40 rounded-xl border">
+              <Label className="text-xs font-bold flex items-center justify-between">
+                <span>QR Destination Target</span>
+                <span className="text-[10px] font-normal text-muted-foreground">Label reusability</span>
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQrTargetMode("product")}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    qrTargetMode === "product"
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 shadow-xs font-bold"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <p className="text-[11px] font-bold">Product Hub (Batch History)</p>
+                  <p className="text-[10px] opacity-80 mt-0.5">Reusable for all future batches</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrTargetMode("batch")}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    qrTargetMode === "batch"
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 shadow-xs font-bold"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <p className="text-[11px] font-bold">Exact Lot #{batch.batch_number}</p>
+                  <p className="text-[10px] opacity-80 mt-0.5">Single-lot specific link</p>
+                </button>
+              </div>
+
+              {qrTargetMode === "product" && (
+                <div className="pt-1.5 space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-semibold">
+                    Product Hub Slug / SKU Path:
+                  </Label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-mono text-muted-foreground">/coa/</span>
+                    <Input
+                      value={customQrSlug}
+                      onChange={(e) => setCustomQrSlug(e.target.value)}
+                      placeholder="e.g. rt10, bpc10, tr30"
+                      className="text-xs h-7 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Direct Link Preview */}

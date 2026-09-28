@@ -37,6 +37,7 @@ interface OrderEmailRequest {
   order_id: string;
   type: "customer_confirmation" | "admin_notification" | "status_update" | "shipped" | "in_transit" | "out_for_delivery" | "delivered" | "payment_pending" | "payment_confirmed" | "payment_declined" | "admin_p2p_receipt_alert" | "p2p_rejection_notice" | "p2p_max_retries_exceeded" | "carrier_exception_alert";
   status_details?: string;
+  force?: boolean;
   status_date?: string;
   reason?: string;
   card_brand?: string;
@@ -105,7 +106,7 @@ const handler = async (req: Request): Promise<Response> => {
       SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { order_id, type, status_details, status_date }: OrderEmailRequest = await req.json();
+    const { order_id, type, status_details, status_date, force }: OrderEmailRequest = await req.json();
 
     if (!order_id) {
       throw new Error("Missing order_id");
@@ -185,7 +186,7 @@ const handler = async (req: Request): Promise<Response> => {
       // 1. Prevent duplicate customer_confirmation
       if (type === "customer_confirmation") {
         const alreadySentConfirm = previousLogs.some(log => log.type === "customer_confirmation");
-        if (alreadySentConfirm) {
+        if (alreadySentConfirm && !force) {
           console.log(`[Email Skipped] Order #${order.id.slice(0, 8)}: Order confirmation already sent.`);
           return new Response(JSON.stringify({ success: true, skipped: true, reason: "Order confirmation email already sent" }), {
             status: 200,

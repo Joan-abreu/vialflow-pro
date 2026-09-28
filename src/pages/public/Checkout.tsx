@@ -131,10 +131,16 @@ const Checkout = () => {
                         };
                     }
                 }
-                if (camp.rewardProductId && camp.rewardVariantId) {
+                if (camp.rewardProductId) {
+                    let variantId = camp.rewardVariantId;
+                    if (!variantId) {
+                        const targetProd = checkoutCatalogProducts?.find(p => p.id === camp.rewardProductId);
+                        variantId = targetProd?.product_variants?.find((v: any) => (v.stock_quantity ?? 0) > 0)?.id 
+                                 || targetProd?.product_variants?.[0]?.id;
+                    }
                     return {
                         productId: camp.rewardProductId,
-                        variantId: camp.rewardVariantId,
+                        variantId: variantId || "",
                         quantity: camp.rewardQuantity || 1
                     };
                 }

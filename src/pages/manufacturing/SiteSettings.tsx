@@ -370,6 +370,7 @@ const SiteSettings = () => {
     const [campaignFormOfferMode, setCampaignFormOfferMode] = useState<"gift_with_purchase" | "free_shipping" | "coupon_code" | "group_discount">("gift_with_purchase");
     const [campaignFormRewardProductId, setCampaignFormRewardProductId] = useState<string>("");
     const [campaignFormRewardProductName, setCampaignFormRewardProductName] = useState<string>("");
+    const [campaignFormRewardVariantId, setCampaignFormRewardVariantId] = useState<string>("");
     const [campaignFormRewardProductImage, setCampaignFormRewardProductImage] = useState<string>("");
     const [campaignFormRewardQuantity, setCampaignFormRewardQuantity] = useState<number>(1);
     const [campaignFormRewardSelectionMode, setCampaignFormRewardSelectionMode] = useState<"single" | "pool_choice">("single");
@@ -1487,6 +1488,7 @@ const SiteSettings = () => {
         setCampaignFormOfferMode("gift_with_purchase");
         setCampaignFormRewardProductId("");
         setCampaignFormRewardProductName("");
+        setCampaignFormRewardVariantId("");
         setCampaignFormRewardProductImage("");
         setCampaignFormRewardQuantity(1);
         setCampaignFormRewardSelectionMode("single");
@@ -1535,6 +1537,7 @@ const SiteSettings = () => {
         setCampaignFormOfferMode(camp.offerMode || "gift_with_purchase");
         setCampaignFormRewardProductId(camp.rewardProductId || "");
         setCampaignFormRewardProductName(camp.rewardProductName || "");
+        setCampaignFormRewardVariantId(camp.rewardVariantId || "");
         setCampaignFormRewardProductImage(camp.rewardProductImage || "");
         setCampaignFormRewardQuantity(camp.rewardQuantity || 1);
         setCampaignFormRewardSelectionMode(camp.rewardSelectionMode || "single");
@@ -1609,6 +1612,9 @@ const SiteSettings = () => {
             offerMode: campaignFormOfferMode,
             rewardProductId: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductId : undefined,
             rewardProductName: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductName : undefined,
+            rewardVariantId: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" 
+                ? (campaignFormRewardVariantId || catalogProducts?.find((p: any) => p.id === campaignFormRewardProductId)?.product_variants?.[0]?.id) 
+                : undefined,
             rewardProductImage: campaignFormOfferMode === "gift_with_purchase" && campaignFormRewardSelectionMode === "single" ? campaignFormRewardProductImage : undefined,
             rewardQuantity: campaignFormOfferMode === "gift_with_purchase" ? (Number(campaignFormRewardQuantity) || 1) : undefined,
             rewardSelectionMode: campaignFormOfferMode === "gift_with_purchase" ? campaignFormRewardSelectionMode : undefined,
@@ -4692,6 +4698,8 @@ const SiteSettings = () => {
                                                             if (prod) {
                                                                 setCampaignFormRewardProductName(prod.name);
                                                                 setCampaignFormRewardProductImage(prod.image_url || "");
+                                                                const firstVar = prod.product_variants?.find((v: any) => (v.stock_quantity ?? 0) > 0) || prod.product_variants?.[0];
+                                                                setCampaignFormRewardVariantId(firstVar?.id || "");
                                                             }
                                                         }}
                                                     >

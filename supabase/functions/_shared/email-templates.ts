@@ -213,13 +213,20 @@ export function getOrderConfirmationEmail(orderData: {
     coupons?: string[];
     paymentMethod?: string;
 }): string {
-    const itemsHtml = orderData.items.map(item => `
+    const itemsHtml = orderData.items.map(item => {
+        const isFree = item.price === 0;
+        return `
         <tr>
-            <td>${item.name}</td>
+            <td>
+                ${item.name}
+                ${isFree ? `<span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 4px; margin-left: 6px; border: 1px solid #bbf7d0;">FREE GIFT</span>` : ''}
+            </td>
             <td style="text-align: center;">${item.quantity}</td>
-            <td style="text-align: right;">$${item.price.toFixed(2)}</td>
+            <td style="text-align: right; ${isFree ? 'color: #15803d; font-weight: 700;' : ''}">
+                ${isFree ? 'FREE' : `$${item.price.toFixed(2)}`}
+            </td>
         </tr>
-    `).join('');
+    `}).join('');
 
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
 
@@ -409,13 +416,20 @@ export function getAdminNotificationEmail(orderData: {
     coupons?: string[];
     paymentMethod?: string;
 }): string {
-    const itemsHtml = orderData.items.map(item => `
+    const itemsHtml = orderData.items.map(item => {
+        const isFree = item.price === 0;
+        return `
         <tr>
-            <td>${item.name}</td>
+            <td>
+                ${item.name}
+                ${isFree ? `<span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 4px; margin-left: 6px; border: 1px solid #bbf7d0;">FREE GIFT</span>` : ''}
+            </td>
             <td style="text-align: center;">${item.quantity}</td>
-            <td style="text-align: right;">$${item.price.toFixed(2)}</td>
+            <td style="text-align: right; ${isFree ? 'color: #15803d; font-weight: 700;' : ''}">
+                ${isFree ? 'FREE' : `$${item.price.toFixed(2)}`}
+            </td>
         </tr>
-    `).join('');
+    `}).join('');
 
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
     const urgency = getShippingUrgency(orderData.shippingService, orderData.shippingCarrier);

@@ -30,6 +30,7 @@ export interface PromoCampaign {
     // Free Gift Details (when offerMode === "gift_with_purchase")
     rewardProductId?: string;
     rewardProductName?: string;
+    rewardVariantId?: string;
     rewardProductImage?: string;
     rewardQuantity?: number;
     rewardSelectionMode?: "single" | "pool_choice";

@@ -1672,6 +1672,7 @@ const OrderManagement = () => {
                                                             const packStr = (item.variant?.sale_type === 'pack' || (item.variant?.pack_size && item.variant.pack_size > 1))
                                                                 ? ` - Pack of ${item.variant.pack_size}`
                                                                 : '';
+                                                            const isFreeGift = item.price_at_time === 0 || item.custom_label_instructions?.toLowerCase().includes("free");
 
                                                             return (
                                                                 <div key={item.id || idx} className="flex flex-col justify-center py-0.5">
@@ -1679,6 +1680,11 @@ const OrderManagement = () => {
                                                                         <span className="font-medium text-xs text-foreground truncate" title={item.variant?.product?.name || "Product"}>
                                                                             {item.variant?.product?.name || "Unknown Product"}
                                                                         </span>
+                                                                        {isFreeGift && (
+                                                                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-800 border-emerald-300 font-bold uppercase tracking-wider">
+                                                                                🎁 Free Gift
+                                                                            </Badge>
+                                                                        )}
                                                                         {item.variant?.sku && (
                                                                             <div className="inline-flex items-center gap-0.5">
                                                                                 <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4 bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50 font-medium">
@@ -2052,7 +2058,7 @@ const OrderManagement = () => {
                                             recipientName={selectedOrder.customer_profile?.full_name || selectedOrder.shipping_address?.full_name || selectedOrder.customer_email?.split('@')[0]}
                                             relatedId={selectedOrder.id}
                                             trigger={
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" title="Send custom email">
                                                     <Mail className="h-3 w-3 text-primary" />
                                                 </Button>
                                             }
@@ -2137,7 +2143,14 @@ const OrderManagement = () => {
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <div className="font-medium text-sm">{item.variant?.product?.name}</div>
+                                                            <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
+                                                                <span>{item.variant?.product?.name}</span>
+                                                                {(item.price_at_time === 0 || item.custom_label_instructions?.toLowerCase().includes("free")) && (
+                                                                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] px-1.5 py-0 font-bold uppercase tracking-wider">
+                                                                        🎁 Free Gift
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-muted-foreground mt-1">
                                                                 <span>{formatVariantSpecification(item.variant)}</span>
                                                                 {item.variant?.sale_type === 'pack' ? ` - Pack of ${item.variant?.pack_size}` : ''}
@@ -2178,10 +2191,22 @@ const OrderManagement = () => {
                                                         {item.variant?.sku && <CopyCell value={item.variant.sku} size={12} />}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right">${item.price_at_time.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    {item.price_at_time === 0 ? (
+                                                        <span className="text-emerald-600 font-bold">$0.00</span>
+                                                    ) : (
+                                                        `$${item.price_at_time.toFixed(2)}`
+                                                    )}
+                                                </TableCell>
                                                 <TableCell className="text-center">{item.quantity}</TableCell>
                                                 <TableCell className="text-right font-medium">
-                                                    ${(item.price_at_time * item.quantity).toFixed(2)}
+                                                    {item.price_at_time === 0 ? (
+                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 font-extrabold text-[10px]">
+                                                            FREE
+                                                        </Badge>
+                                                    ) : (
+                                                        `$${(item.price_at_time * item.quantity).toFixed(2)}`
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         ))}

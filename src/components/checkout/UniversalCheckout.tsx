@@ -779,19 +779,38 @@ const UniversalCheckout = ({
         });
 
         if (freeGiftItems && freeGiftItems.length > 0) {
-            freeGiftItems.forEach(gift => {
-                orderItems.push({
-                    order_id: order.id,
-                    variant_id: gift.variantId,
-                    product_id: gift.productId,
-                    quantity: gift.quantity,
-                    unit_price: 0,
-                    price_at_time: 0,
-                    custom_label_url: null,
-                    custom_label_image_url: null,
-                    custom_label_instructions: "Free Promotional Perk",
-                });
-            });
+            for (const gift of freeGiftItems) {
+                let variantId = gift.variantId;
+                if (!variantId && gift.productId) {
+                    try {
+                        const { data: vData } = await supabase
+                            .from("product_variants")
+                            .select("id")
+                            .eq("product_id", gift.productId)
+                            .order("stock_quantity", { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+                        if (vData?.id) {
+                            variantId = vData.id;
+                        }
+                    } catch (e) {
+                        console.error("Failed to fallback query gift variantId:", e);
+                    }
+                }
+                if (variantId && gift.productId) {
+                    orderItems.push({
+                        order_id: order.id,
+                        variant_id: variantId,
+                        product_id: gift.productId,
+                        quantity: gift.quantity || 1,
+                        unit_price: 0,
+                        price_at_time: 0,
+                        custom_label_url: null,
+                        custom_label_image_url: null,
+                        custom_label_instructions: "Free Promotional Perk",
+                    });
+                }
+            }
         }
 
         const { error: itemsError } = await supabase

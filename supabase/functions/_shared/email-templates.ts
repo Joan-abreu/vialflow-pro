@@ -203,7 +203,7 @@ export function getSimpleEmailTemplate(data: {
 export function getOrderConfirmationEmail(orderData: {
     orderNumber: string;
     customerName: string;
-    items: Array<{ name: string; quantity: number; price: number }>;
+    items: Array<{ name: string; quantity: number; price: number; originalPrice?: number; isFreeGift?: boolean }>;
     subtotal: number;
     shipping: number;
     total: number;
@@ -213,17 +213,34 @@ export function getOrderConfirmationEmail(orderData: {
     coupons?: string[];
     paymentMethod?: string;
 }): string {
+    const hasFreeGift = orderData.items.some(item => item.price === 0 || item.isFreeGift);
+
     const itemsHtml = orderData.items.map(item => {
-        const isFree = item.price === 0;
+        const isFree = item.price === 0 || item.isFreeGift;
         return `
         <tr>
-            <td>
-                ${item.name}
-                ${isFree ? `<span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 4px; margin-left: 6px; border: 1px solid #bbf7d0;">FREE GIFT</span>` : ''}
+            <td style="padding: 12px 10px; vertical-align: top;">
+                <div style="font-weight: 600; color: #111827; font-size: 14px; line-height: 1.4;">
+                    ${item.name}
+                </div>
+                ${isFree ? `
+                    <div style="margin-top: 5px;">
+                        <span style="display: inline-block; font-size: 11px; font-weight: 800; color: #15803d; background-color: #dcfce7; padding: 3px 9px; border-radius: 9999px; border: 1px solid #86efac; letter-spacing: 0.04em;">
+                            🎁 FREE PROMOTIONAL GIFT
+                        </span>
+                    </div>
+                ` : ''}
             </td>
-            <td style="text-align: center;">${item.quantity}</td>
-            <td style="text-align: right; ${isFree ? 'color: #15803d; font-weight: 700;' : ''}">
-                ${isFree ? 'FREE' : `$${item.price.toFixed(2)}`}
+            <td style="text-align: center; vertical-align: top; padding: 12px 10px; font-weight: 600; font-size: 14px;">${item.quantity}</td>
+            <td style="text-align: right; vertical-align: top; padding: 12px 10px; white-space: nowrap;">
+                ${isFree ? `
+                    <span style="display: inline-block; font-weight: 800; font-size: 14px; color: #15803d;">FREE</span>
+                    ${item.originalPrice && item.originalPrice > 0 ? `
+                        <br><span style="text-decoration: line-through; color: #9ca3af; font-size: 12px; font-weight: 500;">$${(item.originalPrice * item.quantity).toFixed(2)}</span>
+                    ` : ''}
+                ` : `
+                    <span style="font-weight: 600; font-size: 14px; color: #111827;">$${item.price.toFixed(2)}</span>
+                `}
             </td>
         </tr>
     `}).join('');
@@ -261,6 +278,17 @@ export function getOrderConfirmationEmail(orderData: {
                 </p>
                 <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b21a8; line-height: 1.4;">
                     If you haven't uploaded your payment screenshot yet, please visit your Order Confirmation page to upload your proof for instant verification.
+                </p>
+            </div>
+        ` : ''}
+        
+        ${hasFreeGift ? `
+            <div style="margin: 20px 0; padding: 14px 18px; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1px solid #86efac; border-left: 4px solid #16a34a; border-radius: 8px;">
+                <p style="margin: 0; font-size: 12px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.05em;">
+                    🎁 Special Promotion Included
+                </p>
+                <p style="margin: 4px 0 0 0; font-size: 14px; color: #15803d; line-height: 1.4;">
+                    Your order qualified for a <strong>Free Promotional Gift</strong>! It has been added to your package at zero charge.
                 </p>
             </div>
         ` : ''}
@@ -407,7 +435,7 @@ export function getAdminNotificationEmail(orderData: {
     orderNumber: string;
     customerName: string;
     customerEmail: string;
-    items: Array<{ name: string; quantity: number; price: number }>;
+    items: Array<{ name: string; quantity: number; price: number; originalPrice?: number; isFreeGift?: boolean }>;
     total: number;
     shippingAddress?: string;
     shippingCost?: number;
@@ -416,17 +444,31 @@ export function getAdminNotificationEmail(orderData: {
     coupons?: string[];
     paymentMethod?: string;
 }): string {
+    const hasFreeGift = orderData.items.some(item => item.price === 0 || item.isFreeGift);
+
     const itemsHtml = orderData.items.map(item => {
-        const isFree = item.price === 0;
+        const isFree = item.price === 0 || item.isFreeGift;
         return `
-        <tr>
-            <td>
-                ${item.name}
-                ${isFree ? `<span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 4px; margin-left: 6px; border: 1px solid #bbf7d0;">FREE GIFT</span>` : ''}
+        <tr ${isFree ? 'style="background-color: #f0fdf4;"' : ''}>
+            <td style="padding: 12px 10px; vertical-align: top;">
+                <div style="font-weight: 600; color: #111827; font-size: 14px; line-height: 1.4;">
+                    ${item.name}
+                </div>
+                ${isFree ? `
+                    <div style="margin-top: 5px;">
+                        <span style="display: inline-block; font-size: 11px; font-weight: 800; color: #166534; background-color: #dcfce7; padding: 3px 8px; border-radius: 4px; border: 1px solid #86efac; text-transform: uppercase; letter-spacing: 0.04em;">
+                            🎁 FREE PROMO PERK — PACK WITH ORDER
+                        </span>
+                    </div>
+                ` : ''}
             </td>
-            <td style="text-align: center;">${item.quantity}</td>
-            <td style="text-align: right; ${isFree ? 'color: #15803d; font-weight: 700;' : ''}">
-                ${isFree ? 'FREE' : `$${item.price.toFixed(2)}`}
+            <td style="text-align: center; vertical-align: top; padding: 12px 10px; font-weight: 700; font-size: 14px;">${item.quantity}</td>
+            <td style="text-align: right; vertical-align: top; padding: 12px 10px; white-space: nowrap;">
+                ${isFree ? `
+                    <span style="color: #15803d; font-weight: 800; font-size: 13px;">$0.00 (FREE PROMO)</span>
+                ` : `
+                    <span style="font-weight: 600; font-size: 14px; color: #111827;">$${item.price.toFixed(2)}</span>
+                `}
             </td>
         </tr>
     `}).join('');
@@ -490,6 +532,17 @@ export function getAdminNotificationEmail(orderData: {
                 <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 800; color: ${urgency.isPriority ? '#991B1B' : '#111827'};">
                     ${orderData.shippingCarrier ? `${orderData.shippingCarrier} — ` : ''}${orderData.shippingService}
                     ${orderData.shippingCost !== undefined ? `<span style="color: ${urgency.isPriority ? '#DC2626' : '#6B7280'}; font-weight: 700; margin-left: 6px;">($${orderData.shippingCost.toFixed(2)})</span>` : ''}
+                </p>
+            </div>
+        ` : ''}
+
+        ${hasFreeGift ? `
+            <div style="margin: 20px 0; padding: 14px 18px; background-color: #f0fdf4; border: 1px solid #86efac; border-left: 4px solid #16a34a; border-radius: 8px;">
+                <p style="margin: 0; font-size: 12px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.05em;">
+                    🎁 Promotional Free Gift Included (Fulfillment Notice)
+                </p>
+                <p style="margin: 4px 0 0 0; font-size: 14px; color: #15803d; line-height: 1.4;">
+                    This order qualified for the active promo campaign. <strong>Please ensure the free promotional gift item(s) listed below are included in this package.</strong>
                 </p>
             </div>
         ` : ''}
@@ -929,13 +982,26 @@ export function getPaymentPendingEmail(data: {
                     </tr>
                 </thead>
                 <tbody>
-                    ${data.items.map((item: any) => `
-                        <tr>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">${item.name || item.title || 'Product'}</td>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity || 1}</td>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                    ${data.items.map((item: any) => {
+                        const isFree = (item.price === 0 || item.unit_price === 0 || item.isFreeGift);
+                        return `
+                        <tr ${isFree ? 'style="background-color: #f0fdf4;"' : ''}>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">
+                                <div style="font-weight: 600;">${item.name || item.title || 'Product'}</div>
+                                ${isFree ? `
+                                    <div style="margin-top: 4px;">
+                                        <span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 9999px; border: 1px solid #86efac;">
+                                            🎁 FREE GIFT
+                                        </span>
+                                    </div>
+                                ` : ''}
+                            </td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${item.quantity || 1}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: ${isFree ? '#15803d' : '#111827'}; font-weight: 700; text-align: right; border-bottom: 1px solid #e5e7eb;">
+                                ${isFree ? 'FREE' : `$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}`}
+                            </td>
                         </tr>
-                    `).join('')}
+                    `}).join('')}
                 </tbody>
             </table>
         </div>
@@ -989,13 +1055,26 @@ export function getPaymentConfirmedEmail(data: {
                     </tr>
                 </thead>
                 <tbody>
-                    ${data.items.map((item: any) => `
-                        <tr>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">${item.name || item.title || 'Product'}</td>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb;">${item.quantity || 1}</td>
-                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid #e5e7eb;">$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                    ${data.items.map((item: any) => {
+                        const isFree = (item.price === 0 || item.unit_price === 0 || item.isFreeGift);
+                        return `
+                        <tr ${isFree ? 'style="background-color: #f0fdf4;"' : ''}>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #111827; border-bottom: 1px solid #e5e7eb;">
+                                <div style="font-weight: 600;">${item.name || item.title || 'Product'}</div>
+                                ${isFree ? `
+                                    <div style="margin-top: 4px;">
+                                        <span style="display: inline-block; font-size: 11px; font-weight: 700; color: #15803d; background-color: #dcfce7; padding: 2px 7px; border-radius: 9999px; border: 1px solid #86efac;">
+                                            🎁 FREE GIFT
+                                        </span>
+                                    </div>
+                                ` : ''}
+                            </td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${item.quantity || 1}</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: ${isFree ? '#15803d' : '#111827'}; font-weight: 700; text-align: right; border-bottom: 1px solid #e5e7eb;">
+                                ${isFree ? 'FREE' : `$${((item.price || item.unit_price || 0) * (item.quantity || 1)).toFixed(2)}`}
+                            </td>
                         </tr>
-                    `).join('')}
+                    `}).join('')}
                 </tbody>
             </table>
         </div>

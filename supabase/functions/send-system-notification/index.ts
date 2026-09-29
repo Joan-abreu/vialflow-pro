@@ -126,9 +126,11 @@ const handler = async (req: Request): Promise<Response> => {
             resolvedCustomerName = customerName;
 
             const items = order.order_items.map((item: any) => ({
-                name: `${item.variant?.product?.name || "Product"} - ${item.variant?.vial_type?.name || ""}`,
+                name: `${item.variant?.product?.name || "Product"}${item.variant?.vial_type?.name ? ` - ${item.variant.vial_type.name}` : ''}`,
                 quantity: item.quantity,
-                price: item.quantity * item.price_at_time
+                price: item.quantity * item.price_at_time,
+                originalPrice: item.variant?.price || 0,
+                isFreeGift: item.price_at_time === 0 || item.custom_label_instructions === 'Free Promotional Perk'
             }));
 
             const paymentMethodLabel = order.p2p_provider || order.payment_method || (order.p2p_status ? 'P2P Direct' : undefined);

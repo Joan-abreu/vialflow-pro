@@ -454,6 +454,11 @@ export const SingleOrderPackingSlip: React.FC<{
                                                             Bulk ${item.with_labels ? "(Custom Labels)" : "(Unlabeled)"}
                                                         </span>
                                                     )}
+                                                    {(item.price_at_time === 0 || item.custom_label_instructions === "Free Promotional Perk") && (
+                                                        <span className="bg-emerald-100 text-emerald-900 border border-emerald-500 px-1.5 py-0.5 rounded font-black text-[10px]">
+                                                            🎁 FREE PROMO GIFT
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 {/* Custom Label Instructions */}
@@ -487,7 +492,11 @@ export const SingleOrderPackingSlip: React.FC<{
                                             {showPrices && (
                                                 <td className="py-2 px-2.5 text-right align-middle font-mono text-xs">
                                                     <div className="font-black text-black">
-                                                        ${((item.price_at_time || 0) * item.quantity).toFixed(2)}
+                                                        {item.price_at_time === 0 ? (
+                                                            <span className="text-emerald-700 font-black">FREE ($0.00)</span>
+                                                        ) : (
+                                                            `$${((item.price_at_time || 0) * item.quantity).toFixed(2)}`
+                                                        )}
                                                     </div>
                                                 </td>
                                             )}

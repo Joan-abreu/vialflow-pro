@@ -240,16 +240,21 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                                                         (Pack of {packSize})
                                                     </span>
                                                 )}
+                                                {(unitPrice === 0 || it.custom_label_instructions === "Free Promotional Perk") && (
+                                                    <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
+                                                        🎁 Free Promo Gift
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="p-3 text-center font-bold text-foreground">
                                             {qty}
                                         </td>
                                         <td className="p-3 text-right font-medium">
-                                            ${unitPrice.toFixed(2)}
+                                            {unitPrice === 0 ? <span className="font-bold text-emerald-600">FREE</span> : `$${unitPrice.toFixed(2)}`}
                                         </td>
                                         <td className="p-3 text-right font-bold text-foreground">
-                                            ${lineTotal.toFixed(2)}
+                                            {lineTotal === 0 ? <span className="font-bold text-emerald-600">FREE</span> : `$${lineTotal.toFixed(2)}`}
                                         </td>
                                     </tr>
                                 );

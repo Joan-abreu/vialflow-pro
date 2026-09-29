@@ -54,7 +54,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [strategy, setStrategy] = useState<BatchStrategy>("hybrid");
-  const [preRegisterCoa, setPreRegisterCoa] = useState<boolean>(true);
   const [supplierNotes, setSupplierNotes] = useState<string>("");
 
   const [formData, setFormData] = useState({
@@ -233,25 +232,6 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
       return;
     }
 
-    // 2. Optionally pre-register draft COA for tracking testing status
-    if (preRegisterCoa) {
-      try {
-        const todayStr = new Date().toISOString().split("T")[0];
-        await supabase.from("product_coas" as any).insert({
-          batch_number: cleanBatchNumber,
-          product_id: selectedVariant.product_id,
-          product_ids: [selectedVariant.product_id],
-          test_date: todayStr,
-          pdf_url: "",
-          sterility_status: "Pending Test",
-          lab_name: "3rd Party Accredited US Lab",
-          is_active: false,
-          is_featured: false,
-        });
-      } catch (coaErr) {
-        console.warn("Could not pre-register COA draft:", coaErr);
-      }
-    }
 
     setLoading(false);
     toast.success(`Batch ${cleanBatchNumber} created successfully!`);
@@ -403,11 +383,11 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
 
               <p className="text-[11px] text-muted-foreground">
                 {strategy === "hybrid" &&
-                  "✨ Combina el prefijo del producto, año/mes de recepción y 3 caracteres aleatorios (Crockford Base32) para total privacidad comercial."}
+                  "✨ Combines product prefix, intake year/month, and 3 randomized Crockford Base32 characters for complete commercial privacy."}
                 {strategy === "random_safe" &&
-                  "🔒 6 caracteres alfanuméricos criptográficamente seguros excluyendo caracteres ambiguos (0, O, 1, I, L)."}
+                  "🔒 6 cryptographically secure alphanumeric characters excluding ambiguous characters (0, O, 1, I, L)."}
                 {strategy === "sequential_date" &&
-                  "📅 Formato cGMP cronológico estándar basado en fecha calendario y correlativo diario."}
+                  "📅 Standard chronological cGMP format based on calendar date and daily serial counter."}
               </p>
             </div>
 
@@ -443,26 +423,7 @@ const AddBatchDialog = ({ onSuccess }: AddBatchDialogProps) => {
               </div>
             </div>
 
-            {/* Pre-register COA Draft Option */}
-            <div className="flex items-start gap-2.5 p-2.5 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40">
-              <Checkbox
-                id="preRegisterCoa"
-                checked={preRegisterCoa}
-                onCheckedChange={(checked) => setPreRegisterCoa(!!checked)}
-                className="mt-0.5"
-              />
-              <div className="grid gap-0.5 leading-none">
-                <label
-                  htmlFor="preRegisterCoa"
-                  className="text-xs font-bold text-emerald-900 dark:text-emerald-300 cursor-pointer"
-                >
-                  Pre-registrar borrador en COAs ("Sample Sent to Lab")
-                </label>
-                <p className="text-[11px] text-muted-foreground">
-                  Crea automáticamente el registro del lote en el módulo de COAs para cuando recibas el reporte analítico del laboratorio.
-                </p>
-              </div>
-            </div>
+
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t mt-2">

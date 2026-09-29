@@ -346,25 +346,6 @@ export default function InboundOrders() {
           console.warn("Error creating production_batch:", batchErr);
         }
 
-        // Pre-register draft in product_coas
-        const prodId = vData?.product_id || matchedStockItem?.product_id;
-        if (prodId) {
-          try {
-            await supabase.from("product_coas" as any).insert({
-              batch_number: finalBatchNum,
-              product_id: prodId,
-              product_ids: [prodId],
-              test_date: receivedDateStr,
-              pdf_url: "",
-              sterility_status: "Pending Test",
-              lab_name: "3rd Party Accredited US Lab",
-              is_active: false,
-              is_featured: false,
-            });
-          } catch (coaErr) {
-            console.warn("Error pre-registering COA:", coaErr);
-          }
-        }
 
         // Auto-trigger restock notification for customers on waitlist
         if (item.quantityToAdd > 0) {

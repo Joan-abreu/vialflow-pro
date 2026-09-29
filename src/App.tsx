@@ -223,7 +223,9 @@ const AppRoutes = () => {
                     <Route path="/returns" element={<Returns />} />
                     <Route path="/sds" element={<SafetyDataSheets />} />
                     <Route path="/lab-reports" element={<LabReports />} />
-                    <Route path="/coa/:batchNumber" element={<LabReports />} />
+                    <Route path="/lab-reports/:identifier" element={<LabReports />} />
+                    <Route path="/coa" element={<LabReports />} />
+                    <Route path="/coa/:identifier" element={<LabReports />} />
                     <Route path="/blog" element={<Blog />} />
                     <Route path="/blog/:slug" element={<BlogPost />} />
                 </Route>

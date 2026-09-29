@@ -55,7 +55,8 @@ import {
     Award,
     ShieldCheck,
     Sparkles,
-    CheckCircle2
+    CheckCircle2,
+    AlertTriangle
 } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import ProductVariantMultiSelect, { ProductWithVariants } from "@/components/admin/ProductVariantMultiSelect";
@@ -117,9 +118,12 @@ const COAManagement = () => {
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
+    const [documentFilter, setDocumentFilter] = useState<"with_pdf" | "without_pdf" | "all">("with_pdf");
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [isPurgeOpen, setIsPurgeOpen] = useState(false);
+    const [isPurging, setIsPurging] = useState(false);
     const [selectedCoa, setSelectedCoa] = useState<COA | null>(null);
 
     // Pagination state
@@ -428,6 +432,55 @@ const COAManagement = () => {
         setIsDeleteOpen(true);
     };
 
+    const withPdfCount = useMemo(() => coas.filter((c) => Boolean(c.pdf_url && c.pdf_url.trim().length > 0)).length, [coas]);
+    const withoutPdfCount = useMemo(() => coas.filter((c) => !c.pdf_url || c.pdf_url.trim().length === 0).length, [coas]);
+
+    const activeDocCoas = useMemo(() => {
+        return coas.filter((c) => {
+            const hasPdf = Boolean(c.pdf_url && c.pdf_url.trim().length > 0);
+            if (documentFilter === "with_pdf") return hasPdf;
+            if (documentFilter === "without_pdf") return !hasPdf;
+            return true;
+        });
+    }, [coas, documentFilter]);
+
+    const allTypesCount = activeDocCoas.length;
+    const peptidesCount = useMemo(() => activeDocCoas.filter((c) => c.coa_type === "peptide").length, [activeDocCoas]);
+    const solutionsCount = useMemo(() => activeDocCoas.filter((c) => c.coa_type === "water").length, [activeDocCoas]);
+
+    const handlePurgeEmptyDrafts = async () => {
+        setIsPurging(true);
+        try {
+            const emptyIds = coas
+                .filter((c) => !c.pdf_url || c.pdf_url.trim().length === 0)
+                .map((c) => c.id);
+
+            if (emptyIds.length === 0) {
+                toast.info("No empty drafts found to delete.");
+                setIsPurgeOpen(false);
+                return;
+            }
+
+            for (let i = 0; i < emptyIds.length; i += 40) {
+                const chunk = emptyIds.slice(i, i + 40);
+                const { error } = await supabase.from("product_coas" as any).delete().in("id", chunk);
+                if (error) throw error;
+            }
+
+            toast.success(`Successfully purged ${emptyIds.length} empty placeholder drafts.`);
+            setIsPurgeOpen(false);
+            setDocumentFilter("with_pdf");
+            queryClient.invalidateQueries({ queryKey: ["admin-coas"] });
+            queryClient.invalidateQueries({ queryKey: ["public-coas"] });
+            queryClient.invalidateQueries({ queryKey: ["product-coas"] });
+        } catch (err: any) {
+            console.error("Purge error:", err);
+            toast.error(`Error purging drafts: ${err.message}`);
+        } finally {
+            setIsPurging(false);
+        }
+    };
+
     // Add component to blend
     const handleAddComponent = () => {
         if (!newCompName.trim()) return;
@@ -450,6 +503,10 @@ const COAManagement = () => {
     // Filter COAs
     const filteredCoas = useMemo(() => {
         return coas.filter((coa) => {
+            const hasPdf = Boolean(coa.pdf_url && coa.pdf_url.trim().length > 0);
+            if (documentFilter === "with_pdf" && !hasPdf) return false;
+            if (documentFilter === "without_pdf" && hasPdf) return false;
+
             const matchesType =
                 typeFilter === "all" ||
                 (typeFilter === "peptide" && coa.coa_type === "peptide") ||
@@ -474,7 +531,7 @@ const COAManagement = () => {
 
             return matchesType && (batchMatch || labMatch || keyMatch || taskMatch || productMatch || variantMatch);
         });
-    }, [coas, typeFilter, searchQuery, productsMap, variantsMap]);
+    }, [coas, documentFilter, typeFilter, searchQuery, productsMap, variantsMap]);
 
     // Pagination
     const totalItems = filteredCoas.length;
@@ -590,14 +647,14 @@ const COAManagement = () => {
                             title="Generate random hybrid batch code"
                             className="h-9 text-xs font-bold gap-1 px-2.5 shrink-0 text-primary border-primary/30 hover:bg-primary/10"
                         >
-                            🎲 Generar
+                            🎲 Generate
                         </Button>
                     </div>
 
                     {/* Quick picker from production batches */}
                     {productionBatches && productionBatches.length > 0 && (
                         <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
-                            <span className="text-[10px] text-muted-foreground font-semibold shrink-0">Lotes Recientes:</span>
+                            <span className="text-[10px] text-muted-foreground font-semibold shrink-0">Recent Lots:</span>
                             {productionBatches.slice(0, 5).map((pb: any) => (
                                 <button
                                     key={pb.id}
@@ -987,53 +1044,125 @@ const COAManagement = () => {
                 </div>
             </div>
 
-            {/* Filter Search & Type Pills */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 justify-between">
-                <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search batch, variant (e.g. 20mg), key, or lab..."
-                        value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); setPageIndex(0); }}
-                        className="pl-9 h-10 text-sm"
-                    />
+            {/* Banner to clean up empty drafts */}
+            {withoutPdfCount > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-300/80 bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 animate-in fade-in">
+                    <div className="flex items-center gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                        <div className="text-xs sm:text-sm">
+                            <span className="font-bold">{withoutPdfCount} orphan draft records detected (missing PDF reports).</span>
+                            <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                                These placeholder records were pre-registered during past batch intakes without laboratory analysis.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setIsPurgeOpen(true)}
+                            disabled={isPurging}
+                            className="font-bold text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white shadow-xs"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Purge {withoutPdfCount} Empty Drafts
+                        </Button>
+                    </div>
                 </div>
+            )}
 
-                {/* Filter by Type */}
-                <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl border self-start sm:self-auto">
-                    <button
-                        type="button"
-                        onClick={() => { setTypeFilter("all"); setPageIndex(0); }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            typeFilter === "all"
-                                ? "bg-background text-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                        All ({coas.length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { setTypeFilter("peptide"); setPageIndex(0); }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                            typeFilter === "peptide"
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                        🔬 Peptides ({coas.filter((c) => c.coa_type === "peptide").length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { setTypeFilter("water"); setPageIndex(0); }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                            typeFilter === "water"
-                                ? "bg-blue-600 text-white shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                        💧 Solutions ({coas.filter((c) => c.coa_type === "water").length})
-                    </button>
+            {/* Filter Search & Document/Type Pills */}
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row items-center gap-3 justify-between">
+                    <div className="relative w-full max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search batch, variant (e.g. 20mg), key, or lab..."
+                            value={searchQuery}
+                            onChange={(e) => { setSearchQuery(e.target.value); setPageIndex(0); }}
+                            className="pl-9 h-10 text-sm"
+                        />
+                    </div>
+
+                    {/* Filter by Document Status & Type */}
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border">
+                            <button
+                                type="button"
+                                onClick={() => { setDocumentFilter("with_pdf"); setPageIndex(0); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                                    documentFilter === "with_pdf"
+                                        ? "bg-background text-foreground shadow-xs font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                With PDF ({withPdfCount})
+                            </button>
+                            {withoutPdfCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setDocumentFilter("without_pdf"); setPageIndex(0); }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                                        documentFilter === "without_pdf"
+                                            ? "bg-amber-600 text-white shadow-xs font-bold"
+                                            : "text-amber-700 hover:text-amber-900 dark:text-amber-400"
+                                    }`}
+                                >
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                    Missing PDF ({withoutPdfCount})
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => { setDocumentFilter("all"); setPageIndex(0); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    documentFilter === "all"
+                                        ? "bg-background text-foreground shadow-xs font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                All ({coas.length})
+                            </button>
+                        </div>
+
+                        {/* Filter by Type */}
+                        <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border">
+                            <button
+                                type="button"
+                                onClick={() => { setTypeFilter("all"); setPageIndex(0); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    typeFilter === "all"
+                                        ? "bg-background text-foreground shadow-xs font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                All Types ({allTypesCount})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setTypeFilter("peptide"); setPageIndex(0); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                                    typeFilter === "peptide"
+                                        ? "bg-emerald-600 text-white shadow-xs font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                🔬 Peptides ({peptidesCount})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setTypeFilter("water"); setPageIndex(0); }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                                    typeFilter === "water"
+                                        ? "bg-blue-600 text-white shadow-xs font-bold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                💧 Solutions ({solutionsCount})
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1314,6 +1443,35 @@ const COAManagement = () => {
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
                             Delete COA
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            {/* PURGE DRAFTS ALERT DIALOG */}
+            <AlertDialog open={isPurgeOpen} onOpenChange={setIsPurgeOpen}>
+                <AlertDialogContent className="max-w-md">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <Trash2 className="h-5 w-5" />
+                            Purge {withoutPdfCount} empty drafts?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm">
+                            This will permanently remove all batch records that <strong>do not have a PDF document</strong> or laboratory analysis results attached.
+                            <br /><br />
+                            Your <strong>{withPdfCount} verified certificates</strong> with official Janoshik reports will remain intact.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPurging}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handlePurgeEmptyDrafts();
+                            }}
+                            disabled={isPurging}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
+                        >
+                            {isPurging ? "Purging..." : `Yes, purge ${withoutPdfCount} records`}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

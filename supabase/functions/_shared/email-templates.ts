@@ -247,9 +247,14 @@ export function getOrderConfirmationEmail(orderData: {
 
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
 
-    const shippingMethodLabel = (orderData.shippingCarrier || orderData.shippingService)
-        ? `${orderData.shippingCarrier ? `${orderData.shippingCarrier} ` : ''}${orderData.shippingService || ''}`
-        : '';
+    let cleanCarrier = (orderData.shippingCarrier || '').trim();
+    if (cleanCarrier.toUpperCase() === 'SHIPPO') {
+        cleanCarrier = '';
+    }
+    const cleanService = (orderData.shippingService || '').trim();
+    const shippingMethodLabel = cleanCarrier && !cleanService.toUpperCase().startsWith(cleanCarrier.toUpperCase())
+        ? `${cleanCarrier} ${cleanService}`.trim()
+        : (cleanService || cleanCarrier || '');
 
     const content = `
         <h1 style="color: #111827; margin-top: 0;">Order Confirmed!</h1>
@@ -476,6 +481,15 @@ export function getAdminNotificationEmail(orderData: {
     const isP2P = orderData.paymentMethod && ['manual', 'p2p', 'zelle', 'venmo', 'cashapp'].some(m => orderData.paymentMethod?.toLowerCase().includes(m));
     const urgency = getShippingUrgency(orderData.shippingService, orderData.shippingCarrier);
 
+    let cleanAdminCarrier = (orderData.shippingCarrier || '').trim();
+    if (cleanAdminCarrier.toUpperCase() === 'SHIPPO') {
+        cleanAdminCarrier = '';
+    }
+    const cleanAdminService = (orderData.shippingService || '').trim();
+    const adminShippingLabel = cleanAdminCarrier && !cleanAdminService.toUpperCase().startsWith(cleanAdminCarrier.toUpperCase())
+        ? `${cleanAdminCarrier} — ${cleanAdminService}`
+        : (cleanAdminService || cleanAdminCarrier || 'Standard Shipping');
+
     const content = `
         ${urgency.isPriority ? `
             <div style="background: ${urgency.bgGradient}; border: 2px solid ${urgency.borderColor}; border-radius: 8px; padding: 18px 20px; margin-bottom: 24px; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.12);">
@@ -485,7 +499,7 @@ export function getAdminNotificationEmail(orderData: {
                     </span>
                 </div>
                 <h2 style="color: ${urgency.textColor}; font-size: 20px; font-weight: 800; margin: 6px 0 6px 0;">
-                    ${orderData.shippingCarrier ? `${orderData.shippingCarrier} — ` : ''}${orderData.shippingService || 'Priority Shipping'} ${orderData.shippingCost !== undefined ? `($${orderData.shippingCost.toFixed(2)})` : ''}
+                    ${adminShippingLabel} ${orderData.shippingCost !== undefined ? `($${orderData.shippingCost.toFixed(2)})` : ''}
                 </h2>
                 <p style="color: ${urgency.textColor}; font-size: 14px; font-weight: 600; margin: 0; line-height: 1.5;">
                     ${urgency.instruction}
@@ -530,7 +544,7 @@ export function getAdminNotificationEmail(orderData: {
                     ${urgency.isPriority ? '🚨 EXPEDITED SHIPPING SELECTED' : 'Shipping Method'}
                 </p>
                 <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 800; color: ${urgency.isPriority ? '#991B1B' : '#111827'};">
-                    ${orderData.shippingCarrier ? `${orderData.shippingCarrier} — ` : ''}${orderData.shippingService}
+                    ${adminShippingLabel}
                     ${orderData.shippingCost !== undefined ? `<span style="color: ${urgency.isPriority ? '#DC2626' : '#6B7280'}; font-weight: 700; margin-left: 6px;">($${orderData.shippingCost.toFixed(2)})</span>` : ''}
                 </p>
             </div>

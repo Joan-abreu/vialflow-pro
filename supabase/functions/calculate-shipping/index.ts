@@ -267,7 +267,7 @@ serve(async (req) => {
             if (result.success && result.rates) {
                 const ratesWithProvider = result.rates.map((r: any) => ({
                     ...r,
-                    carrier: r.carrier || carrierSetting.carrier
+                    carrier: (r.carrier && r.carrier !== 'SHIPPO') ? r.carrier : (carrierSetting.carrier === 'SHIPPO' ? (r.provider || 'USPS') : carrierSetting.carrier)
                 }));
                 allRates = [...allRates, ...ratesWithProvider];
             } else if ((result as any).error) {

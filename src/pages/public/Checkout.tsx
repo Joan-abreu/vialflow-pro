@@ -436,15 +436,30 @@ const Checkout = () => {
         setShippingCost(cost);
         setShippingService(rate.serviceName || rate.service || rate.service_name);
         setShippingServiceCode(rate.serviceCode || rate.service_code || rate.service); 
-        setShippingCarrier((rate.carrier || rate.provider || "FEDEX").toUpperCase());
-        setShippingEstimatedDays(rate.estimated_days || rate.estimatedDays);
+
+        // Resolve real carrier name (never save or display SHIPPO)
+        let resolvedCarrier = (rate.provider || rate.carrier || "FEDEX").toUpperCase();
+        if (resolvedCarrier === "SHIPPO") {
+            const sName = (rate.serviceName || rate.service || "").toUpperCase();
+            if (sName.includes("USPS")) resolvedCarrier = "USPS";
+            else if (sName.includes("UPS")) resolvedCarrier = "UPS";
+            else if (sName.includes("FEDEX")) resolvedCarrier = "FEDEX";
+            else resolvedCarrier = "USPS";
+        }
+        setShippingCarrier(resolvedCarrier);
+
+        // Sanitize estimated days to a clean number
+        const rawDays = rate.estimated_days || rate.estimatedDays;
+        const matchDays = String(rawDays || '').match(/\d+/);
+        const parsedDays = matchDays ? parseInt(matchDays[0], 10) : undefined;
+        setShippingEstimatedDays(parsedDays);
         intentAmountRef.current = 0;
 
         trackFunnelStep("shipping_selected", {
-            carrier: rate.carrier || rate.provider,
+            carrier: resolvedCarrier,
             service: rate.serviceName || rate.service,
             cost: cost,
-            estimatedDays: rate.estimated_days || rate.estimatedDays,
+            estimatedDays: parsedDays,
         }, cartSessionId);
 
         // Re-validate coupons only if an applied discount targets shipping
@@ -770,7 +785,25 @@ const Checkout = () => {
                                                                 )}
                                                             </div>
                                                             <span className="text-sm text-muted-foreground">
-                                                                {(rate.carrier || rate.provider || 'FEDEX').toUpperCase()} — Est. {rate.estimated_days || rate.estimatedDays || 'N/A'} {rate.estimated_days || rate.estimatedDays ? 'days' : ''}
+                                                                {(() => {
+                                                                    let displayCarrier = (rate.provider || rate.carrier || 'FEDEX').toUpperCase();
+                                                                    if (displayCarrier === 'SHIPPO') {
+                                                                        const sName = (rate.serviceName || rate.service || '').toUpperCase();
+                                                                        if (sName.includes('USPS')) displayCarrier = 'USPS';
+                                                                        else if (sName.includes('UPS')) displayCarrier = 'UPS';
+                                                                        else if (sName.includes('FEDEX')) displayCarrier = 'FEDEX';
+                                                                        else displayCarrier = 'USPS';
+                                                                    }
+
+                                                                    const rawEst = String(rate.estimated_days || rate.estimatedDays || '').trim();
+                                                                    const match = rawEst.match(/\d+/);
+                                                                    const daysNum = match ? match[0] : null;
+                                                                    const estText = daysNum 
+                                                                        ? `${daysNum} ${daysNum === '1' ? 'day' : 'days'}`
+                                                                        : (rawEst && rawEst !== 'N/A' && !rawEst.toLowerCase().includes('null') ? rawEst : '');
+
+                                                                    return `${displayCarrier}${estText ? ` — Est. ${estText}` : ''}`;
+                                                                })()}
                                                             </span>
                                                         </div>
                                                     </div>

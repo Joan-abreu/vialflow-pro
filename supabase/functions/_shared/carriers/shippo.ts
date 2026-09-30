@@ -93,7 +93,10 @@ export class ShippoCarrier implements ICarrier {
                 serviceName: `${rate.provider} ${rate.servicelevel.name}`,
                 cost: parseFloat(rate.amount),
                 currency: rate.currency,
+                carrier: (rate.provider || "USPS").toUpperCase(),
+                provider: (rate.provider || "USPS").toUpperCase(),
                 estimatedDays: rate.estimated_days ? `${rate.estimated_days} days` : "N/A",
+                estimated_days: rate.estimated_days || null,
             })),
             rawResponse: data,
         };

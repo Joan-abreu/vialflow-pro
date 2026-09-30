@@ -118,18 +118,18 @@ const Layout = ({ children }: LayoutProps) => {
   const mainNavigation = [
     { name: "Dashboard", href: "/manufacturing", icon: LayoutDashboard },
     ...(isAdmin ? [
-      { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
       { name: "Analytics", href: "/manufacturing/analytics", icon: BarChart3 },
+      { name: "Orders", href: "/manufacturing/orders", icon: ShoppingCart },
     ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
-    { name: "COAs", href: "/manufacturing/coas", icon: FileText },
-    { name: "QR Generator", href: "/manufacturing/qr-generator", icon: QrCode },
-    { name: "Blog Posts", href: "/manufacturing/blogs", icon: BookOpen },
-    { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
-    { name: "Affiliates", href: "/manufacturing/affiliates", icon: Award },
     ...(isAdmin ? [
       { name: "Customers", href: "/manufacturing/customers", icon: Users },
     ] : []),
+    { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
+    { name: "COAs", href: "/manufacturing/coas", icon: FileText },
+    { name: "QR Generator", href: "/manufacturing/qr-generator", icon: QrCode },
+    { name: "Affiliates", href: "/manufacturing/affiliates", icon: Award },
+    { name: "Blog Posts", href: "/manufacturing/blogs", icon: BookOpen },
   ];
 
   const operationsNavigation = [

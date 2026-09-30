@@ -27,7 +27,8 @@ import {
   FileText,
   Award,
   BarChart3,
-  BookOpen
+  BookOpen,
+  QrCode
 } from "lucide-react";
 import {
   Collapsible,
@@ -122,6 +123,7 @@ const Layout = ({ children }: LayoutProps) => {
     ] : []),
     { name: "Products", href: "/manufacturing/products", icon: Tag },
     { name: "COAs", href: "/manufacturing/coas", icon: FileText },
+    { name: "QR Generator", href: "/manufacturing/qr-generator", icon: QrCode },
     { name: "Blog Posts", href: "/manufacturing/blogs", icon: BookOpen },
     { name: "Coupons", href: "/manufacturing/coupons", icon: Ticket },
     { name: "Affiliates", href: "/manufacturing/affiliates", icon: Award },

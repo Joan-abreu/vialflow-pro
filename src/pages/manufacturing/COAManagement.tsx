@@ -56,12 +56,14 @@ import {
     ShieldCheck,
     Sparkles,
     CheckCircle2,
-    AlertTriangle
+    AlertTriangle,
+    QrCode
 } from "lucide-react";
 import { DataTablePagination } from "@/components/shared/DataTablePagination";
 import ProductVariantMultiSelect, { ProductWithVariants } from "@/components/admin/ProductVariantMultiSelect";
 import { COA, PeptideComponent } from "@/types/coa";
 import { generateBatchNumber } from "@/utils/batchGenerator";
+import { COAQrGeneratorModal } from "@/components/coas/COAQrGeneratorModal";
 
 interface FormDataState {
     product_ids: string[];
@@ -125,6 +127,10 @@ const COAManagement = () => {
     const [isPurgeOpen, setIsPurgeOpen] = useState(false);
     const [isPurging, setIsPurging] = useState(false);
     const [selectedCoa, setSelectedCoa] = useState<COA | null>(null);
+    const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+    const [qrModalUrl, setQrModalUrl] = useState("https://www.livwellresearchlabs.com/coa/rt");
+    const [qrModalBatch, setQrModalBatch] = useState("");
+    const [qrModalProduct, setQrModalProduct] = useState("");
 
     // Pagination state
     const [pageIndex, setPageIndex] = useState(0);
@@ -1037,8 +1043,20 @@ const COAManagement = () => {
                         Manage third-party analytical lab reports, peptide HPLC testing, and batch verification records per product variant.
                     </p>
                 </div>
-                <div>
-                    <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            setQrModalUrl("https://www.livwellresearchlabs.com/coa/rt");
+                            setQrModalBatch("");
+                            setQrModalProduct("");
+                            setIsQrModalOpen(true);
+                        }}
+                        className="gap-1.5 font-bold border-emerald-600/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 shadow-xs"
+                    >
+                        <QrCode className="h-4 w-4 text-emerald-600" /> COA QR Generator
+                    </Button>
+                    <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs">
                         <Plus className="h-4 w-4" /> New COA Report
                     </Button>
                 </div>
@@ -1338,6 +1356,32 @@ const COAManagement = () => {
 
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                                    title="Generate QR Code for vial label"
+                                                    onClick={() => {
+                                                        const primaryProdName = linkedNames[0] || "";
+                                                        let slug = "rt";
+                                                        const lower = primaryProdName.toLowerCase();
+                                                        if (lower.includes("reta") || lower.includes("rt")) slug = "rt";
+                                                        else if (lower.includes("tirz") || lower.includes("tr")) slug = "tr";
+                                                        else if (lower.includes("sema") || lower.includes("sm")) slug = "sm";
+                                                        else if (lower.includes("bac") || lower.includes("water")) slug = "bac";
+                                                        else if (lower.includes("bpc")) slug = "bpc157";
+                                                        else if (lower.includes("tb")) slug = "tb500";
+                                                        else if (lower.includes("klow")) slug = "klow";
+                                                        else slug = (coa.batch_number || "rt").toLowerCase();
+
+                                                        setQrModalUrl(`https://www.livwellresearchlabs.com/coa/${slug}`);
+                                                        setQrModalBatch(coa.batch_number);
+                                                        setQrModalProduct(primaryProdName);
+                                                        setIsQrModalOpen(true);
+                                                    }}
+                                                >
+                                                    <QrCode className="h-4 w-4" />
+                                                </Button>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleEditClick(coa)}>
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
@@ -1476,6 +1520,15 @@ const COAManagement = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* COA QR CODE GENERATOR MODAL */}
+            <COAQrGeneratorModal
+                open={isQrModalOpen}
+                onOpenChange={setIsQrModalOpen}
+                initialUrl={qrModalUrl}
+                initialBatch={qrModalBatch}
+                initialProductName={qrModalProduct}
+            />
         </div>
     );
 };

@@ -16,6 +16,7 @@ import ProductManagement from "./pages/manufacturing/ProductManagement";
 import Coupons from "./pages/manufacturing/Coupons";
 import Affiliates from "./pages/manufacturing/Affiliates";
 import COAManagement from "./pages/manufacturing/COAManagement";
+import COAQrGeneratorPage from "./pages/manufacturing/COAQrGeneratorPage";
 import OrderManagement from "./pages/manufacturing/OrderManagement";
 import OrderLabels from "./pages/manufacturing/OrderLabels";
 import CustomerManagement from "./pages/manufacturing/CustomerManagement";
@@ -244,6 +245,7 @@ const AppRoutes = () => {
                     <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
                     <Route path="products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
                     <Route path="coas" element={<ProtectedRoute><COAManagement /></ProtectedRoute>} />
+                    <Route path="qr-generator" element={<ProtectedRoute><COAQrGeneratorPage /></ProtectedRoute>} />
                     <Route path="blogs" element={<ProtectedRoute><BlogManagement /></ProtectedRoute>} />
                     <Route path="coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
                     <Route path="affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />

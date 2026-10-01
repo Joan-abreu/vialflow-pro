@@ -122,6 +122,7 @@ export interface ProductCoaCard {
     latestTestDate: string;
     displayPurity: string;
     dosesSummary: string;
+    uniqueDoses: string[];
     labName: string;
     batches: COA[];
 }
@@ -514,9 +515,20 @@ const LabReports = () => {
                 displayPurity = `${Number(activeBatch.purity_pct).toFixed((activeBatch.purity_pct ?? 0) % 1 === 0 ? 1 : 2)}% Purity`;
             }
 
-            // Calculate Available Doses Summary (e.g. 20mg · 30mg · 40mg)
+            // Calculate Available Doses Summary (e.g. 10mg · 20mg · 30mg · 40mg)
             const rawDoses = sortedBatches.map(b => extractDoseFromBatch(b, productsMap));
-            const uniqueDoses = Array.from(new Set(rawDoses)).filter(d => d && d !== "Standard");
+            const uniqueDoses = Array.from(new Set(rawDoses)).filter(d => Boolean(d) && d !== "Standard");
+
+            // Sort doses numerically in ascending order (e.g. 10mg, 20mg, 30mg, 40mg)
+            uniqueDoses.sort((a, b) => {
+                const numA = parseFloat(a.replace(/[^0-9.]/g, ''));
+                const numB = parseFloat(b.replace(/[^0-9.]/g, ''));
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                if (!isNaN(numA)) return -1;
+                if (!isNaN(numB)) return 1;
+                return a.localeCompare(b);
+            });
+
             const dosesSummary = uniqueDoses.length > 0 ? uniqueDoses.join(" · ") : `#${activeBatch.batch_number}`;
 
             cards.push({
@@ -531,6 +543,7 @@ const LabReports = () => {
                 latestTestDate: activeBatch.test_date,
                 displayPurity,
                 dosesSummary,
+                uniqueDoses,
                 labName: activeBatch.lab_name || (isWater ? "Chromak Research" : "Janoshik Analytical"),
                 batches: sortedBatches,
             });
@@ -1258,42 +1271,56 @@ const LabReports = () => {
                                     </h3>
                                 </div>
 
-                                {/* Body Stats (ZC Labs Layout) */}
-                                <div className="grid grid-cols-2 gap-3 py-3 border-y bg-muted/20 -mx-6 px-6">
-                                    <div className="space-y-0.5">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            Total Certificates
-                                        </span>
-                                        <p className="text-sm font-extrabold text-foreground">
-                                            {card.totalLots} {card.totalLots === 1 ? "Report" : "Reports"}
-                                        </p>
+                                {/* Body Stats (Clean ZC Labs Layout with Badge Pills for Doses) */}
+                                <div className="space-y-2.5 py-3 border-y bg-muted/20 -mx-6 px-6">
+                                    {/* Top Row: Total Certificates & HPLC Purity */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-0.5">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Total Certificates
+                                            </span>
+                                            <p className="text-sm font-extrabold text-foreground">
+                                                {card.totalLots} {card.totalLots === 1 ? "Report" : "Reports"}
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-0.5">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                HPLC Purity
+                                            </span>
+                                            <p className="text-sm font-extrabold text-emerald-600">
+                                                {card.displayPurity}
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-0.5">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            HPLC Purity
-                                        </span>
-                                        <p className="text-sm font-extrabold text-emerald-600">
-                                            {card.displayPurity}
-                                        </p>
-                                    </div>
+                                    {/* Bottom Section: Available Doses Chips & Latest Test Date */}
+                                    <div className="pt-2 border-t border-border/40 space-y-1.5">
+                                        <div className="flex items-center justify-between text-[10px]">
+                                            <span className="font-bold uppercase tracking-wider text-muted-foreground">
+                                                Available Doses
+                                            </span>
+                                            <span className="text-muted-foreground font-medium">
+                                                Latest: {new Date(card.latestTestDate).toLocaleDateString("en-US", { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </span>
+                                        </div>
 
-                                    <div className="space-y-0.5">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            Available Doses
-                                        </span>
-                                        <p className="text-xs font-bold text-foreground truncate" title={card.dosesSummary}>
-                                            {card.dosesSummary}
-                                        </p>
-                                    </div>
-
-                                    <div className="space-y-0.5">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            Latest Test
-                                        </span>
-                                        <p className="text-xs font-medium text-muted-foreground">
-                                            {new Date(card.latestTestDate).toLocaleDateString("en-US", { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-1.5 min-h-[26px]">
+                                            {card.uniqueDoses.length > 0 ? (
+                                                card.uniqueDoses.map((dose) => (
+                                                    <span
+                                                        key={dose}
+                                                        className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-background text-foreground border border-border/80 shadow-2xs group-hover:border-emerald-500/40 transition-colors"
+                                                    >
+                                                        {dose}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-background text-muted-foreground border border-border/70">
+                                                    #{card.activeBatch.batch_number}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

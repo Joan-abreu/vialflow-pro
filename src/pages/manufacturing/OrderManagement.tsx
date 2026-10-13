@@ -105,6 +105,10 @@ interface OrderItem {
         product: {
             name: string;
             image_url: string | null;
+            category_id?: string | null;
+            product_categories?: {
+                name: string;
+            } | null;
         };
         vial_type: {
             name: string;
@@ -244,7 +248,10 @@ const OrderManagement = () => {
                                 id,
                                 name,
                                 image_url,
-                                category
+                                category_id,
+                                product_categories (
+                                    name
+                                )
                             ),
                             vial_type:vial_types (
                                 id,

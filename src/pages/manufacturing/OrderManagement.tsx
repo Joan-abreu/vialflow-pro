@@ -221,42 +221,70 @@ const OrderManagement = () => {
                 .select(`
                     *,
                     order_items (
-                        *,
+                        id,
+                        order_id,
+                        product_id,
+                        variant_id,
+                        quantity,
+                        price_at_time,
+                        is_bulk,
+                        with_labels,
+                        label_fee_applied,
+                        custom_label_image_url,
+                        custom_label_instructions,
                         variant:product_variants (
-                            *,
-                            product:products (*),
-                            vial_type:vial_types (*)
+                            id,
+                            product_id,
+                            vial_type_id,
+                            sku,
+                            sale_type,
+                            pack_size,
+                            image_url,
+                            product:products (
+                                id,
+                                name,
+                                image_url,
+                                category
+                            ),
+                            vial_type:vial_types (
+                                id,
+                                name,
+                                capacity_ml,
+                                color,
+                                shape
+                            )
                         )
                     ),
-                    order_shipments (*)
+                    order_shipments (
+                        id,
+                        order_id,
+                        carrier,
+                        tracking_number,
+                        tracking_url,
+                        label_url,
+                        status,
+                        pickup_confirmation
+                    )
                 `)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
             if (!ordersData) return [];
 
-            // Get unique user_ids to fetch profiles across tables
-            const userIds = [...new Set(ordersData.map(o => o.user_id).filter(id => !!id))];
-            
-            if (userIds.length > 0) {
-                const { data: profiles } = await supabase
-                    .from("profiles")
-                    .select("user_id, full_name")
-                    .in("user_id", userIds);
-                
-                // Map profiles back to orders
-                const profileMap = (profiles || []).reduce((acc, p) => {
-                    acc[p.user_id] = { full_name: p.full_name };
-                    return acc;
-                }, {} as Record<string, { full_name: string }>);
+            // Fetch customer full names from profiles efficiently
+            const { data: profiles } = await supabase
+                .from("profiles")
+                .select("user_id, full_name");
 
-                return ordersData.map(order => ({
-                    ...order,
-                    customer_profile: order.user_id ? profileMap[order.user_id] : null
-                })) as any as Order[];
-            }
+            const profileMap = (profiles || []).reduce((acc, p) => {
+                if (p.user_id) acc[p.user_id] = { full_name: p.full_name };
+                return acc;
+            }, {} as Record<string, { full_name: string }>);
 
-            return ordersData as any as Order[];
+            return ordersData.map(order => ({
+                ...order,
+                customer_profile: order.user_id ? profileMap[order.user_id] : null
+            })) as any as Order[];
         },
         refetchInterval: 5 * 60 * 1000, // Auto-refreshes orders every 5 minutes
         refetchIntervalInBackground: false,

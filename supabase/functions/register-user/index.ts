@@ -16,9 +16,11 @@ interface RegisterRequest {
   email: string;
   password?: string;
   fullName: string;
-  phone: string;
+  phone?: string;
   redirectTo?: string;
   autoConfirm?: boolean;
+  researchStatus?: string;
+  metadata?: Record<string, any>;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -35,7 +37,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { email, password, fullName, phone, redirectTo, autoConfirm }: RegisterRequest = await req.json();
+    const { email, password, fullName, phone, redirectTo, autoConfirm, researchStatus, metadata }: RegisterRequest = await req.json();
 
     console.log(`[Register User] Creating user: ${email} (autoConfirm: ${!!autoConfirm})`);
 
@@ -87,7 +89,11 @@ const handler = async (req: Request): Promise<Response> => {
       email_confirm: shouldConfirm,
       user_metadata: {
         full_name: fullName,
-        phone: phone
+        phone: phone || null,
+        research_status: researchStatus || "Independent Researcher",
+        ruo_acknowledged: true,
+        age_confirmed: true,
+        ...(metadata || {})
       }
     });
 
@@ -116,67 +122,69 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const userId = userData.user.id;
-
-    // 3. Generate verification link
-    const targetRedirect = redirectTo || `${SUPABASE_URL}/auth/v1/verify?type=signup`;
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'signup',
-      email: email,
-      options: { redirectTo: targetRedirect }
-    });
-
-    if (linkError) {
-      console.error("[Register User] Link Generation Error:", linkError);
-      return new Response(JSON.stringify({ error: linkError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 4. Send email via Resend if RESEND_API_KEY is configured
     let resData = null;
-    if (RESEND_API_KEY) {
-      const subject = `Confirm Your Email - Liv Well Research Labs`;
-      const htmlContent = getSignupConfirmationEmail({
-        confirmationUrl: linkData.properties.action_link
+
+    // 3. Generate verification link & send confirmation email ONLY if not auto-confirmed
+    if (!shouldConfirm) {
+      const targetRedirect = redirectTo || `${SUPABASE_URL}/auth/v1/verify?type=signup`;
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+        options: { redirectTo: targetRedirect }
       });
 
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: [email],
-          subject,
-          html: htmlContent,
-        }),
-      });
-
-      resData = await res.json();
-      const status = res.ok ? "sent" : "failed";
-
-      // Log to email_logs
-      await supabase.from("email_logs").insert({
-        recipient: email,
-        subject,
-        content: htmlContent,
-        status,
-        type: "signup_confirmation",
-        related_id: userId,
-        metadata: { resend_response: resData, registration_data: { fullName, phone } }
-      });
-
-      if (!res.ok) {
-        console.warn("[Register User] Resend Error:", resData);
+      if (linkError) {
+        console.error("[Register User] Link Generation Error:", linkError);
+        return new Response(JSON.stringify({ error: linkError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-    } else {
-      console.warn("[Register User] RESEND_API_KEY not configured, skipped sending confirmation email.");
+
+      // 4. Send email via Resend if RESEND_API_KEY is configured
+      if (RESEND_API_KEY) {
+        const subject = `Confirm Your Email - Liv Well Research Labs`;
+        const htmlContent = getSignupConfirmationEmail({
+          confirmationUrl: linkData.properties.action_link
+        });
+
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({
+            from: FROM_EMAIL,
+            to: [email],
+            subject,
+            html: htmlContent,
+          }),
+        });
+
+        resData = await res.json();
+        const status = res.ok ? "sent" : "failed";
+
+        // Log to email_logs
+        await supabase.from("email_logs").insert({
+          recipient: email,
+          subject,
+          content: htmlContent,
+          status,
+          type: "signup_confirmation",
+          related_id: userId,
+          metadata: { resend_response: resData, registration_data: { fullName, phone } }
+        });
+
+        if (!res.ok) {
+          console.warn("[Register User] Resend Error:", resData);
+        }
+      } else {
+        console.warn("[Register User] RESEND_API_KEY not configured, skipped sending confirmation email.");
+      }
     }
 
-    return new Response(JSON.stringify({ success: true, userId, resData }), {
+    return new Response(JSON.stringify({ success: true, userId, autoConfirmed: shouldConfirm, resData }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

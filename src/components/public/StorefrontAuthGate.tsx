@@ -51,6 +51,8 @@ export const StorefrontAuthGate: React.FC<StorefrontAuthGateProps> = ({ isOpen, 
             if (error) {
                 if (error.message.includes("Invalid login credentials")) {
                     toast.error("Invalid email or password. Please try again.");
+                } else if (error.message.toLowerCase().includes("email not confirmed")) {
+                    toast.error("Account email is pending confirmation. Please check your inbox or register directly.");
                 } else {
                     toast.error(error.message || "Failed to sign in");
                 }
@@ -59,6 +61,9 @@ export const StorefrontAuthGate: React.FC<StorefrontAuthGateProps> = ({ isOpen, 
 
             if (data.session) {
                 sessionStorage.setItem("researcher_gate_cleared", "true");
+                sessionStorage.setItem("researcher_verified", "true");
+                const userStatus = data.session.user.user_metadata?.research_status || "Verified Researcher";
+                sessionStorage.setItem("researcher_status", userStatus);
                 toast.success("Welcome back! Research portal access granted.");
                 onSuccess();
             }
@@ -88,53 +93,57 @@ export const StorefrontAuthGate: React.FC<StorefrontAuthGateProps> = ({ isOpen, 
         try {
             const cleanEmail = regEmail.trim().toLowerCase();
 
-            // 1. Check existing profile
-            const { data: existingUser } = await supabase
-                .from("profiles")
-                .select("id")
-                .eq("email", cleanEmail)
-                .maybeSingle();
-
-            if (existingUser) {
-                toast.error("This email is already registered. Please sign in with your password.");
-                setActiveTab("login");
-                setLoginEmail(cleanEmail);
-                setRegLoading(false);
-                return;
-            }
-
-            // 2. Direct Supabase sign up with metadata (instant login if auto-confirm enabled, or direct fallback)
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: cleanEmail,
-                password: regPassword,
-                options: {
-                    data: {
-                        full_name: regFullName.trim() || "Qualified Researcher",
-                        research_status: regResearchStatus,
-                        ruo_acknowledged: true,
-                        age_confirmed: true,
-                        registered_via: "storefront_gate"
-                    }
+            // 1. Create auto-confirmed user via register-user Edge Function (Admin API bypasses email confirmation barrier)
+            const { data: edgeData, error: edgeError } = await supabase.functions.invoke('register-user', {
+                body: {
+                    email: cleanEmail,
+                    password: regPassword,
+                    fullName: regFullName.trim() || "Qualified Researcher",
+                    researchStatus: regResearchStatus,
+                    autoConfirm: true,
                 }
             });
 
-            if (authError) {
-                // If standard signup fails, try direct edge function registration
-                const { data: edgeData, error: edgeError } = await supabase.functions.invoke('register-user', {
-                    body: {
-                        email: cleanEmail,
-                        password: regPassword,
-                        fullName: regFullName.trim() || "Qualified Researcher",
-                        researchStatus: regResearchStatus
-                    }
-                });
-
-                if (edgeError || edgeData?.error) {
-                    throw new Error(edgeData?.error || authError.message || "Registration failed");
+            if (edgeError || edgeData?.error) {
+                let errorMessage = edgeData?.error;
+                if (edgeError) {
+                    try {
+                        const errorBody = await edgeError.context?.clone().json();
+                        if (errorBody?.error) errorMessage = errorBody.error;
+                    } catch (_) {}
+                    if (!errorMessage) errorMessage = edgeError.message;
                 }
+
+                if (
+                    errorMessage?.includes("already registered") ||
+                    errorMessage?.includes("email_exists") ||
+                    errorMessage?.includes("User already exists") ||
+                    errorMessage?.includes("already been registered")
+                ) {
+                    toast.info("This email is already registered. Please sign in with your password.");
+                    setActiveTab("login");
+                    setLoginEmail(cleanEmail);
+                    return;
+                }
+
+                throw new Error(errorMessage || "Registration failed");
             }
 
-            // Mark session as cleared so user can enter immediately
+            // 2. Immediately establish a live Supabase authenticated session on the client
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: regPassword,
+            });
+
+            if (signInError) {
+                console.warn("Auto-signin following registration warning:", signInError);
+                toast.success("Account created successfully! Please enter your password to sign in.");
+                setActiveTab("login");
+                setLoginEmail(cleanEmail);
+                return;
+            }
+
+            // 3. Mark session flags for instant access across the site
             sessionStorage.setItem("researcher_gate_cleared", "true");
             sessionStorage.setItem("researcher_status", regResearchStatus);
             sessionStorage.setItem("researcher_verified", "true");

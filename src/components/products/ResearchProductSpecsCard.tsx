@@ -16,7 +16,7 @@ export const ResearchProductSpecsCard: React.FC<ResearchProductSpecsCardProps> =
     const specs = getResearchProductSpecs(product);
 
     return (
-        <div className="bg-card border-2 border-primary/20 rounded-2xl p-5 md:p-6 shadow-sm space-y-5 my-6 text-left">
+        <div className="bg-card border-2 border-primary/20 rounded-2xl p-5 md:p-6 shadow-sm space-y-5 text-left">
             {/* Header / Title */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border/60">
                 <div className="flex items-center gap-2.5">
@@ -38,7 +38,7 @@ export const ResearchProductSpecsCard: React.FC<ResearchProductSpecsCardProps> =
                     </div>
                 </div>
 
-                {onViewCoa && (
+                {onViewCoa ? (
                     <Button 
                         type="button" 
                         variant="outline" 
@@ -49,6 +49,13 @@ export const ResearchProductSpecsCard: React.FC<ResearchProductSpecsCardProps> =
                         <FileCheck className="h-3.5 w-3.5 text-primary" />
                         View Certificate of Analysis (COA)
                     </Button>
+                ) : (
+                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                        <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg border border-border/60 flex items-center gap-1.5">
+                            <FileCheck className="h-3.5 w-3.5 text-emerald-600" />
+                            Batch Analysis Linked Below
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -83,13 +90,13 @@ export const ResearchProductSpecsCard: React.FC<ResearchProductSpecsCardProps> =
                 <div className="p-3 bg-muted/40 rounded-xl border border-border/60 space-y-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        Verified Purity
+                        Purity Specification
                     </span>
                     <p className="text-xs md:text-sm font-bold text-emerald-600 dark:text-emerald-400">
                         {specs.purity}
                     </p>
                     <span className="text-[10px] text-muted-foreground block truncate">
-                        Third-party tested batch
+                        HPLC Reference Standard
                     </span>
                 </div>
 

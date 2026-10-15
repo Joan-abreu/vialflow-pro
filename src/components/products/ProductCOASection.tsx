@@ -177,7 +177,7 @@ export const ProductCOASection: React.FC<ProductCOASectionProps> = ({
                                         <span>Lyophilized Net Content (mg)</span>
                                     </div>
                                     <p className="text-xs text-muted-foreground leading-relaxed">
-                                        Vial content is individually weighed and calibrated against primary analytical standards to verify exact target active dosage.
+                                        Vial content is individually weighed and calibrated against primary analytical standards to verify exact target active content.
                                     </p>
                                 </div>
 

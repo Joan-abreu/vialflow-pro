@@ -1064,7 +1064,6 @@ const ProductDetails = () => {
                 {/* Laboratory Analytical Specifications (CAS, MW, Purity, Storage, Plain words RUO notice) */}
                 <ResearchProductSpecsCard 
                     product={product} 
-                    onViewCoa={() => setIsCOAModalOpen(true)}
                 />
 
                 <ProductCOASection

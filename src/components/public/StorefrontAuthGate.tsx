@@ -255,24 +255,24 @@ export const StorefrontAuthGate: React.FC<StorefrontAuthGateProps> = ({ isOpen, 
                                         <span>Research Status / Affiliation <span className="text-destructive">*</span></span>
                                         <span className="text-[10px] text-muted-foreground">Select one</span>
                                     </Label>
-                                    <Select value={regResearchStatus} onValueChange={setRegResearchStatus}>
-                                        <SelectTrigger className="h-10 text-xs bg-background">
+                                    <Select value={regResearchStatus || undefined} onValueChange={(val) => setRegResearchStatus(val)}>
+                                        <SelectTrigger className="h-10 text-xs bg-background border border-input text-foreground w-full">
                                             <SelectValue placeholder="Select your research affiliation..." />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="independent_researcher">
+                                        <SelectContent className="z-[100002] bg-popover text-popover-foreground border shadow-2xl">
+                                            <SelectItem value="independent_researcher" className="cursor-pointer text-xs py-2">
                                                 Independent Scientific Researcher
                                             </SelectItem>
-                                            <SelectItem value="academic_university">
+                                            <SelectItem value="academic_university" className="cursor-pointer text-xs py-2">
                                                 Academic / University Research Laboratory
                                             </SelectItem>
-                                            <SelectItem value="biotech_pharmaceutical">
+                                            <SelectItem value="biotech_pharmaceutical" className="cursor-pointer text-xs py-2">
                                                 Biotechnology / Commercial Laboratory
                                             </SelectItem>
-                                            <SelectItem value="contract_research_org">
+                                            <SelectItem value="contract_research_org" className="cursor-pointer text-xs py-2">
                                                 Contract Research Organization (CRO)
                                             </SelectItem>
-                                            <SelectItem value="analytical_testing">
+                                            <SelectItem value="analytical_testing" className="cursor-pointer text-xs py-2">
                                                 Analytical Chemistry & Quality Testing Lab
                                             </SelectItem>
                                         </SelectContent>

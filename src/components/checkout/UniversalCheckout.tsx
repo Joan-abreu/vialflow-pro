@@ -1407,29 +1407,29 @@ const UniversalCheckout = ({
                                         <span className="text-[10px] text-muted-foreground font-normal">Required for research order</span>
                                     </Label>
                                     <Select 
-                                        value={researchStatus} 
+                                        value={researchStatus || undefined} 
                                         onValueChange={(val) => {
                                             setResearchStatus(val);
                                             try { sessionStorage.setItem("researcher_status", val); } catch(_) {}
                                         }}
                                     >
-                                        <SelectTrigger id="checkout-research-status" className="h-10 text-xs bg-background">
+                                        <SelectTrigger id="checkout-research-status" className="h-10 text-xs bg-background border border-input text-foreground w-full">
                                             <SelectValue placeholder="Select your research status (e.g. Academic, CRO, Independent)..." />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="independent_researcher">
+                                        <SelectContent className="z-[100002] bg-popover text-popover-foreground border shadow-2xl">
+                                            <SelectItem value="independent_researcher" className="cursor-pointer text-xs py-2">
                                                 Independent Scientific Researcher
                                             </SelectItem>
-                                            <SelectItem value="academic_university">
+                                            <SelectItem value="academic_university" className="cursor-pointer text-xs py-2">
                                                 Academic / University Research Laboratory
                                             </SelectItem>
-                                            <SelectItem value="biotech_pharmaceutical">
+                                            <SelectItem value="biotech_pharmaceutical" className="cursor-pointer text-xs py-2">
                                                 Biotechnology / Commercial Laboratory
                                             </SelectItem>
-                                            <SelectItem value="contract_research_org">
+                                            <SelectItem value="contract_research_org" className="cursor-pointer text-xs py-2">
                                                 Contract Research Organization (CRO)
                                             </SelectItem>
-                                            <SelectItem value="analytical_testing">
+                                            <SelectItem value="analytical_testing" className="cursor-pointer text-xs py-2">
                                                 Analytical Chemistry & Quality Testing Lab
                                             </SelectItem>
                                         </SelectContent>

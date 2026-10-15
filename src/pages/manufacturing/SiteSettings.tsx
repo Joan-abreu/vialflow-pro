@@ -283,9 +283,13 @@ const SiteSettings = () => {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
     const [requireLoginForCheckout, setRequireLoginForCheckout] = useState(true);
+    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState(false);
+    const [gateExemptWaterProducts, setGateExemptWaterProducts] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingResearchAck, setSavingResearchAck] = useState(false);
     const [savingRequireLogin, setSavingRequireLogin] = useState(false);
+    const [savingGateStorefront, setSavingGateStorefront] = useState(false);
+    const [savingGateExemptWater, setSavingGateExemptWater] = useState(false);
     const [savingShipping, setSavingShipping] = useState(false);
     const [savingGateways, setSavingGateways] = useState(false);
     const [savingInventorySettings, setSavingInventorySettings] = useState(false);
@@ -636,6 +640,8 @@ const SiteSettings = () => {
                     "maintenance_mode", 
                     "require_research_acknowledgment",
                     "require_login_for_checkout",
+                    "gate_storefront_enabled",
+                    "gate_exempt_water_products",
                     "shipping_cutoff_hour",
                     "shipping_cutoff_minute",
                     "shipping_timezone",
@@ -856,6 +862,11 @@ const SiteSettings = () => {
                 const maintenance = data.find((s: any) => s.key === "maintenance_mode");
                 const researchAck = data.find((s: any) => s.key === "require_research_acknowledgment");
                 const requireLogin = data.find((s: any) => s.key === "require_login_for_checkout");
+                const gateStorefront = data.find((s: any) => s.key === "gate_storefront_enabled");
+                const gateWater = data.find((s: any) => s.key === "gate_exempt_water_products");
+
+                if (gateStorefront) setGateStorefrontEnabled(gateStorefront.value === "true");
+                if (gateWater) setGateExemptWaterProducts(gateWater.value !== "false"); // Default to true if not set
                 const hour = data.find((s: any) => s.key === "shipping_cutoff_hour");
                 const min = data.find((s: any) => s.key === "shipping_cutoff_minute");
                 const tz = data.find((s: any) => s.key === "shipping_timezone");
@@ -1075,6 +1086,56 @@ const SiteSettings = () => {
             setRequireLoginForCheckout(!checked); // Revert UI on error
         } finally {
             setSavingRequireLogin(false);
+        }
+    };
+
+    const handleGateStorefrontToggle = async (checked: boolean) => {
+        setGateStorefrontEnabled(checked);
+        setSavingGateStorefront(true);
+
+        try {
+            const { error } = await supabase
+                .from("app_settings" as any)
+                .upsert({
+                    key: "gate_storefront_enabled",
+                    value: String(checked),
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) throw error;
+
+            toast.success(`Storefront Gate ${checked ? "activated (All visitors must sign in or register with research status)" : "deactivated (Public storefront open)"}`);
+        } catch (error: any) {
+            console.error("Error saving storefront gate:", error);
+            toast.error("Failed to save storefront gate setting");
+            setGateStorefrontEnabled(!checked);
+        } finally {
+            setSavingGateStorefront(false);
+        }
+    };
+
+    const handleGateExemptWaterToggle = async (checked: boolean) => {
+        setGateExemptWaterProducts(checked);
+        setSavingGateExemptWater(true);
+
+        try {
+            const { error } = await supabase
+                .from("app_settings" as any)
+                .upsert({
+                    key: "gate_exempt_water_products",
+                    value: String(checked),
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) throw error;
+
+            toast.success(`Water products exemption ${checked ? "enabled (Google Ads traffic enters directly)" : "disabled (All products require login)"}`);
+        } catch (error: any) {
+            console.error("Error saving water exemption:", error);
+            toast.error("Failed to save water exemption setting");
+            setGateExemptWaterProducts(!checked);
+        } finally {
+            setSavingGateExemptWater(false);
         }
     };
 
@@ -1764,20 +1825,81 @@ const SiteSettings = () => {
                     </CardContent>
                 </Card>
 
-                {/* 2. Storefront Settings */}
+                {/* 2. Storefront Settings & Compliance */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Storefront Compliance</CardTitle>
-                        <CardDescription>
-                            Configure customer compliance and legal acknowledgment requirements.
-                        </CardDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <ShieldCheck className="h-5 w-5 text-primary" />
+                                    <span>Storefront Compliance & Gating (TagadaPay / Kashu)</span>
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                    Configure access gating, Google Ads water landing page exemptions, and checkout research acknowledgments.
+                                </CardDescription>
+                            </div>
+                            <Badge variant={gateStorefrontEnabled ? "default" : "outline"} className={gateStorefrontEnabled ? "bg-emerald-600 text-white" : ""}>
+                                {gateStorefrontEnabled ? "Gate Active" : "Public Storefront"}
+                            </Badge>
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        {/* 2A. Master Storefront Auth Gate */}
+                        <div className="flex items-center justify-between space-x-4 rounded-lg border p-4 bg-muted/20">
+                            <div className="space-y-0.5 max-w-2xl">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Enable Storefront Auth Gate</Label>
+                                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30 bg-amber-500/10 font-bold uppercase">
+                                        Processor Inspection Mode
+                                    </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    When enabled, all visitors must sign in or register with their research status and 2 compliance confirmations before viewing the store, homepage, or catalog. 
+                                    <span className="block text-xs text-foreground font-medium mt-0.5">
+                                        📸 Required by Tagada Pay / Kashu Pay underwriting to take the compliance screenshot.
+                                    </span>
+                                </p>
+                            </div>
+                            <Switch
+                                checked={gateStorefrontEnabled}
+                                onCheckedChange={handleGateStorefrontToggle}
+                                disabled={savingGateStorefront}
+                            />
+                        </div>
+
+                        {/* 2B. Water Products Google Ads Exemption */}
+                        <div className={`flex items-center justify-between space-x-4 rounded-lg border p-4 transition-all ${
+                            gateExemptWaterProducts ? "border-emerald-500/30 bg-emerald-500/5" : "bg-muted/10"
+                        }`}>
+                            <div className="space-y-0.5 max-w-2xl">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Exempt Bacteriostatic Water from Storefront Gate</Label>
+                                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+                                        Google Ads Protection
+                                    </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    When enabled, paid traffic arriving directly from Google Ads to Bacteriostatic Water / Reconstitution Solution URLs bypasses the login gate completely. Visitors can view the product and purchase immediately without friction, protecting your advertising ROAS and conversion rates.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={gateExemptWaterProducts}
+                                onCheckedChange={handleGateExemptWaterToggle}
+                                disabled={savingGateExemptWater}
+                            />
+                        </div>
+
+                        {/* 2C. Checkout RUO & Research Affiliation Gating */}
                         <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                                <Label className="text-base">Require Research Acknowledgment</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    When enabled, customers must acknowledge that products are for laboratory research use only (RUO) and agree to the Terms & Conditions before proceeding to checkout and submitting payment.
+                            <div className="space-y-0.5 max-w-2xl">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-base font-semibold">Enforce Research Status & RUO at Checkout</Label>
+                                    <Badge variant="outline" className="text-[10px] text-primary border-primary/30 font-bold uppercase">
+                                        Checkout Gate
+                                    </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    When enabled, the buyer must select their Research Affiliation/Status (nothing pre-selected) and check the mandatory confirmation: <em>"Research use only, not for human consumption"</em> before paying. Order execution is strictly blocked until completed.
                                 </p>
                             </div>
                             <Switch
@@ -1787,14 +1909,15 @@ const SiteSettings = () => {
                             />
                         </div>
 
+                        {/* 2D. Require Login to Checkout */}
                         <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
-                            <div className="space-y-0.5">
+                            <div className="space-y-0.5 max-w-2xl">
                                 <div className="flex items-center gap-2">
                                     <Label className="text-base font-semibold">Require Account / Login to Checkout</Label>
-                                    <Badge variant="outline" className="text-[10px] text-primary bg-primary/10 font-bold">Recommended</Badge>
+                                    <Badge variant="outline" className="text-[10px] text-primary bg-primary/10 font-bold">Optional</Badge>
                                 </div>
-                                <p className="text-sm text-muted-foreground">
-                                    When enabled, customers must sign in or create an account before completing their order. When disabled, guest checkout without password is permitted.
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    When enabled, customers must sign in or create an account before completing their order. When disabled, guest checkout is permitted.
                                 </p>
                             </div>
                             <Switch

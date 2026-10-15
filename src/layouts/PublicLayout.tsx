@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ResearcherVerificationModal from "@/components/public/ResearcherVerificationModal";
+import { StorefrontAuthGate } from "@/components/public/StorefrontAuthGate";
 import PromoSplashModal from "@/components/public/PromoSplashModal";
 import { usePromoSplashSettings } from "@/hooks/usePromoSplashSettings";
 import { shouldShowPromoSplash } from "@/config/promoSplashConfig";
@@ -44,7 +45,13 @@ const CartIcon = () => {
 
 const EXEMPT_PATHS = [
     "/terms",
+    "/privacy",
+    "/returns",
+    "/sds",
+    "/contact",
+    "/about",
     "/blog",
+    "/auth",
 ];
 
 const checkIsExemptRouteSync = (pathname: string, search: string): boolean => {
@@ -88,6 +95,13 @@ const PublicLayoutContent = () => {
     const [showPeptideBanner, setShowPeptideBanner] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Storefront Compliance Gating Settings (Tagada Pay / Kashu Pay)
+    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState<boolean>(false);
+    const [gateExemptWaterProducts, setGateExemptWaterProducts] = useState<boolean>(true);
+    const [isGateCleared, setIsGateCleared] = useState<boolean>(() => {
+        return sessionStorage.getItem("researcher_gate_cleared") === "true";
+    });
 
     const [isVerified, setIsVerified] = useState<boolean>(() => {
         return sessionStorage.getItem("researcher_verified") === "true";
@@ -335,6 +349,63 @@ const PublicLayoutContent = () => {
         checkWaterRoute();
     }, [location.pathname, location.search]);
 
+    // Fetch and subscribe to Storefront Gate settings
+    useEffect(() => {
+        const fetchGateSettings = async () => {
+            try {
+                const { data } = await supabase
+                    .from("app_settings" as any)
+                    .select("key, value")
+                    .in("key", ["gate_storefront_enabled", "gate_exempt_water_products"]);
+
+                if (data && data.length > 0) {
+                    const gateRow = data.find((s: any) => s.key === "gate_storefront_enabled");
+                    const waterRow = data.find((s: any) => s.key === "gate_exempt_water_products");
+                    if (gateRow) setGateStorefrontEnabled(gateRow.value === "true");
+                    if (waterRow) setGateExemptWaterProducts(waterRow.value !== "false");
+                }
+            } catch (err) {
+                console.error("Error loading storefront gate settings:", err);
+            }
+        };
+
+        fetchGateSettings();
+
+        // Subscribe to real-time changes so toggling in admin immediately updates live storefront
+        const channel = supabase
+            .channel("realtime-app-settings-gate")
+            .on(
+                "postgres_changes",
+                { event: "*", schema: "public", table: "app_settings" },
+                (payload: any) => {
+                    const newKey = payload.new?.key;
+                    const newVal = payload.new?.value;
+                    if (newKey === "gate_storefront_enabled") {
+                        setGateStorefrontEnabled(newVal === "true");
+                    } else if (newKey === "gate_exempt_water_products") {
+                        setGateExemptWaterProducts(newVal !== "false");
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
+    const isInternalRoute = location.pathname.startsWith("/manufacturing") || location.pathname.startsWith("/auth");
+    const isExemptRoute = checkIsExemptRouteSync(location.pathname, location.search);
+    const isWaterOrExempt = isWaterPage || isExemptRoute;
+
+    const shouldShowAuthGate = Boolean(
+        gateStorefrontEnabled &&
+        !user &&
+        !isGateCleared &&
+        !isInternalRoute &&
+        !(gateExemptWaterProducts && isWaterOrExempt)
+    );
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate("/");
@@ -528,8 +599,18 @@ const PublicLayoutContent = () => {
                 initialSlide={modalInitialSlide}
             />
 
+            {/* Tagada Pay / Kashu Pay Storefront Auth Gate */}
+            <StorefrontAuthGate
+                isOpen={shouldShowAuthGate}
+                onSuccess={() => {
+                    setIsGateCleared(true);
+                    setIsVerified(true);
+                }}
+            />
+
+            {/* Legacy Age/RUO popup only if full gate is not enabled */}
             <ResearcherVerificationModal
-                isOpen={!isVerified && !isWaterPage && !isCheckingRoute}
+                isOpen={!gateStorefrontEnabled && !isVerified && !isWaterOrExempt && !isCheckingRoute}
                 onVerify={() => setIsVerified(true)}
             />
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -760,7 +841,15 @@ const PublicLayoutContent = () => {
                             </ul>
                         </div>
                     </div>
-                    <div className="mt-10 border-t pt-6 text-center text-sm text-muted-foreground">
+                    <div className="mt-8 pt-6 border-t text-center text-xs text-muted-foreground/80 leading-relaxed max-w-4xl mx-auto space-y-2">
+                        <p className="font-semibold text-foreground/90">
+                            🔬 RESEARCH USE ONLY (RUO) STATEMENT
+                        </p>
+                        <p>
+                            All compounds, lyophilized peptides, and reconstitution solutions provided by Liv Well Research Labs are strictly intended for in-vitro laboratory research, scientific inquiry, and analytical testing only. <strong>These products are not drugs, foods, medical devices, or cosmetics</strong>, and have not been evaluated or approved by the FDA. Strictly not for human or animal consumption, personal use, clinical administration, or diagnostic procedures.
+                        </p>
+                    </div>
+                    <div className="mt-6 border-t pt-4 text-center text-sm text-muted-foreground">
                         © {new Date().getFullYear()} Liv Well Research Labs. All rights reserved.
                     </div>
                 </div>
@@ -771,7 +860,7 @@ const PublicLayoutContent = () => {
                 <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-3 text-[10px] md:text-xs text-muted-foreground flex items-start gap-4">
                     <div className="flex-1 max-w-7xl mx-auto flex items-start md:items-center gap-4">
                         <div className="flex-1 text-left sm:text-center pb-2 md:pb-0">
-                            <strong className="text-foreground">FDA DISCLAIMER:</strong> These products have not been evaluated by the FDA and are not intended to diagnose, treat, cure, or prevent any disease. This website contains sterile reconstitution solutions and bacteriostatic water intended strictly for laboratory research and educational purposes. All products sold on this website are intended for reconstitution and laboratory research use only. These products are not intended for human dosing, injection, or ingestion.
+                            <strong className="text-foreground">FDA & RESEARCH DISCLAIMER:</strong> These products are not drugs, foods, medical devices, or cosmetics, and have not been evaluated or approved by the FDA. They are not intended to diagnose, treat, cure, mitigate, or prevent any disease. All products sold on this website are intended strictly for in-vitro laboratory research and reconstitution testing only. Strictly not for human dosing, injection, or ingestion.
                         </div>
                         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 rounded-full hover:bg-muted/80 self-start md:self-center absolute right-2 top-2 md:relative md:top-0 md:right-0" onClick={() => setShowFdaDisclaimer(false)}>
                             <X className="h-4 w-4" />

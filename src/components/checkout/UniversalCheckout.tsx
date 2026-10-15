@@ -9,6 +9,7 @@ import { trackFunnelStep } from "@/utils/sessionTracker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentForm, CreditCard as SquareCreditCard } from "react-square-web-payments-sdk";
 import { loadStripe } from "@stripe/stripe-js";
@@ -54,6 +55,7 @@ interface StripeFormInnerProps {
     requireResearchAck: boolean;
     ackResearch: boolean;
     ackTerms: boolean;
+    researchStatus?: string;
     onSuccess: (intentId: string) => Promise<void>;
 }
 
@@ -67,18 +69,27 @@ const StripeFormInner = ({
     requireResearchAck,
     ackResearch,
     ackTerms,
+    researchStatus,
     onSuccess
 }: StripeFormInnerProps) => {
     const stripe = useStripe();
     const elements = useElements();
 
+    const isAckIncomplete = Boolean(requireResearchAck && (!ackResearch || !ackTerms || !researchStatus));
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!stripe || !elements) return;
 
-        if (requireResearchAck && (!ackResearch || !ackTerms)) {
-            toast.error("Please acknowledge the Research Use Only and Terms conditions.");
-            return;
+        if (requireResearchAck) {
+            if (!researchStatus) {
+                toast.error("Please select your research status or affiliation.");
+                return;
+            }
+            if (!ackResearch || !ackTerms) {
+                toast.error("Please acknowledge the Research Use Only and Terms conditions.");
+                return;
+            }
         }
 
         if (!shippingService || shippingCost === undefined) {
@@ -109,7 +120,7 @@ const StripeFormInner = ({
         }
     };
 
-    const isButtonDisabled = isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading;
+    const isButtonDisabled = isCalculating || !shippingService || shippingCost === undefined || isAckIncomplete || loading;
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -130,8 +141,8 @@ const StripeFormInner = ({
                     "Calculating Shipping..."
                 ) : !shippingService || shippingCost === undefined ? (
                     "Select Shipping Method"
-                ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                    "Acknowledge terms to pay"
+                ) : isAckIncomplete ? (
+                    !researchStatus ? "Select research affiliation" : "Acknowledge terms to pay"
                 ) : (
                     `Pay $${amount.toFixed(2)} with Card`
                 )}
@@ -168,8 +179,17 @@ const UniversalCheckout = ({
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [requireResearchAck, setRequireResearchAck] = useState(false);
+    const [researchStatus, setResearchStatus] = useState<string>(() => {
+        return sessionStorage.getItem("researcher_status") || "";
+    });
     const [ackResearch, setAckResearch] = useState(false);
     const [ackTerms, setAckTerms] = useState(false);
+
+    // Gating helpers for Kashu / Tagada compliance
+    const isResearchAckIncomplete = Boolean(requireResearchAck && (!ackResearch || !ackTerms || !researchStatus));
+    const ackDisabledReason = !researchStatus 
+        ? "Select research status to proceed" 
+        : "Acknowledge terms to pay";
 
     // Multi-Gateway Dynamic Settings State
     const [gatewaySettings, setGatewaySettings] = useState<PaymentGatewaysSettings>(DEFAULT_PAYMENT_SETTINGS);
@@ -740,7 +760,9 @@ const UniversalCheckout = ({
                 state: addressState.state,
                 postal_code: addressState.postal_code,
                 country: addressState.country,
-                phone: addressState.phone || null
+                phone: addressState.phone || null,
+                research_status: researchStatus || null,
+                ruo_acknowledged: Boolean(ackResearch)
             },
             payment_method: activeProvider,
             payment_gateway: activeProvider,
@@ -832,6 +854,17 @@ const UniversalCheckout = ({
         paypalOrderId?: string,
         additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any; walletType?: string }
     ) => {
+        if (requireResearchAck) {
+            if (!researchStatus) {
+                toast.error("Please select your research status or affiliation.");
+                return;
+            }
+            if (!ackResearch || !ackTerms) {
+                toast.error("Please acknowledge that products are for research use only and agree to terms.");
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
@@ -976,9 +1009,15 @@ const UniversalCheckout = ({
     // Authorize.Net Accept.js Card Tokenization Handler
     const handleAuthorizeNetSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (requireResearchAck && (!ackResearch || !ackTerms)) {
-            toast.error("Please acknowledge terms before proceeding.", { id: "checkout-ack" });
-            return;
+        if (requireResearchAck) {
+            if (!researchStatus) {
+                toast.error("Please select your research status or affiliation.", { id: "checkout-ack" });
+                return;
+            }
+            if (!ackResearch || !ackTerms) {
+                toast.error("Please acknowledge terms and research use conditions before proceeding.", { id: "checkout-ack" });
+                return;
+            }
         }
 
         if (!shippingService || shippingCost === undefined) {
@@ -1353,39 +1392,74 @@ const UniversalCheckout = ({
 
                 {!hidePayment && (
                     <div className="space-y-4">
-                        {/* RUO & Terms Acknowledgment Alert */}
+                        {/* RUO & Research Affiliation Gating Alert */}
                         {requireResearchAck && (
-                            <div className="p-4 rounded-lg border-l-4 border-destructive bg-destructive/5 space-y-3 text-left shadow-xs">
-                                <div className="flex items-center gap-2 text-destructive font-semibold text-xs uppercase tracking-wider">
+                            <div className="p-4 sm:p-5 rounded-xl border-l-4 border-destructive bg-destructive/5 space-y-4 text-left shadow-xs">
+                                <div className="flex items-center gap-2 text-destructive font-bold text-xs uppercase tracking-wider">
                                     <AlertTriangle className="h-4 w-4" />
-                                    Research Use Only — Required Acknowledgment
+                                    Research Use Only (RUO) — Mandatory Acknowledgment
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    By submitting your payment, you confirm that:
-                                </p>
+
+                                {/* Research Status Selector (Tagada Pay requirement: nothing pre-selected) */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="checkout-research-status" className="text-xs font-semibold text-foreground flex items-center justify-between">
+                                        <span>Research Affiliation / Status <span className="text-destructive">*</span></span>
+                                        <span className="text-[10px] text-muted-foreground font-normal">Required for research order</span>
+                                    </Label>
+                                    <Select 
+                                        value={researchStatus} 
+                                        onValueChange={(val) => {
+                                            setResearchStatus(val);
+                                            try { sessionStorage.setItem("researcher_status", val); } catch(_) {}
+                                        }}
+                                    >
+                                        <SelectTrigger id="checkout-research-status" className="h-10 text-xs bg-background">
+                                            <SelectValue placeholder="Select your research status (e.g. Academic, CRO, Independent)..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="independent_researcher">
+                                                Independent Scientific Researcher
+                                            </SelectItem>
+                                            <SelectItem value="academic_university">
+                                                Academic / University Research Laboratory
+                                            </SelectItem>
+                                            <SelectItem value="biotech_pharmaceutical">
+                                                Biotechnology / Commercial Laboratory
+                                            </SelectItem>
+                                            <SelectItem value="contract_research_org">
+                                                Contract Research Organization (CRO)
+                                            </SelectItem>
+                                            <SelectItem value="analytical_testing">
+                                                Analytical Chemistry & Quality Testing Lab
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 
-                                <div className="space-y-3">
-                                    <div className="flex items-start space-x-2">
+                                <div className="space-y-3 pt-1">
+                                    {/* Checkbox 1: Exact Tagada requirement: "Research use only, not for human consumption." */}
+                                    <div className="flex items-start space-x-2.5">
                                         <Checkbox 
                                             id="checkout-ruo-ack" 
                                             checked={ackResearch} 
                                             onCheckedChange={(checked) => setAckResearch(checked === true)} 
-                                            className="mt-1 flex-shrink-0"
+                                            className="mt-0.5 flex-shrink-0"
                                         />
                                         <Label htmlFor="checkout-ruo-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
-                                            I am a qualified researcher, scientist, or institutional professional purchasing on behalf of a licensed research institution, laboratory, or organization. I understand that all products are exclusively for <strong>laboratory research use only (RUO)</strong> and are <strong>not approved or intended for use in humans or animals</strong>, nor for clinical, diagnostic, or therapeutic purposes.
+                                            <strong>Research use only, not for human consumption.</strong> I certify that all products in this order are exclusively for in-vitro laboratory research, analytical chemistry, or scientific testing, and will not be used in humans or animals.
                                         </Label>
                                     </div>
 
-                                    <div className="flex items-start space-x-2">
+                                    {/* Checkbox 2: 21+ & Terms agreement */}
+                                    <div className="flex items-start space-x-2.5">
                                         <Checkbox 
                                             id="checkout-terms-ack" 
                                             checked={ackTerms} 
                                             onCheckedChange={(checked) => setAckTerms(checked === true)} 
-                                            className="mt-1 flex-shrink-0"
+                                            className="mt-0.5 flex-shrink-0"
                                         />
                                         <Label htmlFor="checkout-terms-ack" className="text-xs text-muted-foreground font-normal leading-normal cursor-pointer select-none">
-                                            I have read and agree to the <Link to="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms & Conditions</Link>.
+                                            I certify that I am at least <strong>21 years of age</strong> and have read and agree to the <Link to="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms & Conditions</Link>.
                                         </Label>
                                     </div>
                                 </div>
@@ -1409,12 +1483,12 @@ const UniversalCheckout = ({
                                 <Button 
                                     className="w-full py-6 text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg transition-all"
                                     onClick={() => handleProcessPayment()}
-                                    disabled={loading || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabled={loading || isResearchAckIncomplete}
                                 >
                                     {loading ? (
                                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                                    ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                                        "Acknowledge terms to complete"
+                                    ) : isResearchAckIncomplete ? (
+                                        ackDisabledReason
                                     ) : (
                                         "Complete Free Order"
                                     )}
@@ -1450,13 +1524,13 @@ const UniversalCheckout = ({
                                         <SquareCreditCard 
                                             buttonProps={{
                                                 css: {
-                                                    backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? '#cccccc' : 'hsl(var(--primary))',
+                                                    backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete) ? '#cccccc' : 'hsl(var(--primary))',
                                                     color: '#fff',
-                                                    cursor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? 'not-allowed' : 'pointer',
-                                                    pointerEvents: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? 'none' : 'auto',
+                                                    cursor: (isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete) ? 'not-allowed' : 'pointer',
+                                                    pointerEvents: (isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete) ? 'none' : 'auto',
                                                     fontFamily: 'Inter, sans-serif',
                                                     '&:hover': {
-                                                        backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
+                                                        backgroundColor: (isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete) ? '#cccccc' : 'hsl(var(--primary) / 0.9)',
                                                     }
                                                 }
                                             }}
@@ -1465,8 +1539,8 @@ const UniversalCheckout = ({
                                                 ? "Calculating Shipping..." 
                                                 : !shippingService || shippingCost === undefined 
                                                     ? "Select Shipping Method" 
-                                                    : (requireResearchAck && (!ackResearch || !ackTerms))
-                                                        ? "Acknowledge terms to pay"
+                                                    : isResearchAckIncomplete
+                                                        ? ackDisabledReason
                                                         : `Pay $${amount.toFixed(2)}`
                                             }
                                         </SquareCreditCard>
@@ -1478,14 +1552,14 @@ const UniversalCheckout = ({
                                     amount={amount}
                                     config={gatewaySettings.tagadapay}
                                     loading={loading}
-                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete}
                                     disabledReason={
                                         isCalculating
                                             ? "Calculating Shipping..."
                                             : !shippingService || shippingCost === undefined
                                                 ? "Select Shipping Method"
-                                                : requireResearchAck && (!ackResearch || !ackTerms)
-                                                    ? "Acknowledge terms to pay"
+                                                : isResearchAckIncomplete
+                                                    ? ackDisabledReason
                                                     : undefined
                                     }
                                     onTokenized={async (tagadaToken) => {
@@ -1520,14 +1594,14 @@ const UniversalCheckout = ({
                                         country: addressState.country || 'US'
                                     }}
                                     loading={loading}
-                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete}
                                     disabledReason={
                                         isCalculating
                                             ? "Calculating Shipping..."
                                             : !shippingService || shippingCost === undefined
                                                 ? "Select Shipping Method"
-                                                : requireResearchAck && (!ackResearch || !ackTerms)
-                                                    ? "Acknowledge terms to pay"
+                                                : isResearchAckIncomplete
+                                                    ? ackDisabledReason
                                                     : undefined
                                     }
                                     onTokenized={async (tokenIntentId, sessionId, cardSummary) => {
@@ -1554,6 +1628,7 @@ const UniversalCheckout = ({
                                             requireResearchAck={requireResearchAck}
                                             ackResearch={ackResearch}
                                             ackTerms={ackTerms}
+                                            researchStatus={researchStatus}
                                             onSuccess={async (intentId) => {
                                                 await handleProcessPayment(undefined, intentId);
                                             }}
@@ -1618,7 +1693,7 @@ const UniversalCheckout = ({
                                     </div>
                                     <Button
                                         type="submit"
-                                        disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading}
+                                        disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete || loading}
                                         className="w-full py-6 text-base font-bold shadow-md"
                                     >
                                         {loading ? (
@@ -1630,8 +1705,8 @@ const UniversalCheckout = ({
                                             "Calculating Shipping..."
                                         ) : !shippingService || shippingCost === undefined ? (
                                             "Select Shipping Method"
-                                        ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                                            "Acknowledge terms to pay"
+                                        ) : isResearchAckIncomplete ? (
+                                            ackDisabledReason
                                         ) : (
                                             `Pay $${amount.toFixed(2)} with Authorize.Net`
                                         )}
@@ -1641,9 +1716,15 @@ const UniversalCheckout = ({
                                 /* Case E: NMI (Network Merchants Inc.) Direct Card Form */
                                 <form onSubmit={(e) => {
                                     e.preventDefault();
-                                    if (requireResearchAck && (!ackResearch || !ackTerms)) {
-                                        toast.error("Please acknowledge terms before proceeding.");
-                                        return;
+                                    if (requireResearchAck) {
+                                        if (!researchStatus) {
+                                            toast.error("Please select your research status or affiliation.");
+                                            return;
+                                        }
+                                        if (!ackResearch || !ackTerms) {
+                                            toast.error("Please acknowledge terms before proceeding.");
+                                            return;
+                                        }
                                     }
                                     if (!shippingService || shippingCost === undefined) {
                                         toast.error("Please select a shipping method before paying.");
@@ -1701,7 +1782,7 @@ const UniversalCheckout = ({
                                     </div>
                                     <Button
                                         type="submit"
-                                        disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading}
+                                        disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete || loading}
                                         className="w-full py-6 text-base font-bold shadow-md"
                                     >
                                         {loading ? (
@@ -1713,8 +1794,8 @@ const UniversalCheckout = ({
                                             "Calculating Shipping..."
                                         ) : !shippingService || shippingCost === undefined ? (
                                             "Select Shipping Method"
-                                        ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                                            "Acknowledge terms to pay"
+                                        ) : isResearchAckIncomplete ? (
+                                            ackDisabledReason
                                         ) : (
                                             `Pay $${amount.toFixed(2)} with NMI`
                                         )}
@@ -1784,7 +1865,7 @@ const UniversalCheckout = ({
                                     </div>
                                     <Button
                                         onClick={() => handleProcessPayment("clv_card_token_sim")}
-                                        disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading}
+                                        disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete || loading}
                                         className="w-full py-6 text-base font-bold shadow-md"
                                     >
                                         {loading ? (
@@ -1796,8 +1877,8 @@ const UniversalCheckout = ({
                                             "Calculating Shipping..."
                                         ) : !shippingService || shippingCost === undefined ? (
                                             "Select Shipping Method"
-                                        ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                                            "Acknowledge terms to pay"
+                                        ) : isResearchAckIncomplete ? (
+                                            ackDisabledReason
                                         ) : (
                                             `Pay $${amount.toFixed(2)} with Clover`
                                         )}
@@ -1810,14 +1891,14 @@ const UniversalCheckout = ({
                                     onChange={setCardData}
                                     onSubmit={handleProcessPayment}
                                     loading={loading}
-                                    disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms))}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete}
                                     disabledReason={
                                         isCalculating
                                             ? "Calculating Shipping..."
                                             : !shippingService || shippingCost === undefined
                                                 ? "Select Shipping Method"
-                                                : requireResearchAck && (!ackResearch || !ackTerms)
-                                                    ? "Acknowledge terms to pay"
+                                                : isResearchAckIncomplete
+                                                    ? ackDisabledReason
                                                     : undefined
                                     }
                                     amount={amount}
@@ -1840,7 +1921,7 @@ const UniversalCheckout = ({
 
                                     <Button
                                         className="w-full py-6 text-base font-bold shadow-md bg-purple-600 hover:bg-purple-700 text-white"
-                                        disabled={isCalculating || !shippingService || shippingCost === undefined || (requireResearchAck && (!ackResearch || !ackTerms)) || loading}
+                                        disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete || loading}
                                         onClick={() => handleProcessPayment()}
                                     >
                                         {loading ? (
@@ -1852,8 +1933,8 @@ const UniversalCheckout = ({
                                             "Calculating Shipping..."
                                         ) : !shippingService || shippingCost === undefined ? (
                                             "Select Shipping Method"
-                                        ) : requireResearchAck && (!ackResearch || !ackTerms) ? (
-                                            "Acknowledge terms to submit"
+                                        ) : isResearchAckIncomplete ? (
+                                            ackDisabledReason
                                         ) : (
                                             `Place Order & Pay via ${selectedP2PMethod.toUpperCase()} ($${amount.toFixed(2)})`
                                         )}

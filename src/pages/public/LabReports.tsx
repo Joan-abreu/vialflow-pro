@@ -779,7 +779,7 @@ const LabReports = () => {
 
                                 <div className="bg-background/80 border rounded-2xl p-4 space-y-1 shadow-xs">
                                     <div className="flex items-center justify-between text-muted-foreground">
-                                        <span className="text-[10px] uppercase font-bold tracking-wider">Dosage / Content</span>
+                                        <span className="text-[10px] uppercase font-bold tracking-wider">Specification / Net Content</span>
                                         <Activity className="h-4 w-4 text-primary" />
                                     </div>
                                     <p className="text-xl md:text-2xl font-black text-foreground">

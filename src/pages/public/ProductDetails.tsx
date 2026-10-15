@@ -21,6 +21,7 @@ import { getBaseSalesCount } from "@/utils/salesCount";
 import ProductCOABadge, { COARecord } from "@/components/products/ProductCOABadge";
 import ProductCOAModal from "@/components/products/ProductCOAModal";
 import ProductCOASection from "@/components/products/ProductCOASection";
+import ResearchProductSpecsCard from "@/components/products/ResearchProductSpecsCard";
 import { trackAnalyticsEvent } from "@/utils/sessionTracker";
 
 interface ProductWithVariants {
@@ -732,7 +733,7 @@ const ProductDetails = () => {
                         {product && product.variants && product.variants.length > 1 && (
                             <div className="space-y-3">
                                 <label className="block text-sm font-semibold tracking-wide uppercase text-muted-foreground">
-                                    Select Dosage / Option
+                                    Select Quantity / Specification
                                 </label>
                                 <div className="flex flex-wrap gap-3">
                                     {product.variants.map((v) => {
@@ -1058,8 +1059,14 @@ const ProductDetails = () => {
                 </div>
             </div>
 
-            {/* Quality Assurance & Analytical Lab Testing (COA) Section */}
-            <div className="mt-12 md:mt-16 space-y-10">
+            {/* Quality Assurance, Research Specs & Analytical Lab Testing Section */}
+            <div className="mt-12 md:mt-16 space-y-8">
+                {/* Laboratory Analytical Specifications (CAS, MW, Purity, Storage, Plain words RUO notice) */}
+                <ResearchProductSpecsCard 
+                    product={product} 
+                    onViewCoa={() => setIsCOAModalOpen(true)}
+                />
+
                 <ProductCOASection
                     productName={coaProductName}
                     coas={activeVariantCoas}

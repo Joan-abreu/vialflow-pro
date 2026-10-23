@@ -3,14 +3,15 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { StorefrontAuthGate } from "@/components/public/StorefrontAuthGate";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { getBaseSalesCount } from "@/utils/salesCount";
 import SEO from "@/components/SEO";
 import { getSEOConfig } from "@/config/seoConfig";
-import { useEffect } from "react";
 import { trackAnalyticsEvent } from "@/utils/sessionTracker";
 import {
     Select,
@@ -39,6 +40,7 @@ interface ProductWithVariants {
 
 const Products = () => {
     const navigate = useNavigate();
+    const { user, loading: authLoading } = useAuth();
     const [searchParams] = useSearchParams();
     const categoryParam = searchParams.get("category");
     const searchUrlParam = searchParams.get("search");
@@ -64,6 +66,7 @@ const Products = () => {
 
     const { data: userVipStatus } = useQuery({
         queryKey: ["user-vip-status"],
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user?.id) return false;
@@ -84,6 +87,7 @@ const Products = () => {
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", isVip],
         staleTime: 0,
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             // Fetch all published variants with their product and vial type info
             let query = supabase
@@ -405,6 +409,7 @@ const Products = () => {
     const { data: categories } = useQuery({
         queryKey: ["product-categories", isVip],
         staleTime: 0,
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             let catQuery = supabase
                 .from("product_categories" as any)
@@ -557,6 +562,23 @@ const Products = () => {
     };
 
     const isGroupedView = selectedCategory === null && !searchQuery.trim() && sortBy === "featured";
+
+    if (authLoading) {
+        return (
+            <div className="container py-20 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-muted-foreground">Verifying researcher credentials...</p>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="min-h-[75vh] flex flex-col items-center justify-center px-4 py-8">
+                <StorefrontAuthGate isOpen={true} onSuccess={() => {}} />
+            </div>
+        );
+    }
 
     return (
         <div className="container py-12">

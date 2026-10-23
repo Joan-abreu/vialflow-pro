@@ -209,7 +209,7 @@ export default function PromoSplashModal({
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleDismiss()}>
             <DialogContent 
                 hideCloseButton={true}
-                className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] p-0 flex flex-col overflow-hidden border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl rounded-2xl gap-0 animate-in fade-in-0 zoom-in-95 [&>button]:hidden"
+                className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg max-h-[85dvh] sm:max-h-[85vh] p-0 flex flex-col overflow-hidden border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl rounded-2xl gap-0 [&>button]:hidden"
             >
                 {/* Scrollable Modal Body for perfect rendering on any screen/device with touch swipe support */}
                 <div 
@@ -217,7 +217,7 @@ export default function PromoSplashModal({
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                     onTouchCancel={handleTouchEnd}
-                    className="flex flex-col overflow-y-auto max-h-[92vh] sm:max-h-[88vh] touch-pan-y select-none"
+                    className="flex flex-col overflow-y-auto max-h-[85dvh] sm:max-h-[85vh] touch-pan-y select-none w-full"
                     style={{
                         transform: dragOffset !== 0 ? `translateX(${dragOffset}px)` : undefined,
                         transition: isDragging ? "none" : "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",

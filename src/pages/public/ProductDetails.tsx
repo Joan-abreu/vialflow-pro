@@ -9,6 +9,8 @@ import RestockNotificationModal from "@/components/public/RestockNotificationMod
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { StorefrontAuthGate } from "@/components/public/StorefrontAuthGate";
 import { Badge } from "@/components/ui/badge";
 import { RICH_TEXT_STYLES } from "@/lib/rich-text-styles";
 import { Image as ImageIcon } from "lucide-react";
@@ -46,6 +48,7 @@ const ProductDetails = () => {
     const [searchParams] = useSearchParams();
     const location = useLocation();
     const { addToCart } = useCart();
+    const { user, loading: authLoading } = useAuth();
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number | "">(1);
     const [isBulk, setIsBulk] = useState<boolean>(false);
@@ -61,6 +64,7 @@ const ProductDetails = () => {
     const { data: productCoas } = useQuery<COARecord[]>({
         queryKey: ["product-coas", id],
         staleTime: 5 * 60 * 1000,
+        enabled: !!id && !!user && !authLoading,
         queryFn: async () => {
             if (!id) return [];
             
@@ -93,6 +97,7 @@ const ProductDetails = () => {
     const { data: stockSettings } = useQuery({
         queryKey: ["app-settings-stock-control"],
         staleTime: 60000,
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             const { data } = await supabase
                 .from("app_settings" as any)
@@ -400,7 +405,7 @@ const ProductDetails = () => {
                 is_private: productData.is_private,
             } as ProductWithVariants;
         },
-        enabled: !!id,
+        enabled: !!id && !!user && !authLoading,
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
@@ -562,6 +567,23 @@ const ProductDetails = () => {
         : (product?.image_url ? [product.image_url] : []);
 
     const images = variantImages.length > 0 ? variantImages : productFallbackImages;
+
+    if (authLoading) {
+        return (
+            <div className="container py-20 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-muted-foreground">Verifying researcher credentials...</p>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="min-h-[75vh] flex flex-col items-center justify-center px-4 py-8">
+                <StorefrontAuthGate isOpen={true} onSuccess={() => {}} />
+            </div>
+        );
+    }
 
     if (isLoading) {
         return (

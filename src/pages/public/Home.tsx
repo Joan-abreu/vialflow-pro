@@ -4,14 +4,17 @@ import { ArrowRight, CheckCircle2, ShieldCheck, Truck, Sparkles } from "lucide-r
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import SEO from "@/components/SEO";
 import { getBaseSalesCount } from "@/utils/salesCount";
 
 import { getSEOConfig } from "@/config/seoConfig";
 
 const Home = () => {
+    const { user, loading: authLoading } = useAuth();
     const { data: userVipStatus } = useQuery({
         queryKey: ["user-vip-status"],
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user?.id) return false;
@@ -32,6 +35,7 @@ const Home = () => {
     const { data: featuredProducts, isLoading } = useQuery({
         queryKey: ["featured-products", isVip],
         staleTime: 0,
+        enabled: !!user && !authLoading,
         queryFn: async () => {
             // Fetch published variants with product info
             let query = supabase

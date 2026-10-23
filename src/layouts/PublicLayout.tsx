@@ -97,8 +97,8 @@ const PublicLayoutContent = () => {
     const location = useLocation();
 
     // Storefront Compliance Gating Settings (Tagada Pay / Kashu Pay)
-    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState<boolean>(false);
-    const [gateExemptWaterProducts, setGateExemptWaterProducts] = useState<boolean>(true);
+    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState<boolean>(true);
+    const [gateExemptWaterProducts, setGateExemptWaterProducts] = useState<boolean>(false);
     const [isGateCleared, setIsGateCleared] = useState<boolean>(() => {
         return sessionStorage.getItem("researcher_gate_cleared") === "true";
     });
@@ -397,13 +397,14 @@ const PublicLayoutContent = () => {
     const isInternalRoute = location.pathname.startsWith("/manufacturing") || location.pathname.startsWith("/auth");
     const isExemptRoute = checkIsExemptRouteSync(location.pathname, location.search);
     const isWaterOrExempt = isWaterPage || isExemptRoute;
+    const isProductRoute = location.pathname === "/products" || location.pathname.startsWith("/products/");
 
+    // Strict compliance gating: all product and catalogue pages strictly require an authenticated login (!user).
     const shouldShowAuthGate = Boolean(
         gateStorefrontEnabled &&
         !user &&
-        !isGateCleared &&
         !isInternalRoute &&
-        !(gateExemptWaterProducts && isWaterOrExempt)
+        (isProductRoute || !(gateExemptWaterProducts && isWaterOrExempt))
     );
 
     const handleLogout = async () => {

@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { useCart, ProductVariant } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { StorefrontAuthGate } from "@/components/public/StorefrontAuthGate";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, Navigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { getBaseSalesCount } from "@/utils/salesCount";
 import SEO from "@/components/SEO";
@@ -40,6 +40,7 @@ interface ProductWithVariants {
 
 const Products = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, loading: authLoading } = useAuth();
     const [searchParams] = useSearchParams();
     const categoryParam = searchParams.get("category");
@@ -573,11 +574,7 @@ const Products = () => {
     }
 
     if (!user) {
-        return (
-            <div className="min-h-[75vh] flex flex-col items-center justify-center px-4 py-8">
-                <StorefrontAuthGate isOpen={true} onSuccess={() => {}} />
-            </div>
-        );
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     return (

@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams, useLocation, Navigate } from "react-router-dom";
 import useEmblaCarousel from 'embla-carousel-react';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -578,11 +578,7 @@ const ProductDetails = () => {
     }
 
     if (!user) {
-        return (
-            <div className="min-h-[75vh] flex flex-col items-center justify-center px-4 py-8">
-                <StorefrontAuthGate isOpen={true} onSuccess={() => {}} />
-            </div>
-        );
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     if (isLoading) {

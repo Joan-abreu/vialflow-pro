@@ -165,6 +165,7 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
                     },
                     body: JSON.stringify({
                         action: "create_thix_intent",
+                        provider: "thix",
                         orderId: orderRef,
                         amount,
                         currency: "USD",

@@ -231,6 +231,14 @@ serve(async (req) => {
             });
         }
 
+        // If an unrecognized action was requested, return early
+        if (body.action && !body.provider) {
+            return new Response(JSON.stringify({ error: `Unrecognized action: ${body.action}` }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 400
+            });
+        }
+
         const {
             provider = "square",
             sourceId,
@@ -461,6 +469,9 @@ serve(async (req) => {
 
         // 2. Square Processing
         if (provider === "square") {
+            if (!sourceId) {
+                throw new Error("Square payment token (sourceId) is required.");
+            }
             const squareEnvironment = isProduction ? SquareEnvironment.Production : SquareEnvironment.Sandbox;
             const square = new SquareClient({
                 accessToken: squareAccessToken,

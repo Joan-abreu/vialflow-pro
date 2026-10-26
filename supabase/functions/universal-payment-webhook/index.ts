@@ -523,6 +523,74 @@ serve(async (req) => {
             });
         }
 
+        // -------------------------------------------------------------
+        // 8. 3thix Webhook Handler (pay.3thix.com)
+        // -------------------------------------------------------------
+        if (queryProvider === "thix" || queryProvider === "3thix") {
+            const event = JSON.parse(bodyText);
+            const eventType = String(event?.event || event?.type || "").toLowerCase();
+            const dataObj = event?.data || event;
+            const intentId = dataObj?.intent_id || dataObj?.id || event?.intent_id;
+            const refId = dataObj?.reference_id || event?.reference_id || dataObj?.order_id || event?.order_id;
+            const status = String(dataObj?.status || event?.status || "").toLowerCase();
+
+            console.log(`[3thix Webhook] Processing event: ${eventType}, status: ${status}, ref: ${refId}, intent: ${intentId}`);
+
+            const findOrder = async () => {
+                if (refId) {
+                    const { data: byId } = await supabase.from("orders").select("id").eq("id", refId).maybeSingle();
+                    if (byId) return byId;
+                }
+                if (intentId) {
+                    const { data: byIntent } = await supabase.from("orders").select("id").eq("payment_intent_id", intentId).maybeSingle();
+                    if (byIntent) return byIntent;
+                }
+                return null;
+            };
+
+            if (
+                eventType === "payment.succeeded" ||
+                eventType === "payment.success" ||
+                eventType === "payment_succeeded" ||
+                status === "succeeded" ||
+                status === "paid" ||
+                status === "completed"
+            ) {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await markOrderAsPaid(targetOrder.id, "thix", intentId);
+                } else {
+                    console.warn(`[3thix Webhook] Could not find order for ref ${refId} / intent ${intentId}`);
+                }
+            } else if (eventType === "payment.failed" || status === "failed") {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await supabase.from("orders").update({
+                        payment_status: "failed",
+                        p2p_rejection_reason: `[3thix] ${dataObj?.message || "Payment attempt failed"}`
+                    }).eq("id", targetOrder.id);
+                }
+            } else if (eventType === "payment.canceled" || status === "canceled") {
+                const targetOrder = await findOrder();
+                if (targetOrder) {
+                    await supabase.from("orders").update({
+                        status: "cancelled",
+                        payment_status: "cancelled"
+                    }).eq("id", targetOrder.id);
+                }
+            }
+
+            return new Response(JSON.stringify({
+                received: true,
+                provider: "thix",
+                intentId: intentId,
+                status: "acknowledged"
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
+
         // Fallback generic response
         return new Response(JSON.stringify({ received: true, message: "Webhook acknowledged" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },

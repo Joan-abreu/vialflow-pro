@@ -19,6 +19,7 @@ import { DEFAULT_PAYMENT_SETTINGS, PaymentGatewayProvider, PaymentGatewaysSettin
 import { SmartCreditCardForm } from "./SmartCreditCardForm";
 import { TagadaCheckout } from "./TagadaCheckout";
 import { VeyraCheckout } from "./VeyraCheckout";
+import { ThixCheckout } from "./ThixCheckout";
 import { P2PPaymentDisplay } from "./P2PPaymentDisplay";
 import { UploadPaymentProofDialog } from "./UploadPaymentProofDialog";
 
@@ -256,6 +257,7 @@ const UniversalCheckout = ({
                         "payment_paypal_config",
                         "payment_tagadapay_config",
                         "payment_veyra_config",
+                        "payment_thix_config",
                         "payment_manual_config",
                         "payment_p2p_config"
                     ]);
@@ -275,6 +277,7 @@ const UniversalCheckout = ({
                     const paypalCfg = data.find(s => s.key === "payment_paypal_config");
                     const tagadaCfg = data.find(s => s.key === "payment_tagadapay_config");
                     const veyraCfg = data.find(s => s.key === "payment_veyra_config");
+                    const thixCfg = data.find(s => s.key === "payment_thix_config");
                     const manualCfg = data.find(s => s.key === "payment_manual_config");
                     const p2pCfg = data.find(s => s.key === "payment_p2p_config");
 
@@ -283,10 +286,10 @@ const UniversalCheckout = ({
                     
                     let newProvider = (activeP?.value as PaymentGatewayProvider) || DEFAULT_PAYMENT_SETTINGS.activeProvider;
                     
-                    // Admin preview override (allows safe testing via ?preview_gateway=veyra without affecting live customers)
+                    // Admin preview override (allows safe testing via ?preview_gateway=thix without affecting live customers)
                     const searchParams = new URLSearchParams(window.location.search);
                     const previewGateway = searchParams.get("preview_gateway");
-                    if (previewGateway === "veyra" || previewGateway === "tagadapay") {
+                    if (previewGateway === "veyra" || previewGateway === "tagadapay" || previewGateway === "thix") {
                         newProvider = previewGateway as PaymentGatewayProvider;
                     }
                     setActiveProvider(newProvider);
@@ -295,6 +298,7 @@ const UniversalCheckout = ({
                     const parsedP2P = p2pCfg?.value ? JSON.parse(p2pCfg.value) : {};
                     const parsedTagada = tagadaCfg?.value ? JSON.parse(tagadaCfg.value) : {};
                     const parsedVeyra = veyraCfg?.value ? JSON.parse(veyraCfg.value) : {};
+                    const parsedThix = thixCfg?.value ? JSON.parse(thixCfg.value) : {};
 
                     const zelleIsOn = typeof parsedManual.zelleEnabled === "boolean" ? parsedManual.zelleEnabled : (typeof parsedP2P.zelle?.enabled === "boolean" ? parsedP2P.zelle.enabled : true);
                     const venmoIsOn = typeof parsedManual.venmoEnabled === "boolean" ? parsedManual.venmoEnabled : (typeof parsedP2P.venmo?.enabled === "boolean" ? parsedP2P.venmo.enabled : true);
@@ -310,6 +314,7 @@ const UniversalCheckout = ({
                         stripe: stripeCfg?.value ? { ...prev.stripe, ...JSON.parse(stripeCfg.value) } : prev.stripe,
                         tagadapay: { ...prev.tagadapay, ...parsedTagada },
                         veyra: { ...prev.veyra, ...parsedVeyra },
+                        thix: { ...prev.thix, ...parsedThix },
                         authorizenet: authNetCfg?.value ? { ...prev.authorizenet, ...JSON.parse(authNetCfg.value) } : prev.authorizenet,
                         clover: cloverCfg?.value ? { ...prev.clover, ...JSON.parse(cloverCfg.value) } : prev.clover,
                         nmi: nmiCfg?.value ? { ...prev.nmi, ...JSON.parse(nmiCfg.value) } : prev.nmi,
@@ -909,6 +914,7 @@ const UniversalCheckout = ({
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :
                         activeProvider === "tagadapay" ? gatewaySettings.tagadapay.environment === "production" :
                         activeProvider === "veyra" ? gatewaySettings.veyra.environment === "production" :
+                        activeProvider === "thix" ? gatewaySettings.thix.environment === "production" :
                         activeProvider === "authorizenet" ? gatewaySettings.authorizenet.environment === "production" :
                         activeProvider === "clover" ? gatewaySettings.clover.environment === "production" :
                         gatewaySettings.paypal.environment === "production",
@@ -1606,6 +1612,56 @@ const UniversalCheckout = ({
                                     }
                                     onTokenized={async (tokenIntentId, sessionId, cardSummary) => {
                                         return await handleProcessPayment(tokenIntentId, undefined, undefined, undefined, { sessionId, basis_theory_token_intent_id: tokenIntentId, cardSummary });
+                                    }}
+                                />
+                            ) : activeProvider === "thix" ? (
+                                /* Case 3thix: 3thix Payment Platform (pay.3thix.com) */
+                                <ThixCheckout
+                                    amount={amount}
+                                    config={gatewaySettings.thix}
+                                    customerEmail={user ? user.email : addressState.email}
+                                    shippingAddress={{
+                                        firstName: addressState.full_name.split(' ')[0] || '',
+                                        lastName: addressState.full_name.split(' ').slice(1).join(' ') || '',
+                                        addressLine1: addressState.line1,
+                                        addressLine2: addressState.line2,
+                                        locality: addressState.city,
+                                        administrativeDistrictLevel1: addressState.state,
+                                        postalCode: addressState.postal_code,
+                                        country: addressState.country || 'US',
+                                        phone: addressState.phone || ''
+                                    }}
+                                    billingAddress={{
+                                        name: addressState.full_name,
+                                        email: user ? user.email : addressState.email,
+                                        phone: addressState.phone || '',
+                                        line1: addressState.line1,
+                                        city: addressState.city,
+                                        state: addressState.state,
+                                        postal_code: addressState.postal_code,
+                                        country: addressState.country || 'US'
+                                    }}
+                                    items={items.map(item => ({
+                                        name: `${item.variant.product.name} (${item.variant.vial_type.name})`,
+                                        quantity: item.quantity,
+                                        price: item.variant.price
+                                    }))}
+                                    loading={loading}
+                                    disabled={isCalculating || !shippingService || shippingCost === undefined || isResearchAckIncomplete}
+                                    disabledReason={
+                                        isCalculating
+                                            ? "Calculating Shipping..."
+                                            : !shippingService || shippingCost === undefined
+                                                ? "Select Shipping Method"
+                                                : isResearchAckIncomplete
+                                                    ? ackDisabledReason
+                                                    : undefined
+                                    }
+                                    onCreateDraftOrder={async () => {
+                                        return await createDraftOrder();
+                                    }}
+                                    onPaymentSuccess={async (intentId: string, orderId?: string) => {
+                                        return await handleProcessPayment(undefined, intentId, undefined, undefined, { intentId, orderId });
                                     }}
                                 />
                             ) : activeProvider === "stripe" ? (

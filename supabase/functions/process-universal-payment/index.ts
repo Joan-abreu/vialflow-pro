@@ -15,6 +15,9 @@ const nmiSecurityKeyEnv = Deno.env.get("NMI_SECURITY_KEY") || "";
 const paypalSecretEnv = Deno.env.get("PAYPAL_CLIENT_SECRET") || "";
 const tagadaApiKeyEnv = Deno.env.get("TAGADAPAY_API_KEY") || "";
 const veyraSecretEnv = Deno.env.get("VEYRA_SECRET_KEY") || "";
+const thixClientIdEnv = Deno.env.get("THIX_CLIENT_ID") || "";
+const thixClientSecretEnv = Deno.env.get("THIX_CLIENT_SECRET") || "";
+const thixBaseUrlEnv = Deno.env.get("THIX_BASE_URL") || "";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -135,6 +138,96 @@ serve(async (req) => {
             return new Response(JSON.stringify(vData), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 status: vRes.status
+            });
+        }
+
+        // 0. 3thix Payment Intent Creation Action
+        if (body.action === "create_thix_intent") {
+            let effectiveClientId = body.thixConfig?.clientId || body.clientId || thixClientIdEnv;
+            let effectiveClientSecret = body.thixConfig?.clientSecret || body.clientSecret || thixClientSecretEnv;
+            let effectiveBaseUrl = body.thixConfig?.apiBaseUrl || body.apiBaseUrl || thixBaseUrlEnv || "https://webadmin.3thix.com";
+
+            if (!effectiveClientId || !effectiveClientSecret) {
+                const { data: sData } = await supabase
+                    .from("app_settings")
+                    .select("value")
+                    .eq("key", "payment_thix_config")
+                    .maybeSingle();
+
+                if (sData?.value) {
+                    try {
+                        const parsed = JSON.parse(sData.value);
+                        if (!effectiveClientId) effectiveClientId = parsed.clientId || "";
+                        if (!effectiveClientSecret) effectiveClientSecret = parsed.clientSecret || "";
+                        if (!body.thixConfig?.apiBaseUrl && !body.apiBaseUrl && parsed.apiBaseUrl) {
+                            effectiveBaseUrl = parsed.apiBaseUrl;
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            if (!effectiveClientId) {
+                throw new Error("3thix Client ID is not configured. Please set your credentials in Site Settings > Payment Gateways > 3thix.");
+            }
+
+            effectiveBaseUrl = effectiveBaseUrl.trim().replace(/\/+$/, "");
+
+            const amountNum = parseFloat((body.amount || 0).toString());
+            const intentPayload: any = {
+                amount: Number(amountNum.toFixed(2)),
+                currency: (body.currency || "USD").toUpperCase(),
+                intent_type: "one_time",
+                email: body.customerEmail || "customer@example.com",
+                name: body.customerName || (body.shippingAddress ? `${body.shippingAddress.firstName || ''} ${body.shippingAddress.lastName || ''}`.trim() : "Customer"),
+                reference_id: body.orderId || `ORD-${Date.now()}`,
+                integration_type: body.integrationType || "iframe",
+                success_url: body.returnUrl || `${body.origin || "https://livwellresearchlabs.com"}/order-confirmation/${body.orderId || ''}`,
+                cancel_url: body.cancelUrl || `${body.origin || "https://livwellresearchlabs.com"}/checkout`,
+            };
+
+            if (Array.isArray(body.items) && body.items.length > 0) {
+                intentPayload.order_items = body.items.map((i: any) => ({
+                    name: i.name || "Item",
+                    quantity: Number(i.quantity) || 1,
+                    price: Number((i.price || 0).toFixed(2))
+                }));
+            }
+
+            console.log("👉 [3thix] Creating payment intent:", JSON.stringify({ ...intentPayload, email: "***" }, null, 2));
+
+            const thixHeaders: Record<string, string> = {
+                "X-Client-ID": effectiveClientId,
+                "Content-Type": "application/json",
+            };
+            if (effectiveClientSecret) {
+                thixHeaders["X-Client-Secret"] = effectiveClientSecret;
+            }
+
+            const thixRes = await fetch(`${effectiveBaseUrl}/api/platform/intents`, {
+                method: "POST",
+                headers: thixHeaders,
+                body: JSON.stringify(intentPayload)
+            });
+
+            const thixData = await thixRes.json().catch(() => ({}));
+            console.log("👈 [3thix] Intent created response status:", thixRes.status, JSON.stringify(thixData));
+
+            const piId = thixData?.data?.intent_id || thixData?.intent_id;
+            if (body.orderId && piId) {
+                try {
+                    await supabase.from("orders").update({
+                        payment_intent_id: piId,
+                        payment_gateway: "thix",
+                        payment_provider: "thix",
+                    }).eq("id", body.orderId);
+                } catch (e) {
+                    console.warn("[3thix] Could not update order with intent ID:", e);
+                }
+            }
+
+            return new Response(JSON.stringify(thixData), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: thixRes.status
             });
         }
 
@@ -909,6 +1002,25 @@ serve(async (req) => {
 
                 throw new Error(errMsg);
             }
+        }
+
+        // 3.7. 3thix Payment Processing (pay.3thix.com)
+        if (provider === "thix") {
+            const effectiveIntentId = paymentIntentId || body.intentId || sourceId || "";
+            console.log(`👉 [3thix] Processing payment confirmation for order ${orderId}, intent: ${effectiveIntentId}`);
+
+            await completeSuccessfulOrder("thix", effectiveIntentId);
+
+            return new Response(JSON.stringify({
+                success: true,
+                status: "COMPLETED",
+                provider: "thix",
+                transactionId: effectiveIntentId,
+                orderId: orderId
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
         }
 
         // 4. Authorize.Net Processing (Accept.js Tokenized Charge)

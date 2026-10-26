@@ -3,6 +3,7 @@ export type PaymentGatewayProvider =
     | "stripe" 
     | "tagadapay"
     | "veyra"
+    | "thix"
     | "authorizenet" 
     | "clover"
     | "nmi"
@@ -10,6 +11,14 @@ export type PaymentGatewayProvider =
     | "manual"
     | "manual_terminal"
     | "offline_card";
+
+export interface ThixGatewayConfig {
+    clientId: string;
+    clientSecret?: string;
+    apiBaseUrl?: string; // Default: "https://webadmin.3thix.com" or "https://pay.3thix.com"
+    environment: "sandbox" | "production";
+    integrationType: "iframe" | "redirect";
+}
 
 export interface VeyraGatewayConfig {
     publishableKey: string;
@@ -102,6 +111,7 @@ export interface PaymentGatewaysSettings {
     stripe: StripeGatewayConfig;
     tagadapay: TagadaPayGatewayConfig;
     veyra: VeyraGatewayConfig;
+    thix: ThixGatewayConfig;
     authorizenet: AuthorizeNetGatewayConfig;
     clover: CloverGatewayConfig;
     nmi: NMIGatewayConfig;
@@ -136,6 +146,13 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         secretKey: "",
         webhookSecret: "",
         environment: "production",
+    },
+    thix: {
+        clientId: import.meta.env.VITE_3THIX_CLIENT_ID || "",
+        clientSecret: "",
+        apiBaseUrl: "https://webadmin.3thix.com",
+        environment: "production",
+        integrationType: "iframe",
     },
     authorizenet: {
         apiLoginId: "",

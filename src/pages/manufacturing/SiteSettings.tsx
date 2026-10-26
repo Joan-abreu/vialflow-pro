@@ -509,6 +509,17 @@ const SiteSettings = () => {
     const [showVeyraWebhookSecret, setShowVeyraWebhookSecret] = useState<boolean>(false);
     const [copiedVeyraWebhookUrl, setCopiedVeyraWebhookUrl] = useState<boolean>(false);
     const [veyraEnv, setVeyraEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.veyra.environment);
+    
+    // 3thix Live Gateway Settings (pay.3thix.com)
+    const [thixClientId, setThixClientId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.thix.clientId);
+    const [thixClientSecret, setThixClientSecret] = useState<string>("");
+    const [showThixClientSecret, setShowThixClientSecret] = useState<boolean>(false);
+    const [copiedThixSecret, setCopiedThixSecret] = useState<boolean>(false);
+    const [thixBaseUrl, setThixBaseUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.thix.apiBaseUrl || "https://webadmin.3thix.com");
+    const [thixEnv, setThixEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.thix.environment);
+    const [thixIntegrationType, setThixIntegrationType] = useState<"iframe" | "redirect">(DEFAULT_PAYMENT_SETTINGS.thix.integrationType || "iframe");
+    const [copiedThixWebhookUrl, setCopiedThixWebhookUrl] = useState<boolean>(false);
+
     const [zelleEnabled, setZelleEnabled] = useState<boolean>(DEFAULT_PAYMENT_SETTINGS.p2p.zelle.enabled ?? true);
     const [zelleEmail, setZelleEmail] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleEmail || "");
     const [zelleName, setZelleName] = useState<string>(DEFAULT_PAYMENT_SETTINGS.manual.zelleName || "");
@@ -662,6 +673,7 @@ const SiteSettings = () => {
                     "payment_paypal_config",
                     "payment_tagadapay_config",
                     "payment_veyra_config",
+                    "payment_thix_config",
                     "payment_manual_config",
                     "enable_strict_stock_enforcement",
                     "enable_restock_notifications",
@@ -988,6 +1000,18 @@ const SiteSettings = () => {
                     } catch (e) {}
                 }
 
+                const thixCfg = data.find((s: any) => s.key === "payment_thix_config");
+                if (thixCfg?.value) {
+                    try {
+                        const tx = JSON.parse(thixCfg.value);
+                        if (tx.clientId) setThixClientId(tx.clientId);
+                        if (tx.clientSecret) setThixClientSecret(tx.clientSecret);
+                        if (tx.apiBaseUrl) setThixBaseUrl(tx.apiBaseUrl);
+                        if (tx.environment) setThixEnv(tx.environment);
+                        if (tx.integrationType) setThixIntegrationType(tx.integrationType);
+                    } catch (e) {}
+                }
+
                 if (manualCfg?.value) {
                     try {
                         const mn = JSON.parse(manualCfg.value);
@@ -1227,6 +1251,14 @@ const SiteSettings = () => {
                 environment: veyraEnv
             });
 
+            const thixConfig = JSON.stringify({
+                clientId: thixClientId,
+                clientSecret: thixClientSecret,
+                apiBaseUrl: thixBaseUrl,
+                environment: thixEnv,
+                integrationType: thixIntegrationType
+            });
+
             const manualConfig = JSON.stringify({
                 zelleEnabled,
                 zelleEmail,
@@ -1265,6 +1297,7 @@ const SiteSettings = () => {
                 { key: "payment_paypal_config", value: paypalConfig, updated_at: now },
                 { key: "payment_tagadapay_config", value: tagadapayConfig, updated_at: now },
                 { key: "payment_veyra_config", value: veyraConfig, updated_at: now },
+                { key: "payment_thix_config", value: thixConfig, updated_at: now },
                 { key: "payment_manual_config", value: manualConfig, updated_at: now },
                 { key: "payment_p2p_config", value: p2pConfig, updated_at: now },
 
@@ -1944,6 +1977,7 @@ const SiteSettings = () => {
                                     activeGateway === 'stripe' ? 'bg-indigo-600 text-white' :
                                     activeGateway === 'tagadapay' ? 'bg-emerald-600 text-white' :
                                     activeGateway === 'veyra' ? 'bg-teal-600 text-white' :
+                                    activeGateway === 'thix' ? 'bg-violet-600 text-white' :
                                     activeGateway === 'authorizenet' ? 'bg-blue-700 text-white' :
                                     activeGateway === 'clover' ? 'bg-emerald-700 text-white' :
                                     activeGateway === 'nmi' ? 'bg-slate-800 text-white' :
@@ -1972,6 +2006,7 @@ const SiteSettings = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
+                                        <SelectItem value="thix">3thix (pay.3thix.com)</SelectItem>
                                         <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
                                         <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
@@ -2000,6 +2035,7 @@ const SiteSettings = () => {
                                     <SelectContent>
                                         <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
+                                        <SelectItem value="thix">3thix (pay.3thix.com)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
                                         <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
@@ -2037,11 +2073,12 @@ const SiteSettings = () => {
                         <div className="space-y-3 pt-2">
                             <Label className="font-semibold text-sm">Processor Credentials & Keys</Label>
                             <Tabs defaultValue="square" className="w-full">
-                                <TabsList className="grid grid-cols-4 md:grid-cols-9 w-full">
+                                <TabsList className="grid grid-cols-5 md:grid-cols-10 w-full">
                                     <TabsTrigger value="square" className="text-[11px] px-1">Square</TabsTrigger>
                                     <TabsTrigger value="stripe" className="text-[11px] px-1">Stripe</TabsTrigger>
                                     <TabsTrigger value="tagadapay" className="text-[11px] px-1 font-semibold text-emerald-600 dark:text-emerald-400">TagadaPay</TabsTrigger>
                                     <TabsTrigger value="veyra" className="text-[11px] px-1 font-bold text-teal-600 dark:text-teal-400">⚡ Veyra</TabsTrigger>
+                                    <TabsTrigger value="thix" className="text-[11px] px-1 font-bold text-violet-600 dark:text-violet-400">⚡ 3thix</TabsTrigger>
                                     <TabsTrigger value="nmi" className="text-[11px] px-1">NMI</TabsTrigger>
                                     <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
                                     <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
@@ -2453,6 +2490,182 @@ const SiteSettings = () => {
                                             You can test Veyra in your browser right now without affecting regular store customers by visiting:{" "}
                                             <code className="bg-background px-1.5 py-0.5 rounded font-bold text-foreground">
                                                 /checkout?preview_gateway=veyra
+                                            </code>
+                                        </p>
+                                    </div>
+                                </TabsContent>
+
+                                {/* 3thix Settings */}
+                                <TabsContent value="thix" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
+                                    <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg text-xs space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <strong className="text-violet-700 dark:text-violet-300 font-bold flex items-center gap-1.5">
+                                                <Zap className="h-4 w-4 text-violet-600" />
+                                                3thix Payment Platform (pay.3thix.com)
+                                            </strong>
+                                            <Badge variant="outline" className="text-[10px] bg-violet-500/20 text-violet-700 border-violet-600 font-bold">
+                                                {thixEnv === "production" ? "Live Production" : "Sandbox Mode"}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-muted-foreground text-[11px]">
+                                            Cards, ACH and digital settlements orchestrated via <code>https://pay.3thix.com/</code>. Supports embedded responsive iframes and hosted redirects.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="thixClientId" className="text-xs font-semibold">Client ID (X-Client-ID)</Label>
+                                            <Input
+                                                id="thixClientId"
+                                                value={thixClientId}
+                                                onChange={(e) => setThixClientId(e.target.value)}
+                                                placeholder="e.g. client_live_..."
+                                                className="font-mono text-xs"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Required API identifier provided in your 3thix Merchant Portal.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="thixClientSecret" className="text-xs font-semibold">Client Secret (X-Client-Secret)</Label>
+                                                {thixClientSecret && (
+                                                    <span className="text-[10px] text-violet-600 font-medium flex items-center gap-1">
+                                                        <Check className="h-3 w-3" /> Configured
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative flex items-center">
+                                                <Input
+                                                    id="thixClientSecret"
+                                                    type={showThixClientSecret ? "text" : "password"}
+                                                    value={thixClientSecret}
+                                                    onChange={(e) => setThixClientSecret(e.target.value)}
+                                                    placeholder="Secret Key (Server Only)"
+                                                    className="pr-16 font-mono text-xs"
+                                                />
+                                                <div className="absolute right-1 flex items-center gap-0.5">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                        onClick={() => setShowThixClientSecret(!showThixClientSecret)}
+                                                    >
+                                                        {showThixClientSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                    {thixClientSecret && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(thixClientSecret);
+                                                                setCopiedThixSecret(true);
+                                                                toast.success("Secret key copied!");
+                                                                setTimeout(() => setCopiedThixSecret(false), 2000);
+                                                            }}
+                                                        >
+                                                            {copiedThixSecret ? <Check className="h-3.5 w-3.5 text-violet-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Used securely on the server to initialize payment intents and verify charges.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="thixBaseUrl" className="text-xs font-semibold">API Base URL / Endpoint</Label>
+                                            <Input
+                                                id="thixBaseUrl"
+                                                value={thixBaseUrl}
+                                                onChange={(e) => setThixBaseUrl(e.target.value)}
+                                                placeholder="https://webadmin.3thix.com"
+                                                className="font-mono text-xs"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Default API host: <code>https://webadmin.3thix.com</code> (or <code>https://pay.3thix.com</code>).
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="thixEnv" className="text-xs font-semibold">Environment</Label>
+                                            <Select value={thixEnv} onValueChange={(val: any) => setThixEnv(val)}>
+                                                <SelectTrigger id="thixEnv">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="production">Production (Live Settlements)</SelectItem>
+                                                    <SelectItem value="sandbox">Sandbox / Staging</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Select live or test mode according to your 3thix account credentials.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5 md:col-span-2">
+                                            <Label htmlFor="thixIntegrationType" className="text-xs font-semibold">Integration Display Mode</Label>
+                                            <Select value={thixIntegrationType} onValueChange={(val: any) => setThixIntegrationType(val)}>
+                                                <SelectTrigger id="thixIntegrationType">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="iframe">Embedded Iframe (Seamless in-page checkout on your website)</SelectItem>
+                                                    <SelectItem value="redirect">Hosted Redirect (Redirect to pay.3thix.com)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Embedded Iframe keeps customer directly on your checkout page with real-time postMessage event tracking.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Webhook Endpoint Info Box */}
+                                    <div className="p-3 bg-muted/40 rounded-lg border space-y-2">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                            <div>
+                                                <div className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                    <ShieldCheck className="h-3.5 w-3.5 text-violet-600" />
+                                                    3thix Webhook Integration URL
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Paste this URL into your 3thix Webhooks settings in the merchant console:
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="text-xs font-semibold shrink-0 gap-1.5"
+                                                onClick={() => {
+                                                    const webhookUrl = `${supabase.supabaseUrl}/functions/v1/universal-payment-webhook?provider=thix`;
+                                                    navigator.clipboard.writeText(webhookUrl);
+                                                    setCopiedThixWebhookUrl(true);
+                                                    toast.success("3thix Webhook URL copied to clipboard!");
+                                                    setTimeout(() => setCopiedThixWebhookUrl(false), 2000);
+                                                }}
+                                            >
+                                                {copiedThixWebhookUrl ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                Copy Webhook URL
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Admin Safe Preview Info */}
+                                    <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg text-xs space-y-1 text-violet-900 dark:text-violet-200">
+                                        <strong className="font-semibold flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+                                            Admin Secret Preview Link
+                                        </strong>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Test 3thix directly in your browser without altering live traffic by opening:{" "}
+                                            <code className="bg-background px-1.5 py-0.5 rounded font-bold text-foreground">
+                                                /checkout?preview_gateway=thix
                                             </code>
                                         </p>
                                     </div>

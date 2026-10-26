@@ -157,8 +157,8 @@ serve(async (req) => {
                 if (sData?.value) {
                     try {
                         const parsed = JSON.parse(sData.value);
-                        if (!effectiveClientId) effectiveClientId = parsed.clientId || "";
-                        if (!effectiveClientSecret) effectiveClientSecret = parsed.clientSecret || "";
+                        if (!effectiveClientId) effectiveClientId = (parsed.clientId || "").trim();
+                        if (!effectiveClientSecret) effectiveClientSecret = (parsed.clientSecret || "").trim();
                         if (!body.thixConfig?.apiBaseUrl && !body.apiBaseUrl && parsed.apiBaseUrl) {
                             effectiveBaseUrl = parsed.apiBaseUrl;
                         }
@@ -166,25 +166,106 @@ serve(async (req) => {
                 }
             }
 
+            effectiveClientId = (effectiveClientId || "").trim();
+            effectiveClientSecret = (effectiveClientSecret || "").trim();
+
             if (!effectiveClientId) {
-                throw new Error("3thix Client ID is not configured. Please set your credentials in Site Settings > Payment Gateways > 3thix.");
+                throw new Error("Card payment gateway client credentials are not configured in Site Settings.");
             }
 
+            const amountNum = parseFloat((body.amount || 0).toString());
+            const amountCents = Math.round(amountNum * 100);
+            const sanitizedRef = String(body.orderId || `ORD-${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100);
+
+            // 1. Direct pay.3thix.com Architecture (for thx_live_pk_... or pay.3thix.com)
+            if (effectiveClientId.startsWith("thx_") || effectiveBaseUrl.includes("pay.3thix.com")) {
+                let checkoutUrl = "";
+                let piId = sanitizedRef;
+
+                try {
+                    const payReq = await fetch("https://pay.3thix.com/api/payments", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": effectiveClientId,
+                        },
+                        body: JSON.stringify({
+                            amountCents,
+                            externalOrderId: sanitizedRef,
+                            customerEmail: body.customerEmail || "customer@example.com",
+                            description: `Order ${sanitizedRef}`
+                        })
+                    });
+
+                    const payData = await payReq.json().catch(() => ({}));
+                    console.log("👈 [3thix pay.3thix.com] /api/payments status:", payReq.status, JSON.stringify(payData));
+
+                    checkoutUrl = payData.details?.checkoutUrl || payData.checkoutUrl || payData.paymentUrl || payData.data?.checkoutUrl || "";
+                    if (payData.payment?.id || payData.payment?.orderId) {
+                        piId = String(payData.payment.id || payData.payment.orderId);
+                    }
+                } catch (err) {
+                    console.warn("[3thix pay.3thix.com] API payments call warning:", err);
+                }
+
+                // If no direct checkoutUrl was returned by /api/payments, construct official checkout page URL
+                if (!checkoutUrl) {
+                    const buyerObj = {
+                        name: body.customerName || (body.shippingAddress ? `${body.shippingAddress.firstName || ''} ${body.shippingAddress.lastName || ''}`.trim() : ""),
+                        phone: body.shippingAddress?.phone || "",
+                        address: body.shippingAddress?.addressLine1 || "",
+                        city: body.shippingAddress?.locality || "",
+                        state: body.shippingAddress?.administrativeDistrictLevel1 || "",
+                        zip: body.shippingAddress?.postalCode || ""
+                    };
+                    const buyerB64 = btoa(unescape(encodeURIComponent(JSON.stringify(buyerObj))))
+                        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+                    const returnTarget = body.returnUrl || `${body.origin || "https://livwellresearchlabs.com"}/order-confirmation/${sanitizedRef}`;
+                    checkoutUrl = `https://pay.3thix.com/api/checkout?mode=onramp&key=${encodeURIComponent(effectiveClientId)}&amount=${amountCents}&order=${encodeURIComponent(sanitizedRef)}&email=${encodeURIComponent(body.customerEmail || '')}&redirect=${encodeURIComponent(returnTarget)}&buyer=${buyerB64}`;
+                }
+
+                if (body.orderId && piId) {
+                    try {
+                        await supabase.from("orders").update({
+                            payment_intent_id: piId,
+                            payment_gateway: "thix",
+                            payment_provider: "thix",
+                        }).eq("id", body.orderId);
+                    } catch (e) {
+                        console.warn("[3thix] Could not update order with intent ID:", e);
+                    }
+                }
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    data: {
+                        intent_id: piId,
+                        status: "requires_payment",
+                        amount: amountNum.toFixed(2),
+                        payment_url: checkoutUrl
+                    }
+                }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 200
+                });
+            }
+
+            // 2. Legacy Platform CRM Fallback (3thix.paywithwallet.net)
             effectiveBaseUrl = effectiveBaseUrl.trim().replace(/\/+$/, "");
             if (effectiveBaseUrl.includes("webadmin.3thix.com")) {
                 effectiveBaseUrl = effectiveBaseUrl.replace("webadmin.3thix.com", "3thix.paywithwallet.net");
             }
 
-            const amountNum = parseFloat((body.amount || 0).toString());
             const intentPayload: any = {
                 amount: Number(amountNum.toFixed(2)),
                 currency: (body.currency || "USD").toUpperCase(),
                 intent_type: "one_time",
                 email: body.customerEmail || "customer@example.com",
                 name: body.customerName || (body.shippingAddress ? `${body.shippingAddress.firstName || ''} ${body.shippingAddress.lastName || ''}`.trim() : "Customer"),
-                reference_id: body.orderId || `ORD-${Date.now()}`,
-                integration_type: body.integrationType || "iframe",
-                success_url: body.returnUrl || `${body.origin || "https://livwellresearchlabs.com"}/order-confirmation/${body.orderId || ''}`,
+                reference_id: sanitizedRef,
+                integration_type: body.integrationType === "redirect" ? "url" : (body.integrationType || "iframe"),
+                success_url: body.returnUrl || `${body.origin || "https://livwellresearchlabs.com"}/order-confirmation/${sanitizedRef}`,
                 cancel_url: body.cancelUrl || `${body.origin || "https://livwellresearchlabs.com"}/checkout`,
             };
 
@@ -194,6 +275,14 @@ serve(async (req) => {
                     quantity: Number(i.quantity) || 1,
                     price: Number((i.price || 0).toFixed(2))
                 }));
+            } else {
+                intentPayload.order_items = [
+                    {
+                        name: "Order Items",
+                        quantity: 1,
+                        price: Number(amountNum.toFixed(2))
+                    }
+                ];
             }
 
             console.log("👉 [3thix] Creating payment intent:", JSON.stringify({ ...intentPayload, email: "***" }, null, 2));
@@ -201,6 +290,7 @@ serve(async (req) => {
             const thixHeaders: Record<string, string> = {
                 "X-Client-ID": effectiveClientId,
                 "Content-Type": "application/json",
+                "Idempotency-Key": crypto.randomUUID(),
             };
             if (effectiveClientSecret) {
                 thixHeaders["X-Client-Secret"] = effectiveClientSecret;

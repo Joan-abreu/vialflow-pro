@@ -1502,9 +1502,9 @@ const UniversalCheckout = ({
                             ) : activeProvider === "square" ? (
                                 /* Case B: Square Payments SDK */
                                 squareAppId.includes("your-app-id") || squareLocationId.includes("location-id") ? (
-                                    <div className="flex flex-col items-center justify-center text-center p-4 text-orange-600 bg-orange-50 dark:bg-orange-950/20 rounded">
-                                        <p className="font-semibold">Square API Keys Missing</p>
-                                        <p className="text-sm">Please set VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID in your environment or Site Settings.</p>
+                                    <div className="flex flex-col items-center justify-center text-center p-4 text-muted-foreground bg-muted/40 rounded-lg">
+                                        <p className="font-semibold text-foreground">Card Processing Unavailable</p>
+                                        <p className="text-sm">Card processing is temporarily unavailable. Please choose another payment method or contact support.</p>
                                     </div>
                                 ) : (
                                     <PaymentForm
@@ -1755,7 +1755,7 @@ const UniversalCheckout = ({
                                         {loading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                Processing Card with Authorize.Net...
+                                                Processing Card Payment...
                                             </>
                                         ) : isCalculating ? (
                                             "Calculating Shipping..."
@@ -1764,7 +1764,7 @@ const UniversalCheckout = ({
                                         ) : isResearchAckIncomplete ? (
                                             ackDisabledReason
                                         ) : (
-                                            `Pay $${amount.toFixed(2)} with Authorize.Net`
+                                            `Pay $${amount.toFixed(2)} with Card`
                                         )}
                                     </Button>
                                 </form>
@@ -1844,7 +1844,7 @@ const UniversalCheckout = ({
                                         {loading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                Processing Card with NMI...
+                                                Processing Card Payment...
                                             </>
                                         ) : isCalculating ? (
                                             "Calculating Shipping..."
@@ -1853,7 +1853,7 @@ const UniversalCheckout = ({
                                         ) : isResearchAckIncomplete ? (
                                             ackDisabledReason
                                         ) : (
-                                            `Pay $${amount.toFixed(2)} with NMI`
+                                            `Pay $${amount.toFixed(2)} with Card`
                                         )}
                                     </Button>
                                 </form>

@@ -150,7 +150,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
     thix: {
         clientId: import.meta.env.VITE_3THIX_CLIENT_ID || "",
         clientSecret: "",
-        apiBaseUrl: "https://webadmin.3thix.com",
+        apiBaseUrl: "https://3thix.paywithwallet.net",
         environment: "production",
         integrationType: "iframe",
     },

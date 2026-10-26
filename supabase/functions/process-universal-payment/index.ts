@@ -145,7 +145,7 @@ serve(async (req) => {
         if (body.action === "create_thix_intent") {
             let effectiveClientId = body.thixConfig?.clientId || body.clientId || thixClientIdEnv;
             let effectiveClientSecret = body.thixConfig?.clientSecret || body.clientSecret || thixClientSecretEnv;
-            let effectiveBaseUrl = body.thixConfig?.apiBaseUrl || body.apiBaseUrl || thixBaseUrlEnv || "https://webadmin.3thix.com";
+            let effectiveBaseUrl = body.thixConfig?.apiBaseUrl || body.apiBaseUrl || thixBaseUrlEnv || "https://3thix.paywithwallet.net";
 
             if (!effectiveClientId || !effectiveClientSecret) {
                 const { data: sData } = await supabase
@@ -171,6 +171,9 @@ serve(async (req) => {
             }
 
             effectiveBaseUrl = effectiveBaseUrl.trim().replace(/\/+$/, "");
+            if (effectiveBaseUrl.includes("webadmin.3thix.com")) {
+                effectiveBaseUrl = effectiveBaseUrl.replace("webadmin.3thix.com", "3thix.paywithwallet.net");
+            }
 
             const amountNum = parseFloat((body.amount || 0).toString());
             const intentPayload: any = {

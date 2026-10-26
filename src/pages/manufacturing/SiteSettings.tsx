@@ -515,7 +515,7 @@ const SiteSettings = () => {
     const [thixClientSecret, setThixClientSecret] = useState<string>("");
     const [showThixClientSecret, setShowThixClientSecret] = useState<boolean>(false);
     const [copiedThixSecret, setCopiedThixSecret] = useState<boolean>(false);
-    const [thixBaseUrl, setThixBaseUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.thix.apiBaseUrl || "https://webadmin.3thix.com");
+    const [thixBaseUrl, setThixBaseUrl] = useState<string>(DEFAULT_PAYMENT_SETTINGS.thix.apiBaseUrl || "https://3thix.paywithwallet.net");
     const [thixEnv, setThixEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.thix.environment);
     const [thixIntegrationType, setThixIntegrationType] = useState<"iframe" | "redirect">(DEFAULT_PAYMENT_SETTINGS.thix.integrationType || "iframe");
     const [copiedThixWebhookUrl, setCopiedThixWebhookUrl] = useState<boolean>(false);
@@ -2584,11 +2584,11 @@ const SiteSettings = () => {
                                                 id="thixBaseUrl"
                                                 value={thixBaseUrl}
                                                 onChange={(e) => setThixBaseUrl(e.target.value)}
-                                                placeholder="https://webadmin.3thix.com"
+                                                placeholder="https://3thix.paywithwallet.net"
                                                 className="font-mono text-xs"
                                             />
                                             <p className="text-[10px] text-muted-foreground">
-                                                Default API host: <code>https://webadmin.3thix.com</code> (or <code>https://pay.3thix.com</code>).
+                                                Default API host: <code>https://3thix.paywithwallet.net</code> (or custom gateway host).
                                             </p>
                                         </div>
 

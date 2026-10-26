@@ -186,7 +186,7 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
                 const data = await response.json().catch(() => ({}));
 
                 if (!response.ok || (!data?.data?.payment_url && !data?.payment_url)) {
-                    const err = data?.error || data?.message || "Failed to initialize 3thix payment gateway. Please check your credentials in Site Settings.";
+                    const err = data?.message || data?.error || (typeof data === "string" ? data : "") || "Failed to initialize 3thix payment gateway. Please check your credentials in Site Settings.";
                     throw new Error(err);
                 }
 

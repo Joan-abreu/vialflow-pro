@@ -10,7 +10,7 @@ import { DateRangeFilter, DateRange } from "@/components/shared/DateRangeFilter"
 import OrderStatusChart from "@/components/dashboard/OrderStatusChart";
 import RevenueTrendChart from "@/components/dashboard/RevenueTrendChart";
 import OrderVolumeTrendChart from "@/components/dashboard/OrderVolumeTrendChart";
-import TopProductsList from "@/components/dashboard/TopProductsList";
+import TopProductsList, { TopProduct, CategorySummary } from "@/components/dashboard/TopProductsList";
 import TopCustomersList from "@/components/dashboard/TopCustomersList";
 import { UnconvertedUsersDialog, UnconvertedUser } from "@/components/dashboard/UnconvertedUsersDialog";
 import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
@@ -52,7 +52,14 @@ const Dashboard = () => {
   const [revenueData, setRevenueData] = useState<{ date: string; revenue: number }[]>([]);
   const [orderVolumeData, setOrderVolumeData] = useState<{ date: string; orders: number }[]>([]);
   const [unconvertedUsers, setUnconvertedUsers] = useState<UnconvertedUser[]>([]);
-  const [topProducts, setTopProducts] = useState<{ name: string; quantity: number; revenue: number }[]>([]);
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [categorySummary, setCategorySummary] = useState<CategorySummary>({
+    waterVials: 0,
+    waterRevenue: 0,
+    peptideVials: 0,
+    peptideRevenue: 0,
+    totalVials: 0,
+  });
   const [topCustomers, setTopCustomers] = useState<{ name: string; orderCount: number; totalSpent: number }[]>([]);
   const [funnelData, setFunnelData] = useState({
     views: 0,
@@ -124,7 +131,8 @@ const Dashboard = () => {
             order_items (
               quantity,
               price_at_time,
-              variant:product_variants(product:products(name))
+              product:products(name),
+              variant:product_variants(id, sku, pack_size, units_per_pack, product:products(name))
             )
           `)
           .gte("created_at", startDateTime)
@@ -300,30 +308,59 @@ const Dashboard = () => {
       setRevenueData(revenueDataArray);
       setOrderVolumeData(orderVolumeDataArray);
 
-      // 3. Top Products
-      const productStats: Record<string, { quantity: number; revenue: number }> = {};
+      // 3. Top Products & Vials Breakdown
+      const productStats: Record<string, { name: string; sku?: string; quantity: number; vials: number; revenue: number; category: "water" | "peptide" }> = {};
+      let totalWaterVials = 0;
+      let totalWaterRev = 0;
+      let totalPeptideVials = 0;
+      let totalPeptideRev = 0;
+
       orders.forEach((order: any) => {
         // Skip cancelled/failed or unpaid
         if (order.status === "cancelled" || order.status === "failed" || order.status === "pending_payment" || order.status === "pending") return;
 
         if (order.order_items) {
           order.order_items.forEach((item: any) => {
-            const productName = item.variant?.product?.name || "Unknown Product";
-            if (!productStats[productName]) {
-              productStats[productName] = { quantity: 0, revenue: 0 };
+            const productName = item.variant?.product?.name || item.product?.name || "Unknown Product";
+            const sku = item.variant?.sku?.trim() || "";
+            const isWater = productName.toLowerCase().includes("water") || productName.toLowerCase().includes("reconstitution");
+            const category: "water" | "peptide" = isWater ? "water" : "peptide";
+            const packSize = item.variant?.pack_size || 1;
+            const unitsPerPack = item.variant?.units_per_pack || packSize;
+            const vials = item.quantity * unitsPerPack;
+            const itemRev = item.quantity * (item.price_at_time || 0);
+
+            const key = item.variant_id ? `var-${item.variant_id}` : (sku ? `sku-${sku}` : productName);
+
+            if (!productStats[key]) {
+              productStats[key] = { name: productName, sku, quantity: 0, vials: 0, revenue: 0, category };
             }
-            productStats[productName].quantity += item.quantity;
-            productStats[productName].revenue += item.quantity * item.price_at_time;
+            productStats[key].quantity += item.quantity;
+            productStats[key].vials += vials;
+            productStats[key].revenue += itemRev;
+
+            if (isWater) {
+              totalWaterVials += vials;
+              totalWaterRev += itemRev;
+            } else {
+              totalPeptideVials += vials;
+              totalPeptideRev += itemRev;
+            }
           });
         }
       });
 
-      const topProductsList = Object.entries(productStats)
-        .map(([name, pStats]) => ({ name, ...pStats }))
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 5);
+      const topProductsList = Object.values(productStats)
+        .sort((a, b) => b.vials - a.vials);
 
       setTopProducts(topProductsList);
+      setCategorySummary({
+        waterVials: totalWaterVials,
+        waterRevenue: totalWaterRev,
+        peptideVials: totalPeptideVials,
+        peptideRevenue: totalPeptideRev,
+        totalVials: totalWaterVials + totalPeptideVials,
+      });
 
       // 4. Top Customers
       const customerStats: Record<string, { name: string, email: string, orderCount: number; totalSpent: number }> = {};
@@ -838,7 +875,7 @@ const Dashboard = () => {
         <RevenueTrendChart data={revenueData} periodLabel={periodLabel} />
         <OrderVolumeTrendChart data={orderVolumeData} periodLabel={periodLabel} />
         <OrderStatusChart data={statusData} />
-        <TopProductsList products={topProducts} periodLabel={periodLabel} />
+        <TopProductsList products={topProducts} periodLabel={periodLabel} categorySummary={categorySummary} />
         <TopCustomersList customers={topCustomers} periodLabel={periodLabel} />
       </div>
 

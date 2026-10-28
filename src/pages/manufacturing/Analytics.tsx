@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ import EcommerceFunnelChart from "@/components/dashboard/EcommerceFunnelChart";
 import { getCountryFlagEmoji } from "@/utils/sessionTracker";
 import { useAnalyticsSettings } from "@/hooks/useAnalyticsSettings";
 import { RecoverCartEmailDialog } from "@/components/admin/RecoverCartEmailDialog";
+import ProductSalesBreakdown, { ProductSalesItem } from "@/components/dashboard/ProductSalesBreakdown";
 
 export interface CartSessionRecord {
     id: string;
@@ -105,7 +107,26 @@ export interface CartSessionRecord {
 
 export default function Analytics() {
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<string>("funnel");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabFromUrl = searchParams.get("tab");
+    const [activeTab, setActiveTab] = useState<string>(tabFromUrl || "sales");
+
+    useEffect(() => {
+        const t = searchParams.get("tab");
+        if (t && ["sales", "funnel", "peptides", "abandoned", "attribution"].includes(t)) {
+            setActiveTab(t);
+        }
+    }, [searchParams]);
+
+    const handleTabChange = (val: string) => {
+        setActiveTab(val);
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set("tab", val);
+            return next;
+        }, { replace: true });
+    };
+
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [selectedCart, setSelectedCart] = useState<CartSessionRecord | null>(null);
@@ -201,7 +222,35 @@ export default function Analytics() {
         },
     });
 
-    const isRefetching = loadingEvents || loadingFunnel || loadingCarts || loadingOrders;
+    // 4b. Fetch Order Items for Product Sales & Physical Vials Breakdown
+    const { data: salesOrderItems = [], isLoading: loadingSalesItems, refetch: refetchSalesItems } = useQuery({
+        queryKey: ["analytics_sales_order_items", dateRange],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("order_items")
+                .select(`
+                    id,
+                    quantity,
+                    price_at_time,
+                    created_at,
+                    product_id,
+                    variant_id,
+                    order:orders!inner(id, status, created_at, user_id),
+                    product:products(id, name, slug),
+                    variant:product_variants(id, sku, pack_size, units_per_pack, product:products(id, name, slug))
+                `)
+                .gte("order.created_at", startDateTime)
+                .lte("order.created_at", endDateTime);
+
+            if (error) {
+                console.error("Error fetching analytics sales items:", error);
+                return [];
+            }
+            return (data || []) as any[];
+        },
+    });
+
+    const isRefetching = loadingEvents || loadingFunnel || loadingCarts || loadingOrders || loadingSalesItems;
 
     // 5. Fetch Global Analytics Settings (Exclude Admin Traffic flag)
     const { data: analyticsSettings } = useAnalyticsSettings();
@@ -252,7 +301,54 @@ export default function Analytics() {
         refetchFunnel();
         refetchCarts();
         refetchOrders();
+        refetchSalesItems();
     };
+
+    // Aggregate Product Sales & Physical Vials Data (Grouped by Variant SKU)
+    const productSalesItems = useMemo<ProductSalesItem[]>(() => {
+        const stats: Record<string, ProductSalesItem> = {};
+
+        salesOrderItems.forEach((item: any) => {
+            const ord = item.order;
+            if (!ord) return;
+            if (ord.status === "cancelled" || ord.status === "failed") return;
+            if (excludeAdmin && ord.user_id && adminUserIds.includes(ord.user_id)) return;
+
+            const name = item.variant?.product?.name || item.product?.name || "Unknown Product";
+            const sku = item.variant?.sku?.trim() || "";
+            const isWater = name.toLowerCase().includes("water") || name.toLowerCase().includes("reconstitution");
+            const category: "water" | "peptide" = isWater ? "water" : "peptide";
+            const categoryLabel = isWater ? "💧 Water & Reconstitution" : "🧪 Research Peptide";
+            const packSize = item.variant?.pack_size || 1;
+            const unitsPerPack = item.variant?.units_per_pack || packSize;
+            const vials = item.quantity * unitsPerPack;
+            const rev = item.quantity * (item.price_at_time || 0);
+
+            // Group by Variant ID or SKU when present, otherwise fallback to product ID
+            const key = item.variant_id ? `var-${item.variant_id}` : (sku ? `sku-${sku}` : (item.product_id ? `prod-${item.product_id}` : name));
+
+            if (!stats[key]) {
+                stats[key] = {
+                    id: key,
+                    sku: sku || "N/A",
+                    name,
+                    category,
+                    categoryLabel,
+                    packsSold: 0,
+                    vialsSold: 0,
+                    revenue: 0,
+                    distinctOrders: 0,
+                    avgVialsPerPack: unitsPerPack,
+                };
+            }
+            stats[key].packsSold += item.quantity;
+            stats[key].vialsSold += vials;
+            stats[key].revenue += rev;
+            stats[key].distinctOrders += 1;
+        });
+
+        return Object.values(stats);
+    }, [salesOrderItems, excludeAdmin, adminUserIds]);
 
     // Aggregate High-Level Metrics
     const metrics = useMemo(() => {
@@ -598,37 +694,70 @@ export default function Analytics() {
             </div>
 
             {/* Unified Tabs Section */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <div className="flex justify-between items-center border-b pb-3">
-                    <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-[700px]">
-                        <TabsTrigger value="funnel" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
-                            <TrendingUp className="h-4 w-4" />
-                            Conversion Funnel
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+                <div className="flex justify-between items-center border-b pb-3 overflow-x-auto">
+                    <TabsList className="inline-flex h-11 p-1 items-center bg-muted/80 rounded-xl gap-1 w-auto max-w-full">
+                        <TabsTrigger 
+                            value="sales" 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap data-[state=active]:text-primary"
+                        >
+                            <Package className="h-4 w-4 shrink-0" />
+                            <span>Product Sales & Vials</span>
+                            {productSalesItems.length > 0 && (
+                                <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold rounded-full bg-primary/15 text-primary leading-none ml-0.5">
+                                    {productSalesItems.reduce((acc, p) => acc + p.vialsSold, 0).toLocaleString()}
+                                </span>
+                            )}
                         </TabsTrigger>
-                        <TabsTrigger value="peptides" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold data-[state=active]:text-purple-600">
-                            <FlaskConical className="h-4 w-4 text-purple-600" />
-                            Peptides Analytics
+                        <TabsTrigger 
+                            value="funnel" 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap"
+                        >
+                            <TrendingUp className="h-4 w-4 shrink-0" />
+                            <span>Conversion Funnel</span>
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="peptides" 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap data-[state=active]:text-purple-600"
+                        >
+                            <FlaskConical className="h-4 w-4 text-purple-600 shrink-0" />
+                            <span>Peptides Traffic</span>
                             {metrics.peptideViews > 0 && (
-                                <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1 bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold">
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 leading-none ml-0.5">
                                     {metrics.peptideViews}
-                                </Badge>
+                                </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="abandoned" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
-                            <ShoppingCart className="h-4 w-4" />
-                            Abandoned Carts
+                        <TabsTrigger 
+                            value="abandoned" 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap"
+                        >
+                            <ShoppingCart className="h-4 w-4 shrink-0" />
+                            <span>Abandoned Carts</span>
                             {metrics.abandonedCount > 0 && (
-                                <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-destructive text-destructive-foreground leading-none ml-0.5">
                                     {metrics.abandonedCount}
-                                </Badge>
+                                </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="attribution" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
-                            <Globe className="h-4 w-4" />
-                            Attribution & UTMs
+                        <TabsTrigger 
+                            value="attribution" 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap"
+                        >
+                            <Globe className="h-4 w-4 shrink-0" />
+                            <span>Attribution & UTMs</span>
                         </TabsTrigger>
                     </TabsList>
                 </div>
+
+                {/* TAB 0: PRODUCT SALES & VIALS */}
+                <TabsContent value="sales" className="space-y-6 animate-in fade-in-50">
+                    <ProductSalesBreakdown
+                        items={productSalesItems}
+                        periodLabel={`${format(new Date(dateRange.startDate + "T12:00:00"), "MMM d")} - ${format(new Date(dateRange.endDate + "T12:00:00"), "MMM d, yyyy")}`}
+                        isLoading={loadingSalesItems}
+                    />
+                </TabsContent>
 
                 {/* TAB 1: CONVERSION FUNNEL */}
                 <TabsContent value="funnel" className="space-y-6 animate-in fade-in-50">
@@ -737,6 +866,35 @@ export default function Analytics() {
                 {/* TAB 2: PEPTIDES ANALYTICS */}
                 <TabsContent value="peptides" className="space-y-6 animate-in fade-in-50">
                     
+                    {/* Real Peptide Sales Quick Banner */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-purple-500/30 bg-purple-500/10 gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                                <FlaskConical className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                    Realized Peptide Sales: {productSalesItems.filter(p => p.category === "peptide").reduce((acc, p) => acc + p.vialsSold, 0).toLocaleString()} vials
+                                    <Badge className="bg-purple-600 text-white text-[10px]">
+                                        ${productSalesItems.filter(p => p.category === "peptide").reduce((acc, p) => acc + p.revenue, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </Badge>
+                                </h4>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Manufacturing volume and completed customer orders for this period
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleTabChange("sales")}
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs gap-1.5 shrink-0"
+                        >
+                            View Product Vials Breakdown
+                            <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+
                     {/* Peptide KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card className="border shadow-xs bg-purple-500/5 border-purple-500/20">

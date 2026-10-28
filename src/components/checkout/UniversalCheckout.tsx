@@ -921,7 +921,7 @@ const UniversalCheckout = ({
                             billingZip: cardData.billingZip || addressState.postal_code,
                         },
                         metadata: {
-                            sourceStore: "livwellresearchlabs.com",
+                            orderType: "standard",
                             itemsCount: items.length
                         }
                     })

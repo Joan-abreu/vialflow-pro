@@ -86,7 +86,7 @@ const Checkout = () => {
         queryFn: async () => {
             const { data } = await supabase
                 .from("products")
-                .select("id, name, slug, image_url, category_id, product_variants(id, name, price, stock_quantity)")
+                .select("id, name, slug, image_url, category_id, product_variants(id, price, stock_quantity)")
                 .eq("is_published", true);
             return data || [];
         },

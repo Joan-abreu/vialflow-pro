@@ -11,6 +11,7 @@ import { UploadPaymentProofDialog } from "@/components/checkout/UploadPaymentPro
 
 
 const OrderConfirmation = () => {
+    const [relayEvidence, setRelayEvidence] = useState<any>(null);
     const { orderId } = useParams();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -222,7 +223,34 @@ const OrderConfirmation = () => {
 
 
             <div className="grid gap-8">
-                {/* Order Details Card */}
+                
+                    {/* Relay Verification Evidence Diagnostic Card */}
+                    {relayEvidence && (
+                        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl p-4 text-left space-y-3 shadow-sm">
+                            <div className="flex items-center justify-between text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                                <span className="flex items-center gap-1.5">
+                                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                                    Gateway Relay Verification Evidence (End-to-End Tracing)
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-900 border-emerald-300 font-bold">
+                                    {relayEvidence.simulated ? "SIMULATION MODE (Ready for live keys)" : "LIVE STRIPE PROCESSED"}
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground font-mono bg-white/70 dark:bg-black/30 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900">
+                                <div>Upstream Site: <span className="font-semibold text-foreground">{relayEvidence.upstreamSite}</span></div>
+                                <div>HMAC Signed: <span className="font-semibold text-emerald-600">{relayEvidence.hmacVerified ? "Verified ✅" : "No"}</span></div>
+                                <div>Card Charged: <span className="font-semibold text-foreground">{relayEvidence.cardLast4}</span></div>
+                                <div>Payment Intent: <span className="font-semibold text-foreground">{relayEvidence.paymentIntentId}</span></div>
+                                <div>Statement Descriptor: <span className="font-semibold text-foreground">{relayEvidence.statementDescriptor}</span></div>
+                                <div>Processed At: <span className="font-semibold text-foreground">{relayEvidence.timestamp ? new Date(relayEvidence.timestamp).toLocaleTimeString() : "Just now"}</span></div>
+                            </div>
+                            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 italic">
+                                ✨ Confirmed: Request successfully traveled from Site 1 (vialflow-pro) → Gateway Relay Middleware → Site 2 (livlifestylegloves) and returned with approval.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Order Details Card */}
                 <div className="bg-card border rounded-lg overflow-hidden shadow-sm">
 
                     <div className="bg-muted/30 p-6 border-b">

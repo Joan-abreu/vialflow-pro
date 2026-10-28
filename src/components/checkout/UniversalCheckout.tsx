@@ -289,7 +289,10 @@ const UniversalCheckout = ({
                     // Admin preview override (allows safe testing via ?preview_gateway=thix without affecting live customers)
                     const searchParams = new URLSearchParams(window.location.search);
                     const previewGateway = searchParams.get("preview_gateway");
-                    if (previewGateway === "veyra" || previewGateway === "tagadapay" || previewGateway === "thix") {
+                    if (previewGateway) {
+                        console.log("[Checkout] Preview Gateway override activated:", previewGateway);
+                    }
+                    if (previewGateway === "veyra" || previewGateway === "tagadapay" || previewGateway === "thix" || previewGateway === "relay") {
                         newProvider = previewGateway as PaymentGatewayProvider;
                     }
                     setActiveProvider(newProvider);
@@ -877,6 +880,84 @@ const UniversalCheckout = ({
 
             const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
             const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+            // Case Relay Gateway (Liv Lifestyle Gloves Proxy)
+            if (activeProvider === "relay") {
+                const relayEndpoint = gatewaySettings.relay?.endpointUrl || "https://payment-processor-middleware-nine.vercel.app/api/v1/payment/process";
+                const relaySiteId = gatewaySettings.relay?.siteId || "livwell";
+                const relayClientKey = gatewaySettings.relay?.clientKey || "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c";
+
+                console.log("[Relay Checkout] Dispatching order to Gateway Relay:", relayEndpoint);
+
+                const relayRes = await fetch(relayEndpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Site-Id": relaySiteId,
+                        "X-Client-Key": relayClientKey,
+                    },
+                    body: JSON.stringify({
+                        orderId,
+                        amount: Math.round(amount * 100),
+                        currency: "usd",
+                        customer: {
+                            name: cardData.cardholderName || addressState.full_name,
+                            email: user ? user.email : addressState.email,
+                            phone: addressState.phone,
+                            billingAddress: {
+                                line1: addressState.line1,
+                                city: addressState.city,
+                                state: addressState.state,
+                                postalCode: cardData.billingZip || addressState.postal_code,
+                                country: addressState.country || "US"
+                            }
+                        },
+                        cardDetails: {
+                            number: String(cardData.number).replace(/\s|-/g, ""),
+                            expMonth: cardData.expMonth,
+                            expYear: cardData.expYear,
+                            cvv: cardData.cvv,
+                            cardholderName: cardData.cardholderName || addressState.full_name,
+                            billingZip: cardData.billingZip || addressState.postal_code,
+                        },
+                        metadata: {
+                            sourceStore: "livwellresearchlabs.com",
+                            itemsCount: items.length
+                        }
+                    })
+                });
+
+                const relayResult = await relayRes.json();
+                console.log("[Relay Checkout] Upstream relay response:", relayResult);
+
+                if (!relayRes.ok || !relayResult.success) {
+                    const errMsg = relayResult.message || relayResult.error || "Payment relay processing failed";
+                    throw new Error(errMsg);
+                }
+
+                try {
+                    markCartConverted(orderId).catch(() => {});
+                    trackFunnelStep("order_completed", {
+                        orderId,
+                        amount,
+                        provider: "relay",
+                    }).catch(() => {});
+                } catch {}
+
+                clearCart();
+
+                // Save verification proof in sessionStorage for Order Confirmation verification card
+                try {
+                    sessionStorage.setItem("relay_verification_" + orderId, JSON.stringify(relayResult));
+                } catch {}
+
+                toast.success(relayResult.simulated 
+                    ? ("Relay Test Verified by " + (relayResult.upstreamSite || "Liv Lifestyle Gloves") + "!")
+                    : "Payment processed successfully via Liv Lifestyle!"
+                );
+                navigate("/order-confirmation/" + orderId);
+                return relayResult;
+            }
 
             const response = await fetch(`${baseUrl}/functions/v1/process-universal-payment`, {
                 method: "POST",
@@ -1940,7 +2021,7 @@ const UniversalCheckout = ({
                                         )}
                                     </Button>
                                 </div>
-                            ) : (activeProvider === "manual_terminal" || activeProvider === "offline_card") ? (
+                            ) : (activeProvider === "manual_terminal" || activeProvider === "offline_card" || activeProvider === "relay") ? (
                                 /* Case H: Smart Manual Virtual Terminal / Offline Card Processing Form */
                                 <SmartCreditCardForm
                                     cardData={cardData}
@@ -1958,7 +2039,7 @@ const UniversalCheckout = ({
                                                     : undefined
                                     }
                                     amount={amount}
-                                    instructions={gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing."}
+                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
                                     submitButtonText={`Submit Order ($${amount.toFixed(2)})`}
                                 />
                             ) : (

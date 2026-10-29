@@ -36,6 +36,10 @@
             "destination": "/api/sitemap"
         },
         {
+            "source": "/api/relay-charge",
+            "destination": "/api/relay-charge"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

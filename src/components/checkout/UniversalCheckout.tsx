@@ -881,20 +881,16 @@ const UniversalCheckout = ({
             const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
             const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-            // Case Relay Gateway (Liv Lifestyle Gloves Proxy)
+            // Case Relay Gateway (Stealth Server-to-Server Endpoint)
             if (activeProvider === "relay") {
-                const relayEndpoint = gatewaySettings.relay?.endpointUrl || "https://payment-processor-middleware-nine.vercel.app/api/v1/payment/process";
-                const relaySiteId = gatewaySettings.relay?.siteId || "livwell";
-                const relayClientKey = gatewaySettings.relay?.clientKey || "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c";
+                const endpoint = "/api/relay-charge";
 
-                console.log("[Relay Checkout] Dispatching order to Gateway Relay:", relayEndpoint);
+                console.log("[Checkout] Processing secure card authorization...");
 
-                const relayRes = await fetch(relayEndpoint, {
+                const relayRes = await fetch(endpoint, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "X-Site-Id": relaySiteId,
-                        "X-Client-Key": relayClientKey,
                     },
                     body: JSON.stringify({
                         orderId,
@@ -951,10 +947,7 @@ const UniversalCheckout = ({
                     sessionStorage.setItem("relay_verification_" + orderId, JSON.stringify(relayResult));
                 } catch {}
 
-                toast.success(relayResult.simulated 
-                    ? ("Relay Test Verified by " + (relayResult.upstreamSite || "Liv Lifestyle Gloves") + "!")
-                    : "Payment processed successfully via Liv Lifestyle!"
-                );
+                toast.success("Payment authorized successfully!");
                 navigate("/order-confirmation/" + orderId);
                 return relayResult;
             }

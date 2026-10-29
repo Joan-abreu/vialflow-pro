@@ -7,6 +7,17 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/api/relay-charge": {
+        target: "https://payment-processor-middleware-nine.vercel.app",
+        changeOrigin: true,
+        rewrite: (path) => "/api/v1/payment/process",
+        headers: {
+          "X-Site-Id": "livwell",
+          "X-Client-Key": "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c",
+        },
+      },
+    },
   },
   plugins: [react()].filter(Boolean),
   resolve: {

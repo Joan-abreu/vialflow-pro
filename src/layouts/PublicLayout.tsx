@@ -617,8 +617,16 @@ const PublicLayoutContent = () => {
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-16 items-center justify-between">
                     <div className="flex items-center gap-6">
-                        <Link to="/" className="flex items-center space-x-2">
-                            <span className="text-xl font-bold text-primary">Liv Well Research Labs</span>
+                        <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group">
+                            <img
+                                src="/favicon.png"
+                                alt="Liv Well Research Labs"
+                                className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0 transition-transform duration-200 group-hover:scale-105"
+                            />
+                            <div className="flex flex-col leading-tight">
+                                <span className="text-base sm:text-xl font-bold text-primary leading-tight">Liv Well</span>
+                                <span className="text-xs sm:text-sm font-semibold text-muted-foreground sm:text-primary/80 leading-tight">Research Labs</span>
+                            </div>
                         </Link>
                         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
                             <Link to="/products" className="transition-colors hover:text-primary">
@@ -719,7 +727,10 @@ const PublicLayoutContent = () => {
                             </SheetTrigger>
                             <SheetContent side="right">
                                 <SheetHeader className="text-left pb-4 border-b">
-                                    <SheetTitle className="text-xl font-bold text-primary">Liv Well Research Labs</SheetTitle>
+                                    <SheetTitle className="text-xl font-bold text-primary flex items-center gap-2.5">
+                                        <img src="/favicon.png" alt="Liv Well Research Labs" className="h-7 w-7 object-contain shrink-0" />
+                                        <span>Liv Well Research Labs</span>
+                                    </SheetTitle>
                                     <SheetDescription className="sr-only">Mobile navigation menu</SheetDescription>
                                 </SheetHeader>
                                 <nav className="flex flex-col gap-4 mt-6">
@@ -800,7 +811,10 @@ const PublicLayoutContent = () => {
                 <div className="container py-10 md:py-16">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
                         <div className="space-y-4 md:col-span-1">
-                            <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
+                            <div className="flex items-center gap-2.5">
+                                <img src="/favicon.png" alt="Liv Well Research Labs" className="h-7 w-7 object-contain shrink-0" />
+                                <h3 className="text-lg font-bold">Liv Well Research Labs</h3>
+                            </div>
                             <p className="text-sm text-muted-foreground">
                                 Direct laboratory manufacturer of ultra-pure reconstitution solutions and bacteriostatic water, and supplier of research peptides.
                             </p>

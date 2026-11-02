@@ -20,11 +20,12 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
     order,
     companyInfo = {
         name: "Liv Well Research Labs",
-        tagline: "Precision Research Solutions & Bulk Peptide Synthesis",
-        addressLine1: "12300 Research Parkway, Suite 400",
-        cityStateZip: "Orlando, FL 32826, USA",
-        email: "orders@livwellresearchlabs.com",
-        phone: "+1 (800) 548-9355",
+        tagline: "Direct Manufacturer of Ultra-Pure Reconstitution Solutions & Research Peptides",
+        addressLine1: "3839 N Andrews Ave",
+        cityStateZip: "Oakland Park, FL 33309, USA",
+        email: "sales@livwellresearchlabs.com",
+        phone: "1-800-423-8002",
+        logoUrl: "/favicon.png",
     },
 }) => {
     const invoiceNum = `INV-${order.id ? order.id.slice(0, 8).toUpperCase() : "000000"}`;
@@ -78,10 +79,15 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
             {/* Header: Company & Invoice Badges */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b">
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-black">
-                            <Receipt className="h-5 w-5" />
-                        </div>
+                    <div className="flex items-center gap-2.5">
+                        <img
+                            src={companyInfo.logoUrl || "/favicon.png"}
+                            alt={companyInfo.name || "Liv Well Research Labs"}
+                            className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0"
+                            onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                        />
                         <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                             {companyInfo.name}
                         </h2>

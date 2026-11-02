@@ -73,11 +73,11 @@ export interface CompanyInfo {
 
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
     name: "Liv Well Research Labs",
-    tagline: "Precision Research Solutions & Bulk Peptide Synthesis",
-    addressLine1: "12300 Research Parkway, Suite 400",
-    cityStateZip: "Orlando, FL 32826, USA",
-    email: "orders@livwellresearchlabs.com",
-    phone: "+1 (800) 548-9355",
+    tagline: "Direct Manufacturer of Ultra-Pure Reconstitution Solutions & Research Peptides",
+    addressLine1: "3839 N Andrews Ave",
+    cityStateZip: "Oakland Park, FL 33309, USA",
+    email: "sales@livwellresearchlabs.com",
+    phone: "1-800-423-8002",
     website: "https://livwellresearchlabs.com",
     logoUrl: "/favicon.png",
 };
@@ -320,8 +320,11 @@ export function generateInvoiceHtml(
         <table class="header-table">
             <tr>
                 <td style="vertical-align: top; width: 60%;">
-                    <div style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">
-                        ${escapeHtml(info.name)}
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                        <img src="${escapeHtml(info.logoUrl || '/favicon.png')}" alt="Liv Well Logo" style="height: 32px; width: 32px; object-fit: contain;" onerror="this.style.display='none'" />
+                        <div style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">
+                            ${escapeHtml(info.name)}
+                        </div>
                     </div>
                     <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">
                         ${escapeHtml(info.tagline)}

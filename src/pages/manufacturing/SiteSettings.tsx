@@ -2014,7 +2014,7 @@ const SiteSettings = () => {
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
                                         <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
-                                        <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
+                                        <SelectItem value="authorizenet">Maverick Payments (Credit / Debit Card)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
                                         <SelectItem value="paypal">PayPal (Wallet & Checkout)</SelectItem>
                                         <SelectItem value="manual">Direct P2P / Manual (Zelle / Cash App)</SelectItem>
@@ -2040,7 +2040,7 @@ const SiteSettings = () => {
                                         <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
                                         <SelectItem value="thix">3thix (pay.3thix.com)</SelectItem>
                                         <SelectItem value="nmi">NMI (Network Merchants Multi-MID)</SelectItem>
-                                        <SelectItem value="authorizenet">Authorize.Net (Accept.js)</SelectItem>
+                                        <SelectItem value="authorizenet">Maverick Payments (Credit / Debit Card)</SelectItem>
                                         <SelectItem value="clover">Clover (Merchant API)</SelectItem>
                                         <SelectItem value="stripe">Stripe (Elements & Cards)</SelectItem>
                                         <SelectItem value="square">Square (Web Payments SDK)</SelectItem>
@@ -2083,7 +2083,7 @@ const SiteSettings = () => {
                                     <TabsTrigger value="veyra" className="text-[11px] px-1 font-bold text-teal-600 dark:text-teal-400">⚡ Veyra</TabsTrigger>
                                     <TabsTrigger value="thix" className="text-[11px] px-1 font-bold text-violet-600 dark:text-violet-400">⚡ 3thix</TabsTrigger>
                                     <TabsTrigger value="nmi" className="text-[11px] px-1">NMI</TabsTrigger>
-                                    <TabsTrigger value="authorizenet" className="text-[11px] px-1">Auth.Net</TabsTrigger>
+                                    <TabsTrigger value="authorizenet" className="text-[11px] px-1 font-semibold text-blue-600 dark:text-blue-400">Maverick</TabsTrigger>
                                     <TabsTrigger value="clover" className="text-[11px] px-1">Clover</TabsTrigger>
                                     <TabsTrigger value="paypal" className="text-[11px] px-1">PayPal</TabsTrigger>
                                     <TabsTrigger value="manual" className="text-[11px] px-1 font-bold text-purple-700 dark:text-purple-300">P2P</TabsTrigger>
@@ -2734,7 +2734,7 @@ const SiteSettings = () => {
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="anEnv" className="text-xs font-semibold">Authorize.Net Environment</Label>
+                                            <Label htmlFor="anEnv" className="text-xs font-semibold">Gateway Environment</Label>
                                             <Select value={authNetEnv} onValueChange={(val: any) => setAuthNetEnv(val)}>
                                                 <SelectTrigger id="anEnv">
                                                     <SelectValue />
@@ -2747,7 +2747,7 @@ const SiteSettings = () => {
                                         </div>
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Transactions are processed securely through Authorize.Net and Maverick Payments acquiring bank.
+                                        Transactions are processed securely through Maverick Payments acquiring terminal.
                                     </p>
                                 </TabsContent>
 
@@ -3203,7 +3203,7 @@ const SiteSettings = () => {
                                 <div className="space-y-0.5">
                                     <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Universal Webhook Endpoint URL</Label>
                                     <p className="text-xs text-muted-foreground">
-                                        Paste this URL in your gateway merchant dashboards (Square, Stripe, Authorize.Net, Clover, NMI, PayPal) to receive real-time payment, refund, and dispute updates.
+                                        Paste this URL in your gateway merchant dashboards (Square, Stripe, Maverick Payments, Clover, NMI, PayPal) to receive real-time payment, refund, and dispute updates.
                                     </p>
                                 </div>
                                 <Button

@@ -596,7 +596,7 @@ const UniversalCheckout = ({
 
     // Dynamically load Accept.js if Authorize.Net is active
     useEffect(() => {
-        if (activeProvider === "authorizenet") {
+        if (activeProvider === "authorizenet" && gatewaySettings.authorizenet.clientKey && gatewaySettings.authorizenet.clientKey.length > 20) {
             const scriptId = "authorizenet-accept-js";
             if (!document.getElementById(scriptId)) {
                 const script = document.createElement("script");
@@ -772,8 +772,8 @@ const UniversalCheckout = ({
                 research_status: researchStatus || null,
                 ruo_acknowledged: Boolean(ackResearch)
             },
-            payment_method: activeProvider,
-            payment_gateway: activeProvider,
+            payment_method: activeProvider === "authorizenet" ? "credit_card" : activeProvider,
+            payment_gateway: activeProvider === "authorizenet" ? "credit_card" : activeProvider,
             payment_provider: activeProvider,
         };
 
@@ -947,7 +947,7 @@ const UniversalCheckout = ({
                     sessionStorage.setItem("relay_verification_" + orderId, JSON.stringify(relayResult));
                 } catch {}
 
-                toast.success("Payment authorized successfully!");
+                toast.success("Payment approved successfully!");
                 navigate("/order-confirmation/" + orderId);
                 return relayResult;
             }
@@ -1060,6 +1060,7 @@ const UniversalCheckout = ({
             else if (error?.error && typeof error.error === "string") msg = error.error;
             else if (error?.error?.message) msg = error.error.message;
 
+            msg = msg.replace(/authorize\.net/gi, "card processor").replace(/authorizenet/gi, "card processor");
             const lower = msg.toLowerCase();
             if (lower.includes("test card") || lower.includes("live_mode") || lower.includes("known test card")) {
                 msg = "Your card was declined: The gateway is in live mode and cannot accept test card numbers.";
@@ -2033,7 +2034,7 @@ const UniversalCheckout = ({
                                                     : undefined
                                     }
                                     amount={amount}
-                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : activeProvider === "authorizenet" ? "Pay securely with Credit Card via Authorize.Net." : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
+                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : activeProvider === "authorizenet" ? "Pay securely with Credit / Debit Card. All transactions are 256-bit SSL encrypted." : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
                                     submitButtonText={`Submit Order ($${amount.toFixed(2)})`}
                                 />
                             ) : (

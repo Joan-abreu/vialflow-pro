@@ -230,17 +230,17 @@ const OrderConfirmation = () => {
                             <div className="flex items-center justify-between text-xs font-semibold text-foreground">
                                 <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                                     <ShieldCheck className="h-4 w-4" />
-                                    Payment Verified & Authorized
+                                    Payment Verified & Approved
                                 </span>
                                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-medium">
-                                    Authorized
+                                    Approved
                                 </Badge>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/40">
                                 <div>Payment Method: <span className="font-medium text-foreground">Credit Card ({relayEvidence.cardLast4 || "****"})</span></div>
                                 <div>Status: <span className="font-medium text-emerald-600 dark:text-emerald-400">Paid & Verified</span></div>
                                 <div>Statement Descriptor: <span className="font-medium text-foreground">{relayEvidence.statementDescriptor || "LIVWELL* LIFESTYLE"}</span></div>
-                                <div>Reference: <span className="font-mono text-foreground">{relayEvidence.paymentIntentId ? relayEvidence.paymentIntentId.slice(0, 18) + "..." : "Authorized"}</span></div>
+                                <div>Reference: <span className="font-mono text-foreground">{relayEvidence.paymentIntentId ? relayEvidence.paymentIntentId.slice(0, 18) + "..." : "Approved"}</span></div>
                             </div>
                         </div>
                     )}

@@ -486,7 +486,8 @@ serve(async (req) => {
 
             const updatePayload: any = {
                 status: "processing",
-                payment_method: providerName,
+                payment_method: providerName === "authorizenet" ? "credit_card" : providerName,
+                payment_gateway: providerName === "authorizenet" ? "credit_card" : providerName,
                 payment_provider: providerName,
                 payment_status: "paid",
             };
@@ -508,7 +509,7 @@ serve(async (req) => {
                 // Fallback minimal update
                 const { error: fallbackErr } = await supabase
                     .from("orders")
-                    .update({ status: "processing", payment_method: providerName, payment_status: "paid" })
+                    .update({ status: "processing", payment_method: providerName === "authorizenet" ? "credit_card" : providerName, payment_gateway: providerName === "authorizenet" ? "credit_card" : providerName, payment_status: "paid" })
                     .eq("id", orderId);
 
                 if (fallbackErr) {
@@ -1221,7 +1222,8 @@ serve(async (req) => {
                     status: 200,
                 });
             } else {
-                const errorMsg = txResponse?.errors?.[0]?.errorText || authNetData?.messages?.message?.[0]?.text || "Authorize.Net transaction failed";
+                let errorMsg = txResponse?.errors?.[0]?.errorText || authNetData?.messages?.message?.[0]?.text || "Card transaction failed. Please check your card details and try again.";
+                errorMsg = errorMsg.replace(/authorize\.net/gi, "card processor").replace(/authorizenet/gi, "card processor");
                 throw new Error(errorMsg);
             }
         }

@@ -57,6 +57,7 @@ export interface TagadaPayGatewayConfig {
 export interface AuthorizeNetGatewayConfig {
     apiLoginId: string;
     clientKey: string;
+    transactionKey?: string;
     environment: "sandbox" | "production";
 }
 
@@ -166,6 +167,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
     authorizenet: {
         apiLoginId: "",
         clientKey: "",
+        transactionKey: "",
         environment: "sandbox",
     },
     clover: {

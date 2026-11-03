@@ -484,6 +484,7 @@ const SiteSettings = () => {
     const [stripePublishableKey, setStripePublishableKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.stripe.publishableKey);
     const [authNetApiLoginId, setAuthNetApiLoginId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.authorizenet.apiLoginId);
     const [authNetClientKey, setAuthNetClientKey] = useState<string>(DEFAULT_PAYMENT_SETTINGS.authorizenet.clientKey);
+    const [authNetTransactionKey, setAuthNetTransactionKey] = useState<string>((DEFAULT_PAYMENT_SETTINGS.authorizenet as any).transactionKey || "");
     const [authNetEnv, setAuthNetEnv] = useState<"sandbox" | "production">(DEFAULT_PAYMENT_SETTINGS.authorizenet.environment);
     const [cloverMerchantId, setCloverMerchantId] = useState<string>(DEFAULT_PAYMENT_SETTINGS.clover.merchantId);
     const [cloverApiToken, setCloverApiToken] = useState<string>(DEFAULT_PAYMENT_SETTINGS.clover.apiToken);
@@ -949,6 +950,7 @@ const SiteSettings = () => {
                         const an = JSON.parse(authNetCfg.value);
                         if (an.apiLoginId) setAuthNetApiLoginId(an.apiLoginId);
                         if (an.clientKey) setAuthNetClientKey(an.clientKey);
+                        if (an.transactionKey) setAuthNetTransactionKey(an.transactionKey);
                         if (an.environment) setAuthNetEnv(an.environment);
                     } catch (e) {}
                 }
@@ -1217,6 +1219,7 @@ const SiteSettings = () => {
             const authNetConfig = JSON.stringify({
                 apiLoginId: authNetApiLoginId,
                 clientKey: authNetClientKey,
+                transactionKey: authNetTransactionKey,
                 environment: authNetEnv
             });
 
@@ -2703,38 +2706,48 @@ const SiteSettings = () => {
                                 <TabsContent value="authorizenet" className="space-y-4 pt-4 border rounded-lg p-4 mt-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="anLoginId" className="text-xs">API Login ID</Label>
+                                            <Label htmlFor="anLoginId" className="text-xs font-semibold">API Login ID</Label>
                                             <Input
                                                 id="anLoginId"
                                                 value={authNetApiLoginId}
                                                 onChange={(e) => setAuthNetApiLoginId(e.target.value)}
-                                                placeholder="e.g. 5KP6uZZ5"
+                                                placeholder="e.g. 9myM44hA4"
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="anClientKey" className="text-xs">Public Client Key</Label>
+                                            <Label htmlFor="anTxKey" className="text-xs font-semibold">Transaction Key</Label>
+                                            <Input
+                                                id="anTxKey"
+                                                type="password"
+                                                value={authNetTransactionKey}
+                                                onChange={(e) => setAuthNetTransactionKey(e.target.value)}
+                                                placeholder="16-character Transaction Key"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="anClientKey" className="text-xs">Public Client Key (Optional for Accept.js)</Label>
                                             <Input
                                                 id="anClientKey"
                                                 value={authNetClientKey}
                                                 onChange={(e) => setAuthNetClientKey(e.target.value)}
-                                                placeholder="e.g. 5FcB6nx7..."
+                                                placeholder="e.g. 5FcB6nx7... (Leave blank if using direct cards)"
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="anEnv" className="text-xs">Authorize.Net Environment</Label>
+                                            <Label htmlFor="anEnv" className="text-xs font-semibold">Authorize.Net Environment</Label>
                                             <Select value={authNetEnv} onValueChange={(val: any) => setAuthNetEnv(val)}>
                                                 <SelectTrigger id="anEnv">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
+                                                    <SelectItem value="production">Production (Live - Maverick)</SelectItem>
                                                     <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
-                                                    <SelectItem value="production">Production (Live)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Note: The secret <code>AUTHORIZENET_TRANSACTION_KEY</code> is securely kept in Supabase Edge Functions.
+                                        Transactions are processed securely through Authorize.Net and Maverick Payments acquiring bank.
                                     </p>
                                 </TabsContent>
 

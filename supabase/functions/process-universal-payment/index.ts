@@ -1129,40 +1129,71 @@ serve(async (req) => {
 
         // 4. Authorize.Net Processing (Accept.js Tokenized Charge)
         if (provider === "authorizenet") {
-            const endpoint = isProduction 
+            let effectiveLoginId = (apiLoginId || Deno.env.get("AUTHORIZENET_API_LOGIN_ID") || "").trim();
+            let effectiveTxKey = (body.authNetTransactionKey || authNetTransactionKey || Deno.env.get("AUTHORIZENET_TRANSACTION_KEY") || "").trim();
+
+            if (!effectiveLoginId || !effectiveTxKey) {
+                const { data: anData } = await supabase.from("app_settings").select("value").eq("key", "payment_authorizenet_config").maybeSingle();
+                if (anData?.value) {
+                    try {
+                        const parsed = JSON.parse(anData.value);
+                        if (!effectiveLoginId) effectiveLoginId = (parsed.apiLoginId || "").trim();
+                        if (!effectiveTxKey) effectiveTxKey = (parsed.transactionKey || parsed.clientKey || "").trim();
+                    } catch (_) {}
+                }
+            }
+
+            const endpoint = (isProduction || effectiveLoginId === "9myM44hA4") 
                 ? "https://api.authorize.net/xml/v1/request.api"
                 : "https://apitest.authorize.net/xml/v1/request.api";
+
+            let paymentObj: any = undefined;
+            if (opaqueData?.dataValue || sourceId) {
+                paymentObj = {
+                    opaqueData: {
+                        dataDescriptor: opaqueData?.dataDescriptor || "COMMON.ACCEPT.INAPP.PAYMENT",
+                        dataValue: opaqueData?.dataValue || sourceId
+                    }
+                };
+            } else if (cardDetails && cardDetails.number) {
+                const cleanCard = String(cardDetails.number).replace(/\s|-/g, '');
+                const expMonth = String(cardDetails.expMonth || '').padStart(2, '0');
+                const rawYear = String(cardDetails.expYear || '');
+                const expYear = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+                paymentObj = {
+                    creditCard: {
+                        cardNumber: cleanCard,
+                        expirationDate: `${expYear}-${expMonth}`,
+                        cardCode: cardDetails.cvv
+                    }
+                };
+            }
 
             const authNetPayload = {
                 createTransactionRequest: {
                     merchantAuthentication: {
-                        name: apiLoginId || Deno.env.get("AUTHORIZENET_API_LOGIN_ID") || "",
-                        transactionKey: authNetTransactionKey || Deno.env.get("AUTHORIZENET_TRANSACTION_KEY") || ""
+                        name: effectiveLoginId,
+                        transactionKey: effectiveTxKey
                     },
-                    refId: orderId.slice(0, 20),
+                    refId: String(orderId || "").slice(0, 20),
                     transactionRequest: {
                         transactionType: "authCaptureTransaction",
                         amount: Number(amount).toFixed(2),
-                        payment: {
-                            opaqueData: {
-                                dataDescriptor: opaqueData?.dataDescriptor || "COMMON.ACCEPT.INAPP.PAYMENT",
-                                dataValue: opaqueData?.dataValue || sourceId
-                            }
-                        },
+                        payment: paymentObj,
                         order: {
-                            invoiceNumber: orderId.slice(0, 20),
-                            description: `Order ${orderId}`
+                            invoiceNumber: String(orderId || "").slice(0, 20),
+                            description: `Order ${orderId || ''}`
                         },
                         customer: {
                             email: customerEmail
                         },
                         billTo: {
-                            firstName: shippingAddress?.firstName || "Customer",
-                            lastName: shippingAddress?.lastName || "Order",
+                            firstName: cardDetails?.cardholderName?.split(' ')[0] || shippingAddress?.firstName || "Customer",
+                            lastName: cardDetails?.cardholderName?.split(' ').slice(1).join(' ') || shippingAddress?.lastName || "Order",
                             address: shippingAddress?.addressLine1 || "",
                             city: shippingAddress?.locality || "",
                             state: shippingAddress?.administrativeDistrictLevel1 || "",
-                            zip: shippingAddress?.postalCode || "",
+                            zip: cardDetails?.billingZip || shippingAddress?.postalCode || "",
                             country: shippingAddress?.country || "US"
                         }
                     }

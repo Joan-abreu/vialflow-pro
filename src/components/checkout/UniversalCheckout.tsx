@@ -978,18 +978,19 @@ const UniversalCheckout = ({
                     customerEmail: user ? user.email : addressState.email,
                     locationId: gatewaySettings.square.locationId || import.meta.env.VITE_SQUARE_LOCATION_ID,
                     apiLoginId: gatewaySettings.authorizenet.apiLoginId,
+                    authNetTransactionKey: gatewaySettings.authorizenet.transactionKey || (gatewaySettings.authorizenet.clientKey?.length === 16 ? gatewaySettings.authorizenet.clientKey : undefined),
                     merchantId: gatewaySettings.clover.merchantId,
                     nmiSecurityKey: gatewaySettings.nmi.securityKey,
                     storeId: gatewaySettings.tagadapay.storeId || import.meta.env.VITE_TAGADAPAY_STORE_ID,
                     paymentFlowId: gatewaySettings.tagadapay.paymentFlowId || import.meta.env.VITE_TAGADAPAY_PAYMENT_FLOW_ID,
                     tagadaApiKey: gatewaySettings.tagadapay.apiKey,
-                    cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
+                    cardDetails: (activeProvider === "nmi" || activeProvider === "clover" || activeProvider === "authorizenet" || activeProvider === "manual_terminal" || activeProvider === "offline_card") ? cardData : undefined,
                     isProduction: 
                         activeProvider === "square" ? gatewaySettings.square.environment === "production" :
                         activeProvider === "tagadapay" ? gatewaySettings.tagadapay.environment === "production" :
                         activeProvider === "veyra" ? gatewaySettings.veyra.environment === "production" :
                         activeProvider === "thix" ? gatewaySettings.thix.environment === "production" :
-                        activeProvider === "authorizenet" ? gatewaySettings.authorizenet.environment === "production" :
+                        activeProvider === "authorizenet" ? (gatewaySettings.authorizenet.environment === "production" || gatewaySettings.authorizenet.apiLoginId === "9myM44hA4") :
                         activeProvider === "clover" ? gatewaySettings.clover.environment === "production" :
                         gatewaySettings.paypal.environment === "production",
                     items: items.map(item => ({
@@ -1770,7 +1771,7 @@ const UniversalCheckout = ({
                                         Preparing secure Stripe checkout...
                                     </div>
                                 )
-                            ) : activeProvider === "authorizenet" ? (
+                            ) : (activeProvider === "authorizenet" && gatewaySettings.authorizenet.clientKey && gatewaySettings.authorizenet.clientKey.length > 20) ? (
                                 /* Case D: Authorize.Net Accept.js Form */
                                 <form onSubmit={handleAuthorizeNetSubmit} className="space-y-4 text-left">
                                     <div className="space-y-3">
@@ -2014,7 +2015,7 @@ const UniversalCheckout = ({
                                         )}
                                     </Button>
                                 </div>
-                            ) : (activeProvider === "manual_terminal" || activeProvider === "offline_card" || activeProvider === "relay") ? (
+                            ) : (activeProvider === "manual_terminal" || activeProvider === "offline_card" || activeProvider === "relay" || activeProvider === "authorizenet") ? (
                                 /* Case H: Smart Manual Virtual Terminal / Offline Card Processing Form */
                                 <SmartCreditCardForm
                                     cardData={cardData}
@@ -2032,7 +2033,7 @@ const UniversalCheckout = ({
                                                     : undefined
                                     }
                                     amount={amount}
-                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
+                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : activeProvider === "authorizenet" ? "Pay securely with Credit Card via Authorize.Net." : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
                                     submitButtonText={`Submit Order ($${amount.toFixed(2)})`}
                                 />
                             ) : (

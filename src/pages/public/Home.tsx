@@ -35,7 +35,7 @@ const Home = () => {
     const { data: featuredProducts, isLoading } = useQuery({
         queryKey: ["featured-products", isVip],
         staleTime: 0,
-        enabled: !!user && !authLoading,
+        enabled: !authLoading,
         queryFn: async () => {
             // Fetch published variants with product info
             let query = supabase

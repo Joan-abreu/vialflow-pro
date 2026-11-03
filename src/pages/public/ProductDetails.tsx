@@ -64,7 +64,7 @@ const ProductDetails = () => {
     const { data: productCoas } = useQuery<COARecord[]>({
         queryKey: ["product-coas", id],
         staleTime: 5 * 60 * 1000,
-        enabled: !!id && !!user && !authLoading,
+        enabled: !!id && !authLoading,
         queryFn: async () => {
             if (!id) return [];
             
@@ -97,7 +97,7 @@ const ProductDetails = () => {
     const { data: stockSettings } = useQuery({
         queryKey: ["app-settings-stock-control"],
         staleTime: 60000,
-        enabled: !!user && !authLoading,
+        enabled: !authLoading,
         queryFn: async () => {
             const { data } = await supabase
                 .from("app_settings" as any)
@@ -405,7 +405,7 @@ const ProductDetails = () => {
                 is_private: productData.is_private,
             } as ProductWithVariants;
         },
-        enabled: !!id && !!user && !authLoading,
+        enabled: !!id && !authLoading,
     });
 
     const selectedVariant = product?.variants.find(v => v.id === selectedVariantId);
@@ -577,9 +577,6 @@ const ProductDetails = () => {
         );
     }
 
-    if (!user) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
-    }
 
     if (isLoading) {
         return (

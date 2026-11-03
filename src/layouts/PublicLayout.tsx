@@ -97,7 +97,7 @@ const PublicLayoutContent = () => {
     const location = useLocation();
 
     // Storefront Compliance Gating Settings (Tagada Pay / Kashu Pay)
-    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState<boolean>(true);
+    const [gateStorefrontEnabled, setGateStorefrontEnabled] = useState<boolean>(false);
     const [gateExemptWaterProducts, setGateExemptWaterProducts] = useState<boolean>(false);
     const [isGateCleared, setIsGateCleared] = useState<boolean>(() => {
         return sessionStorage.getItem("researcher_gate_cleared") === "true";

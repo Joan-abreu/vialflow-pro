@@ -88,7 +88,7 @@ const Products = () => {
     const { data: productsWithVariants, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["public-product-variants", isVip],
         staleTime: 0,
-        enabled: !!user && !authLoading,
+        enabled: !authLoading,
         queryFn: async () => {
             // Fetch all published variants with their product and vial type info
             let query = supabase
@@ -410,7 +410,7 @@ const Products = () => {
     const { data: categories } = useQuery({
         queryKey: ["product-categories", isVip],
         staleTime: 0,
-        enabled: !!user && !authLoading,
+        enabled: !authLoading,
         queryFn: async () => {
             let catQuery = supabase
                 .from("product_categories" as any)
@@ -573,9 +573,6 @@ const Products = () => {
         );
     }
 
-    if (!user) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
-    }
 
     return (
         <div className="container py-12">

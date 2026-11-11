@@ -2,9 +2,32 @@ export const config = {
   runtime: 'nodejs',
 };
 
+const ALLOWED_HOST_PATTERNS = [
+  /livwellresearchlabs\.com$/i,
+  /livlifestyle\.com$/i,
+  /\.vercel\.app$/i,
+  /^localhost(:\d+)?$/i,
+  /^127\.0\.0\.1(:\d+)?$/i,
+];
+
+function isAllowedOrigin(req) {
+  const origin = req.headers?.origin || req.headers?.referer || '';
+  if (!origin) return true; // Same-origin requests without Origin header
+  try {
+    const url = new URL(origin);
+    return ALLOWED_HOST_PATTERNS.some((pattern) => pattern.test(url.host));
+  } catch {
+    return false;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  if (!isAllowedOrigin(req)) {
+    return res.status(403).json({ error: 'Forbidden origin' });
   }
 
   const relayEndpoint =

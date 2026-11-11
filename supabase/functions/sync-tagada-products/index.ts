@@ -19,6 +19,38 @@ serve(async (req) => {
     }
 
     try {
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        if (!token) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 401
+            });
+        }
+
+        if (token !== supabaseServiceRoleKey) {
+            const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+            if (userErr || !userData?.user) {
+                return new Response(JSON.stringify({ error: "Unauthorized: Invalid session" }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 401
+                });
+            }
+
+            const { data: roleRows } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", userData.user.id)
+                .in("role", ["admin", "manager", "staff"]);
+
+            if (!roleRows || roleRows.length === 0) {
+                return new Response(JSON.stringify({ error: "Forbidden: Admin access required" }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 403
+                });
+            }
+        }
+
         const body = await req.json().catch(() => ({}));
         let { storeId, apiKey } = body;
 
@@ -34,7 +66,7 @@ serve(async (req) => {
                 try {
                     const parsed = JSON.parse(settings.value);
                     if (!storeId && parsed.storeId) storeId = parsed.storeId;
-                } catch (_) {}
+                } catch (_) { }
             }
         }
 
@@ -191,13 +223,13 @@ serve(async (req) => {
         // 3. Iterate through each product and register in TagadaPay CRM
         for (const product of products) {
             const rawVariants = product.product_variants || [];
-            
+
             // Build variants payload
             let formattedVariants: any[] = [];
 
             if (rawVariants.length > 0) {
                 formattedVariants = rawVariants.map((v: any, idx: number) => {
-                    const variantName = v.vial_types?.name 
+                    const variantName = v.vial_types?.name
                         ? `${v.vial_types.name}${v.vial_types.capacity_ml ? ` (${v.vial_types.capacity_ml}ml)` : ''}`
                         : `Standard Option ${idx + 1}`;
 

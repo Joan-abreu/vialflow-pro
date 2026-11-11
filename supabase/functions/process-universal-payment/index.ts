@@ -33,8 +33,31 @@ serve(async (req) => {
     try {
         const body = await req.json();
 
-        // 0. Update Tagada Config Action
+        // 0. Update Tagada Config Action (Admin-only)
         if (body.action === "update_tagada_config") {
+            const authHeader = req.headers.get("Authorization") || "";
+            const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+            if (token !== supabaseServiceRoleKey) {
+                const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+                if (userErr || !userData?.user) {
+                    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                        status: 401
+                    });
+                }
+                const { data: roleRows } = await supabase
+                    .from("user_roles")
+                    .select("role")
+                    .eq("user_id", userData.user.id)
+                    .eq("role", "admin");
+                if (!roleRows || roleRows.length === 0) {
+                    return new Response(JSON.stringify({ error: "Forbidden: Admin access required" }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                        status: 403
+                    });
+                }
+            }
+
             const { data, error } = await supabase.from("app_settings").upsert({
                 key: "payment_tagadapay_config",
                 value: JSON.stringify({
@@ -405,8 +428,50 @@ serve(async (req) => {
             }
         }
 
-        // 1. Handle Free Orders ($0) regardless of gateway
+        // 1. Handle Free Orders ($0) regardless of gateway (with server-side verification)
         if (amount <= 0) {
+            if (!orderId) {
+                throw new Error("Order ID is required to complete a free order.");
+            }
+
+            const cleanCouponCodes = Array.isArray(applied_coupons)
+                ? applied_coupons
+                    .map((c: any) => typeof c === "string" ? c.trim().toUpperCase() : (c?.code || "").trim().toUpperCase())
+                    .filter(Boolean)
+                : [];
+
+            let hasValidActiveCoupon = false;
+            if (cleanCouponCodes.length > 0) {
+                const { data: activeCoupons } = await supabase
+                    .from("coupons")
+                    .select("code")
+                    .in("code", cleanCouponCodes)
+                    .eq("is_active", true);
+                hasValidActiveCoupon = Boolean(activeCoupons && activeCoupons.length > 0);
+            }
+
+            if (!hasValidActiveCoupon) {
+                const { data: dbOrder } = await supabase
+                    .from("orders")
+                    .select("total_amount")
+                    .eq("id", orderId)
+                    .maybeSingle();
+
+                const { data: dbItems } = await supabase
+                    .from("order_items")
+                    .select("unit_price, quantity")
+                    .eq("order_id", orderId);
+
+                const itemsSubtotal = (dbItems || []).reduce(
+                    (sum: number, item: any) => sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
+                    0
+                );
+
+                if ((dbOrder && Number(dbOrder.total_amount) > 0) || itemsSubtotal > 0) {
+                    throw new Error("Order requires payment and cannot be completed as a free order without a valid coupon.");
+                }
+            }
+
             let productDiscount = 0;
             let shippingDiscount = 0;
             if (discounts && Array.isArray(discounts)) {
@@ -1234,10 +1299,21 @@ serve(async (req) => {
                 ? "https://api.clover.com"
                 : "https://apisandbox.dev.clover.com";
 
-            const effectiveToken = cloverPrivateToken || Deno.env.get("CLOVER_API_KEY") || "";
+            let effectiveToken = cloverPrivateToken || Deno.env.get("CLOVER_API_KEY") || "";
+            let effectiveMerchantId = merchantId || "";
+            if (!effectiveToken || !effectiveMerchantId) {
+                const { data: clData } = await supabase.from("app_settings").select("value").eq("key", "payment_clover_config").maybeSingle();
+                if (clData?.value) {
+                    try {
+                        const parsed = JSON.parse(clData.value);
+                        if (!effectiveToken) effectiveToken = (parsed.apiToken || "").trim();
+                        if (!effectiveMerchantId) effectiveMerchantId = (parsed.merchantId || "").trim();
+                    } catch (_) {}
+                }
+            }
             const amountInCents = Math.round(parseFloat(amount.toString()) * 100);
 
-            const cloverRes = await fetch(`${cloverBaseUrl}/v3/merchants/${merchantId}/charges`, {
+            const cloverRes = await fetch(`${cloverBaseUrl}/v3/merchants/${effectiveMerchantId}/charges`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${effectiveToken}`,
@@ -1275,7 +1351,16 @@ serve(async (req) => {
 
         // 6. NMI (Network Merchants Inc.) Processing
         if (provider === "nmi") {
-            const effectiveKey = nmiSecurityKey || nmiSecurityKeyEnv;
+            let effectiveKey = nmiSecurityKey || nmiSecurityKeyEnv;
+            if (!effectiveKey) {
+                const { data: nmiData } = await supabase.from("app_settings").select("value").eq("key", "payment_nmi_config").maybeSingle();
+                if (nmiData?.value) {
+                    try {
+                        const parsed = JSON.parse(nmiData.value);
+                        effectiveKey = (parsed.securityKey || "").trim();
+                    } catch (_) {}
+                }
+            }
             const params = new URLSearchParams();
             params.append("security_key", effectiveKey);
             params.append("type", "sale");

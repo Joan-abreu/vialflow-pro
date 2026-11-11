@@ -126,6 +126,39 @@ serve(async (req) => {
             });
         }
 
+        // All subsequent actions (decrypt_for_terminal, mark_as_processed, mark_as_declined) require Admin/Staff privileges
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        if (!token) {
+            return new Response(JSON.stringify({ error: "Unauthorized: Missing authentication token" }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 401,
+            });
+        }
+
+        if (token !== supabaseServiceRoleKey) {
+            const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+            if (userErr || !userData?.user) {
+                return new Response(JSON.stringify({ error: "Unauthorized: Invalid session token" }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 401,
+                });
+            }
+
+            const { data: roleRows } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", userData.user.id)
+                .in("role", ["admin", "manager", "staff"]);
+
+            if (!roleRows || roleRows.length === 0) {
+                return new Response(JSON.stringify({ error: "Forbidden: Admin or staff access required" }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    status: 403,
+                });
+            }
+        }
+
         // Action 2: decrypt_for_terminal (Called by Admin Virtual Terminal Modal)
         if (action === "decrypt_for_terminal") {
             const { data: vaultEntry, error: fetchErr } = await supabase

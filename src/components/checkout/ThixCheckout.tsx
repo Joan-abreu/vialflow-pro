@@ -174,7 +174,12 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
                         billingAddress,
                         items: items || [],
                         integrationType,
-                        thixConfig: config,
+                        thixConfig: config ? {
+                            clientId: config.clientId,
+                            apiBaseUrl: config.apiBaseUrl,
+                            environment: config.environment,
+                            integrationType: config.integrationType,
+                        } : undefined,
                         returnUrl: `${window.location.origin}/order-confirmation/${orderRef}`,
                         cancelUrl: `${window.location.origin}/checkout`,
                     }),

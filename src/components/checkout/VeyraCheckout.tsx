@@ -187,7 +187,6 @@ export const VeyraCheckout: React.FC<VeyraCheckoutProps> = ({
                         shippingAddress,
                         billingAddress,
                         orderId,
-                        veyraSecretKey: config?.secretKey,
                         returnUrl: `${window.location.origin}/order-confirmation?orderId=${orderId || ''}`,
                         cancelUrl: `${window.location.origin}/checkout`,
                     }),

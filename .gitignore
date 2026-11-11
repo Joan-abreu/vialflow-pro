@@ -31,3 +31,21 @@ supabase/.temp
 
 # Backups
 backups/
+
+# Local secrets, dumps & admin/debug scripts
+key.txt
+secrets.txt
+schema.sql
+schema_dump.sql
+full_backup.ps1
+full_restore.ps1
+check-email-logs.js
+debug-*.js
+debug_*.js
+test-*.js
+fix_*.js
+fix_*.cjs
+format_vials_ui.cjs
+remove_extra_dollars.cjs
+replace_size_ml.js
+replace_size_ml.cjs

@@ -1062,7 +1062,7 @@ const UniversalCheckout = ({
 
             msg = msg.replace(/authorize\.net/gi, "card processor").replace(/authorizenet/gi, "card processor");
             const lower = msg.toLowerCase();
-            if (lower.includes("test card") || lower.includes("live_mode") || lower.includes("known test card")) {
+            if ((lower.includes("live") && lower.includes("cannot accept test card")) || lower.includes("live_mode") || lower.includes("known test card")) {
                 msg = "Your card was declined: The gateway is in live mode and cannot accept test card numbers.";
             } else if (lower.includes("one or more validation errors") || lower.includes("validation error") || lower.includes("invalid card") || lower.includes("expiration") || lower.includes("cvv") || lower.includes("security code")) {
                 msg = "Please check your card details. The card number, expiration date, or CVV is invalid.";

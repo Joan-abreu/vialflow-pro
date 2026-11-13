@@ -2034,7 +2034,7 @@ const UniversalCheckout = ({
                                                     : undefined
                                     }
                                     amount={amount}
-                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIVWELL* LIFESTYLE") + "' on your billing statement.") : activeProvider === "authorizenet" ? "Pay securely with Credit / Debit Card. All transactions are 256-bit SSL encrypted." : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
+                                    instructions={activeProvider === "relay" ? ("Pay securely with Credit Card. Transactions will appear as '" + (gatewaySettings.relay?.statementDescriptor || "LIV LIFE* LIFESTYLE") + "' on your billing statement.") : activeProvider === "authorizenet" ? "Pay securely with Credit / Debit Card. All transactions are 256-bit SSL encrypted." : (gatewaySettings.manual_terminal?.instructions || "Pay securely with Credit Card. Your card details will be vaulted and verified upon order processing.")}
                                     submitButtonText={`Submit Order ($${amount.toFixed(2)})`}
                                 />
                             ) : (

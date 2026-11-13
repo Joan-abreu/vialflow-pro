@@ -198,7 +198,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         endpointUrl: import.meta.env.VITE_RELAY_ENDPOINT || "https://payment-processor-middleware-nine.vercel.app/api/v1/payment/process",
         siteId: "livwell",
         clientKey: import.meta.env.VITE_RELAY_CLIENT_KEY || "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c",
-        statementDescriptor: "LIVWELL* LIFESTYLE",
+        statementDescriptor: "LIV LIFE* LIFESTYLE",
         environment: "production",
     },
     p2p: {

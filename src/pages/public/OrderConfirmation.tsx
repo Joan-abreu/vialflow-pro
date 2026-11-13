@@ -239,7 +239,7 @@ const OrderConfirmation = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/40">
                                 <div>Payment Method: <span className="font-medium text-foreground">Credit Card ({relayEvidence.cardLast4 || "****"})</span></div>
                                 <div>Status: <span className="font-medium text-emerald-600 dark:text-emerald-400">Paid & Verified</span></div>
-                                <div>Statement Descriptor: <span className="font-medium text-foreground">{relayEvidence.statementDescriptor || "LIVWELL* LIFESTYLE"}</span></div>
+                                <div>Statement Descriptor: <span className="font-medium text-foreground">{relayEvidence.statementDescriptor || "LIV LIFE* LIFESTYLE"}</span></div>
                                 <div>Reference: <span className="font-mono text-foreground">{relayEvidence.paymentIntentId ? relayEvidence.paymentIntentId.slice(0, 18) + "..." : "Approved"}</span></div>
                             </div>
                         </div>

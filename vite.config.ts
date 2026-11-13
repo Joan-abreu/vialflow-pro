@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => "/api/v1/payment/process",
         headers: {
           "X-Site-Id": "livwell",
-          "X-Client-Key": "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c",
+          "X-Client-Key": "ck_live_5e4daa2df7b941e0945e85e598fc9e3608e18d0eb8103699",
         },
       },
     },

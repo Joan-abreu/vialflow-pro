@@ -34,9 +34,10 @@ export default async function handler(req, res) {
     process.env.RELAY_ENDPOINT ||
     "https://payment-processor-middleware-nine.vercel.app/api/v1/payment/process";
   const relaySiteId = process.env.RELAY_SITE_ID || "livwell";
-  const relayClientKey =
+  const relayClientKey = (
     process.env.RELAY_CLIENT_KEY ||
-    "pk_livwell_c596d4580b6001ad0668af79b593d8c09f4fd27c";
+    "ck_live_5e4daa2df7b941e0945e85e598fc9e3608e18d0eb8103699"
+  ).trim();
 
   try {
     const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);

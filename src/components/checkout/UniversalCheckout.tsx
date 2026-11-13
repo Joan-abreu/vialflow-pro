@@ -772,8 +772,8 @@ const UniversalCheckout = ({
                 research_status: researchStatus || null,
                 ruo_acknowledged: Boolean(ackResearch)
             },
-            payment_method: activeProvider === "authorizenet" ? "credit_card" : activeProvider,
-            payment_gateway: activeProvider === "authorizenet" ? "credit_card" : activeProvider,
+            payment_method: (activeProvider === "authorizenet" || activeProvider === "relay") ? "credit_card" : activeProvider,
+            payment_gateway: (activeProvider === "authorizenet" || activeProvider === "relay") ? "credit_card" : activeProvider,
             payment_provider: activeProvider,
         };
 
@@ -929,6 +929,85 @@ const UniversalCheckout = ({
                 if (!relayRes.ok || !relayResult.success) {
                     const errMsg = relayResult.message || relayResult.error || "Payment relay processing failed";
                     throw new Error(errMsg);
+                }
+
+                // Finalize order status, coupons, affiliate commission, and system email notifications
+                try {
+                    const appliedCouponCodes = appliedDiscounts?.map(d => d.code) || [];
+                    const finalizeRes = await fetch(`${baseUrl}/functions/v1/process-universal-payment`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${apiKey}`,
+                            "apikey": apiKey,
+                        },
+                        body: JSON.stringify({
+                            provider: "relay",
+                            paymentIntentId: relayResult.paymentIntentId || relayResult.transactionId,
+                            amount,
+                            currency: "USD",
+                            orderId,
+                            customerEmail: user ? user.email : addressState.email,
+                            applied_coupons: appliedCouponCodes,
+                            discounts: appliedDiscounts || [],
+                        }),
+                    });
+
+                    // Fallback in case the Edge Function has not been redeployed with provider === "relay" yet
+                    if (!finalizeRes.ok) {
+                        let productDiscount = 0;
+                        let shippingDiscount = 0;
+                        if (appliedDiscounts && Array.isArray(appliedDiscounts)) {
+                            appliedDiscounts.forEach((d: any) => {
+                                if (d.target === "shipping") shippingDiscount += Number(d.amount || 0);
+                                else productDiscount += Number(d.amount || 0);
+                            });
+                        }
+
+                        await supabase
+                            .from("orders")
+                            .update({
+                                status: "processing",
+                                payment_method: "credit_card",
+                                payment_gateway: "credit_card",
+                                payment_provider: "relay",
+                                payment_status: "paid",
+                                payment_intent_id: relayResult.paymentIntentId || null,
+                                applied_coupons: appliedCouponCodes,
+                                product_discount: productDiscount,
+                                shipping_discount: shippingDiscount,
+                            } as any)
+                            .eq("id", orderId);
+
+                        for (const code of appliedCouponCodes) {
+                            const trimmedCode = String(code || "").trim().toUpperCase();
+                            if (!trimmedCode) continue;
+                            await (supabase as any).rpc("increment_coupon_usage", { coupon_code: trimmedCode });
+                        }
+
+                        try {
+                            await (supabase as any).rpc("process_order_affiliate_commission", { p_order_id: orderId });
+                        } catch {}
+
+                        await Promise.allSettled([
+                            supabase.functions.invoke("send-system-notification", {
+                                body: {
+                                    type: "order_confirmation",
+                                    data: { order_id: orderId },
+                                    related_id: orderId,
+                                },
+                            }),
+                            supabase.functions.invoke("send-system-notification", {
+                                body: {
+                                    type: "admin_order_notification",
+                                    data: { order_id: orderId },
+                                    related_id: orderId,
+                                },
+                            }),
+                        ]);
+                    }
+                } catch (finalizeErr) {
+                    console.warn("[Checkout] Post-payment order finalization warning:", finalizeErr);
                 }
 
                 try {

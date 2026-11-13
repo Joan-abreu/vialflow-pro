@@ -551,8 +551,8 @@ serve(async (req) => {
 
             const updatePayload: any = {
                 status: "processing",
-                payment_method: providerName === "authorizenet" ? "credit_card" : providerName,
-                payment_gateway: providerName === "authorizenet" ? "credit_card" : providerName,
+                payment_method: (providerName === "authorizenet" || providerName === "relay") ? "credit_card" : providerName,
+                payment_gateway: (providerName === "authorizenet" || providerName === "relay") ? "credit_card" : providerName,
                 payment_provider: providerName,
                 payment_status: "paid",
             };
@@ -1422,6 +1422,21 @@ serve(async (req) => {
                 success: true,
                 status: "COMPLETED",
                 provider: "paypal",
+                paymentId: effectiveTxId
+            }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
+
+        // 8. Relay Gateway Processing (Post-Approval Order Finalization & Notifications)
+        if (provider === "relay") {
+            const effectiveTxId = paymentIntentId || sourceId || `RELAY-${orderId.slice(0, 8)}`;
+            await completeSuccessfulOrder("relay", effectiveTxId);
+            return new Response(JSON.stringify({
+                success: true,
+                status: "COMPLETED",
+                provider: "relay",
                 paymentId: effectiveTxId
             }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },

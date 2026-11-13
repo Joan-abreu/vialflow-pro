@@ -1985,6 +1985,7 @@ const SiteSettings = () => {
                                     activeGateway === 'clover' ? 'bg-emerald-700 text-white' :
                                     activeGateway === 'nmi' ? 'bg-slate-800 text-white' :
                                     activeGateway === 'paypal' ? 'bg-blue-600 text-white' :
+                                    activeGateway === 'relay' ? 'bg-amber-600 text-white' :
                                     'bg-purple-600 text-white'
                                 }`}>
                                     🟢 {activeGateway}
@@ -2008,6 +2009,7 @@ const SiteSettings = () => {
                                         <SelectValue placeholder="Select active processor" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="relay">Relay Middleware (Credit / Debit Card)</SelectItem>
                                         <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
                                         <SelectItem value="thix">3thix (pay.3thix.com)</SelectItem>
                                         <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
@@ -2036,6 +2038,7 @@ const SiteSettings = () => {
                                         <SelectValue placeholder="Select backup processor" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="relay">Relay Middleware (Credit / Debit Card)</SelectItem>
                                         <SelectItem value="tagadapay">TagadaPay (Multi-PSP Routing & 3DS)</SelectItem>
                                         <SelectItem value="veyra">Veyra (Inline Hosted Fields & 3DS)</SelectItem>
                                         <SelectItem value="thix">3thix (pay.3thix.com)</SelectItem>

@@ -394,16 +394,20 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
                     }
                 }
 
-                // Mount inline Card Payment Element (with Link explicitly disabled)
+                // Mount inline Card Payment Element (always expanded from the start, with Link disabled)
                 if (cardMountRef.current) {
                     cardMountRef.current.innerHTML = "";
                     const pe = elements.create("payment", {
+                        layout: {
+                            type: "tabs",
+                            defaultCollapsed: false,
+                        },
                         defaultValues: {
                             billingDetails,
                         },
                         wallets: {
-                            applePay: hasExpress || wallets.applePay === false ? "never" : "auto",
-                            googlePay: hasExpress || wallets.googlePay === false ? "never" : "auto",
+                            applePay: "never",
+                            googlePay: "never",
                             link: "never",
                         },
                     });

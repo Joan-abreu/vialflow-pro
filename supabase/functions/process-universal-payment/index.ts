@@ -245,7 +245,7 @@ serve(async (req) => {
                         .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
                     const returnTarget = body.returnUrl || `${body.origin || "https://livwellresearchlabs.com"}/order-confirmation/${sanitizedRef}`;
-                    checkoutUrl = `https://pay.3thix.com/api/checkout?mode=onramp&key=${encodeURIComponent(effectiveClientId)}&amount=${amountCents}&order=${encodeURIComponent(sanitizedRef)}&email=${encodeURIComponent(body.customerEmail || '')}&redirect=${encodeURIComponent(returnTarget)}&buyer=${buyerB64}`;
+                    checkoutUrl = `https://pay.3thix.com/api/checkout?embed=1&mode=card&key=${encodeURIComponent(effectiveClientId)}&amount=${amountCents}&order=${encodeURIComponent(sanitizedRef)}&email=${encodeURIComponent(body.customerEmail || '')}&redirect=${encodeURIComponent(returnTarget)}&buyer=${buyerB64}`;
                 }
 
                 if (body.orderId && piId) {
@@ -551,8 +551,8 @@ serve(async (req) => {
 
             const updatePayload: any = {
                 status: "processing",
-                payment_method: (providerName === "authorizenet" || providerName === "relay") ? "credit_card" : providerName,
-                payment_gateway: (providerName === "authorizenet" || providerName === "relay") ? "credit_card" : providerName,
+                payment_method: (providerName === "authorizenet" || providerName === "relay" || providerName === "thix") ? "credit_card" : providerName,
+                payment_gateway: (providerName === "authorizenet" || providerName === "relay" || providerName === "thix") ? "credit_card" : providerName,
                 payment_provider: providerName,
                 payment_status: "paid",
             };

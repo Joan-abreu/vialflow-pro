@@ -194,7 +194,7 @@ const UniversalCheckout = ({
 
     // Multi-Gateway Dynamic Settings State
     const [gatewaySettings, setGatewaySettings] = useState<PaymentGatewaysSettings>(DEFAULT_PAYMENT_SETTINGS);
-    const [activeProvider, setActiveProvider] = useState<PaymentGatewayProvider>("square");
+    const [activeProvider, setActiveProvider] = useState<PaymentGatewayProvider>(DEFAULT_PAYMENT_SETTINGS.activeProvider);
     const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
     const [manualReference, setManualReference] = useState("");
     const [draftOrderMemo] = useState(() => `#ORD-${Math.random().toString(36).substring(2, 7).toUpperCase()}`);
@@ -772,8 +772,8 @@ const UniversalCheckout = ({
                 research_status: researchStatus || null,
                 ruo_acknowledged: Boolean(ackResearch)
             },
-            payment_method: (activeProvider === "authorizenet" || activeProvider === "relay") ? "credit_card" : activeProvider,
-            payment_gateway: (activeProvider === "authorizenet" || activeProvider === "relay") ? "credit_card" : activeProvider,
+            payment_method: (activeProvider === "authorizenet" || activeProvider === "relay" || activeProvider === "thix") ? "credit_card" : activeProvider,
+            payment_gateway: (activeProvider === "authorizenet" || activeProvider === "relay" || activeProvider === "thix") ? "credit_card" : activeProvider,
             payment_provider: activeProvider,
         };
 
@@ -860,7 +860,7 @@ const UniversalCheckout = ({
         paymentIntentId?: string, 
         opaqueData?: any, 
         paypalOrderId?: string,
-        additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any; walletType?: string }
+        additionalData?: { sessionId?: string; basis_theory_token_intent_id?: string; cardSummary?: any; walletType?: string; intentId?: string; orderId?: string }
     ) => {
         if (requireResearchAck) {
             if (!researchStatus) {
@@ -876,7 +876,7 @@ const UniversalCheckout = ({
         setLoading(true);
 
         try {
-            const orderId = await createDraftOrder();
+            const orderId = additionalData?.orderId || await createDraftOrder();
 
             const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
             const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;

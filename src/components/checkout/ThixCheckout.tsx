@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Lock, Loader2, CreditCard, ShieldCheck, AlertCircle, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Lock, Loader2, CreditCard, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { ThixGatewayConfig } from "@/config/paymentGateways";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,30 @@ export interface ThixCheckoutProps {
     onCreateDraftOrder?: () => Promise<string>;
 }
 
+const STRIPE_JS_URL = "https://js.stripe.com/v3/";
+const DEFAULT_THIX_PK = "thx_live_pk_60ca8d826c67c81476b612646c3030a0ff337b24";
+const THIX_API_BASE = "https://pay.3thix.com/api";
+
+function loadStripeJs(): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if ((window as any).Stripe) {
+            return resolve((window as any).Stripe);
+        }
+        const existing = document.querySelector(`script[src="${STRIPE_JS_URL}"]`) as HTMLScriptElement | null;
+        if (existing) {
+            existing.addEventListener("load", () => resolve((window as any).Stripe));
+            existing.addEventListener("error", () => reject(new Error("Failed to load payment SDK")));
+            return;
+        }
+        const el = document.createElement("script");
+        el.src = STRIPE_JS_URL;
+        el.async = true;
+        el.onload = () => resolve((window as any).Stripe);
+        el.onerror = () => reject(new Error("Failed to load payment SDK"));
+        document.head.appendChild(el);
+    });
+}
+
 export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
     amount,
     config,
@@ -27,225 +51,414 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
     shippingAddress,
     billingAddress,
     orderId: initialOrderId,
-    items,
     loading: parentLoading = false,
     disabled = false,
     disabledReason,
     onPaymentSuccess,
     onCreateDraftOrder,
 }) => {
-    const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
-    const [intentId, setIntentId] = useState<string | null>(null);
     const [currentOrderId, setCurrentOrderId] = useState<string | null>(initialOrderId || null);
-    const [isInitializing, setIsInitializing] = useState<boolean>(false);
-    const [isIframeLoading, setIsIframeLoading] = useState<boolean>(true);
+    const [isInitializing, setIsInitializing] = useState<boolean>(true);
+    const [isReady, setIsReady] = useState<boolean>(false);
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [isCompleted, setIsCompleted] = useState<boolean>(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [sessionKey, setSessionKey] = useState<number>(0);
 
-    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const cardMountRef = useRef<HTMLDivElement>(null);
+    const expressMountRef = useRef<HTMLDivElement>(null);
+    const stripeRef = useRef<any>(null);
+    const elementsRef = useRef<any>(null);
+    const paymentElementRef = useRef<any>(null);
+    const expressElementRef = useRef<any>(null);
+    const cfgStripeAccountRef = useRef<string | null>(null);
+    const submitPaymentRef = useRef<(walletEvent?: any) => Promise<void>>(async () => {});
 
-    const integrationType = config?.integrationType || "iframe";
     const isSandbox = config?.environment === "sandbox";
+    const apiKey = (
+        config?.clientId ||
+        import.meta.env.VITE_3THIX_CLIENT_ID ||
+        DEFAULT_THIX_PK
+    ).trim();
 
-    // 1. Listen for cross-domain postMessage events from secure checkout iframe
-    useEffect(() => {
-        const handlePostMessage = async (event: MessageEvent) => {
-            if (!event.data) return;
+    const amountCents = Math.max(50, Math.round((Number(amount) || 0) * 100));
 
-            let data = event.data;
-            if (typeof data === "string") {
-                try {
-                    data = JSON.parse(data);
-                } catch {
-                    return;
-                }
-            }
+    const resolveBuyerDetails = useCallback(() => {
+        const email = (customerEmail || billingAddress?.email || "").trim();
+        const fullName = (
+            billingAddress?.name ||
+            (shippingAddress ? `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim() : "")
+        ).trim();
+        const phone = (billingAddress?.phone || shippingAddress?.phone || "").trim();
+        const line1 = (billingAddress?.line1 || shippingAddress?.addressLine1 || "").trim();
+        const line2 = (shippingAddress?.addressLine2 || "").trim();
+        const city = (billingAddress?.city || shippingAddress?.locality || "").trim();
+        const state = (billingAddress?.state || shippingAddress?.administrativeDistrictLevel1 || "").trim();
+        const postal_code = (billingAddress?.postal_code || shippingAddress?.postalCode || "").trim();
+        const rawCountry = (billingAddress?.country || shippingAddress?.country || "US").trim();
+        const country = /^[A-Za-z]{2}$/.test(rawCountry) ? rawCountry.toUpperCase() : "US";
 
-            const eventType = data.event || data.type || data.action || "";
-            const status = data.status || (data.data && data.data.status) || "";
-            const resolvedIntentId = data.intent_id || data.data?.intent_id || intentId || "";
-
-            console.log("👉 [Secure Checkout postMessage]", eventType, status);
-
-            // Handle successful payment
-            if (
-                eventType === "thix:success" ||
-                eventType === "payment.succeeded" ||
-                eventType === "payment.success" ||
-                eventType === "payment_succeeded" ||
-                status === "succeeded" ||
-                status === "paid" ||
-                status === "completed" ||
-                Boolean(data?.order && data?.sessionId)
-            ) {
-                setIsCompleted(true);
-                toast.success("Payment verified successfully!");
-                try {
-                    await onPaymentSuccess(resolvedIntentId, currentOrderId || undefined);
-                } catch (err: any) {
-                    setErrorMessage(err?.message || "Error finalizing order after payment.");
-                }
-                return;
-            }
-
-            // Handle failed payment
-            if (
-                eventType === "payment.failed" ||
-                eventType === "payment_failed" ||
-                status === "failed" ||
-                status === "declined"
-            ) {
-                const failReason = data.message || data.error?.message || "Your payment was declined. Please verify your card details or try an alternate card.";
-                setErrorMessage(failReason);
-                toast.error(failReason);
-                return;
-            }
-
-            // Handle user cancel inside checkout
-            if (eventType === "payment.canceled" || status === "canceled") {
-                toast.info("Payment session was cancelled. You can try again when ready.");
-                return;
-            }
-
-            // Handle iframe ready / started
-            if (eventType === "payment.started" || eventType === "ready") {
-                setIsIframeLoading(false);
-            }
-        };
-
-        window.addEventListener("message", handlePostMessage);
-        return () => window.removeEventListener("message", handlePostMessage);
-    }, [intentId, currentOrderId, onPaymentSuccess]);
-
-    // 2. Initialize or Refresh Payment Session when amount or ready state changes
-    useEffect(() => {
-        if (amount <= 0 || disabled) {
-            setPaymentUrl(null);
-            setIntentId(null);
-            return;
+        const billingDetails: Record<string, any> = {};
+        if (email) billingDetails.email = email;
+        if (fullName) billingDetails.name = fullName;
+        if (phone) billingDetails.phone = phone;
+        if (line1 || city || state || postal_code) {
+            billingDetails.address = {
+                line1: line1 || undefined,
+                line2: line2 || undefined,
+                city: city || undefined,
+                state: state || undefined,
+                postal_code: postal_code || undefined,
+                country,
+            };
         }
+        return { email, fullName, billingDetails };
+    }, [customerEmail, billingAddress, shippingAddress]);
 
-        let isCancelled = false;
+    // Update amount dynamically on existing Stripe Elements instance without remounting card inputs
+    useEffect(() => {
+        if (elementsRef.current && amountCents >= 50) {
+            try {
+                elementsRef.current.update({ amount: amountCents });
+            } catch (e) {
+                console.warn("[Checkout] Could not update elements amount:", e);
+            }
+        }
+    }, [amountCents]);
 
-        const initPaymentSession = async () => {
-            setIsInitializing(true);
-            setIsIframeLoading(true);
+    // Core payment submission (used by both Card button and Express Checkout Apple/Google Pay)
+    const handleConfirmPayment = useCallback(
+        async (walletEvent?: any) => {
+            if (isSubmitting || isCompleted) return;
+
+            if (disabled) {
+                const msg = disabledReason || "Please complete shipping and required acknowledgments first.";
+                toast.error(msg);
+                if (walletEvent?.paymentFailed) walletEvent.paymentFailed({ reason: "fail" });
+                return;
+            }
+
+            const stripe = stripeRef.current;
+            const elements = elementsRef.current;
+            if (!stripe || !elements) {
+                if (walletEvent?.paymentFailed) walletEvent.paymentFailed({ reason: "fail" });
+                return;
+            }
+
+            const { email: buyerEmail, billingDetails } = resolveBuyerDetails();
+            const effectiveEmail =
+                buyerEmail ||
+                walletEvent?.billingDetails?.email ||
+                "customer@livwellresearchlabs.com";
+
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(effectiveEmail)) {
+                const msg = "Please enter a valid email address above before paying.";
+                setErrorMessage(msg);
+                toast.error(msg);
+                if (walletEvent?.paymentFailed) walletEvent.paymentFailed({ reason: "fail" });
+                return;
+            }
+
+            setIsSubmitting(true);
             setErrorMessage(null);
+            let completed = false;
 
             try {
-                // Ensure we have a draft order ID to link to the intent
+                // 1. Validate card fields via Stripe Elements
+                const submitRes = await elements.submit();
+                if (submitRes?.error) {
+                    throw new Error(submitRes.error.message || "Please check your card details.");
+                }
+
+                // 2. Ensure a draft order exists in Supabase
                 let orderRef = currentOrderId;
                 if (!orderRef && onCreateDraftOrder) {
-                    try {
-                        orderRef = await onCreateDraftOrder();
-                        if (!isCancelled) setCurrentOrderId(orderRef);
-                    } catch (e) {
-                        console.warn("[Checkout] Could not pre-create draft order, using fallback:", e);
-                    }
+                    orderRef = await onCreateDraftOrder();
+                    setCurrentOrderId(orderRef);
                 }
                 if (!orderRef) {
                     orderRef = `ORD-${Date.now()}`;
                 }
 
-                const baseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
-                const apiKey = (supabase as any).supabaseKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+                const sanitizedOrderRef = String(orderRef).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100);
 
-                const customerName = shippingAddress?.firstName 
-                    ? `${shippingAddress.firstName} ${shippingAddress.lastName || ''}`.trim()
-                    : customerEmail?.split("@")[0] || "Customer";
-
-                const response = await fetch(`${baseUrl}/functions/v1/process-universal-payment`, {
+                // 3. Create direct card payment intent on 3thix (cardOnly: true, canRedirect: false)
+                const payRes = await fetch(`${THIX_API_BASE}/payments`, {
                     method: "POST",
                     headers: {
+                        "x-api-key": apiKey,
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${apiKey}`,
-                        "apikey": apiKey,
                     },
                     body: JSON.stringify({
-                        action: "create_thix_intent",
-                        provider: "thix",
-                        orderId: orderRef,
-                        amount,
-                        currency: "USD",
-                        customerEmail: customerEmail || "customer@example.com",
-                        customerName,
-                        shippingAddress,
-                        billingAddress,
-                        items: items || [],
-                        integrationType,
-                        thixConfig: config ? {
-                            clientId: config.clientId,
-                            apiBaseUrl: config.apiBaseUrl,
-                            environment: config.environment,
-                            integrationType: config.integrationType,
-                        } : undefined,
-                        returnUrl: `${window.location.origin}/order-confirmation/${orderRef}`,
-                        cancelUrl: `${window.location.origin}/checkout`,
+                        amountCents,
+                        externalOrderId: sanitizedOrderRef,
+                        customerEmail: effectiveEmail,
+                        canRedirect: false,
+                        cardOnly: true,
                     }),
                 });
 
-                if (isCancelled) return;
-
-                const data = await response.json().catch(() => ({}));
-
-                if (!response.ok || (!data?.data?.payment_url && !data?.payment_url)) {
-                    const rawErr = data?.message || data?.error || (typeof data === "string" ? data : "");
-                    console.error("[Card Processing Gateway Error]", rawErr);
-
-                    // User-facing sanitization: Never expose raw processor names or backend credential messages
-                    if (!rawErr || /unauthorized|credentials|token|client id|secret|3thix|platform|x-client/i.test(rawErr)) {
-                        throw new Error("Card processing service is temporarily undergoing routine verification. Please verify your billing details or choose an alternate payment method.");
-                    }
-                    throw new Error(rawErr);
+                const payData = await payRes.json().catch(() => ({}));
+                if (!payRes.ok) {
+                    throw new Error(
+                        payData?.error?.message ||
+                            payData?.message ||
+                            "Unable to initialize card transaction. Please check your details and try again."
+                    );
                 }
 
-                const url = data.data?.payment_url || data.payment_url;
-                const piId = data.data?.intent_id || data.intent_id || data.data?.id;
+                if ((payData.stripeAccount || null) !== cfgStripeAccountRef.current) {
+                    throw new Error("Payment session refreshed. Please click Pay again.");
+                }
 
-                setPaymentUrl(url);
-                setIntentId(piId);
+                if (
+                    payData.payment &&
+                    (payData.payment.amountCents !== amountCents ||
+                        String(payData.payment.currency || "usd").toLowerCase() !== "usd")
+                ) {
+                    throw new Error("The order total changed. Please review your total and try again.");
+                }
+
+                const paymentId = payData.payment?.id;
+                const clientSecret = payData.clientSecret;
+                if (!clientSecret || !paymentId) {
+                    throw new Error("Unable to initialize card authorization token.");
+                }
+
+                // 4. Confirm the card charge in-place with Stripe Elements (supports 3DS modal if required)
+                const confirmRes = await stripe.confirmPayment({
+                    elements,
+                    clientSecret,
+                    confirmParams: {
+                        return_url: `${window.location.origin}/order-confirmation/${orderRef}`,
+                        payment_method_data: {
+                            billing_details: billingDetails,
+                        },
+                    },
+                    redirect: "if_required",
+                });
+
+                if (confirmRes?.error) {
+                    throw new Error(confirmRes.error.message || "Your card was declined. Please verify your card details.");
+                }
+
+                completed = true;
+
+                // 5. Reconcile / sync payment status with 3thix
+                const syncRes = await fetch(`${THIX_API_BASE}/payments/${paymentId}/sync`, {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": apiKey,
+                    },
+                });
+
+                if (!syncRes.ok) {
+                    throw new Error("Order confirmation is delayed. Please do not submit payment again.");
+                }
+
+                const syncedPayment = await syncRes.json().catch(() => ({}));
+                if (!syncedPayment || syncedPayment.status !== "SUCCEEDED") {
+                    throw new Error("Payment authorization is pending confirmation.");
+                }
+
+                // 6. Finalize order in Supabase and trigger confirmation emails
+                setIsCompleted(true);
+                toast.success("Payment approved!");
+                await onPaymentSuccess(String(paymentId), orderRef);
             } catch (err: any) {
-                if (!isCancelled) {
-                    const msg = err?.message || "Unable to start secure card checkout session.";
-                    setErrorMessage(msg);
+                const rawMsg = err?.message || "Something went wrong confirming your payment.";
+                setErrorMessage(rawMsg);
+                toast.error(rawMsg);
+                if (!completed && walletEvent?.paymentFailed) {
+                    walletEvent.paymentFailed({ reason: "fail" });
                 }
             } finally {
+                if (!completed) {
+                    setIsSubmitting(false);
+                }
+            }
+        },
+        [
+            isSubmitting,
+            isCompleted,
+            disabled,
+            disabledReason,
+            resolveBuyerDetails,
+            currentOrderId,
+            onCreateDraftOrder,
+            apiKey,
+            amountCents,
+            onPaymentSuccess,
+        ]
+    );
+
+    useEffect(() => {
+        submitPaymentRef.current = handleConfirmPayment;
+    }, [handleConfirmPayment]);
+
+    // Initialize 3thix public config & mount inline Stripe Card + Express Wallet Elements
+    useEffect(() => {
+        if (amount <= 0) return;
+
+        let isCancelled = false;
+
+        const initInlineCardForm = async () => {
+            setIsInitializing(true);
+            setIsReady(false);
+            setErrorMessage(null);
+
+            try {
+                const [StripeConstructor, cfgRes] = await Promise.all([
+                    loadStripeJs(),
+                    fetch(`${THIX_API_BASE}/public/config?mode=card`, {
+                        headers: { "x-api-key": apiKey },
+                    }),
+                ]);
+
+                if (isCancelled) return;
+
+                const cfg = await cfgRes.json().catch(() => ({}));
+                if (!cfgRes.ok || !cfg?.publishableKey) {
+                    throw new Error(
+                        cfg?.error?.message || "Unable to load card payment configuration."
+                    );
+                }
+
+                if (!cfg.direct && cfg.cardPaymentsEnabled === false) {
+                    throw new Error("Direct card processing is currently unavailable for this account.");
+                }
+
+                cfgStripeAccountRef.current = cfg.stripeAccount || null;
+
+                const stripeInstance = cfg.stripeAccount
+                    ? StripeConstructor(cfg.publishableKey, { stripeAccount: cfg.stripeAccount })
+                    : StripeConstructor(cfg.publishableKey);
+
+                stripeRef.current = stripeInstance;
+
+                const isDark = document.documentElement.classList.contains("dark");
+                const elements = stripeInstance.elements({
+                    mode: "payment",
+                    amount: amountCents,
+                    currency: "usd",
+                    paymentMethodTypes: ["card"],
+                    appearance: {
+                        theme: isDark ? "night" : "stripe",
+                        variables: {
+                            colorPrimary: "#0f766e",
+                            borderRadius: "10px",
+                            fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+                        },
+                    },
+                });
+
+                elementsRef.current = elements;
+
+                const wallets = cfg.wallets || {};
+                const { billingDetails } = resolveBuyerDetails();
+
+                // Mount Express Checkout (Apple Pay / Google Pay) if supported
+                let hasExpress = false;
+                if (expressMountRef.current) {
+                    expressMountRef.current.innerHTML = "";
+                    expressMountRef.current.style.display = "none";
+                    try {
+                        const express = elements.create("expressCheckout", {
+                            emailRequired: true,
+                            paymentMethods: {
+                                applePay: wallets.applePay === false ? "never" : "always",
+                                googlePay: wallets.googlePay === false ? "never" : "always",
+                                link: "never",
+                                amazonPay: "never",
+                                paypal: "never",
+                                klarna: "never",
+                            },
+                        });
+
+                        express.on("ready", (event: any) => {
+                            if (isCancelled || !expressMountRef.current) return;
+                            const methods = event?.availablePaymentMethods;
+                            const show = Boolean(methods && (methods.applePay || methods.googlePay));
+                            expressMountRef.current.style.display = show ? "block" : "none";
+                        });
+
+                        express.on("confirm", (ev: any) => {
+                            submitPaymentRef.current(ev);
+                        });
+
+                        express.mount(expressMountRef.current);
+                        expressElementRef.current = express;
+                        hasExpress = true;
+                    } catch (_) {
+                        hasExpress = false;
+                    }
+                }
+
+                // Mount inline Card Payment Element (with Link explicitly disabled)
+                if (cardMountRef.current) {
+                    cardMountRef.current.innerHTML = "";
+                    const pe = elements.create("payment", {
+                        defaultValues: {
+                            billingDetails,
+                        },
+                        wallets: {
+                            applePay: hasExpress || wallets.applePay === false ? "never" : "auto",
+                            googlePay: hasExpress || wallets.googlePay === false ? "never" : "auto",
+                            link: "never",
+                        },
+                    });
+
+                    pe.on("ready", () => {
+                        if (!isCancelled) {
+                            setIsReady(true);
+                            setIsInitializing(false);
+                        }
+                    });
+
+                    pe.on("loaderror", (ev: any) => {
+                        if (!isCancelled) {
+                            setErrorMessage(
+                                ev?.error?.message || "Could not load secure card fields. Please refresh and try again."
+                            );
+                            setIsInitializing(false);
+                        }
+                    });
+
+                    pe.mount(cardMountRef.current);
+                    paymentElementRef.current = pe;
+                }
+            } catch (err: any) {
                 if (!isCancelled) {
+                    setErrorMessage(err?.message || "Unable to initialize secure card fields.");
                     setIsInitializing(false);
                 }
             }
         };
 
-        initPaymentSession();
+        initInlineCardForm();
 
         return () => {
             isCancelled = true;
+            try {
+                paymentElementRef.current?.destroy?.();
+            } catch (_) {}
+            try {
+                expressElementRef.current?.destroy?.();
+            } catch (_) {}
         };
-    }, [amount, disabled, sessionKey, integrationType, config?.environment, config?.apiBaseUrl]);
-
-    const isBusy = parentLoading || isInitializing;
-
-    // Handle Manual Redirect Checkout
-    const handleRedirectClick = () => {
-        if (!paymentUrl) return;
-        window.location.href = paymentUrl;
-    };
-
-    const handleOpenInNewWindow = () => {
-        if (!paymentUrl) return;
-        window.open(paymentUrl, "_blank", "noopener,noreferrer");
-    };
+    }, [apiKey, sessionKey]);
 
     const handleRetrySession = () => {
-        setPaymentUrl(null);
-        setIntentId(null);
-        setSessionKey(prev => prev + 1);
+        setErrorMessage(null);
+        setSessionKey((prev) => prev + 1);
     };
+
+    const isButtonDisabled =
+        parentLoading || isInitializing || !isReady || isSubmitting || isCompleted || disabled;
 
     return (
         <div className="space-y-4 text-left">
-            {/* Header / Security Badge (Fully White-Labeled) */}
+            {/* Security Header */}
             <div className="p-3.5 bg-gradient-to-r from-primary/5 via-card to-primary/5 border border-border/80 rounded-xl text-xs space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -276,7 +489,9 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
 
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground pt-1.5 border-t border-border/50">
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider">Accepted:</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider">
+                            Accepted:
+                        </span>
                         <div className="flex items-center gap-1 text-[10px] font-medium text-foreground">
                             <span className="px-1.5 py-0.5 rounded bg-muted/60 border text-[10px]">Visa</span>
                             <span className="px-1.5 py-0.5 rounded bg-muted/60 border text-[10px]">Mastercard</span>
@@ -290,121 +505,79 @@ export const ThixCheckout: React.FC<ThixCheckoutProps> = ({
                 </div>
             </div>
 
-            {/* Error Message Display */}
+            {/* Error Alert */}
             {errorMessage && (
                 <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs">
                     <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                     <div className="flex-1 space-y-1">
-                        <strong className="font-semibold block">Card Processing Notice:</strong>
+                        <strong className="font-semibold block">Payment Notice:</strong>
                         <p>{errorMessage}</p>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={handleRetrySession}
-                            className="mt-2 h-7 text-xs border-destructive/40 hover:bg-destructive/15 text-destructive"
-                        >
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Retry Payment Session
-                        </Button>
+                        {!isReady && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={handleRetrySession}
+                                className="mt-2 h-7 text-xs border-destructive/40 hover:bg-destructive/15 text-destructive"
+                            >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Reload Card Form
+                            </Button>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* Success state banner if verified */}
+            {/* Success Banner */}
             {isCompleted && (
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                     <div>
-                        <strong className="font-bold text-sm block">Payment Verified!</strong>
+                        <strong className="font-bold text-sm block">Payment Approved!</strong>
                         <span>Finalizing your order confirmation... Please do not close this window.</span>
                     </div>
                 </div>
             )}
 
-            {/* Main Checkout View: Iframe or Hosted Redirect */}
-            {integrationType === "iframe" ? (
-                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-                    <div className="relative min-h-[580px] w-full flex flex-col items-center justify-center">
-                        {/* Loading Overlay */}
-                        {(isBusy || isIframeLoading) && !isCompleted && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs z-10 space-y-3 p-6 text-center">
-                                <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                                <div className="space-y-1">
-                                    <p className="text-sm font-semibold text-foreground">
-                                        {isInitializing ? "Initializing Secure Card Payment..." : "Loading Secure Payment Fields..."}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Connecting to secure encrypted payment channel...
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {paymentUrl ? (
-                            <iframe
-                                ref={iframeRef}
-                                src={paymentUrl}
-                                title="Secure Card Checkout"
-                                className="w-full min-h-[580px] border-0 rounded-xl"
-                                allow="payment *; clipboard-write *"
-                                onLoad={() => setIsIframeLoading(false)}
-                            />
-                        ) : !isBusy && !errorMessage ? (
-                            <div className="p-6 text-center space-y-3">
-                                <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto" />
-                                <p className="text-sm text-muted-foreground">
-                                    {disabled ? (disabledReason || "Complete previous steps to enable payment") : "Preparing secure payment session..."}
-                                </p>
-                            </div>
-                        ) : null}
+            {/* Inline Card Form Container */}
+            <div className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-4">
+                {isInitializing && (
+                    <div className="py-8 flex flex-col items-center justify-center space-y-2 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="text-xs text-muted-foreground">Loading secure card fields...</p>
                     </div>
+                )}
 
-                    {/* Footer link for opening externally if iframe is blocked */}
-                    {paymentUrl && (
-                        <div className="px-4 py-2.5 bg-muted/30 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Experiencing issues with the embedded window?</span>
-                            <button
-                                type="button"
-                                onClick={handleOpenInNewWindow}
-                                className="font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                            >
-                                Open in Full Tab <ExternalLink className="h-3 w-3" />
-                            </button>
-                        </div>
+                {/* Express Wallets (Apple Pay / Google Pay) */}
+                <div ref={expressMountRef} style={{ display: "none" }} className="pb-2" />
+
+                {/* Card Input Element */}
+                <div ref={cardMountRef} className={isInitializing ? "min-h-[120px]" : ""} />
+
+                <Button
+                    type="button"
+                    onClick={() => handleConfirmPayment()}
+                    disabled={isButtonDisabled}
+                    className="w-full py-6 text-base font-bold transition-all shadow-md cursor-pointer"
+                >
+                    {isSubmitting || parentLoading ? (
+                        <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Processing Secure Payment...
+                        </>
+                    ) : isInitializing ? (
+                        <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Loading Card Fields...
+                        </>
+                    ) : disabled ? (
+                        disabledReason || "Complete required fields to pay"
+                    ) : (
+                        `Pay $${amount.toFixed(2)} with Card`
                     )}
-                </div>
-            ) : (
-                /* Hosted Redirect Option */
-                <div className="p-6 rounded-xl border border-border bg-card shadow-sm space-y-4 text-center">
-                    <div className="space-y-1">
-                        <h4 className="text-base font-bold text-foreground">Secure Card Payment Portal</h4>
-                        <p className="text-xs text-muted-foreground">
-                            You will be redirected to the secure payment portal to complete your transaction safely.
-                        </p>
-                    </div>
+                </Button>
+            </div>
 
-                    <Button
-                        type="button"
-                        onClick={handleRedirectClick}
-                        disabled={isBusy || disabled || !paymentUrl}
-                        className="w-full py-6 text-base font-bold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
-                    >
-                        {isBusy ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Connecting to Secure Portal...
-                            </>
-                        ) : disabled ? (
-                            disabledReason || "Complete required fields to proceed"
-                        ) : (
-                            `Proceed to Pay $${amount.toFixed(2)} with Card`
-                        )}
-                    </Button>
-                </div>
-            )}
-
-            {/* Security Guarantee Notice */}
             <div className="text-center space-y-1 pt-1">
                 <p className="text-[11px] text-muted-foreground">
                     All transactions are processed through bank-grade PCI-DSS Level 1 certified encrypted infrastructure. Your sensitive card details are never stored on our servers.

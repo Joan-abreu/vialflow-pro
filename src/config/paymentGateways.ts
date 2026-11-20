@@ -132,7 +132,7 @@ export interface PaymentGatewaysSettings {
 }
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
-    activeProvider: "square",
+    activeProvider: "thix",
     backupProvider: "stripe",
     autoFailoverEnabled: true,
     failThreshold: 3,
@@ -158,9 +158,9 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaysSettings = {
         environment: "production",
     },
     thix: {
-        clientId: import.meta.env.VITE_3THIX_CLIENT_ID || "",
+        clientId: import.meta.env.VITE_3THIX_CLIENT_ID || "thx_live_pk_60ca8d826c67c81476b612646c3030a0ff337b24",
         clientSecret: "",
-        apiBaseUrl: "https://3thix.paywithwallet.net",
+        apiBaseUrl: "https://pay.3thix.com",
         environment: "production",
         integrationType: "iframe",
     },
